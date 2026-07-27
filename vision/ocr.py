@@ -18,8 +18,21 @@ comprimeva fino a rendere illeggibili le lettere. Con il ritaglio giusto
 l'italiano esce perfetto, punteggiatura e accenti compresi. **Ritagliare stretto
 non e' un'ottimizzazione, e' un requisito di correttezza.**
 
-Corollario: a 15 ms per riga la CPU basta e avanza, e la GPU resta libera per il
-gioco.
+**Il costo dipende dalla larghezza, non dall'altezza.** Misurato al variare
+della lunghezza della battuta:
+
+    5 caratteri  ->   67 px  ->   8 ms
+   34 caratteri  ->  514 px  ->  17 ms
+   60 caratteri  ->  868 px  ->  31 ms
+   94 caratteri  -> 1346 px  ->  59 ms
+
+Da qui una conseguenza controintuitiva: **riscalare in altezza fa male**. Portare
+una riga a 48 px la allarga in proporzione, e su una battuta lunga il costo
+raddoppia (120 ms invece di 59) senza guadagnare un decimale di accuratezza — il
+CER e' identico a 48 px, a 32 px e all'altezza nativa. Si riscala solo quando la
+riga e' davvero piccola, sotto i 20 px, dove qualcosa si guadagna.
+
+La CPU basta e avanza, e la GPU resta libera per il gioco.
 """
 
 from __future__ import annotations
@@ -28,9 +41,10 @@ from typing import Protocol
 
 import numpy as np
 
-# Altezza a cui il riconoscitore lavora meglio. Sopra non migliora e la larghezza
-# del tensore — che e' cio' che detta il costo — cresce inutilmente.
-TARGET_HEIGHT = 48
+# Sotto questa altezza il riconoscitore inizia a perdere colpi e conviene
+# ingrandire; sopra, ingrandire costa e basta.
+MIN_HEIGHT = 20
+TARGET_HEIGHT = 32
 PAD = 4
 
 
@@ -45,8 +59,10 @@ class OcrBackend(Protocol):
 def prepare(mask: np.ndarray) -> np.ndarray:
     """Porta una maschera binaria di riga nella forma che il modello vuole.
 
-    Ingresso: uint8 2-D (0/255), gia' stretto sul testo. Uscita: 3 canali, con
-    un margine nero e altezza vicina a `TARGET_HEIGHT`.
+    Ingresso: uint8 2-D (0/255), gia' stretto sul testo. Uscita: 3 canali con un
+    margine nero, ingrandita **solo se serve** — vedi la nota sul costo in cima
+    al modulo: allargare il tensore per nulla e' il modo piu' facile di
+    raddoppiare la latenza dell'OCR.
     """
     if mask.ndim == 3:
         mask = mask[:, :, :3].astype(np.float32).mean(axis=2).astype(np.uint8)
@@ -55,11 +71,10 @@ def prepare(mask: np.ndarray) -> np.ndarray:
 
     padded = np.pad(mask, ((PAD, PAD), (PAD, PAD)), mode="constant", constant_values=0)
 
-    h = padded.shape[0]
-    if h < TARGET_HEIGHT:
+    if padded.shape[0] < MIN_HEIGHT:
         import cv2
 
-        scale = TARGET_HEIGHT / h
+        scale = TARGET_HEIGHT / padded.shape[0]
         padded = cv2.resize(
             padded,
             (max(1, int(round(padded.shape[1] * scale))), TARGET_HEIGHT),

@@ -110,10 +110,18 @@ def test_lines(c) -> None:
     )
     c.ok(bands[0].x0 > 0, "il ritaglio orizzontale e' stretto sul testo")
     c.ok(
-        bands[0].mask.shape == (bands[0].height, bands[0].x1 - bands[0].x0),
-        "la maschera ha la forma della banda",
+        bands[0].crop.shape == (bands[0].height, bands[0].x1 - bands[0].x0),
+        "il ritaglio ha la forma della banda",
     )
-    c.ok(set(np.unique(bands[0].mask)) <= {0, 255}, "la maschera e' binaria")
+    # Il ritaglio NON e' binario: conserva le sfumature dei bordi, che sono cio'
+    # su cui il riconoscitore conta. Binarizzare costava 1,5 punti di CER.
+    c.ok(len(np.unique(bands[0].crop)) > 2, "il ritaglio conserva i livelli intermedi")
+    c.eq(int(bands[0].crop.min()), 0, "fuori dal testo il ritaglio e' nero")
+    c.ok(int(bands[0].crop.max()) > 200, "il corpo del glifo bianco resta chiaro")
+    c.ok(
+        int(bands[1].crop.max()) < int(bands[0].crop.max()),
+        "il ritaglio del grigio e' piu' scuro di quello del bianco",
+    )
 
     c.eq(classify_lines(np.zeros((100, 400, 3), np.uint8), cfg), [], "ROI nera: nessuna riga")
 
@@ -206,21 +214,33 @@ def test_diff(c) -> None:
 def test_ocr_prep(c) -> None:
     c.group("ocr")
 
-    mask = np.zeros((20, 100), np.uint8)
-    mask[5:15, 10:90] = 255
-    out = prepare(mask)
+    # La regola e' misurata: il costo del riconoscitore scala con la LARGHEZZA
+    # del tensore, e ingrandire in altezza allarga in proporzione. Su una
+    # battuta lunga portare a 48 px raddoppia il costo (120 ms invece di 59)
+    # senza guadagnare un decimale di accuratezza. Si ingrandisce solo sotto i
+    # 20 px, dove qualcosa si guadagna davvero.
+    normale = np.zeros((24, 600), np.uint8)
+    normale[4:20, 10:590] = 255
+    out = prepare(normale)
     c.eq(out.ndim, 3, "prepare produce tre canali")
-    c.eq(out.shape[0], 48, "prepare porta la riga all'altezza di lavoro")
-    c.ok(out.shape[1] > 100, "la larghezza cresce in proporzione")
+    c.eq(out.shape[0], 32, "una riga di altezza normale conserva la propria altezza (24+2*4)")
+    c.eq(out.shape[1], 608, "e la propria larghezza: nessun allargamento gratuito")
     c.ok(bool((out[0] == 0).all()), "il margine aggiunto e' nero")
+
+    piccola = np.zeros((10, 100), np.uint8)
+    piccola[2:8, 5:95] = 255
+    su = prepare(piccola)
+    c.eq(su.shape[0], 32, "una riga davvero piccola viene ingrandita")
+    c.ok(su.shape[1] > 108, "e la larghezza cresce in proporzione")
 
     tall = np.zeros((80, 200), np.uint8)
     tall[10:70, 10:190] = 255
-    c.eq(prepare(tall).shape[0], 88, "una riga gia' alta non viene ridimensionata")
+    c.eq(prepare(tall).shape[0], 88, "una riga alta non viene toccata")
 
-    c.eq(prepare(np.zeros((0, 10), np.uint8)).shape, (48, 48, 3), "una maschera vuota non esplode")
+    c.eq(prepare(np.zeros((0, 10), np.uint8)).shape, (32, 32, 3), "una maschera vuota non esplode")
     c.eq(prepare(np.zeros((20, 40, 3), np.uint8)).ndim, 3, "accetta anche un ingresso a 3 canali")
 
+    mask = normale
     c.eq(NullOcr().read(mask), ("", 0.0), "NullOcr non legge niente")
     echo = EchoOcr(["uno", "due"])
     c.eq(echo.read(mask)[0], "uno", "EchoOcr restituisce il primo testo")

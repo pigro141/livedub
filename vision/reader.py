@@ -110,7 +110,7 @@ class SubtitleReader(Stage):
                 self._n_colored.inc()
                 continue
             t0 = time.perf_counter()
-            text, conf = self.ocr.read(band.mask)
+            text, conf = self.ocr.read(band.crop)
             self._t_ocr.add((time.perf_counter() - t0) * 1000.0)
             self._n_ocr.inc()
             if not text.strip():

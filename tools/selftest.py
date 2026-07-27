@@ -528,6 +528,13 @@ def test_grammar(c: Check) -> None:
     c.eq(merge_lines([_line("  ", LineClass.WHITE, 0)], 0.0), [], "solo spazi: nessuna battuta")
 
 
+from tools.selftest_audio import (  # noqa: E402
+    test_center,
+    test_mixer,
+    test_pool,
+    test_stretch,
+    test_tts_fake,
+)
 from tools.selftest_vision import (  # noqa: E402
     test_diff,
     test_lines,
@@ -551,6 +558,11 @@ GROUPS = {
     "ocr": test_ocr_prep,
     "tracker": test_tracker,
     "reader": test_reader,
+    "stretch": test_stretch,
+    "center": test_center,
+    "pool": test_pool,
+    "tts": test_tts_fake,
+    "mixer": test_mixer,
 }
 
 

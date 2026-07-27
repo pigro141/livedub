@@ -42,11 +42,25 @@ class VisionConfig:
 
     roi: tuple[float, float, float, float] = (0.15, 0.72, 0.70, 0.22)
     diff_threshold: float = 0.004  # frazione di pixel cambiati che sveglia l'OCR
+    diff_stride: int = 4  # sottocampionamento del diff: costa 1/16 e basta
     sat_max: int = 60  # saturazione oltre la quale la riga non e' dialogo
     white_min_luma: int = 200  # bianco pieno
     grey_min_luma: int = 110  # sotto questa soglia non e' testo
+    # Il testo di gioco e' bordato di nero: non e' luminoso in assoluto, e'
+    # luminoso *rispetto a cio' che ha intorno*. Con la sola soglia assoluta un
+    # cielo chiaro fa sparire i sottotitoli (misurato: si rompe da luma 120 in
+    # su); togliendo un fondo locale il limite si sposta a 180.
+    use_local_contrast: bool = True
+    contrast_kernel: int = 63  # lato del fondo locale, in pixel
+    contrast_min: float = 30.0  # quanto il glifo deve staccare dal suo intorno
+    # Il corpo del glifo si misura su un percentile alto, non sulla mediana: il
+    # testo e' antialiasato e bordato, e i pixel di bordo falserebbero la media.
+    luma_percentile: int = 90
+    sat_percentile: int = 98
     min_line_height: int = 8  # px: sotto e' rumore, non una riga
+    min_line_fill: float = 0.01  # frazione minima di larghezza occupata da testo
     stable_reads: int = 2  # letture concordi prima di dare per buona una battuta
+    hold_frames: int = 3  # frame senza testo prima di dichiarare chiusa la battuta
     ocr_backend: str = "ppocr"  # ppocr | none
     ocr_device: str = "cuda"  # cuda | cpu
     max_ocr_hz: float = 12.0

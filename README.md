@@ -113,9 +113,27 @@ Non c'e' ancora: l'aggancio della durata al sottotitolo (F2), il riconoscimento
 di *quale* personaggio parla (F3, per ora bianco e grigio ricevono due voci
 fisse), l'emozione (F4) e la cattura dal vivo da schermo e scheda audio.
 
-Sul video vero lo stabilizzatore riapre ancora la stessa battuta piu' volte
-(55 aperture in 50 s dove ne servono ~20): l'OCR sfarfalla oltre la soglia di
-somiglianza di 0,88. Va sciolto **prima** di misurare le durate, perche' una
-battuta riaperta quattro volte da' quattro durate corte invece di una giusta.
+Sul video vero lo stabilizzatore riapre ancora la stessa battuta piu' volte, e
+va sciolto **prima** di misurare le durate: una battuta riaperta quattro volte
+da' quattro durate corte invece di una giusta. Su una fetta di 50 secondi, dove
+le battute vere sono una ventina:
+
+| | aperture | letture OCR vuote | OCR p50 |
+|---|---|---|---|
+| ROI di partenza | 55 | 1109 su 2768 | 223 ms |
+| ROI calibrata | 52 | 92 su 1066 | 24 ms |
+| abbinamento per somiglianza invece che per posizione | 52 | 92 | 24 ms |
+| nucleo del contrasto locale a 11 invece di 63 | **44** | **3 su 1168** | 25 ms |
+
+Cosa resta: **lo sfarfallio del riconoscitore**. La stessa battuta esce
+`'Ioc toc. near!'`, `'—oc toc, negriM'`, `'oc toc neg'` — sotto la soglia di
+somiglianza di 0,88, quindi tre battute invece di una. Non e' piu' un problema
+del tracker.
+
+Due ipotesi cadute per strada, e vale la pena averle scritte: la riga *non*
+sfugge al classificatore (viene trovata nel 100% dei frame con sottotitolo, a
+ogni nucleo provato), e il nucleo del contrasto locale non serviva a trovarla —
+serviva a **non trovare le altre**, cioe' le bande di texture, che a 63 erano
+0,79 per frame vuoto e a 11 sono 0,08.
 
 Piano completo: `C:\Users\filde\.claude\plans\progetto-so-che-ci-fancy-rossum.md`

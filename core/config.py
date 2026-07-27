@@ -43,6 +43,18 @@ class VisionConfig:
     roi: tuple[float, float, float, float] = (0.15, 0.72, 0.70, 0.22)
     diff_threshold: float = 0.004  # frazione di pixel cambiati che sveglia l'OCR
     diff_stride: int = 4  # sottocampionamento del diff: costa 1/16 e basta
+    # Quanto testo deve vedere il diff per dire "c'e' un sottotitolo", misurato
+    # in **pixel di testo per colonna** della ROI sottocampionata. Per colonna e
+    # non per area: una frazione dell'area dipende da quanto e' alta la ROI, e
+    # lo stesso identico sottotitolo dentro una ROI quattro volte piu' alta
+    # darebbe un quarto del valore. Per colonna il numero e' lo stesso.
+    #
+    # Misurato: una riga di sottotitolo sintetico 0,54; su 2000 frame di gioco
+    # con sottotitolo il minimo e' 0,243; a schermo vuoto la mediana e' 0,18.
+    # La soglia va **sotto** il minimo osservato, perche' un falso "non c'e'
+    # testo" chiude una battuta ancora a schermo e la fa riaprire, mentre un
+    # falso "c'e' testo" ritarda solo la chiusura di `hold_frames`.
+    ink_min_columns: float = 0.20
     sat_max: int = 60  # saturazione oltre la quale la riga non e' dialogo
     white_min_luma: int = 200  # bianco pieno
     grey_min_luma: int = 110  # sotto questa soglia non e' testo

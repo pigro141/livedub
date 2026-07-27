@@ -55,6 +55,9 @@ class SubtitleReader(Stage):
             threshold=cfg.diff_threshold,
             stride=cfg.diff_stride,
             ink_min_luma=cfg.grey_min_luma,
+            contrast_min=cfg.contrast_min if cfg.use_local_contrast else 0.0,
+            contrast_kernel=cfg.contrast_kernel,
+            ink_min_columns=cfg.ink_min_columns,
         )
         self.tracker = SubtitleTracker(cfg)
         self._recheck = 0

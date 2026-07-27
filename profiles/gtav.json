@@ -9,7 +9,8 @@
     "white_min_luma": 212,
     "grey_min_luma": 110,
     "sat_max": 37,
-    "contrast_min": 28.9
+    "contrast_min": 28.9,
+    "contrast_kernel": 11
   },
   "_calibrazione": {
     "video": "testGameplayFattoDaMe.mp4",

@@ -203,6 +203,30 @@ def test_diff(c) -> None:
     moving_bg[:, :] = 60  # lo sfondo del gioco si muove, ma non e' testo
     c.eq(dark.update(moving_bg).change, Change.NONE, "sfondo che cambia senza testo: si ignora")
 
+    # Un muro chiaro non e' inchiostro. E' il caso che aveva rotto tutto: con
+    # "almeno un pixel sopra soglia" ogni frame di gioco ha inchiostro, quindi
+    # comparsa e sparizione non scattano mai e il t_off preciso non arriva.
+    wall = np.full((80, 200, 3), 210, np.uint8)
+    c.close(RoiDiff(stride=2)._ink(RoiDiff(stride=2)._sample(wall)), 0.0, "un muro chiaro non e' testo")
+    thin = RoiDiff(stride=2)
+    c.ok(thin._ink(thin._sample(white_bar)) > 0.20, "una riga di testo lo e'")
+
+    # L'inchiostro si conta per colonna, non per area: lo stesso testo dentro
+    # una ROI piu' alta deve dare lo stesso numero. Contandolo per area darebbe
+    # meno della meta', e una soglia tarata su una ROI stretta spegnerebbe in
+    # silenzio tutte le ROI larghe.
+    bassa = np.zeros((60, 200, 3), np.uint8)
+    bassa[20:40, 20:180] = 255
+    alta = np.zeros((240, 200, 3), np.uint8)
+    alta[20:40, 20:180] = 255
+    dd = RoiDiff(stride=2)
+    c.close(
+        dd._ink(dd._sample(alta)),
+        dd._ink(dd._sample(bassa)),
+        "lo stesso testo da' lo stesso inchiostro in una ROI quattro volte piu' alta",
+        tol=0.02,
+    )
+
     c.raises(ValueError, lambda: RoiDiff(stride=0), "stride nullo e' un errore")
 
     r2 = RoiDiff()
@@ -290,15 +314,52 @@ def test_tracker(c) -> None:
     c.close(out.closed[0].duration, 1.0, "la chiusura fissa la durata reale")
     c.eq(len(tr.active), 0, "dopo la chiusura non resta nulla di attivo")
 
-    # Sostituzione: chiude la vecchia e apre la nuova.
+    # Sostituzione: chiude la vecchia e apre la nuova. La vecchia si chiude
+    # nell'istante in cui il testo a schermo cambia, **non** quando la nuova
+    # viene confermata: quella conferma arriva `stable_reads` passate dopo, e
+    # attribuirle la chiusura allungherebbe la durata della battuta precedente
+    # di altrettanto. Con `hold_frames = 0` la differenza e' visibile subito.
     tr = SubtitleTracker(cfg)
     tr.feed([w("prima battuta", 0.0)], 0.0)
     tr.feed([w("prima battuta", 0.1)], 0.1)
-    tr.feed([w("seconda battuta", 1.0)], 1.0)
-    out = tr.feed([w("seconda battuta", 1.1)], 1.1)
+    out = tr.feed([w("seconda battuta", 1.0)], 1.0)
     c.eq(len(out.closed), 1, "la sostituzione chiude quella prima")
+    c.close(out.closed[0].duration, 1.0, "e la chiude quando il testo e' cambiato")
+    out = tr.feed([w("seconda battuta", 1.1)], 1.1)
     c.eq(len(out.opened), 1, "la sostituzione apre quella nuova")
     c.eq(out.opened[0].text, "seconda battuta", "la nuova e' quella giusta")
+    c.eq(len(out.closed), 0, "e non chiude due volte la stessa")
+
+    # La sostituzione senza schermo vuoto, con hold_frames > 0: qui la vecchia
+    # non e' ancora scaduta quando la nuova si conferma, ed e' la conferma a
+    # chiuderla. Senza questo ramo resterebbe aperta per tutta la battuta dopo.
+    lento = VisionConfig()
+    lento.stable_reads = 2
+    lento.hold_frames = 5
+    tr_lento = SubtitleTracker(lento)
+    tr_lento.feed([w("prima battuta", 0.0)], 0.0)
+    tr_lento.feed([w("prima battuta", 0.1)], 0.1)
+    tr_lento.feed([w("seconda battuta", 1.0)], 1.0)
+    out = tr_lento.feed([w("seconda battuta", 1.1)], 1.1)
+    c.eq(len(out.opened), 1, "la nuova si conferma")
+    c.eq(len(out.closed), 1, "e chiude la vecchia, che non era ancora scaduta")
+    c.eq(out.closed[0].text, "prima battuta", "quella chiusa e' la vecchia")
+
+    # Una banda di texture che si infila sopra la riga vera ne sposterebbe la
+    # posizione. Con l'abbinamento per somiglianza non cambia niente: e' il bug
+    # che sul video vero produceva 55 aperture in 50 secondi invece di ~20.
+    tr_pos = SubtitleTracker(cfg)
+    tr_pos.feed([w("Il tuo amico Simeon non stava sparando cazzate.", 0.0)], 0.0)
+    tr_pos.feed([w("Il tuo amico Simeon non stava sparando cazzate.", 0.1)], 0.1)
+    out = tr_pos.feed(
+        [
+            w("rumore di scena", 0.2),
+            w("Il tuo amico Simeon non stava sparando cazzate.", 0.2),
+        ],
+        0.2,
+    )
+    c.eq(len(out.opened), 0, "una riga in piu' non riapre quella che c'era gia'")
+    c.eq(len(out.closed), 0, "e non la chiude")
 
     # Bianco e grigio sono due posti diversi: non si scacciano a vicenda.
     tr = SubtitleTracker(cfg)

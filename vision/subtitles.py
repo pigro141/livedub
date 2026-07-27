@@ -17,7 +17,17 @@ Sono domande diverse, e le insidie stanno tutte qui:
   ogni sfarfallio verrebbe letto come una battuta nuova e il doppiatore
   ricomincerebbe la frase da capo;
 - una riga puo' sparire per un solo frame e tornare. `hold_frames` evita di
-  chiudere una battuta ancora in corso.
+  chiudere una battuta ancora in corso;
+
+- **una battuta non ha un posto fisso.** La prima versione teneva lo stato in un
+  dizionario indicizzato per classe e posizione (`white#0`, `white#1`), il che
+  sembra ovvio finche' a schermo c'e' solo il dialogo. Sulla registrazione vera
+  una banda di texture — un cordolo, una striscia bianca — viene classificata
+  bianca, si infila *sopra* la riga vera e le sposta l'indice: la stessa frase
+  diventa `white#1` e il tracker la legge come una battuta nuova. Misurato: 55
+  aperture in 50 secondi dove ne servivano una ventina. L'identita' di una
+  battuta e' il suo **testo**, non la sua riga, quindi l'abbinamento e' per
+  somiglianza fra tutte le attive della stessa classe.
 """
 
 from __future__ import annotations
@@ -60,6 +70,15 @@ class _Pending:
     first_t: float
     cls: LineClass
     lines: tuple = ()
+    missing: int = 0
+
+
+@dataclass(slots=True)
+class _Tracked:
+    """Battuta confermata e ancora a schermo."""
+
+    event: SubtitleEvent
+    missing: int = 0
 
 
 @dataclass(slots=True)
@@ -85,20 +104,24 @@ class SubtitleTracker:
     def __init__(self, cfg: VisionConfig, min_similarity: float = 0.88) -> None:
         self.cfg = cfg
         self.min_similarity = min_similarity
-        self._active: dict[str, SubtitleEvent] = {}
-        self._pending: dict[str, _Pending] = {}
-        self._missing: dict[str, int] = {}
+        self._active: dict[int, _Tracked] = {}
+        self._pending: dict[int, _Pending] = {}
+        self._next_id = 0
 
     # -- stato -------------------------------------------------------------
 
     @property
     def active(self) -> list[SubtitleEvent]:
-        return list(self._active.values())
+        return [tr.event for tr in self._active.values()]
 
     def reset(self) -> None:
         self._active.clear()
         self._pending.clear()
-        self._missing.clear()
+        self._next_id = 0
+
+    def _new_id(self) -> int:
+        self._next_id += 1
+        return self._next_id
 
     # -- alimentazione -----------------------------------------------------
 
@@ -120,38 +143,30 @@ class SubtitleTracker:
         tutta la calibrazione del tempo — risulterebbe piu' lunga del vero.
         """
         out = TrackerOutput()
-        seen: dict[str, SubtitleEvent] = {}
-        per_class: dict[LineClass, int] = {}
+        matched_active: set[int] = set()
+        matched_pending: set[int] = set()
+        unmatched: list[tuple[SubtitleEvent, str]] = []
+
+        # 1. Le candidate che continuano una battuta gia' a schermo. E' il caso
+        #    di gran lunga piu' frequente: un sottotitolo resta per decine di
+        #    frame e a ogni passata si ritrova identico a se stesso.
         for cand in candidates:
-            n = per_class.get(cand.cls, 0)
-            per_class[cand.cls] = n + 1
-            seen[f"{cand.cls.value}#{n}"] = cand
-
-        self._expire(seen, t, out, force=certain)
-
-        for key, cand in seen.items():
-            self._missing[key] = 0
             norm = normalize(cand.text)
             if not norm:
                 continue
-
-            current = self._active.get(key)
-            if current is not None and similarity(normalize(current.text), norm) >= self.min_similarity:
-                # Stessa battuta ancora a schermo: niente da fare. E' il caso
-                # piu' frequente in assoluto.
-                self._pending.pop(key, None)
-                continue
-
-            pending = self._pending.get(key)
-            if pending is not None and similarity(pending.norm, norm) >= self.min_similarity:
-                pending.count += 1
-                # Fra due letture concordi si tiene la piu' ricca: la dissolvenza
-                # toglie caratteri, non ne aggiunge.
-                if len(cand.text) > len(pending.text):
-                    pending.text = cand.text
-                    pending.lines = cand.lines
+            aid = self._best(self._active, cand.cls, norm, matched_active, lambda tr: normalize(tr.event.text))
+            if aid is not None:
+                matched_active.add(aid)
+                self._active[aid].missing = 0
             else:
-                pending = _Pending(
+                unmatched.append((cand, norm))
+
+        # 2. Le altre: o confermano una candidata in attesa, o ne aprono una.
+        for cand, norm in unmatched:
+            pid = self._best(self._pending, cand.cls, norm, matched_pending, lambda p: p.norm)
+            if pid is None:
+                pid = self._new_id()
+                self._pending[pid] = _Pending(
                     norm=norm,
                     text=cand.text,
                     count=1,
@@ -159,53 +174,98 @@ class SubtitleTracker:
                     cls=cand.cls,
                     lines=cand.lines,
                 )
-                self._pending[key] = pending
+            else:
+                pending = self._pending[pid]
+                pending.count += 1
+                pending.missing = 0
+                # Fra due letture concordi si tiene la piu' ricca: la dissolvenza
+                # toglie caratteri, non ne aggiunge.
+                if len(cand.text) > len(pending.text):
+                    pending.text = cand.text
+                    pending.lines = cand.lines
+            matched_pending.add(pid)
 
-            if pending.count >= max(1, self.cfg.stable_reads):
-                if current is not None:
-                    out.closed.append(current.closed(t))
-                event = SubtitleEvent(
-                    text=pending.text,
-                    cls=pending.cls,
-                    t_on=pending.first_t,
-                    lines=pending.lines,
-                )
-                self._active[key] = event
-                out.opened.append(event)
-                self._pending.pop(key, None)
+            pending = self._pending[pid]
+            if pending.count < max(1, self.cfg.stable_reads):
+                continue
 
+            # Conferma. Se a schermo c'era **una sola** battuta della stessa
+            # classe e non e' stata ritrovata, questa la sostituisce e quella si
+            # chiude adesso: una battuta che lascia il posto alla successiva
+            # senza passare per lo schermo vuoto finirebbe altrimenti a durare
+            # `hold_frames` passate di troppo. Con piu' di una candidata a
+            # sostituirla non si sa quale sia, e si lascia decidere alla scadenza.
+            orphans = [
+                a
+                for a, tr in self._active.items()
+                if a not in matched_active and tr.event.cls is pending.cls
+            ]
+            if len(orphans) == 1:
+                old = self._active.pop(orphans[0])
+                out.closed.append(old.event.closed(t))
+
+            event = SubtitleEvent(
+                text=pending.text, cls=pending.cls, t_on=pending.first_t, lines=pending.lines
+            )
+            self._active[pid] = _Tracked(event)
+            matched_active.add(pid)
+            out.opened.append(event)
+            del self._pending[pid]
+
+        self._expire(matched_active, matched_pending, t, out, force=certain)
         return out
+
+    def _best(self, pool: dict, cls: LineClass, norm: str, taken: set, text_of) -> int | None:
+        """L'elemento del gruppo piu' somigliante, sopra soglia. `None` se nessuno.
+
+        Si sceglie il **migliore** e non il primo sopra soglia: con due battute
+        della stessa classe a schermo — che e' il caso di una frase andata a capo
+        letta come due righe — il primo sopra soglia puo' essere l'altra.
+        """
+        best_id, best_score = None, self.min_similarity
+        for key, item in pool.items():
+            if key in taken:
+                continue
+            item_cls = item.cls if isinstance(item, _Pending) else item.event.cls
+            if item_cls is not cls:
+                continue
+            score = similarity(text_of(item), norm)
+            if score >= best_score:
+                best_id, best_score = key, score
+        return best_id
 
     def close_all(self, t: float) -> list[SubtitleEvent]:
         """Chiude tutto. Da chiamare a fine sessione o a fine replay, altrimenti
         l'ultima battuta resterebbe senza durata."""
-        closed = [ev.closed(t) for ev in self._active.values()]
+        closed = [tr.event.closed(t) for tr in self._active.values()]
         self._active.clear()
         self._pending.clear()
-        self._missing.clear()
         return closed
 
     # -- interni -----------------------------------------------------------
 
     def _expire(
-        self, seen: dict[str, SubtitleEvent], t: float, out: TrackerOutput, force: bool = False
+        self,
+        matched_active: set[int],
+        matched_pending: set[int],
+        t: float,
+        out: TrackerOutput,
+        force: bool = False,
     ) -> None:
         """Chiude le battute che non si vedono piu' da abbastanza passate."""
         hold = max(0, self.cfg.hold_frames)
         for key in list(self._active):
-            if key in seen:
+            if key in matched_active:
                 continue
-            missing = self._missing.get(key, 0) + 1
-            self._missing[key] = missing
-            if force or missing > hold:
-                out.closed.append(self._active.pop(key).closed(t))
-                self._missing.pop(key, None)
+            tracked = self._active[key]
+            tracked.missing += 1
+            if force or tracked.missing > hold:
+                out.closed.append(self._active.pop(key).event.closed(t))
         for key in list(self._pending):
-            if key in seen:
+            if key in matched_pending:
                 continue
             # Una candidata mai confermata che sparisce era uno sfarfallio.
-            missing = self._missing.get(key, 0) + 1
-            self._missing[key] = missing
-            if force or missing > hold:
-                self._pending.pop(key, None)
-                self._missing.pop(key, None)
+            pending = self._pending[key]
+            pending.missing += 1
+            if force or pending.missing > hold:
+                del self._pending[key]

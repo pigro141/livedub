@@ -1,0 +1,58 @@
+{
+  "vision": {
+    "roi": [
+      0.204,
+      0.8843,
+      0.592,
+      0.0481
+    ],
+    "white_min_luma": 212,
+    "grey_min_luma": 110,
+    "sat_max": 37,
+    "contrast_min": 28.9
+  },
+  "_calibrazione": {
+    "video": "testGameplayFattoDaMe.mp4",
+    "risoluzione": "1920x1080",
+    "frames_sampled": 300,
+    "frames_with_text": 183,
+    "row_band": [
+      0.9139,
+      0.9278
+    ],
+    "col_band": [
+      0.2209,
+      0.786
+    ],
+    "body_luma": {
+      "p1": 222.89,
+      "p5": 236.82,
+      "p25": 248.33,
+      "p50": 250.0,
+      "p75": 251.0,
+      "p95": 252.0,
+      "p99": 253.41
+    },
+    "peak_sat": {
+      "p1": 5.0,
+      "p5": 6.45,
+      "p25": 12.0,
+      "p50": 17.5,
+      "p75": 26.0,
+      "p95": 28.0,
+      "p99": 29.0
+    },
+    "contrast": {
+      "p1": 3.35,
+      "p5": 25.5,
+      "p25": 58.99,
+      "p50": 103.19,
+      "p75": 127.18,
+      "p95": 141.8,
+      "p99": 146.51
+    },
+    "grey_candidates": 12,
+    "lines_total": 260,
+    "multi_line_frames": 28
+  }
+}

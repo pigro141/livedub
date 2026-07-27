@@ -42,12 +42,20 @@ sottotitolo compare, quando l'embedding audio e' ancora incerto.
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest              # suite completa (398 verifiche)
+.\.venv\Scripts\python.exe -m tools.selftest              # suite completa (400 verifiche)
 .\.venv\Scripts\python.exe -m tools.selftest ring config  # un gruppo solo
 .\.venv\Scripts\python.exe -m tools.demo                  # scena finta completa -> runs\demo_mix.wav
 .\.venv\Scripts\python.exe -m tools.demo --no-duck        # la stessa, per sentire cosa fa il duck
 .\.venv\Scripts\python.exe -m tools.say --pool            # ascoltare le voci
 .\.venv\Scripts\python.exe main.py --dump-config
+```
+
+Sulla registrazione, **in quest'ordine** — il primo comando non e' facoltativo:
+
+```powershell
+.\.venv\Scripts\python.exe -m tools.replay gameplay.mp4 --peek 8      # guardare la ROI
+.\.venv\Scripts\python.exe -m tools.calibrate gameplay.mp4 --write profiles\gtav.json
+.\.venv\Scripts\python.exe -m tools.replay gameplay.mp4 --profile gtav --start 1240 --end 1290
 ```
 
 ## Cosa e' stato misurato
@@ -69,14 +77,45 @@ segnate perche' sono quelle che hanno cambiato il disegno.
 Conseguenza grossa: **la GPU non serve a niente di tutto questo** e resta
 interamente al gioco.
 
+### Cosa ha detto la registrazione vera
+
+I numeri qui sopra vengono da frame sintetici. Il primo contatto con due
+registrazioni di GTA V (9 e 28 minuti, 1080p) ne ha cambiati alcuni.
+
+| | |
+|---|---|
+| **Il grigio esiste** | `Ciao, Lamar!` a luma **253** e `Che succede, Simeon?` a **142**, nello stesso frame. La grammatica regge, e i due gruppi sono lontanissimi |
+| **Ma e' raro** | un solo passaggio netto in 28 minuti. Il vincolo bianco/grigio di F3 arrivera' di rado: e' un segnale forte e sporadico, non continuo |
+| **La ROI cambia da registrazione a registrazione** | stesso gioco, stessa risoluzione, sottotitoli a 0,965 dell'altezza in una e a 0,914 nell'altra. La ROI e' del *setup*, non del gioco: `tools/calibrate.py` va rifatto a ogni cambio di cattura |
+| ROI di default | inquadrava il tappeto. Zero battute — che somiglia moltissimo a "il modello non regge" |
+| OCR con ROI sbagliata | **223 ms** mediani contro i 15 sul sintetico: la banda di riga si allargava sulla texture della scena, e il costo scala con la larghezza |
+| `contrast_min` | misurato **29**; il default 30 era gia' giusto. La spazzatura veniva dalla ROI, non da questa soglia |
+| Righe di un carattere | `'1'`, `'—'`, `'?'` letti da cordoli e strisce bianche. Passano ogni soglia di colore perche' sono davvero bianchi: li ferma `min_ocr_chars`, cioe' la lingua |
+
+**Due misure sbagliate prese in flagrante**, che sono il motivo per cui la
+regola sta nel `CLAUDE.md`: ancorare il testo con una maschera che pretende uno
+stacco di 60 e poi *misurarne* lo stacco da' 60,15 — la misura non poteva
+esprimere altro numero; ancorarlo invece su "bianco e acromatico" da' −2,3,
+perche' nella ROI finiscono muri chiari e carrozzerie bianche. Serve il top-hat
+morfologico, che vede la *sottigliezza* di un tratto e non la sua luminosita'.
+
 ## Stato
 
 **F0 — scheletro misurabile** e **F1 — la catena parla**. Cattura dei
 sottotitoli, OCR, pool di sei voci italiane, mixer con duck del centro,
 tutto montato in `core/pipeline.py` e verificabile con `tools.demo`.
 
-Non c'e' ancora: il riconoscimento di *quale* personaggio parla (F3, per ora
-bianco e grigio ricevono due voci fisse), l'aggancio della durata al sottotitolo
-(F2), l'emozione (F4) e la cattura dal vivo da schermo e scheda audio.
+Il banco legge ora **anche il video vero**: `tools/replay.py` monta il dominio
+video di F1 per intero su una registrazione, `tools/calibrate.py` ne ricava ROI
+e soglie, e `profiles/gtav.json` le tiene.
+
+Non c'e' ancora: l'aggancio della durata al sottotitolo (F2), il riconoscimento
+di *quale* personaggio parla (F3, per ora bianco e grigio ricevono due voci
+fisse), l'emozione (F4) e la cattura dal vivo da schermo e scheda audio.
+
+Sul video vero lo stabilizzatore riapre ancora la stessa battuta piu' volte
+(55 aperture in 50 s dove ne servono ~20): l'OCR sfarfalla oltre la soglia di
+somiglianza di 0,88. Va sciolto **prima** di misurare le durate, perche' una
+battuta riaperta quattro volte da' quattro durate corte invece di una giusta.
 
 Piano completo: `C:\Users\filde\.claude\plans\progetto-so-che-ci-fancy-rossum.md`

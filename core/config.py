@@ -59,6 +59,11 @@ class VisionConfig:
     sat_percentile: int = 98
     min_line_height: int = 8  # px: sotto e' rumore, non una riga
     min_line_fill: float = 0.01  # frazione minima di larghezza occupata da testo
+    # Ultimo filtro, e l'unico che non viene da una misura ma dalla lingua:
+    # nessuna battuta italiana e' lunga un carattere. Sulla registrazione vera
+    # la texture della scena produce righe che l'OCR legge come '1', '?', '—';
+    # passavano ogni soglia di colore perche' un cordolo bianco *e'* bianco.
+    min_ocr_chars: int = 2
     stable_reads: int = 2  # letture concordi prima di dare per buona una battuta
     hold_frames: int = 3  # frame senza testo prima di dichiarare chiusa la battuta
     ocr_backend: str = "ppocr"  # ppocr | none
@@ -254,12 +259,40 @@ class Config:
     @classmethod
     def load(cls, path: str | Path) -> "Config":
         """Carica un profilo. Le chiavi assenti restano ai default; una chiave
-        sconosciuta e' un errore, non un refuso silenzioso."""
+        sconosciuta e' un errore, non un refuso silenzioso.
+
+        Le chiavi che cominciano per `_` sono l'eccezione: sono commenti e
+        metadati, non configurazione. `tools/calibrate.py` ci scrive dentro la
+        misura che ha prodotto i valori — quale video, quanti frame, che
+        istogrammi — perche' un numero senza la sua misura e' di nuovo un
+        numero indovinato, solo con piu' cifre decimali.
+        """
         data = json.loads(Path(path).read_text(encoding="utf-8"))
         cfg = cls()
         for key, value in _flatten(data):
+            if key.split(".")[0].startswith("_"):
+                continue
             cfg.set(key, value)
         return cfg
+
+
+PROFILES_DIR = Path(__file__).resolve().parent.parent / "profiles"
+
+
+def load_profile(name: str = "gtav", overrides: Any = None) -> Config:
+    """Profilo del gioco come base, `--set` sopra.
+
+    L'ordine conta: il profilo porta i valori **calibrati sul gioco**, `--set`
+    serve a scostarsene per una prova singola senza sporcare il profilo. Sta
+    qui e non in `main.py` perche' il banco di prova deve poter caricare
+    esattamente la stessa configurazione del live: una misura fatta con soglie
+    diverse da quelle che gireranno in gioco non misura il gioco.
+    """
+    path = PROFILES_DIR / f"{name}.json"
+    cfg = Config.load(path) if path.exists() else Config()
+    cfg.profile = name
+    cfg.apply(overrides)
+    return cfg
 
 
 def _flatten(data: dict, prefix: str = "") -> list[tuple[str, Any]]:

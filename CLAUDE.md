@@ -20,8 +20,19 @@ serve una logica che li' esisteva, si riscrive e si rimisura qui.
 .\.venv\Scripts\python.exe -m tools.selftest ring config  # gruppi scelti
 .\.venv\Scripts\python.exe -m tools.selftest -v           # con i verdi in chiaro
 .\.venv\Scripts\python.exe -m tools.replay --demo --determinism
-.\.venv\Scripts\python.exe main.py --dump-config
+.\.venv\Scripts\python.exe -m tools.replay gameplay.mp4 --peek 8   # guardare la ROI
+.\.venv\Scripts\python.exe -m tools.calibrate gameplay.mp4 --write profiles\gtav.json
+.\.venv\Scripts\python.exe -m tools.replay gameplay.mp4 --profile gtav --start 60 --end 120
 ```
+
+**Su una registrazione nuova si guarda prima e si misura dopo.** `--peek` salva
+i ritagli della ROI cosi' come la pipeline li vede, e costa dieci secondi. La
+ROI di default inquadrava il tappeto: l'OCR restituiva zero battute, che e'
+indistinguibile da "il modello non regge". La ROI si e' anche rivelata **del
+setup di cattura e non del gioco** — stesso gioco e stessa risoluzione, i
+sottotitoli stanno a 0,965 dell'altezza in una registrazione e a 0,914
+nell'altra — quindi `tools/calibrate.py` va rifatto a ogni cambio di cattura,
+non una volta per gioco.
 
 - venv: `.venv` (Python 3.11.9), sempre invocato per esteso.
 - **Non c'e' pytest.** La suite e' `tools/selftest.py`; un gruppo si esegue anche
@@ -47,7 +58,26 @@ per il classificatore di righe (frame sintetici con colori noti prima di un
 frame vero).
 
 **Controllare che la misura possa esprimere la risposta** prima di credere a
-quello che dice.
+quello che dice. Due esempi presi in flagrante mentre si calibrava il video, e
+sono la stessa forma di errore in due travestimenti:
+
+- selezionare i pixel di testo con una maschera che pretende uno **stacco dal
+  fondo maggiore di 60**, e poi misurare lo stacco dei pixel di testo. Risposta:
+  60,15. Non era il valore del testo, era la soglia che si guardava allo
+  specchio;
+- selezionare i pixel di testo su "quasi bianco e acromatico" e misurare la
+  stessa cosa. Risposta: **−2,3**. Dentro la ROI ci sono muri chiari e
+  carrozzerie bianche, bianchi e acromatici quanto un glifo.
+
+Quello che distingue un glifo non e' quanto e' chiaro ma che e' **sottile**, e
+serve un operatore diverso da quello della pipeline (top-hat morfologico contro
+sottrazione di media) perche' selezionare con uno e misurare con l'altro sia una
+misura e non un'eco.
+
+**Una statistica robusta invece del minimo.** Prendere il minimo fra i frame
+significa lasciar decidere al frame peggiore: un solo frame con un muro bianco
+nella ROI portava `contrast_min` da 40 a 20. Il decimo percentile risponde alla
+stessa domanda senza farsi sequestrare da un caso.
 
 ## Config
 

@@ -405,6 +405,26 @@ def test_reader(c) -> None:
         "nell'ordine in cui stanno a schermo",
     )
 
+    # Righe troppo corte per essere una battuta. Sulla registrazione vera la
+    # texture della scena (un cordolo, una striscia bianca) produce bande che
+    # l'OCR legge come '1' o '—': passano ogni soglia di colore, perche' sono
+    # davvero bianche e davvero acromatiche. Le ferma la lingua, non il colore.
+    corto = VisionConfig()
+    corto.stable_reads = 1
+    corto.roi = ROI
+    corto.min_ocr_chars = 2
+    una_riga = frame_with_roi([("Sali in macchina", WHITE)], roi=ROI)
+    reader_corto = SubtitleReader(corto, EchoOcr(["1"]))
+    aperte = len(reader_corto.run(una_riga).opened) + len(reader_corto.run(una_riga).opened)
+    c.eq(aperte, 0, "una riga di un carattere non diventa una battuta")
+
+    corto2 = VisionConfig()
+    corto2.stable_reads = 1
+    corto2.roi = ROI
+    corto2.min_ocr_chars = 2
+    reader_ok = SubtitleReader(corto2, EchoOcr(["Va bene"]))
+    c.eq(len(reader_ok.run(una_riga).opened), 1, "una riga vera passa lo stesso filtro")
+
     # La durata misurata deve essere quella vera, indipendentemente da cosa
     # succede a schermo dopo. Questa verifica esiste per un bug preso sul banco:
     # hold_frames conta le passate del tracker, e le passate avvengono solo

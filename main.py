@@ -16,22 +16,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from core.config import Config  # noqa: E402
+from core.config import PROFILES_DIR as PROFILES  # noqa: E402
+from core.config import Config, load_profile  # noqa: E402
 
 VERSION = "0.1.0-F0"
-PROFILES = Path(__file__).resolve().parent / "profiles"
 
 
 def build_config(args: argparse.Namespace) -> Config:
-    """Profilo del gioco come base, override della riga di comando sopra.
-
-    L'ordine conta: il profilo porta i valori calibrati sul gioco, `--set` serve
-    a scostarsene per una prova singola senza sporcare il profilo.
-    """
-    path = PROFILES / f"{args.profile}.json"
-    cfg = Config.load(path) if path.exists() else Config()
-    cfg.profile = args.profile
-    cfg.apply(args.overrides)
+    cfg = load_profile(args.profile, args.overrides)
     if args.ui:
         cfg.ui.enabled = True
     return cfg

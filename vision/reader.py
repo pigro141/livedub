@@ -113,7 +113,10 @@ class SubtitleReader(Stage):
             text, conf = self.ocr.read(band.crop)
             self._t_ocr.add((time.perf_counter() - t0) * 1000.0)
             self._n_ocr.inc()
-            if not text.strip():
+            if len(text.strip()) < max(1, self.cfg.min_ocr_chars):
+                # Vuoto, o troppo corto per essere una battuta. Conta come
+                # vuoto: il numero serve a vedere quanta scena sta entrando
+                # nella ROI, ed e' il sintomo che una soglia va rifatta.
                 self._n_empty.inc()
                 continue
             lines.append(

@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.py[cod]
+
+# Materiale della macchina, non del progetto: registrazioni, modelli scaricati,
+# log delle sessioni di prova. Si rigenerano, pesano, e non vanno versionati.
+models/
+runs/
+*.mp4
+*.mkv
+*.wav
+*.onnx
+
+graphify-out/
+.vscode/
+.idea/

@@ -242,4 +242,39 @@ Restano le battute lette in pochi frame: una comparsa in dissolvenza da'
 `'Ciau, Lalliai:'` per `'Ciao, Lamar!'`, e li' il testo e' davvero diverso — tre
 delle 30 aperture sono quella sola battuta.
 
+### Le soglie non generalizzano alla seconda registrazione
+
+Tutti i numeri qui sopra vengono da **una** registrazione. La seconda, calibrata
+col suo profilo (`profiles/gtav2.json`), dice che non bastano:
+
+| | rec1 (27 min) | rec2 (9 min) |
+|---|---|---|
+| frammenti sulle aperture | 26% | **63%** |
+| letture OCR vuote | 0,3% | **49%** |
+| righe scartate come colorate | 6 | **2021** |
+
+La ROI e' giusta — i ritagli mostrano il testo perfettamente leggibile — quindi
+non e' il caso della moquette. A produrre il disastro e' la **scena dentro la
+banda dei sottotitoli**: in rec2 una striatura luminosa attraversa quella fascia
+e fa due danni distinti. Da sola apre bande alte 12-17 px che l'OCR paga (16 ms)
+per non leggere niente; sopra il testo si salda alla sua banda e ne corrompe il
+ritaglio, ed e' il motivo per cui la prima lettura e' giusta
+(`'E questi li consideri obiettivi raggiunti?'`) e quella che le subentra e'
+storpiata (`'1、Eequestliconsiderobietiragiunt?'`).
+
+Due rimedi provati e misurati, **nessuno dei due adottato**:
+
+- ROI piu' bassa: toglie bande spurie ma anche testo vero (frame con dialogo dal
+  68% al 65%), quindi non e' l'altezza della ROI;
+- `min_line_height` piu' alto: a 20 px ferma il 29% delle bande vuote di rec2 ma
+  perde il 5,2% del testo di rec1. Con "nessuna battuta scartata" fra i requisiti,
+  e' un cambio che costa piu' di quanto rende.
+
+La pista buona e' un'altra, e viene dal guardare le bande vuote *alte*: sono
+macchie di scena che occupano **l'intera altezza della ROI** (77 px su 77),
+mentre una riga di testo li' ne misura 38. Una banda alta quanto tutta la ROI
+non e' una riga — e' la maschera che ha trovato qualcosa che attraversa tutto.
+Il tetto pero' va misurato insieme al caso delle due righe fuse in una banda
+sola, che e' alto uguale ma il testo ce l'ha.
+
 Piano completo: `C:\Users\filde\.claude\plans\progetto-so-che-ci-fancy-rossum.md`

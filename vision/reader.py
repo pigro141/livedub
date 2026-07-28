@@ -40,7 +40,7 @@ from core.stage import Stage
 from core.types import OcrLine, merge_lines
 from vision.diff import Change, RoiDiff
 from vision.lines import classify_lines
-from vision.ocr import NullOcr, OcrBackend
+from vision.ocr import NullOcr, OcrBackend, italian_only
 from vision.roi import crop
 from vision.subtitles import SubtitleTracker, TrackerOutput
 
@@ -129,9 +129,11 @@ class SubtitleReader(Stage):
             text, conf = self.ocr.read(band.crop)
             self._t_ocr.add((time.perf_counter() - t0) * 1000.0)
             self._n_ocr.inc()
-            # Lettere e cifre, non caratteri: su una banda di solo scenario il
-            # riconoscitore restituisce punteggiatura ('·..··', '，.，'), che di
-            # caratteri ne ha quanti ne vuole e di lingua nessuna.
+            # Prima si toglie cio' che non e' italiano, poi si conta. Il
+            # riconoscitore e' addestrato su cinese e inglese e sullo scenario
+            # restituisce glifi CJK, che di caratteri alfanumerici contano come
+            # lettere e finivano dritti in bocca al sintetizzatore.
+            text = italian_only(text)
             if sum(ch.isalnum() for ch in text) < max(1, self.cfg.min_ocr_chars):
                 # Vuoto, o troppo corto per essere una battuta. Conta come
                 # vuoto: il numero serve a vedere quanta scena sta entrando

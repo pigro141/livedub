@@ -859,6 +859,88 @@ def test_live_start(c: Check) -> None:
     )
 
 
+def test_lingua(c: Check) -> None:
+    """Cosa puo' finire in bocca al sintetizzatore.
+
+    Il riconoscitore e' addestrato su cinese e inglese: sullo scenario
+    restituisce glifi CJK, e il cancello che doveva fermarli contava i
+    caratteri *alfanumerici*, che in Python li comprende. Il difetto e' arrivato
+    fino alle cuffie.
+    """
+    c.group("lingua")
+
+    from vision.ocr import italian_only, latin_letters
+
+    c.eq(italian_only("冏一"), "", "i glifi cinesi spariscono")
+    c.eq(latin_letters("冏一"), 0, "e non contano come lettere")
+    c.ok("冏一".isalnum(), "mentre per Python SONO alfanumerici: ecco il difetto")
+    # Il glifo estraneo si toglie **senza** mettere uno spazio al suo posto:
+    # quando e' una sostituzione dentro una parola — 'aveva一no' per 'avevano',
+    # che e' il caso frequente — lo spazio spezzerebbe la parola in due, e il
+    # sintetizzatore leggerebbe due parole inventate invece di una giusta.
+    c.eq(italian_only("一..uuA"), "..uuA", "un misto tiene solo la parte latina")
+    c.eq(italian_only("aveva一no"), "avevano", "e non spezza la parola che stava rovinando")
+    c.eq(italian_only("／一一"), "", "e la punteggiatura a larghezza intera non salva la riga")
+
+    # La punteggiatura italiana si TIENE: al sintetizzatore serve.
+    c.eq(
+        italian_only("E questi li consideri obiettivi raggiunti?"),
+        "E questi li consideri obiettivi raggiunti?",
+        "una battuta italiana passa intatta",
+    )
+    c.eq(italian_only("Perche' no, pero'..."), "Perche' no, pero'...", "apostrofi e puntini restano")
+    c.eq(italian_only("Città, così, è"), "Città, così, è", "gli accenti restano")
+    c.eq(italian_only("Ehi!  Tu,   fermo."), "Ehi! Tu, fermo.", "gli spazi doppi si appiattiscono")
+    c.eq(latin_letters("Ehi!"), 3, "latin_letters conta lettere e cifre, non punteggiatura")
+    c.eq(latin_letters("...!?"), 0, "una riga di sola punteggiatura non ha lettere")
+
+
+def test_una_voce_alla_volta(c: Check) -> None:
+    """Due battute vicine non devono partire insieme.
+
+    Il mixer somma tutto cio' che e' attivo: senza serializzazione due voci
+    italiane si sovrappongono, e due voci sovrapposte non si capiscono. E'
+    peggio di una battuta in ritardo, che almeno si sente.
+    """
+    c.group("una_voce")
+
+    from core.config import Config
+    from core.pipeline import DubPipeline
+    from speak.base import ToneTts
+
+    cfg = Config()
+    cfg.vision.ocr_backend = "none"
+    orologio = VirtualClock()
+    p = DubPipeline(cfg, ToneTts(), clock=orologio, samplerate=48000)
+    p.start_live(warmup=False)
+
+    def battuta(testo: str) -> object:
+        return SubtitleEvent(text=testo, cls=LineClass.WHITE, t_on=orologio.now())
+
+    prima = p._speak(battuta("Non ho mai avuto un figlio nero,"))
+    seconda = p._speak(battuta("ma se ne avessi uno vorrei che fosse come te."))
+
+    c.ok(prima.duration > 0, "la prima battuta ha una durata")
+    c.ok(
+        seconda.t_scheduled >= prima.t_scheduled + prima.duration,
+        f"la seconda comincia dopo la fine della prima "
+        f"({seconda.t_scheduled:.2f} contro {prima.t_scheduled + prima.duration:.2f})",
+    )
+    c.ok(
+        seconda.t_scheduled >= prima.t_scheduled + prima.duration + cfg.tts.gap_seconds - 1e-6,
+        "con in mezzo il respiro dichiarato",
+    )
+
+    # Passato abbastanza tempo, la voce e' di nuovo libera e non si accumula
+    # ritardo: la serializzazione non deve diventare una coda perpetua.
+    orologio.set(seconda.t_scheduled + seconda.duration + 5.0)
+    terza = p._speak(battuta("Come va, bello?"))
+    c.close(
+        terza.t_scheduled, orologio.now(), "a voce libera la battuta parte subito", tol=1e-6
+    )
+    c.ok(p.metrics.timer("dub.backlog").count == 3, "l'arretrato viene misurato a ogni battuta")
+
+
 def test_duration_model(c: Check) -> None:
     """Il predittore di durata e le sue guardie."""
     c.group("duration")
@@ -967,6 +1049,8 @@ GROUPS = {
     "audio_source": test_audio_source,
     "vad": test_vad,
     "live_start": test_live_start,
+    "lingua": test_lingua,
+    "una_voce": test_una_voce_alla_volta,
     "roi": test_roi,
     "lines": test_lines,
     "diff": test_diff,

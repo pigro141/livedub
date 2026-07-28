@@ -127,6 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     # prima verrebbe programmato su una linea temporale che non esiste ancora.
     pronto = threading.Event()
     stat = {"blocchi": 0, "frame": 0, "underrun": 0, "audio_ms": [], "video_ms": []}
+    t_avvio = time.perf_counter()  # origine dei tempi stampati nel log
 
     def ciclo_audio() -> None:
         """Non fa mai niente di lento: legge, mescola, scrive."""
@@ -167,9 +168,17 @@ def main(argv: list[str] | None = None) -> int:
                 stat["video_ms"].append((time.perf_counter() - t0) * 1000.0)
                 stat["frame"] += 1
                 for riga in dette:
+                    # L'istante serve: senza, una battuta strana non si puo'
+                    # collocare nella sessione. Una riga grigia comparsa nei
+                    # primi secondi puo' essere il terminale ancora in primo
+                    # piano, e una comparsa a meta' e' un fatto del gioco — sono
+                    # due cose diverse che nel log sembravano identiche.
+                    quando = time.perf_counter() - t_avvio
                     print(
-                        f"  [{riga.voice_id:>12}] {riga.text[:64]!r}  "
-                        f"sintesi {riga.synth_ms:.0f} ms, durata {riga.duration:.1f}s"
+                        f"  [{quando:6.1f}s] [{riga.cls:5}] [{riga.voice_id:>12}] "
+                        f"{riga.text[:56]!r}  sintesi {riga.synth_ms:.0f} ms, "
+                        f"attesa {(riga.t_scheduled - riga.t_subtitle)*1000:.0f} ms, "
+                        f"durata {riga.duration:.1f}s"
                     )
         finally:
             schermo.close()

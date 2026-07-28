@@ -114,6 +114,8 @@ class DubPipeline:
 
         self.spoken: list[SpokenLine] = []
         self.closed: list[SubtitleEvent] = []
+        self._free_at = 0.0  # quando la voce torna libera
+        self._t_backlog = self.metrics.timer("dub.backlog")
         self._t_synth = self.metrics.timer("speak.synth")
         self._t_latency = self.metrics.timer("dub.latency")
         self._t_live = self.metrics.timer("dub.latency_live")
@@ -155,6 +157,7 @@ class DubPipeline:
             except Exception:
                 pass  # un riscaldamento fallito non e' un motivo per non partire
         self.mixer.reset(self.clock.now())
+        self._free_at = self.clock.now()
 
     # -- dominio video -----------------------------------------------------
 
@@ -181,11 +184,24 @@ class DubPipeline:
             audio = resample(audio, speech.samplerate, self.samplerate)
 
         now = self.clock.now()
-        t_start = max(now, self.mixer.now)
+        # **Una voce alla volta.** Il mixer somma tutto cio' che e' attivo, e
+        # senza questa riga due sottotitoli vicini partivano insieme: due voci
+        # italiane sovrapposte non si capiscono, ed e' peggio di una battuta in
+        # ritardo. Ogni battuta comincia quindi quando finisce la precedente.
+        #
+        # Il prezzo e' un arretrato che puo' crescere, e per ora si **misura**
+        # invece di correggerlo: `dub.backlog` dice di quanto si sta accumulando
+        # ritardo. La correzione vera e' il time-stretch di F2 — stringere la
+        # battuta per farla stare nel suo spazio invece di spostarla in avanti —
+        # e tararla senza sapere quanto arretrato si accumula davvero
+        # significherebbe sceglierne i limiti a occhio.
+        t_start = max(now, self.mixer.now, self._free_at)
+        self._t_backlog.add((t_start - now) * 1000.0)
         if audio.size:
             self.mixer.schedule(
                 audio, t_start, speaker_id=speaker_id, text=event.text
             )
+            self._free_at = t_start + len(audio) / self.samplerate + self.cfg.tts.gap_seconds
             self._n_lines.inc()
         else:
             self._n_empty.inc()

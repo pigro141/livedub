@@ -223,6 +223,10 @@ class TtsConfig:
     pool_size: int = 6  # voci distinte ottenute variando pitch e velocita'
     samplerate: int = 22050
     device: str = "cpu"
+    # Respiro fra una battuta e la successiva. Non e' estetica: due battute
+    # attaccate senza stacco si sentono come una frase sola, e in un dialogo
+    # fanno sembrare che parli sempre la stessa persona.
+    gap_seconds: float = 0.12
 
 
 @dataclass

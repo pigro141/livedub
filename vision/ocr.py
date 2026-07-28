@@ -37,6 +37,7 @@ La CPU basta e avanza, e la GPU resta libera per il gioco.
 
 from __future__ import annotations
 
+import unicodedata
 from typing import Protocol
 
 import numpy as np
@@ -46,6 +47,46 @@ import numpy as np
 MIN_HEIGHT = 20
 TARGET_HEIGHT = 32
 PAD = 4
+
+# Punteggiatura che ha senso in una battuta italiana, e che al sintetizzatore
+# serve: il punto interrogativo e l'esclamativo cambiano l'intonazione, la
+# virgola mette la pausa. Si tiene, non si butta.
+PUNTEGGIATURA = set(" .,;:!?'\"()[]-–—…«»‘’“”/&%€$@#+=*")
+
+
+def italian_only(text: str) -> str:
+    """Toglie cio' che non puo' far parte di una battuta italiana.
+
+    Il riconoscitore di default e' addestrato su **cinese e inglese**, e su una
+    banda di scenario restituisce volentieri glifi CJK: `'冏一'`, `'一..uuA'`,
+    `'/一一'`. Finivano in bocca al sintetizzatore, che provava a pronunciarli.
+
+    Il filtro sulla lingua c'era gia' — `min_ocr_chars` — ma contava i caratteri
+    **alfanumerici**, e in Python `'冏'.isalnum()` e' `True`. Il cancello era
+    scritto per fermare esattamente questo e lo lasciava passare, che e' il tipo
+    di difetto che sopravvive proprio perche' sembra gia' risolto.
+
+    Si tengono le lettere latine (accenti compresi: `NFD` separa il segno dalla
+    lettera, e si guarda la lettera), le cifre e la punteggiatura che serve alla
+    prosodia. Tutto il resto sparisce.
+    """
+    fuori = []
+    for ch in text:
+        if ch in PUNTEGGIATURA or ch.isdigit():
+            fuori.append(ch)
+            continue
+        if not ch.isalpha():
+            continue
+        base = unicodedata.normalize("NFD", ch)[0]
+        if "a" <= base.lower() <= "z":
+            fuori.append(ch)
+    return " ".join("".join(fuori).split())
+
+
+def latin_letters(text: str) -> int:
+    """Quante lettere o cifre **latine** contiene. E' il conto che
+    `min_ocr_chars` intendeva fare fin dall'inizio."""
+    return sum(1 for ch in italian_only(text) if ch.isalnum())
 
 
 class OcrBackend(Protocol):

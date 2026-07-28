@@ -55,6 +55,7 @@ from core.clock import RealClock, set_clock  # noqa: E402
 from core.config import Config, load_profile  # noqa: E402
 from core.pipeline import DubPipeline  # noqa: E402
 from speak.base import ToneTts  # noqa: E402
+from tools.session import Session  # noqa: E402
 
 
 def costruisci_tts(nome: str, cfg):
@@ -88,6 +89,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--monitor", type=int, default=1)
     ap.add_argument("--tts", default=None, help="backend TTS (senza: quello di config)")
     ap.add_argument("--devices", action="store_true", help="elenca i device audio e basta")
+    ap.add_argument(
+        "--no-save",
+        action="store_true",
+        help="non registrare la sessione (senza, salva mix.wav + events.jsonl in runs/)",
+    )
     ap.add_argument("--set", action="append", dest="overrides", metavar="CHIAVE=VALORE")
     args = ap.parse_args(argv)
 
@@ -120,6 +126,11 @@ def main(argv: list[str] | None = None) -> int:
     sr = 48000
     tts = costruisci_tts(cfg.tts.backend, cfg)
     pipeline = DubPipeline(cfg, tts, samplerate=sr)
+    # Si registra per difetto. Una prova d'ascolto senza artefatti produce
+    # impressioni, e un'impressione non si riapre: la sessione che ha bocciato
+    # SuperTonic aveva il numero colpevole in bella vista, e sembrava innocuo
+    # finche' non lo si e' messo accanto a cio' che l'orecchio aveva sentito.
+    sessione = None if args.no_save else Session(samplerate=sr)
     print(f"TTS: {cfg.tts.backend}   voci nel pool: {len(pipeline.pool)}")
     print(f"profilo: {args.profile or '(default)'}   ROI {cfg.vision.roi}")
 
@@ -148,9 +159,16 @@ def main(argv: list[str] | None = None) -> int:
             while not stop.is_set():
                 gioco = ingresso.read()
                 t0 = time.perf_counter()
+                # L'istante si prende **prima** di processare, ed e' quello del
+                # mixer: e' la scala su cui vivono gli istanti delle battute, e
+                # usare `perf_counter` qui rimetterebbe due origini diverse
+                # esattamente dove il progetto le ha gia' pagate una volta.
+                quando = pipeline.mixer.now
                 fuori = pipeline.on_audio(gioco, n=len(gioco))
                 stat["audio_ms"].append((time.perf_counter() - t0) * 1000.0)
                 altoparlanti.write(fuori)
+                if sessione is not None:
+                    sessione.audio(fuori, quando)
                 stat["blocchi"] += 1
 
     def ciclo_video() -> None:
@@ -174,12 +192,22 @@ def main(argv: list[str] | None = None) -> int:
                 stat["video_ms"].append((time.perf_counter() - t0) * 1000.0)
                 stat["frame"] += 1
                 for riga in dette:
+                    if sessione is not None:
+                        sessione.line(riga)
                     # L'istante serve: senza, una battuta strana non si puo'
                     # collocare nella sessione. Una riga grigia comparsa nei
                     # primi secondi puo' essere il terminale ancora in primo
                     # piano, e una comparsa a meta' e' un fatto del gioco — sono
                     # due cose diverse che nel log sembravano identiche.
-                    quando = time.perf_counter() - t_avvio
+                    # Quando si registra, l'istante stampato e' la **posizione
+                    # nel WAV**: cosi' una battuta segnalata a voce durante la
+                    # prova si riapre con un `seek` invece che con una sottrazione
+                    # fra due orologi.
+                    quando = (
+                        riga.t_scheduled - sessione.t0
+                        if sessione is not None and sessione.t0 is not None
+                        else time.perf_counter() - t_avvio
+                    )
                     print(
                         f"  [{quando:6.1f}s] [{riga.cls:5}] [{riga.voice_id:>12}] "
                         f"{riga.text[:56]!r}  sintesi {riga.synth_ms:.0f} ms, "
@@ -216,7 +244,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {nome:9} p50 {np.percentile(v,50):6.2f}  p95 {np.percentile(v,95):7.2f}  "
               f"max {v.max():7.2f} ms")
     print()
-    print(pipeline.report())
+    report = pipeline.report()
+    print(report)
+    if sessione is not None:
+        dove = sessione.close(cfg, report)
+        print(f"\nsessione salvata -> {dove}")
+        print("   mix.wav  events.jsonl  config.json  report.txt")
+        print("   una battuta storta si riapre col secondo stampato qui sopra:")
+        print(f"   .\\.venv\\Scripts\\python.exe -m tools.reopen {dove} 95.4")
     return 0
 
 

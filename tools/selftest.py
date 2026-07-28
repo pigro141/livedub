@@ -1143,8 +1143,83 @@ from tools.selftest_vision import (  # noqa: E402
     test_tracker,
 )
 
+def test_session(c: Check) -> None:
+    """La sessione salvata, e il giro di andata e ritorno che la rende utile.
+
+    L'artefatto serve a una cosa sola: trasformare «qui e' andata male» nella
+    riga che descrive quella battuta. Quindi la verifica non e' che il file
+    esista, ma che **il secondo detto a voce ritrovi la battuta giusta** — cioe'
+    che `t_wav` scritto e `t_wav` riletto siano la stessa cosa. E' la regola
+    della trasformata contro la propria inversa, applicata a due orologi invece
+    che a un filtro.
+    """
+    c.group("session")
+
+    import json
+    import tempfile
+    import wave
+
+    from core.pipeline import SpokenLine
+    from tools.reopen import load
+    from tools.session import Session
+
+    sr = 48000
+    with tempfile.TemporaryDirectory() as tmp:
+        # L'audio comincia a 1000: un'origine diversa da zero e' tutto il punto.
+        # Con `t0 = 0` la verifica passerebbe anche con l'errore dentro.
+        s = Session(root=tmp, samplerate=sr)
+        s.audio(np.zeros((sr, 2), np.float32), 1000.0)
+        riga = SpokenLine(
+            text="prova", speaker_id="S-white", voice_id="paola", cls="white",
+            t_subtitle=1002.0, t_scheduled=1002.5, synth_ms=60.0, duration=1.4, rate=1.2,
+        )
+        s.line(riga)
+        # Tre secondi di audio perche' la battuta cada **dentro** il file: dal
+        # vivo l'audio scorre sempre, e una battuta programmata oltre la fine
+        # capita solo all'ultimo blocco della sessione.
+        s.audio(np.zeros((sr, 2), np.float32), 1001.0)
+        s.audio(np.zeros((sr, 2), np.float32), 1002.0)
+        s.mark(1004.0, "voce sbagliata")
+        dove = s.close()
+
+        c.ok((dove / "mix.wav").exists(), "la sessione lascia un mix.wav")
+        c.ok((dove / "events.jsonl").exists(), "e un events.jsonl")
+
+        righe = load(dove)
+        dette = [r for r in righe if r.get("kind") != "mark"]
+        c.eq(len(dette), 1, "con dentro la battuta doppiata")
+        c.close(
+            dette[0]["t_wav"], 2.5,
+            "e la sua posizione nel WAV e' relativa all'inizio dell'audio, non all'orologio",
+            tol=1e-6,
+        )
+        marks = [r for r in righe if r.get("kind") == "mark"]
+        c.close(marks[0]["t_wav"], 4.0, "il segno a mano sta sulla stessa scala", tol=1e-6)
+
+        # E il giro completo: il WAV dura quanto l'audio versato, quindi il
+        # secondo scritto nel JSONL cade davvero dentro il file.
+        with wave.open(str(dove / "mix.wav"), "rb") as w:
+            secondi = w.getnframes() / w.getframerate()
+            c.eq(w.getnchannels(), 2, "il mix salvato e' stereo")
+        c.close(secondi, 3.0, "e lungo quanto l'audio ricevuto", tol=1e-3)
+        c.ok(
+            dette[0]["t_wav"] < secondi,
+            f"la battuta cade dentro il file (t={dette[0]['t_wav']}s su {secondi}s)",
+        )
+
+        # Una sessione senza audio non deve inventare posizioni: `t_wav` a zero
+        # sarebbe una risposta plausibile e falsa, e manderebbe a cercare la
+        # battuta all'inizio del file.
+        muta = Session(root=tmp, samplerate=sr)
+        muta.line(riga)
+        muta.close()
+        senza = load(muta.dir)
+        c.eq(senza[0]["t_wav"], None, "senza audio la posizione e' None, non zero")
+
+
 GROUPS = {
     "clock": test_clock,
+    "session": test_session,
     "metrics": test_metrics,
     "stage": test_stage,
     "ring": test_ring,

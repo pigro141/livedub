@@ -165,10 +165,22 @@ class AudioConfig:
 
 @dataclass
 class VadConfig:
-    backend: str = "silero"  # silero | energy
-    threshold: float = 0.5
+    """Quando qualcuno comincia a parlare nell'audio del gioco."""
+
+    backend: str = "energy"  # energy | silero (silero non ancora implementato)
+    threshold: float = 0.5  # probabilita', per i backend a modello
     min_speech_ms: int = 150
     min_silence_ms: int = 250
+    frame_ms: int = 20  # risoluzione della decisione, e quindi dell'onset
+    # Il parlato non si riconosce da quanto e' forte ma da quanto **stacca** dal
+    # rumore di fondo: l'audio di un gioco passa da una stanza silenziosa a un
+    # inseguimento in tre secondi, e una soglia assoluta direbbe "parla sempre"
+    # nel secondo caso e "non parla mai" nel primo. Stessa forma del contrasto
+    # locale che trova i glifi.
+    energy_margin_db: float = 9.0
+    floor_window_ms: int = 3000  # su quanto passato si stima il fondo
+    floor_percentile: int = 25
+    floor_db: float = -55.0  # sotto questo livello e' silenzio comunque
 
 
 @dataclass

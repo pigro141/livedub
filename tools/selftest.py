@@ -673,6 +673,146 @@ def test_audio_source(c: Check) -> None:
         )
 
 
+def test_vad(c: Check) -> None:
+    """Il rilevatore di parlato, su un segnale costruito.
+
+    Costruito perche' la risposta deve essere nota **prima**: su audio di gioco
+    "il VAD non trova la voce" e "la voce non c'e'" hanno lo stesso aspetto, e
+    solo un ingresso di cui si conosce la verita' li separa.
+    """
+    c.group("vad")
+
+    from core.config import VadConfig
+    from listen.vad import EnergyVad, Speech, dbfs, make_vad
+
+    sr = 16000
+    c.close(dbfs(np.zeros(100, np.float32)), -120.0, "il silenzio digitale vale -120 dBFS")
+    c.close(dbfs(np.ones(100, np.float32)), 0.0, "un segnale a fondo scala vale 0 dBFS", tol=1e-4)
+    c.ok(abs(dbfs(np.full(100, 0.5, np.float32)) + 6.02) < 0.05, "meta' ampiezza sono -6 dB")
+    c.eq(dbfs(np.zeros(0, np.float32)), -120.0, "un blocco vuoto non esplode")
+
+    def scena(*pezzi: tuple[float, float]) -> np.ndarray:
+        """(durata, ampiezza) -> rumore continuo, con i tratti forti al posto giusto."""
+        rng = np.random.default_rng(7)
+        out = []
+        for durata, amp in pezzi:
+            n = int(sr * durata)
+            out.append((rng.standard_normal(n) * amp).astype(np.float32))
+        return np.concatenate(out)
+
+    cfg = VadConfig()
+    cfg.backend = "energy"
+
+    # Fondo debole, un secondo di "parlato" forte, poi di nuovo fondo.
+    audio = scena((2.0, 0.005), (1.0, 0.15), (2.0, 0.005))
+    vad = EnergyVad(cfg, sr)
+    chiuse = []
+    for i in range(0, len(audio), 1600):
+        chiuse += vad.push(audio[i : i + 1600])
+    chiuse += vad.flush()
+    c.eq(len(chiuse), 1, "trova una presa di parola sola")
+    if chiuse:
+        s = chiuse[0]
+        c.ok(abs(s.t0 - 2.0) < 0.10, f"e comincia dove comincia davvero (t0={s.t0:.3f})")
+        c.ok(abs((s.duration or 0) - 1.0) < 0.25, f"con la durata giusta (d={s.duration:.3f})")
+        c.ok(s.peak_dbfs > -30.0, "e ricorda quanto era forte")
+
+    # L'onset dichiarato e' quello del PRIMO frame sopra soglia, non quello
+    # della conferma: con min_speech_ms alto la differenza si vede a occhio.
+    lento = VadConfig()
+    lento.backend, lento.min_speech_ms = "energy", 400
+    vad = EnergyVad(lento, sr)
+    audio = scena((2.0, 0.005), (1.5, 0.15), (2.0, 0.005))
+    chiuse = []
+    for i in range(0, len(audio), 1600):
+        chiuse += vad.push(audio[i : i + 1600])
+    chiuse += vad.flush()
+    c.eq(len(chiuse), 1, "con conferma lenta trova sempre una presa sola")
+    if chiuse:
+        c.ok(
+            abs(chiuse[0].t0 - 2.0) < 0.10,
+            f"e l'onset NON slitta di min_speech_ms (t0={chiuse[0].t0:.3f}, non ~2.4)",
+        )
+
+    # Il fondo che cambia: la stessa voce, prima in una scena silenziosa e poi
+    # in una rumorosa. Una soglia assoluta ne troverebbe una sola.
+    forte = scena((2.0, 0.05), (1.0, 0.5), (2.0, 0.05))
+    vad = EnergyVad(cfg, sr)
+    chiuse = []
+    for i in range(0, len(forte), 1600):
+        chiuse += vad.push(forte[i : i + 1600])
+    chiuse += vad.flush()
+    c.eq(len(chiuse), 1, "con fondo dieci volte piu' alto trova comunque la voce")
+
+    # E il contrario, senza il quale il precedente non dimostra niente: su
+    # rumore uniforme non deve inventare parlato.
+    piatto = scena((5.0, 0.05),)
+    vad = EnergyVad(cfg, sr)
+    chiuse = []
+    for i in range(0, len(piatto), 1600):
+        chiuse += vad.push(piatto[i : i + 1600])
+    chiuse += vad.flush()
+    c.eq(len(chiuse), 0, "su rumore uniforme non trova nessuna presa di parola")
+
+    # Due prese separate da un silenzio lungo restano due; da uno breve, una.
+    due = scena((1.5, 0.005), (0.8, 0.15), (1.0, 0.005), (0.8, 0.15), (1.5, 0.005))
+    vad = EnergyVad(cfg, sr)
+    chiuse = []
+    for i in range(0, len(due), 1600):
+        chiuse += vad.push(due[i : i + 1600])
+    chiuse += vad.flush()
+    c.eq(len(chiuse), 2, "un secondo di silenzio separa due prese di parola")
+
+    attaccate = scena((1.5, 0.005), (0.8, 0.15), (0.1, 0.005), (0.8, 0.15), (1.5, 0.005))
+    vad = EnergyVad(cfg, sr)
+    chiuse = []
+    for i in range(0, len(attaccate), 1600):
+        chiuse += vad.push(attaccate[i : i + 1600])
+    chiuse += vad.flush()
+    c.eq(len(chiuse), 1, "un respiro di 100 ms non le separa")
+
+    # Il risultato non deve dipendere da come l'audio e' spezzettato: in gioco
+    # la dimensione dei blocchi la decide la scheda audio, non noi.
+    rif = None
+    for blocco in (256, 1600, 4800, 7999):
+        vad = EnergyVad(cfg, sr)
+        audio = scena((2.0, 0.005), (1.0, 0.15), (2.0, 0.005))
+        got = []
+        for i in range(0, len(audio), blocco):
+            got += vad.push(audio[i : i + blocco])
+        got += vad.flush()
+        segni = [(round(s.t0, 2), round(s.t1 or 0, 2)) for s in got]
+        if rif is None:
+            rif = segni
+        c.eq(segni, rif, f"stesso risultato con blocchi da {blocco} campioni")
+
+    c.raises(
+        ValueError,
+        lambda: EnergyVad(cfg, sr).push(np.zeros((100, 2), np.float32)),
+        "audio stereo al VAD e' un errore, non un mixdown silenzioso",
+    )
+    c.ok(isinstance(make_vad(cfg, sr), EnergyVad), "make_vad costruisce quello a energia")
+    silero = VadConfig()
+    silero.backend = "silero"
+    c.ok(
+        isinstance(make_vad(silero, sr), EnergyVad),
+        "silero non c'e' ancora e si ripiega su energy (dichiarato, non silenzioso)",
+    )
+    c.raises(ValueError, lambda: make_vad(_vad_cfg("inventato"), sr), "backend ignoto e' un errore")
+
+    s = Speech(1.0)
+    c.ok(s.duration is None, "una presa ancora aperta non ha durata")
+    c.close(s.ended(2.5).duration, 1.5, "chiuderla la fissa")
+
+
+def _vad_cfg(backend: str):
+    from core.config import VadConfig
+
+    cfg = VadConfig()
+    cfg.backend = backend
+    return cfg
+
+
 def test_duration_model(c: Check) -> None:
     """Il predittore di durata e le sue guardie."""
     c.group("duration")
@@ -779,6 +919,7 @@ GROUPS = {
     "duration": test_duration_model,
     "replay": test_replay_stats,
     "audio_source": test_audio_source,
+    "vad": test_vad,
     "roi": test_roi,
     "lines": test_lines,
     "diff": test_diff,

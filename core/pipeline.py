@@ -30,7 +30,9 @@ from core.clock import Clock, get_clock
 from core.config import Config
 from core.metrics import MetricsRegistry
 from core.types import Emotion, LineClass, SubtitleEvent, Utterance
+from fuse.timing import DurationModel
 from mix.mixer import Mixer
+from mix.stretch import fit_duration
 from speak.base import TtsBackend
 from speak.pool import VoicePool, build_pool
 from vision.ocr import OcrBackend, make_ocr
@@ -119,7 +121,10 @@ class DubPipeline:
         self.spoken: list[SpokenLine] = []
         self.closed: list[SubtitleEvent] = []
         self._free_at = 0.0  # quando la voce torna libera
+        self.timing = DurationModel(cfg.timing)
         self._t_backlog = self.metrics.timer("dub.backlog")
+        self._t_rate = self.metrics.timer("dub.rate_x1000")
+        self._n_overflow = self.metrics.counter("dub.overflow")
         self._t_synth = self.metrics.timer("speak.synth")
         self._t_latency = self.metrics.timer("dub.latency")
         self._t_live = self.metrics.timer("dub.latency_live")
@@ -169,6 +174,12 @@ class DubPipeline:
         """Un frame in ingresso. Restituisce le battute doppiate in questa passata."""
         out = self.reader.run(frame)
         self.closed.extend(out.closed)
+        # Una battuta che sparisce e' una durata vera: il predittore impara da
+        # quelle, e sono l'unica forma in cui la calibrazione del tempo si
+        # aggiorna mentre la sessione gira.
+        for ev in out.closed:
+            if ev.duration is not None:
+                self.timing.observe(ev.text, ev.duration)
         return [self._speak(ev) for ev in out.opened if ev.text.strip()]
 
     def _speak(self, event: SubtitleEvent) -> SpokenLine:
@@ -192,15 +203,53 @@ class DubPipeline:
         # senza questa riga due sottotitoli vicini partivano insieme: due voci
         # italiane sovrapposte non si capiscono, ed e' peggio di una battuta in
         # ritardo. Ogni battuta comincia quindi quando finisce la precedente.
-        #
-        # Il prezzo e' un arretrato che puo' crescere, e per ora si **misura**
-        # invece di correggerlo: `dub.backlog` dice di quanto si sta accumulando
-        # ritardo. La correzione vera e' il time-stretch di F2 — stringere la
-        # battuta per farla stare nel suo spazio invece di spostarla in avanti —
-        # e tararla senza sapere quanto arretrato si accumula davvero
-        # significherebbe sceglierne i limiti a occhio.
         t_start = max(now, self.mixer.now, self._free_at)
         self._t_backlog.add((t_start - now) * 1000.0)
+
+        # **E la si stringe perche' ci stia, invece di spostarla in avanti.**
+        # Mettere le battute in fila, da solo, sposta il problema: misurato dal
+        # vivo, l'arretrato arrivava a 2 s con Piper e a 3 s con SuperTonic, e
+        # non si smaltiva piu' perche' ogni battuta nuova nasceva gia' in coda.
+        # Il rimedio e' il tempo, non lo spazio: la battuta ha una finestra —
+        # quella del suo sottotitolo, prevista da `D = a + b*n` — e dentro
+        # quella deve entrare.
+        #
+        # `elapsed` e' il tempo gia' consumato dalla comparsa del sottotitolo
+        # fino a quando la voce potra' partire: comprende il riconoscimento, la
+        # sintesi e l'attesa in coda. E' quello che riduce il budget, e non
+        # tenerne conto significherebbe comprimere per una finestra che non
+        # c'e' piu'.
+        #
+        # Si accelera soltanto. Rallentare per riempire il tempo disponibile
+        # farebbe parlare il doppiatore piu' lento del personaggio senza nessun
+        # guadagno, e `rate_min` esiste solo come limite inferiore di sicurezza
+        # quando la correzione viene chiesta da qualcun altro.
+        rate = 1.0
+        if audio.size:
+            durata = len(audio) / self.samplerate
+            piano = self.timing.plan(event.text, durata, elapsed=t_start - event.t_on)
+            # Il bersaglio, non la velocita': quando il budget e' gia' finito
+            # `plan` restituisce `rate` 1.0 — non perche' vada bene cosi', ma
+            # perche' non c'e' piu' finestra da rispettare. Guardare `rate`
+            # spegneva la compressione **proprio quando serviva di piu'**, ed e'
+            # il primo caso che la verifica ha trovato. Il pavimento
+            # `durata / rate_max` dice: se non c'e' piu' spazio, stringi quanto
+            # e' lecito e poi sfora.
+            bersaglio = max(piano.budget, durata / self.cfg.timing.rate_max)
+            if durata > bersaglio + 1e-3:
+                audio, rate = fit_duration(
+                    audio,
+                    bersaglio,
+                    self.samplerate,
+                    limits=(1.0, self.cfg.timing.rate_max),
+                )
+            self._t_rate.add(rate * 1000.0)
+            if piano.overflow > 0:
+                # Oltre il limite si sfora, non si scarta: e' la promessa del
+                # prodotto. Ma lo sforamento si conta, perche' e' il sintomo che
+                # dice se la previsione di durata regge.
+                self._n_overflow.inc()
+
         if audio.size:
             self.mixer.schedule(
                 audio, t_start, speaker_id=speaker_id, text=event.text
@@ -219,6 +268,7 @@ class DubPipeline:
             t_scheduled=t_start,
             synth_ms=synth_ms,
             duration=len(audio) / self.samplerate if audio.size else 0.0,
+            rate=rate,
         )
         self._t_latency.add(line.latency_ms)
         self._t_live.add(line.live_latency_ms)

@@ -941,6 +941,67 @@ def test_una_voce_alla_volta(c: Check) -> None:
     c.ok(p.metrics.timer("dub.backlog").count == 3, "l'arretrato viene misurato a ogni battuta")
 
 
+def test_stringi_non_accodare(c: Check) -> None:
+    """La battuta si stringe per stare nella sua finestra, non si sposta avanti.
+
+    Mettere le battute in fila risolveva le sovrapposizioni e creava un
+    arretrato: misurato dal vivo, 2 s con Piper e 3 s con SuperTonic, che non si
+    smaltiva piu' perche' ogni battuta nuova nasceva gia' in coda.
+    """
+    c.group("stringi")
+
+    from core.config import Config
+    from core.pipeline import DubPipeline
+    from speak.base import ToneTts
+
+    cfg = Config()
+    cfg.vision.ocr_backend = "none"
+    cfg.timing.predict_a, cfg.timing.predict_b = 1.0, 0.02  # finestra prevedibile
+    orologio = VirtualClock()
+    p = DubPipeline(cfg, ToneTts(), clock=orologio, samplerate=48000)
+    p.start_live(warmup=False)
+
+    testo = "a" * 50  # finestra prevista: 1.0 + 0.02*50 = 2.0 s
+    c.close(p.timing.predict(testo), 2.0, "la finestra prevista e' quella")
+
+    # Una raffica: cinque battute nello stesso istante. Senza compressione ogni
+    # battuta spinge in avanti la successiva e l'arretrato cresce senza fine.
+    righe = [p._speak(SubtitleEvent(text=testo, cls=LineClass.WHITE, t_on=0.0)) for _ in range(5)]
+    arretrato = righe[-1].t_scheduled - orologio.now()
+    c.ok(all(r.duration > 0 for r in righe), "tutte e cinque vengono dette")
+    c.ok(
+        righe[-1].rate > 1.0,
+        f"le ultime vengono accelerate invece che rimandate (rate {righe[-1].rate:.2f})",
+    )
+    c.ok(
+        righe[-1].rate <= cfg.timing.rate_max + 1e-6,
+        "ma mai oltre il limite dichiarato: si sfora, non si stravolge",
+    )
+    c.ok(
+        all(r.duration <= righe[0].duration + 1e-6 for r in righe),
+        "e nessuna dura piu' della prima",
+    )
+    c.ok(arretrato < 5 * righe[0].duration, f"l'arretrato non cresce libero ({arretrato:.2f}s)")
+
+    # Il caso opposto, senza il quale il precedente non dimostra niente: quando
+    # la finestra e' abbondante non si accelera, perche' accelerare senza motivo
+    # peggiorerebbe e basta. Nota che "voce libera" non basta a garantirlo: la
+    # battuta si stringe per stare nel suo SOTTOTITOLO, non per fare posto alle
+    # altre, quindi conta la finestra prevista e non la coda.
+    largo = Config()
+    largo.vision.ocr_backend = "none"
+    largo.timing.predict_a, largo.timing.predict_b = 30.0, 0.0
+    calmo = DubPipeline(largo, ToneTts(), clock=VirtualClock(), samplerate=48000)
+    calmo.start_live(warmup=False)
+    sola = calmo._speak(SubtitleEvent(text=testo, cls=LineClass.WHITE, t_on=0.0))
+    c.close(sola.rate, 1.0, "con la finestra abbondante la battuta non viene toccata")
+
+    # E l'apprendimento in linea: una durata vera osservata muove il predittore.
+    prima = p.timing.samples
+    p.timing.observe(testo, 2.4)
+    c.eq(p.timing.samples, prima + 1, "le durate osservate alimentano il predittore")
+
+
 def test_duration_model(c: Check) -> None:
     """Il predittore di durata e le sue guardie."""
     c.group("duration")
@@ -1051,6 +1112,7 @@ GROUPS = {
     "live_start": test_live_start,
     "lingua": test_lingua,
     "una_voce": test_una_voce_alla_volta,
+    "stringi": test_stringi_non_accodare,
     "roi": test_roi,
     "lines": test_lines,
     "diff": test_diff,

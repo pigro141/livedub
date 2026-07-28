@@ -125,15 +125,43 @@ le battute vere sono una ventina:
 | abbinamento per somiglianza invece che per posizione | 52 | 92 | 24 ms |
 | nucleo del contrasto locale a 11 invece di 63 | **44** | **3 su 1168** | 25 ms |
 
-Cosa resta: **lo sfarfallio del riconoscitore**. La stessa battuta esce
-`'Ioc toc. near!'`, `'—oc toc, negriM'`, `'oc toc neg'` — sotto la soglia di
-somiglianza di 0,88, quindi tre battute invece di una. Non e' piu' un problema
-del tracker.
-
 Due ipotesi cadute per strada, e vale la pena averle scritte: la riga *non*
 sfugge al classificatore (viene trovata nel 100% dei frame con sottotitolo, a
 ogni nucleo provato), e il nucleo del contrasto locale non serviva a trovarla —
 serviva a **non trovare le altre**, cioe' le bande di texture, che a 63 erano
 0,79 per frame vuoto e a 11 sono 0,08.
+
+### Il riconoscitore non sfarfallava: leggeva testo decapitato
+
+Sembrava rumore dell'OCR. Guardando **ogni singola lettura** invece di quelle
+che arrivavano in fondo, si e' visto che le letture della stessa battuta erano
+gia' stabili — ed erano stabilmente *sbagliate*, sempre sulle stesse lettere:
+
+| letto | vero | cosa mancava |
+|---|---|---|
+| `Oaai`, `acauistati`, `fialio`, `near!` | Oggi, acquistati, figlio, negri! | la coda di **g** e **q** |
+| `avessl`, `vorrel`, `insleme` | avessi, vorrei, insieme | il punto della **i** |
+| `cne` | che | l'asta della **h** |
+| `succede.` | succede, | la coda della **virgola** |
+
+Una `g` senza coda **e'** una `a`: il modello non sbagliava, rispondeva
+correttamente a un'immagine diversa. Le righe-pixel sotto la linea di base
+contengono solo le code di due o tre lettere — tre o quattro pixel — e non
+superavano `min_line_fill`, che su una ROI larga 1136 px vale 11 pixel. La
+banda si chiudeva sopra le code e il ritaglio arrivava tagliato.
+
+`find_bands` usa ora **due soglie**: la prima apre la banda (robusta al
+rumore), la seconda la estende finche' c'e' inchiostro, con un limite che
+impedisce a due righe vicine di saldarsi.
+
+| | prima | dopo |
+|---|---|---|
+| `Oggi recuperiamo veicoli acquistati…` | 0 letture su 61 | **54 su 61** |
+| `ma se ne avessi uno vorrei che fosse come te.` | 0 su 66 | **56 su 64** |
+| `Toc toc, negri!` | 0 su 29 | **25 su 44** |
+
+Restano da sciogliere le battute lette in pochi frame (una comparsa in
+dissolvenza da' `'Ciau, Lalliai:'` per `'Ciao, Lamar!'`) e le aperture ancora
+piu' del dovuto, 46 in 50 secondi contro una ventina.
 
 Piano completo: `C:\Users\filde\.claude\plans\progetto-so-che-ci-fancy-rossum.md`

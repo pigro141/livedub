@@ -57,6 +57,22 @@ Vale per lo stretch WSOLA (stretch di `r` poi `1/r` deve restituire l'ingresso) 
 per il classificatore di righe (frame sintetici con colori noti prima di un
 frame vero).
 
+**Guardare l'ingresso del modello prima di accusare il modello**, che e' la
+stessa regola in un altro travestimento e ha gia' pagato due volte. L'OCR
+leggeva `Oaai recuperiamo veicoli acauistati`, e sembrava un riconoscitore
+scadente sull'italiano. Il ritaglio che riceveva aveva le code di `g` e `q`
+tagliate via — e una `g` senza coda **e'** una `a`. Il modello rispondeva
+benissimo a una domanda diversa. Salvare il ritaglio su disco e guardarlo costa
+dieci secondi e chiude la questione; ragionare sul perche' il modello sbagli
+non la chiude mai, perche' il modello non sta sbagliando.
+
+**Guardare ogni lettura, non solo quelle che arrivano in fondo.** Le letture
+della stessa battuta sembravano rumore casuale viste dall'uscita della
+pipeline. Elencandole tutte erano stabilissime — e stabilmente sbagliate sulle
+stesse lettere. "Instabile" e "sistematicamente sbagliato" hanno rimedi
+opposti: nel primo caso si vota fra le letture, nel secondo votare consolida
+l'errore.
+
 **Controllare che la misura possa esprimere la risposta** prima di credere a
 quello che dice. Due esempi presi in flagrante mentre si calibrava il video, e
 sono la stessa forma di errore in due travestimenti:

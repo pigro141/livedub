@@ -68,11 +68,37 @@ def luma_sat(roi: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return luma, sat
 
 
-def find_bands(text_mask: np.ndarray, min_height: int, min_pixels: int = 1) -> list[tuple[int, int]]:
+def find_bands(
+    text_mask: np.ndarray,
+    min_height: int,
+    min_pixels: int = 1,
+    grow: float = 0.45,
+) -> list[tuple[int, int]]:
     """Righe di testo come gruppi di righe-pixel contigue non vuote.
 
-    `min_pixels` alza l'asticella su quanti pixel di testo servono perche' una
-    riga-pixel conti: uno solo e' rumore di compressione, non una lettera.
+    **Due soglie, non una, ed e' il punto di tutta la funzione.** `min_pixels`
+    alza l'asticella su quanti pixel servono perche' una riga-pixel *apra* una
+    banda: uno solo e' rumore di compressione, non una lettera. Ma la stessa
+    asticella applicata ai bordi taglia le lettere.
+
+    Misurato su GTA V, ROI larga 1136 px e quindi `min_pixels` = 11: le righe
+    dove passano solo le **code** di g, q, p ne hanno tre o quattro, restano
+    fuori dalla banda, e il ritaglio che arriva all'OCR e' un testo decapitato.
+    Il modello poi non sbaglia affatto — legge esattamente quello che vede:
+
+        Oggi recuperiamo veicoli acquistati  ->  Oaai recuperiamo veicoli acauistati
+        figlio                               ->  fialio
+        negri!                               ->  near!
+        avessi, vorrei, insieme              ->  avessl, vorrel, insleme
+        che                                  ->  cne
+
+    Una `g` senza coda **e'** una `a`, una `i` senza punto **e'** una `l`. Non e'
+    un errore di riconoscimento, e' una domanda diversa.
+
+    Quindi: il nucleo della banda si trova con `min_pixels` (robusto al rumore),
+    poi si **estende** sopra e sotto finche' c'e' anche un solo pixel di testo,
+    al massimo di `grow` volte l'altezza del nucleo. Il limite serve a non far
+    saldare due righe vicine quando la coda di una tocca l'asta dell'altra.
     """
     profile = text_mask.sum(axis=1)
     active = profile >= min_pixels
@@ -87,7 +113,23 @@ def find_bands(text_mask: np.ndarray, min_height: int, min_pixels: int = 1) -> l
             start = None
     if start is not None and len(active) - start >= min_height:
         bands.append((start, len(active) - 1))
-    return bands
+
+    if grow <= 0 or not bands:
+        return bands
+    return [_grow(top, bottom, profile, grow) for top, bottom in bands]
+
+
+def _grow(top: int, bottom: int, profile: np.ndarray, grow: float) -> tuple[int, int]:
+    """Allarga la banda finche' trova pixel di testo, entro il limite."""
+    margin = max(1, int(round((bottom - top + 1) * grow)))
+    lo = top
+    while lo > 0 and top - lo < margin and profile[lo - 1] > 0:
+        lo -= 1
+    hi = bottom
+    n = len(profile)
+    while hi < n - 1 and hi - bottom < margin and profile[hi + 1] > 0:
+        hi += 1
+    return lo, hi
 
 
 def text_mask(luma: np.ndarray, cfg: VisionConfig) -> np.ndarray:
@@ -137,7 +179,7 @@ def classify_lines(roi: np.ndarray, cfg: VisionConfig) -> list[LineBand]:
 
     min_px = max(1, int(roi.shape[1] * cfg.min_line_fill))
     out: list[LineBand] = []
-    for top, bottom in find_bands(mask, cfg.min_line_height, min_px):
+    for top, bottom in find_bands(mask, cfg.min_line_height, min_px, cfg.line_grow):
         band_mask = mask[top : bottom + 1]
         if not band_mask.any():
             continue

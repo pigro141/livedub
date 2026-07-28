@@ -85,6 +85,52 @@ def test_lines(c) -> None:
     m3[2, 0] = True
     c.eq(find_bands(m3, 1, min_pixels=2), [], "min_pixels scarta il pixel isolato")
 
+    # Le code delle lettere. Sotto la linea di base passano solo le code di
+    # g, q, p: poche righe-pixel con pochissimi pixel, che `min_pixels` scarta.
+    # Se finiscono fuori dalla banda il ritaglio arriva decapitato all'OCR, e
+    # una `g` senza coda *e'* una `a` — il modello non sbaglia, legge quello
+    # che vede. Sulla registrazione vera questo produceva "Oaai recuperiamo
+    # veicoli acauistati" al posto di "Oggi recuperiamo veicoli acquistati".
+    coda = np.zeros((30, 100), bool)
+    coda[5:20, :60] = True  # il corpo delle lettere
+    coda[20:24, :3] = True  # le code di due o tre lettere
+    c.eq(
+        find_bands(coda, min_height=5, min_pixels=10, grow=0.45),
+        [(5, 23)],
+        "la banda si estende sulle code",
+    )
+    c.eq(
+        find_bands(coda, min_height=5, min_pixels=10, grow=0.0),
+        [(5, 19)],
+        "senza estensione le code restano fuori",
+    )
+
+    # L'estensione ha un limite, altrimenti la coda di una riga si salda
+    # all'asta di quella sotto e due battute diventano una.
+    vicine = np.zeros((44, 100), bool)
+    vicine[2:16, :60] = True
+    vicine[16:26, :2] = True  # un filo sottile che collega le due righe
+    vicine[26:40, :60] = True
+    bande = find_bands(vicine, min_height=5, min_pixels=10, grow=0.45)
+    c.eq(len(bande), 2, "due righe collegate da un filo restano due")
+    c.ok(bande[0][1] < 26, "la prima non arriva alla seconda")
+    c.ok(bande[1][0] > 15, "la seconda non arriva alla prima")
+
+    # E la prova su testo vero: il ritaglio che arriva all'OCR deve contenere
+    # **tutto** l'inchiostro della riga, non solo il suo nucleo.
+    con_code = render_subtitles([("Oggi paghi que" + "l gioco?", WHITE)], size=(90, 700))
+    luma_cc, _ = luma_sat(con_code)
+    mask_cc = text_mask(luma_cc, cfg)
+    bande_cc = classify_lines(con_code, cfg)
+    c.eq(len(bande_cc), 1, "una riga sola")
+    b = bande_cc[0]
+    dentro = int(mask_cc[b.top : b.bottom + 1, b.x0 : b.x1].sum())
+    totale = int(mask_cc[:, b.x0 : b.x1].sum())
+    c.ok(
+        dentro >= totale * 0.98,
+        f"il ritaglio contiene tutto l'inchiostro della riga ({dentro}/{totale})",
+    )
+
     # Classificazione su testo renderizzato davvero.
     roi = render_subtitles(
         [

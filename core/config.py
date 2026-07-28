@@ -71,6 +71,11 @@ class VisionConfig:
     sat_percentile: int = 98
     min_line_height: int = 8  # px: sotto e' rumore, non una riga
     min_line_fill: float = 0.01  # frazione minima di larghezza occupata da testo
+    # Quanto la banda di una riga puo' crescere oltre il proprio nucleo, in
+    # frazione dell'altezza del nucleo. Serve a non tagliare code e punti: le
+    # righe-pixel dove passano solo le code di g, q, p hanno pochi pixel e non
+    # superano `min_line_fill`. Vedi `vision/lines.find_bands`.
+    line_grow: float = 0.45
     # Ultimo filtro, e l'unico che non viene da una misura ma dalla lingua:
     # nessuna battuta italiana e' lunga un carattere. Sulla registrazione vera
     # la texture della scena produce righe che l'OCR legge come '1', '?', '—';

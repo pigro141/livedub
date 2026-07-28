@@ -183,17 +183,33 @@ class TtsConfig:
 class TimingConfig:
     """Aggancio al parlato originale.
 
-    `predict_a` e `predict_b` sono i coefficienti di `D = a + b * n_caratteri`.
-    Valori iniziali plausibili, da rifare con `tools/calibrate.py`.
+    `predict_a` e `predict_b` sono i coefficienti di `D = a + b * n_caratteri`,
+    e si misurano con `tools/bench_timing.py --write profiles/<gioco>.json`.
+    I valori qui sotto sono **dichiarati, non misurati**: servono solo a far
+    partire una sessione su un gioco mai calibrato.
     """
 
     predict_a: float = 0.90
     predict_b: float = 0.045
+    # Fascia di plausibilita' di una durata: fuori di qui non e' una battuta.
+    # Sotto, e' il frammento di una battuta riaperta a meta'; sopra, e' un
+    # sottotitolo rimasto a schermo perche' il gioco e' in pausa o in un filmato.
+    # Serve alla previsione (che non deve restituire assurdita') e
+    # all'apprendimento (che non deve impararle).
+    min_duration: float = 0.6
+    max_duration: float = 8.0
     rate_min: float = 0.85
     rate_max: float = 1.35
     lead_ms: int = 0  # anticipo/ritardo fisso sull'attacco
     use_vad_onset: bool = True
     never_drop: bool = True  # oltre i limiti si sfora, non si scarta
+    # Aggiornamento in linea dei coefficienti: `decay` e' quanto pesa il
+    # passato a ogni nuova battuta (0,97 ≈ una memoria di una trentina), e
+    # `max_drift` quanto la retta imparata puo' allontanarsi da quella del
+    # profilo — la guardia contro l'imparare bene una cosa sbagliata.
+    learn_decay: float = 0.97
+    learn_min_samples: int = 12
+    learn_max_drift: float = 0.35
 
 
 @dataclass

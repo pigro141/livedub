@@ -528,6 +528,121 @@ def test_grammar(c: Check) -> None:
     c.eq(merge_lines([_line("  ", LineClass.WHITE, 0)], 0.0), [], "solo spazi: nessuna battuta")
 
 
+def test_timing(c: Check) -> None:
+    """La misura su cui poggia F2: durata prevista dal numero di caratteri."""
+    c.group("timing")
+
+    from tools.bench_timing import fit, letters
+
+    c.eq(letters("Ciao, Lamar!"), 9, "letters conta le sole lettere")
+    c.eq(letters("!!!"), 0, "una lettura di sola punteggiatura non ha lunghezza")
+    c.ok(
+        letters("Che succede, Simeon?") == letters("Che succede Simeon"),
+        "la punteggiatura che l'OCR inventa non cambia la lunghezza",
+    )
+    c.ok(
+        letters("Ma domani...") == letters("Madomani."),
+        "e nemmeno lo spazio che l'OCR si mangia",
+    )
+
+    # La retta contro la propria inversa: da coefficienti noti si generano le
+    # durate, e l'adattamento deve restituire quei coefficienti. Senza questa
+    # verifica un errore di segno o di ordine (b, a invece di a, b) darebbe
+    # numeri plausibili e sbagliati, che e' il modo in cui questi errori
+    # sopravvivono.
+    n = np.arange(10, 60, dtype=float)
+    a, b = fit(n, 1.25 + 0.037 * n)
+    c.close(a, 1.25, "fit ritrova l'intercetta", tol=1e-6)
+    c.close(b, 0.037, "fit ritrova la pendenza", tol=1e-9)
+
+    # Rumore simmetrico: i coefficienti reggono, ed e' cio' che distingue
+    # "misura rumorosa" da "misura sbagliata".
+    rumore = np.array([+0.2, -0.2] * (len(n) // 2), dtype=float)
+    a2, b2 = fit(n, 1.25 + 0.037 * n + rumore)
+    c.ok(abs(a2 - 1.25) < 0.1, "con rumore simmetrico l'intercetta regge")
+    c.ok(abs(b2 - 0.037) < 0.005, "con rumore simmetrico la pendenza regge")
+
+    c.eq(fit(np.array([1.0]), np.array([1.0])), (0.0, 0.0), "un punto solo non definisce una retta")
+
+
+def test_duration_model(c: Check) -> None:
+    """Il predittore di durata e le sue guardie."""
+    c.group("duration")
+
+    from core.config import TimingConfig
+    from fuse.timing import DurationModel, spoken_length
+
+    c.eq(spoken_length("Ciao, Lamar!"), 9, "spoken_length ignora la punteggiatura")
+    c.eq(spoken_length("Ma domani..."), spoken_length("Madomani."), "e lo spazio mangiato dall'OCR")
+
+    cfg = TimingConfig()
+    cfg.predict_a, cfg.predict_b = 1.0, 0.02
+    m = DurationModel(cfg)
+    c.close(m.predict("a" * 50), 2.0, "predict applica la retta")
+    c.close(m.predict("a" * 5000), cfg.max_duration, "non sale sopra il massimo")
+    corto = TimingConfig()
+    corto.predict_a, corto.predict_b = 0.1, 0.001
+    c.close(
+        DurationModel(corto).predict("ab"),
+        corto.min_duration,
+        "e non scende sotto il minimo",
+    )
+
+    # Il piano: quanto tempo c'e' e a che velocita' starci dentro.
+    p = m.plan("a" * 50, spoken=2.0)          # previsione 2.0s, sintesi 2.0s
+    c.close(p.rate, 1.0, "se ci sta gia', la velocita' resta nominale")
+    c.ok(p.fits, "e non c'e' sforamento")
+    p = m.plan("a" * 50, spoken=2.4)          # serve andare piu' svelti
+    c.close(p.rate, 1.2, "per starci dentro accelera")
+    c.ok(p.fits, "e ci sta")
+    p = m.plan("a" * 50, spoken=4.0)          # oltre cio' che WSOLA sa fare
+    c.close(p.rate, cfg.rate_max, "la velocita' e' limitata")
+    c.ok(not p.fits, "oltre il limite si dichiara lo sforamento")
+    c.close(p.overflow, 4.0 / cfg.rate_max - 2.0, "e lo si quantifica")
+
+    # never_drop: la battuta si dice comunque. E' la promessa del prodotto, non
+    # un dettaglio, quindi ha una verifica sua.
+    c.ok(p.overflow > 0 and p.rate > 0, "sforando, la battuta resta dicibile")
+
+    # Il tempo gia' consumato riduce il budget, non la durata prevista.
+    p = m.plan("a" * 50, spoken=1.0, elapsed=0.5)
+    c.close(p.budget, 1.5, "il budget e' quello che resta")
+    c.close(p.predicted, 2.0, "la durata prevista non cambia")
+
+    # Apprendimento: la verita' e' un'altra retta, e il modello ci si avvicina.
+    learner = DurationModel(TimingConfig())
+    prima = learner.predict("a" * 40)
+    for _ in range(60):
+        for n in (10, 20, 30, 40, 50):
+            learner.observe("a" * n, 0.5 + 0.05 * n)
+    c.ok(learner.samples == 300, "ha visto tutti i campioni")
+    c.ok(abs(learner.predict("a" * 40) - 2.5) < abs(prima - 2.5), "impara nella direzione giusta")
+
+    # Le guardie. Senza queste l'aggiornamento in linea e' il posto ideale per
+    # rovinare tutto in silenzio.
+    guard = DurationModel(TimingConfig())
+    c.ok(not guard.observe("una battuta vera", 0.2), "un frammento non e' una durata")
+    c.ok(not guard.observe("una battuta vera", 30.0), "un sottotitolo in pausa nemmeno")
+    c.ok(not guard.observe("", 1.5), "una battuta senza lettere nemmeno")
+    c.eq(guard.samples, 0, "nessuno dei tre e' stato imparato")
+    c.eq(guard.ignored, 3, "e tutti e tre sono stati contati")
+
+    fermo = DurationModel(TimingConfig())
+    a0, b0 = fermo.a, fermo.b
+    for _ in range(fermo.cfg.learn_min_samples - 1):
+        fermo.observe("a" * 30, 2.0)
+    c.ok(fermo.a == a0 and fermo.b == b0, "sotto la soglia di campioni non si muove niente")
+
+    # E la guardia che conta di piu': dati coerenti ma assurdi non devono poter
+    # spostare la retta oltre la fascia dichiarata.
+    matto = DurationModel(TimingConfig())
+    for _ in range(300):
+        matto.observe("a" * 40, 7.9)
+    drift = matto.cfg.learn_max_drift
+    c.ok(matto.a <= matto.cfg.predict_a + drift + 1e-9, "l'intercetta resta nella fascia")
+    c.ok(matto.b <= matto.cfg.predict_b * (1 + drift) + 1e-9, "la pendenza resta nella fascia")
+
+
 from tools.selftest_audio import (  # noqa: E402
     test_center,
     test_mixer,
@@ -552,6 +667,8 @@ GROUPS = {
     "config": test_config,
     "types": test_types,
     "grammar": test_grammar,
+    "timing": test_timing,
+    "duration": test_duration_model,
     "roi": test_roi,
     "lines": test_lines,
     "diff": test_diff,

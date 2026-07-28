@@ -129,7 +129,7 @@ def sample(video: str, n: int, start: float, end: float | None):
 # -- 1. dove sta il testo --------------------------------------------------
 
 
-def find_roi(video: str, n: int, start: float, end: float | None, ev: Evidence, verbose: bool):
+def find_roi(frames, ev: Evidence, verbose: bool):
     """ROI dal profilo di testo, cercando **solo nella fascia bassa**.
 
     La restrizione non e' pigrizia: sopra ci sono la minimappa, i nomi delle
@@ -138,7 +138,7 @@ def find_roi(video: str, n: int, start: float, end: float | None, ev: Evidence, 
     """
     rows = cols = None
     seen = 0
-    for _, frame in sample(video, n, start, end):
+    for _, frame in frames():
         h, w = frame.shape[:2]
         strip0 = int(h * 0.70)
         mask, *_ = severe_mask(frame[strip0:])
@@ -188,7 +188,7 @@ def find_roi(video: str, n: int, start: float, end: float | None, ev: Evidence, 
     # centro, frame per frame, e se ne guardano gli estremi.
     lefts, rights = [], []
     w_full = len(cols)
-    for _, frame in sample(video, n, start, end):
+    for _, frame in frames():
         mask, *_ = severe_mask(frame[y0:y1])
         active = mask.sum(axis=0) >= 1
         if not active[w_full // 2 - 60 : w_full // 2 + 60].any():
@@ -231,7 +231,7 @@ def find_roi(video: str, n: int, start: float, end: float | None, ev: Evidence, 
 # -- 2. le soglie ----------------------------------------------------------
 
 
-def find_thresholds(video, n, start, end, roi, ev: Evidence, verbose: bool) -> dict:
+def find_thresholds(frames, roi, ev: Evidence, verbose: bool) -> dict:
     """Soglie di lavoro dagli istogrammi dentro la ROI trovata.
 
     **L'ancora non puo' usare il contrasto**, e non basta nemmeno il colore.
@@ -258,7 +258,7 @@ def find_thresholds(video, n, start, end, roi, ev: Evidence, verbose: bool) -> d
 
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
     bodies, peaks, floors = [], [], []
-    for _, frame in sample(video, n, start, end):
+    for _, frame in frames():
         r = crop(frame, roi)
         rgb = r[:, :, :3].astype(np.float32)
         luma = rgb.mean(axis=2)
@@ -322,7 +322,7 @@ def find_thresholds(video, n, start, end, roi, ev: Evidence, verbose: bool) -> d
 # -- 3. il grigio esiste? --------------------------------------------------
 
 
-def grey_check(video, n, start, end, roi, thr: dict, ev: Evidence, out_dir: Path, verbose: bool):
+def grey_check(frames, roi, thr: dict, ev: Evidence, out_dir: Path, verbose: bool):
     """Cerca frame con due righe di luminanza diversa, e ne salva i ritagli.
 
     Non emette un verdetto. Un secondo gruppo di luminanza dentro la ROI puo'
@@ -334,7 +334,7 @@ def grey_check(video, n, start, end, roi, thr: dict, ev: Evidence, out_dir: Path
     from vision.roi import crop
 
     candidates = []
-    for t, frame in sample(video, n, start, end):
+    for t, frame in frames():
         r = crop(frame, roi)
         _, luma, sat, delta = severe_mask(r)
         mask = (
@@ -394,38 +394,107 @@ def grey_check(video, n, start, end, roi, thr: dict, ev: Evidence, out_dir: Path
 # -- riga di comando -------------------------------------------------------
 
 
+def _live_frames(args, verbose: bool):
+    """Cattura una volta dallo schermo e restituisce i frame, riusabili.
+
+    I frame si tengono in memoria e **non** si scrivono su disco: la
+    calibrazione li rilegge tre volte (ROI, soglie, grigio) e ricatturare
+    darebbe tre scene diverse, cioe' tre risposte a tre domande diverse. La
+    stessa cosa da file viene gratis, perche' il file resta fermo.
+    """
+    import time
+
+    from capture.screen import make_screen
+
+    screen = make_screen(args.backend, monitor=args.monitor)
+    if args.delay > 0:
+        print(f">>> {args.delay:.0f} secondi per portare il gioco in primo piano...")
+        time.sleep(args.delay)
+        print(">>> catturo\n")
+
+    raccolti: list[tuple[float, object]] = []
+    periodo = args.live_seconds / max(1, args.frames)
+    t0 = time.perf_counter()
+    try:
+        while (
+            len(raccolti) < args.frames and (time.perf_counter() - t0) < args.live_seconds
+        ):
+            g = screen.grab()
+            if g.ok:
+                raccolti.append((time.perf_counter() - t0, g.frame.copy()))
+            time.sleep(max(0.0, periodo * 0.5))
+    finally:
+        screen.close()
+
+    if not raccolti:
+        raise RuntimeError("nessun frame catturato dallo schermo")
+    if verbose:
+        h, w = raccolti[0][1].shape[:2]
+        print(f"catturati {len(raccolti)} frame da {w}x{h} in "
+              f"{time.perf_counter()-t0:.1f}s ({screen.name})\n")
+
+    def frames():
+        return iter(raccolti)
+
+    return frames
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         prog="tools.calibrate",
         description="Ricava ROI e soglie di colore da una registrazione.",
     )
-    ap.add_argument("video")
+    ap.add_argument("video", nargs="?", help="registrazione da calibrare (assente con --live)")
     ap.add_argument("--frames", type=int, default=400, help="quanti frame campionare")
     ap.add_argument("--start", type=float, default=0.0)
     ap.add_argument("--end", type=float, default=None)
     ap.add_argument("--write", metavar="PROFILO", help="salva il profilo (es. profiles/gtav.json)")
     ap.add_argument("--out", default="runs/calibrate", help="cartella per i ritagli candidati")
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument(
+        "--live",
+        action="store_true",
+        help="calibra dallo SCHERMO invece che da un file: la ROI e' del setup di cattura",
+    )
+    ap.add_argument("--backend", default="auto", help="cattura: auto | dxcam | mss")
+    ap.add_argument("--monitor", type=int, default=1)
+    ap.add_argument("--delay", type=float, default=0.0, help="attesa prima di cominciare")
+    ap.add_argument("--live-seconds", type=float, default=40.0, help="durata della cattura live")
     args = ap.parse_args(argv)
 
+    if not args.video and not args.live:
+        ap.error("serve un video, oppure --live per calibrare dallo schermo")
+
     verbose = not args.quiet
-    info = probe(args.video)
-    print(info)
-    print(f"campiono {args.frames} frame\n")
+    if args.live:
+        # La ROI e' del **setup di cattura**, non del gioco: misurato, gli stessi
+        # sottotitoli stanno a 0,965 dell'altezza in una registrazione e a 0,914
+        # in un'altra. Calibrare dal vivo non e' una comodita': e' l'unico modo
+        # di avere la ROI del percorso che si usera' davvero.
+        frames = _live_frames(args, verbose)
+        etichetta, risoluzione = "schermo dal vivo", "?"
+    else:
+        info = probe(args.video)
+        print(info)
+        print(f"campiono {args.frames} frame\n")
+        etichetta, risoluzione = info.path.name, f"{info.width}x{info.height}"
+
+        def frames():
+            return sample(args.video, args.frames, args.start, args.end)
 
     ev = Evidence()
     print("1. dove sta il testo")
-    roi = find_roi(args.video, args.frames, args.start, args.end, ev, verbose)
+    roi = find_roi(frames, ev, verbose)
     print(f"  -> roi = {roi}\n")
 
     print("2. le soglie")
-    thr = find_thresholds(args.video, args.frames, args.start, args.end, roi, ev, verbose)
+    thr = find_thresholds(frames, roi, ev, verbose)
     for k, v in thr.items():
         print(f"  -> {k} = {v}")
     print()
 
     print("3. il grigio esiste?")
-    grey_check(args.video, args.frames, args.start, args.end, roi, thr, ev, Path(args.out), verbose)
+    grey_check(frames, roi, thr, ev, Path(args.out), verbose)
     print()
 
     print("da riga di comando:")
@@ -443,8 +512,8 @@ def main(argv: list[str] | None = None) -> int:
                 **thr,
             },
             "_calibrazione": {
-                "video": info.path.name,
-                "risoluzione": f"{info.width}x{info.height}",
+                "video": etichetta,
+                "risoluzione": risoluzione,
                 **ev.to_dict(),
             },
         }

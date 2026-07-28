@@ -1,0 +1,58 @@
+{
+  "vision": {
+    "roi": [
+      0.3134,
+      0.8988,
+      0.3731,
+      0.0492
+    ],
+    "white_min_luma": 230,
+    "grey_min_luma": 110,
+    "sat_max": 35,
+    "contrast_min": 68.8
+  },
+  "_calibrazione": {
+    "video": "schermo dal vivo",
+    "risoluzione": "?",
+    "frames_sampled": 150,
+    "frames_with_text": 103,
+    "row_band": [
+      0.9293,
+      0.9439
+    ],
+    "col_band": [
+      0.3234,
+      0.6766
+    ],
+    "body_luma": {
+      "p1": 245.0,
+      "p5": 245.19,
+      "p25": 249.0,
+      "p50": 250.33,
+      "p75": 251.18,
+      "p95": 252.33,
+      "p99": 252.33
+    },
+    "peak_sat": {
+      "p1": 5.01,
+      "p5": 5.74,
+      "p25": 13.0,
+      "p50": 25.0,
+      "p75": 27.0,
+      "p95": 27.0,
+      "p99": 27.97
+    },
+    "contrast": {
+      "p1": 60.27,
+      "p5": 76.05,
+      "p25": 86.99,
+      "p50": 97.53,
+      "p75": 117.49,
+      "p95": 128.04,
+      "p99": 129.98
+    },
+    "grey_candidates": 0,
+    "lines_total": 96,
+    "multi_line_frames": 0
+  }
+}

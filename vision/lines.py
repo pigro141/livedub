@@ -30,8 +30,8 @@ class LineBand:
     top: int
     bottom: int  # incluso
     cls: LineClass
-    luma: float  # luminanza del corpo dei glifi
-    sat: float  # saturazione massima sui pixel di testo
+    luma: float  # luminanza del corpo dei glifi acromatici
+    sat: float  # saturazione di picco sui pixel di testo
     # Ritaglio pronto per l'OCR: la luminanza vera dove c'e' testo, nero
     # altrove. NON binario, e la differenza si misura — il riconoscitore e'
     # addestrato su testo antialiasato, e una maschera a due livelli gli toglie
@@ -41,6 +41,7 @@ class LineBand:
     crop: np.ndarray
     x0: int = 0
     x1: int = 0  # escluso
+    sat_share: float = 0.0  # quota dell'inchiostro che e' satura: 0 = riga pulita
 
     @property
     def height(self) -> int:
@@ -171,6 +172,14 @@ def classify_lines(roi: np.ndarray, cfg: VisionConfig) -> list[LineBand]:
     tirerebbero la mediana verso il basso fino a confondere il bianco col
     grigio. Il 90esimo percentile guarda il cuore delle lettere, che e' la cosa
     che davvero distingue le due classi.
+
+    **L'inchiostro saturo non e' testo, ed esce prima di tutto il resto.** Un
+    glifo di dialogo e' bianco o grigio per definizione, quindi un pixel saturo
+    dentro la banda o e' un glifo colorato — e allora la riga non e' dialogo —
+    oppure e' scenario entrato nella ROI, e va tolto e basta. A distinguere i
+    due casi e' la **quota**: si veda `VisionConfig.sat_ink_max`. Togliere quei
+    pixel migliora anche il ritaglio che va all'OCR, che altrimenti si porta
+    dietro pezzi di scena.
     """
     luma, sat = luma_sat(roi)
     mask = text_mask(luma, cfg)
@@ -183,24 +192,34 @@ def classify_lines(roi: np.ndarray, cfg: VisionConfig) -> list[LineBand]:
         band_mask = mask[top : bottom + 1]
         if not band_mask.any():
             continue
-        band_luma = luma[top : bottom + 1][band_mask]
-        band_sat = sat[top : bottom + 1][band_mask]
+        band_sat_img = sat[top : bottom + 1]
+        band_luma_img = luma[top : bottom + 1]
 
-        body_luma = float(np.percentile(band_luma, cfg.luma_percentile))
-        # Anche la saturazione va presa su un percentile alto: un singolo pixel
-        # colorato di bordo non deve poter squalificare una riga di dialogo.
-        peak_sat = float(np.percentile(band_sat, cfg.sat_percentile))
+        hot = band_mask & (band_sat_img > cfg.sat_max)  # inchiostro colorato
+        cool = band_mask & ~hot  # i glifi bianchi o grigi, se ci sono
+        n_hot, n_cool = int(hot.sum()), int(cool.sum())
+        share = n_hot / max(1, n_hot + n_cool)
 
-        if peak_sat > cfg.sat_max:
+        # Una riga di soli glifi colorati non lascia niente di acromatico: e' il
+        # caso limite della stessa regola, non un caso a parte.
+        colored = n_cool < min_px or share > cfg.sat_ink_max
+        body_mask = band_mask if colored else cool
+        if not body_mask.any():
+            continue
+
+        body_luma = float(np.percentile(band_luma_img[body_mask], cfg.luma_percentile))
+        peak_sat = float(np.percentile(band_sat_img[band_mask], cfg.sat_percentile))
+
+        if colored:
             cls = LineClass.COLORED
         elif body_luma >= cfg.white_min_luma:
             cls = LineClass.WHITE
         else:
             cls = LineClass.GREY
 
-        cols = np.where(band_mask.any(axis=0))[0]
+        cols = np.where(body_mask.any(axis=0))[0]
         x0, x1 = (int(cols[0]), int(cols[-1]) + 1) if cols.size else (0, roi.shape[1])
-        band_grey = luma[top : bottom + 1, x0:x1] * band_mask[:, x0:x1]
+        band_grey = band_luma_img[:, x0:x1] * body_mask[:, x0:x1]
         out.append(
             LineBand(
                 top=int(top),
@@ -211,6 +230,7 @@ def classify_lines(roi: np.ndarray, cfg: VisionConfig) -> list[LineBand]:
                 crop=np.clip(band_grey, 0, 255).astype(np.uint8),
                 x0=x0,
                 x1=x1,
+                sat_share=share,
             )
         )
     return out

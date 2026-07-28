@@ -32,23 +32,44 @@ Sono domande diverse, e le insidie stanno tutte qui:
 
 from __future__ import annotations
 
-import re
+import unicodedata
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
 from core.config import VisionConfig
 from core.types import LineClass, SubtitleEvent
 
-_SPACES = re.compile(r"\s+")
-
 
 def normalize(text: str) -> str:
-    """Forma di confronto: minuscole, spazi normalizzati.
+    """Forma di confronto: **solo lettere e cifre**, minuscole, senza accenti.
 
     Serve solo a decidere se due letture sono *la stessa battuta*. Il testo che
     va in sintesi resta quello originale.
+
+    Perche' cosi' aggressiva: la prima versione appiattiva maiuscole e spazi, e
+    lasciava passare tutto il resto. Ma cio' che l'OCR non riproduce due volte
+    uguale e' esattamente *il resto*. Misurato sulla registrazione:
+
+    - `'Ma domani...'` contro `'Madomani.'` — 0,857, appena sotto la soglia di
+      0,88, e sono la stessa identica battuta letta a due frame di distanza;
+    - `'Saremo insieme!'` contro `'Saremoinsieme！！'` — il riconoscitore emette
+      punteggiatura a **larghezza intera** (`！`, `，`, `：`) quando il glifo e'
+      sfocato, e per il confronto quello e' un carattere diverso;
+    - `'. Toc toc, negri!'`, `'——octoc，negri！'`, `'"1 Fanculo al...'`, `'→Dalle
+      palle'` — un frammento di scena in testa alla riga si legge come un glifo
+      spurio, e sposta il rapporto quanto una lettera vera.
+
+    Su una battuta corta ognuno di questi vale diversi punti percentuali, e la
+    battuta viene riaperta. Togliere tutto cio' che non e' lettera o cifra
+    elimina la classe intera di questi casi invece di inseguirli uno per uno.
+
+    `NFKD` fa due lavori in un colpo: riporta i caratteri a larghezza intera
+    alla loro forma normale e scompone le accentate in lettera + segno, e il
+    segno cade con la punteggiatura. Cosi' `perche'` e `perche` — che l'OCR
+    scambia di continuo — diventano la stessa cosa.
     """
-    return _SPACES.sub(" ", text.strip().lower())
+    folded = unicodedata.normalize("NFKD", text.lower())
+    return "".join(ch for ch in folded if ch.isalnum())
 
 
 def similarity(a: str, b: str) -> float:
@@ -58,6 +79,28 @@ def similarity(a: str, b: str) -> float:
     if not a or not b:
         return 0.0
     return SequenceMatcher(None, a, b).ratio()
+
+
+def wrong_chars(a: str, b: str) -> float:
+    """Quanti caratteri separano due letture normalizzate.
+
+    Il rapporto di `similarity` e' comodo ma ha la forma sbagliata per la
+    domanda "e' la stessa battuta?": una soglia in percentuale tollera un numero
+    di errori proporzionale alla lunghezza, mentre l'OCR sbaglia **una lettera
+    ogni tanto** e non una quota del testo. Misurato sulla registrazione:
+    `piantaladawwero` contro `piantaladavvero` — due lettere su quindici — fa
+    0,867, sotto una soglia di 0,88 che le stesse due lettere su una frase di
+    quarantacinque caratteri non avrebbero mai sfiorato. La battuta corta
+    veniva riaperta e quella lunga no, per un motivo che non ha niente a che
+    vedere con quanto sono diverse.
+
+    Qui si torna ai caratteri: dal rapporto si ricava quanti ne combaciano, e si
+    restituisce quanti restano fuori nella piu' lunga delle due.
+    """
+    if not a or not b:
+        return float(max(len(a), len(b)))
+    matched = SequenceMatcher(None, a, b).ratio() * (len(a) + len(b)) / 2.0
+    return max(0.0, max(len(a), len(b)) - matched)
 
 
 @dataclass(slots=True)
@@ -101,9 +144,8 @@ class SubtitleTracker:
     sulle *passate*, non sui frame.
     """
 
-    def __init__(self, cfg: VisionConfig, min_similarity: float = 0.88) -> None:
+    def __init__(self, cfg: VisionConfig) -> None:
         self.cfg = cfg
-        self.min_similarity = min_similarity
         self._active: dict[int, _Tracked] = {}
         self._pending: dict[int, _Pending] = {}
         self._next_id = 0
@@ -215,21 +257,34 @@ class SubtitleTracker:
         self._expire(matched_active, matched_pending, t, out, force=certain)
         return out
 
-    def _best(self, pool: dict, cls: LineClass, norm: str, taken: set, text_of) -> int | None:
-        """L'elemento del gruppo piu' somigliante, sopra soglia. `None` se nessuno.
+    def _budget(self, a: str, b: str) -> float:
+        """Quanti caratteri di scarto si accettano fra due letture.
 
-        Si sceglie il **migliore** e non il primo sopra soglia: con due battute
-        della stessa classe a schermo — che e' il caso di una frase andata a capo
-        letta come due righe — il primo sopra soglia puo' essere l'altra.
+        Un minimo fisso, perche' l'OCR sbaglia qualche lettera su qualunque
+        lunghezza, piu' una quota della lunghezza, perche' su una frase lunga di
+        occasioni di sbagliare ce ne sono di piu'.
         """
-        best_id, best_score = None, self.min_similarity
+        longest = max(len(a), len(b))
+        return max(float(self.cfg.max_wrong_chars), self.cfg.max_wrong_frac * longest)
+
+    def _best(self, pool: dict, cls: LineClass, norm: str, taken: set, text_of) -> int | None:
+        """L'elemento del gruppo piu' somigliante, entro lo scarto. `None` se nessuno.
+
+        Si sceglie il **migliore** e non il primo accettabile: con due battute
+        della stessa classe a schermo — che e' il caso di una frase andata a capo
+        letta come due righe — il primo accettabile puo' essere l'altra.
+        """
+        best_id, best_score = None, -1.0
         for key, item in pool.items():
             if key in taken:
                 continue
             item_cls = item.cls if isinstance(item, _Pending) else item.event.cls
             if item_cls is not cls:
                 continue
-            score = similarity(text_of(item), norm)
+            other = text_of(item)
+            if wrong_chars(other, norm) > self._budget(other, norm):
+                continue
+            score = similarity(other, norm)
             if score >= best_score:
                 best_id, best_score = key, score
         return best_id

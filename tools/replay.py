@@ -44,6 +44,7 @@ from core.metrics import MetricsRegistry  # noqa: E402
 from core.ring import RingBuffer  # noqa: E402
 from core.stage import Chain, FnStage  # noqa: E402
 from core.types import LineClass, OcrLine, SubtitleEvent, merge_lines  # noqa: E402
+from tools.reads import Recorder  # noqa: E402
 from tools.sources import Packet, Source, SyntheticSource, VideoSource, probe  # noqa: E402,F401
 from vision.roi import crop  # noqa: E402
 from vision.subtitles import TrackerOutput  # noqa: E402
@@ -72,10 +73,18 @@ class ReplayStats:
 class Replay:
     """Esecutore. Pilota un `VirtualClock` sui timestamp della sorgente."""
 
-    def __init__(self, source: Source, cfg: Config | None = None, *, real: bool = False) -> None:
+    def __init__(
+        self,
+        source: Source,
+        cfg: Config | None = None,
+        *,
+        real: bool = False,
+        tap=None,
+    ) -> None:
         self.source = source
         self.cfg = cfg or Config()
         self.real = real
+        self.tap = tap
         self.metrics = MetricsRegistry()
         self.clock = VirtualClock()
         self.ring = RingBuffer(
@@ -98,6 +107,7 @@ class Replay:
             make_ocr(self.cfg.vision.ocr_backend, self.cfg.vision.ocr_device),
             metrics=self.metrics,
             clock=self.clock,
+            tap=self.tap,
             # Sul banco un errore deve gridare: e' il posto dove si vuole
             # sapere che l'OCR e' caduto, non dove si vuole sopravvivere.
             on_error="raise",
@@ -301,6 +311,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--end", type=float, default=None, help="secondo di fine nel video")
     ap.add_argument("--fps", type=float, default=None, help="ritmo di campionamento dei frame")
     ap.add_argument("--peek", type=int, metavar="N", help="salva N ritagli della ROI e basta")
+    ap.add_argument(
+        "--dump-reads",
+        metavar="FILE",
+        help="registra ogni alimentazione del tracker su JSONL (vedi tools.retrack)",
+    )
     ap.add_argument("--out", default="runs/peek", help="cartella per i ritagli di --peek")
     ap.add_argument(
         "--determinism",
@@ -334,7 +349,13 @@ def main(argv: list[str] | None = None) -> int:
             if not quiet:
                 print(source.info)
                 print(f"campionamento: 1 frame ogni {source.step} -> {source.fps:.2f} fps\n")
-            return Replay(source, cfg, real=True).run(quiet=quiet)
+            recorder = Recorder(args.dump_reads) if args.dump_reads else None
+            stats = Replay(source, cfg, real=True, tap=recorder).run(quiet=quiet)
+            if recorder is not None:
+                path = recorder.write()
+                if not quiet:
+                    print(f"\nletture registrate: {len(recorder.records)} -> {path}")
+            return stats
         source = SyntheticSource(seconds=args.seconds, seed=args.seed)
         return Replay(source, cfg, real=False).run(quiet=quiet)
 

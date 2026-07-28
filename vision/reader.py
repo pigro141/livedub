@@ -16,11 +16,20 @@ Due dettagli che valgono piu' di quanto sembri:
   diff dice che non si muove piu' nulla. Serve allo stabilizzatore per avere le
   letture concordi che gli servono: un sottotitolo appare in dissolvenza e poi
   resta fermo, quindi le letture di conferma cadono proprio quando il diff tace.
+
+C'e' anche un **rubinetto** (`tap`), che riceve ogni singola alimentazione del
+tracker prima che il tracker la veda. Non serve alla pipeline: serve a poterla
+studiare. Le letture che arrivano in fondo sono una minoranza scelta dallo
+stabilizzatore stesso, quindi giudicarlo dal suo output e' come chiedere a un
+imputato di scegliere le prove. Con il rubinetto il flusso si registra una volta
+sola — l'OCR e' la parte cara — e da li' lo stabilizzatore si rifa' girare
+quante volte si vuole, a costo zero e sullo stesso identico ingresso.
 """
 
 from __future__ import annotations
 
 import time
+from typing import Callable
 
 import numpy as np
 
@@ -46,11 +55,13 @@ class SubtitleReader(Stage):
         *,
         metrics: MetricsRegistry | None = None,
         clock: Clock | None = None,
+        tap: Callable[[float, list, bool], None] | None = None,
         **kw,
     ) -> None:
         super().__init__("vision.read", metrics=metrics, clock=clock, **kw)
         self.cfg = cfg
         self.ocr = ocr if ocr is not None else NullOcr()
+        self.tap = tap
         self.diff = RoiDiff(
             threshold=cfg.diff_threshold,
             stride=cfg.diff_stride,
@@ -93,6 +104,8 @@ class SubtitleReader(Stage):
             # arriva solo al prossimo cambiamento di schermo, che puo' essere
             # secondi dopo.
             self._recheck = 0
+            if self.tap is not None:
+                self.tap(now, [], True)
             return self._emit(self.tracker.feed([], now, certain=True))
 
         if d.changed:
@@ -116,7 +129,10 @@ class SubtitleReader(Stage):
             text, conf = self.ocr.read(band.crop)
             self._t_ocr.add((time.perf_counter() - t0) * 1000.0)
             self._n_ocr.inc()
-            if len(text.strip()) < max(1, self.cfg.min_ocr_chars):
+            # Lettere e cifre, non caratteri: su una banda di solo scenario il
+            # riconoscitore restituisce punteggiatura ('·..··', '，.，'), che di
+            # caratteri ne ha quanti ne vuole e di lingua nessuna.
+            if sum(ch.isalnum() for ch in text) < max(1, self.cfg.min_ocr_chars):
                 # Vuoto, o troppo corto per essere una battuta. Conta come
                 # vuoto: il numero serve a vedere quanta scena sta entrando
                 # nella ROI, ed e' il sintomo che una soglia va rifatta.
@@ -133,7 +149,10 @@ class SubtitleReader(Stage):
                 )
             )
 
-        return self._emit(self.tracker.feed(merge_lines(lines, t_on=now), now))
+        candidates = merge_lines(lines, t_on=now)
+        if self.tap is not None:
+            self.tap(now, candidates, False)
+        return self._emit(self.tracker.feed(candidates, now))
 
     def close(self) -> TrackerOutput:
         """Chiude le battute ancora aperte. A fine sessione o fine replay."""

@@ -18,7 +18,7 @@ from vision.lines import classify_lines, find_bands, luma_sat, text_mask
 from vision.ocr import EchoOcr, NullOcr, make_ocr, prepare
 from vision.reader import SubtitleReader
 from vision.roi import crop, roi_pixels
-from vision.subtitles import SubtitleTracker, normalize, similarity
+from vision.subtitles import SubtitleTracker, normalize, similarity, wrong_chars
 
 ROI = (0.15, 0.72, 0.70, 0.22)
 
@@ -324,12 +324,53 @@ def test_ocr_prep(c) -> None:
 def test_tracker(c) -> None:
     c.group("tracker")
 
-    c.eq(normalize("  Ciao   MONDO "), "ciao mondo", "normalize appiattisce spazi e maiuscole")
+    c.eq(normalize("  Ciao   MONDO "), "ciaomondo", "normalize tiene solo lettere e cifre")
     c.close(similarity("ciao mondo", "ciao mondo"), 1.0, "testi identici")
     c.ok(similarity("ciao mondo", "ciao mondu") > 0.88, "un carattere di scarto resta la stessa")
     c.ok(similarity("ciao mondo", "tutt'altra frase") < 0.5, "frasi diverse")
     c.close(similarity("", ""), 1.0, "due vuoti sono uguali")
     c.close(similarity("a", ""), 0.0, "vuoto contro non vuoto")
+
+    # La forma di confronto si verifica su casi noti prima che su un frame vero:
+    # sono tutti presi dalla registrazione, dove ognuno riapriva una battuta.
+    # A sinistra cio' che l'OCR ha letto, a destra la stessa battuta letta bene.
+    for a, b, why in [
+        ("Ma domani...", "Madomani.", "spazi e punti di sospensione"),
+        ("Saremo insieme!", "Saremoinsieme！！", "punteggiatura a larghezza intera"),
+        ("Toc toc, negri!", "Toc toc，negri！", "virgola a larghezza intera"),
+        ("→Dalle palle", "Dalle palle", "glifo spurio in testa"),
+        ("Piantala... Davvero?", "Piantala...Davvero？", "spazio mancante"),
+        ("perche'", "perché", "accento contro apostrofo"),
+        ("Franklin ha ottenuto il titolo.", "Franklin ha ottenuto il titolo. .", "coda spuria"),
+    ]:
+        c.eq(normalize(a), normalize(b), f"stessa battuta malgrado {why}")
+
+    c.eq(normalize("..."), "", "una lettura di sola punteggiatura si annulla")
+
+    # Lo scarto si conta in caratteri, e la verifica sta tutta nel confronto fra
+    # le due righe: le stesse due lettere sbagliate, su una battuta corta e su
+    # una lunga. Una soglia in percentuale ne accettava una e rifiutava l'altra.
+    corta = (normalize("Piantala... Davvero?"), normalize("Piantala... Dawwero?"))
+    lunga = (
+        normalize("Franklin ha ottenuto il titolo di dipendente del mese."),
+        normalize("Franklln ha ottenuto il titolo di dipendente del rnese."),
+    )
+    c.ok(wrong_chars(*corta) <= 2.5, "due lettere su una battuta corta restano due")
+    c.ok(wrong_chars(*lunga) <= 3.5, "due lettere su una battuta lunga restano due")
+    c.ok(similarity(*corta) < similarity(*lunga), "in percentuale invece la corta pagava di piu'")
+
+    # E l'altra meta' della verifica, senza la quale la prima non dimostra
+    # niente: uno scarto generoso non deve far combaciare battute diverse.
+    for a, b, why in [
+        ("Come va, bello?", "Mi prendi per il culo, vero?", "battute diverse"),
+        ("Non mi accontento.", "Non me ne frega.", "stesso inizio, seguito diverso"),
+        ("Dalle palle", "alla cappella.", "due righe della stessa frase"),
+        ("Sali sulla moto.", "Sali sulla macchina.", "stesso ordine, oggetto diverso"),
+    ]:
+        na, nb = normalize(a), normalize(b)
+        cfg_ = VisionConfig()
+        budget = max(float(cfg_.max_wrong_chars), cfg_.max_wrong_frac * max(len(na), len(nb)))
+        c.ok(wrong_chars(na, nb) > budget, f"restano distinte: {why}")
 
     cfg = VisionConfig()
     cfg.stable_reads = 2

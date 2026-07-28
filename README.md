@@ -58,6 +58,20 @@ Sulla registrazione, **in quest'ordine** — il primo comando non e' facoltativo
 .\.venv\Scripts\python.exe -m tools.replay gameplay.mp4 --profile gtav --start 1240 --end 1290
 ```
 
+Per lavorare sullo **stabilizzatore** senza ri-pagare l'OCR a ogni tentativo, si
+registra una volta il flusso di letture e poi lo si rigioca:
+
+```powershell
+.\.venv\Scripts\python.exe -m tools.replay gameplay.mp4 --profile gtav --start 1240 --end 1290 `
+    --dump-reads runs\reads.jsonl                                    # una volta, ~55 s
+.\.venv\Scripts\python.exe -m tools.retrack runs\reads.jsonl --profile gtav          # ~50 ms
+.\.venv\Scripts\python.exe -m tools.retrack runs\reads.jsonl --profile gtav --raw 1269.5 1270.3
+```
+
+`--raw` elenca **ogni** alimentazione del tracker, comprese quelle che ha
+scartato: giudicare lo stabilizzatore da cio' che ne esce e' chiedere
+all'imputato di scegliere le prove.
+
 ## Cosa e' stato misurato
 
 Ogni numero qui sotto viene dal banco, non da una stima. Le sorprese sono
@@ -90,7 +104,8 @@ registrazioni di GTA V (9 e 28 minuti, 1080p) ne ha cambiati alcuni.
 | ROI di default | inquadrava il tappeto. Zero battute — che somiglia moltissimo a "il modello non regge" |
 | OCR con ROI sbagliata | **223 ms** mediani contro i 15 sul sintetico: la banda di riga si allargava sulla texture della scena, e il costo scala con la larghezza |
 | `contrast_min` | misurato **29**; il default 30 era gia' giusto. La spazzatura veniva dalla ROI, non da questa soglia |
-| Righe di un carattere | `'1'`, `'—'`, `'?'` letti da cordoli e strisce bianche. Passano ogni soglia di colore perche' sono davvero bianchi: li ferma `min_ocr_chars`, cioe' la lingua |
+| Righe di un carattere | `'1'`, `'—'`, `'?'` letti da cordoli e strisce bianche. Passano ogni soglia di colore perche' sono davvero bianchi: li ferma `min_ocr_chars`, cioe' la lingua — e conta **lettere**, perche' una riga letta `'·..··'` di caratteri ne ha cinque e di lingua nessuna |
+| **La saturazione puniva il dialogo** | 863 righe scartate in 20 minuti perche' un oggetto colorato entrava nella ROI. Erano quasi tutte battute bianche a luminanza 249 |
 
 **Due misure sbagliate prese in flagrante**, che sono il motivo per cui la
 regola sta nel `CLAUDE.md`: ancorare il testo con una maschera che pretende uno
@@ -107,23 +122,36 @@ tutto montato in `core/pipeline.py` e verificabile con `tools.demo`.
 
 Il banco legge ora **anche il video vero**: `tools/replay.py` monta il dominio
 video di F1 per intero su una registrazione, `tools/calibrate.py` ne ricava ROI
-e soglie, e `profiles/gtav.json` le tiene.
+e soglie, e `profiles/gtav.json` le tiene. `tools/retrack.py` rigioca il solo
+stabilizzatore su letture gia' registrate, mille volte al prezzo di zero.
+
+Il dominio video produce ora durate credibili — mediana 1,32 s su una fetta dove
+le battute vere sono ventisei — ed e' la condizione che mancava per iniziare F2:
+la predizione `D̂ = a + b·n_caratteri` si tara su queste durate, e finche' erano
+frammenti non c'era niente da tarare.
 
 Non c'e' ancora: l'aggancio della durata al sottotitolo (F2), il riconoscimento
 di *quale* personaggio parla (F3, per ora bianco e grigio ricevono due voci
 fisse), l'emozione (F4) e la cattura dal vivo da schermo e scheda audio.
 
-Sul video vero lo stabilizzatore riapre ancora la stessa battuta piu' volte, e
-va sciolto **prima** di misurare le durate: una battuta riaperta quattro volte
-da' quattro durate corte invece di una giusta. Su una fetta di 50 secondi, dove
-le battute vere sono una ventina:
+Lo stabilizzatore riapriva la stessa battuta piu' volte, e andava sciolto
+**prima** di misurare le durate: una battuta riaperta quattro volte da' quattro
+durate corte invece di una giusta. Su una fetta di 50 secondi, dove le battute
+vere sono ventisei:
 
 | | aperture | letture OCR vuote | OCR p50 |
 |---|---|---|---|
 | ROI di partenza | 55 | 1109 su 2768 | 223 ms |
 | ROI calibrata | 52 | 92 su 1066 | 24 ms |
 | abbinamento per somiglianza invece che per posizione | 52 | 92 | 24 ms |
-| nucleo del contrasto locale a 11 invece di 63 | **44** | **3 su 1168** | 25 ms |
+| nucleo del contrasto locale a 11 invece di 63 | 44 | 3 su 1168 | 25 ms |
+| due soglie in `find_bands` (il testo decapitato) | 46 | 2 | 17 ms |
+| confronto sulle sole lettere | 40 | 2 | 17 ms |
+| l'inchiostro saturo non e' testo | 36 | 4 | 16 ms |
+| scarto in caratteri invece che in percentuale | **30** | 4 | 17 ms |
+
+Le durate, che sono il dato che serve a F2, passano da una mediana di 0,70 s —
+cioe' frammenti — a **1,32 s**, e i frammenti sotto 0,6 s da 19 a 3.
 
 Due ipotesi cadute per strada, e vale la pena averle scritte: la riga *non*
 sfugge al classificatore (viene trovata nel 100% dei frame con sottotitolo, a
@@ -160,8 +188,58 @@ impedisce a due righe vicine di saldarsi.
 | `ma se ne avessi uno vorrei che fosse come te.` | 0 su 66 | **56 su 64** |
 | `Toc toc, negri!` | 0 su 29 | **25 su 44** |
 
-Restano da sciogliere le battute lette in pochi frame (una comparsa in
-dissolvenza da' `'Ciau, Lalliai:'` per `'Ciao, Lamar!'`) e le aperture ancora
-piu' del dovuto, 46 in 50 secondi contro una ventina.
+### La riga non spariva: veniva scartata perche' passava una macchia viola
+
+`Franklin ha ottenuto il titolo di dipendente del mese.` si riapriva a meta',
+con testo **identico** — quindi non era la soglia di somiglianza. Guardando le
+letture grezze, otto passate consecutive senza candidate; guardando la ROI in
+quelle passate, il sottotitolo era li', perfetto. A rispondere e' stato il
+classificatore:
+
+```
+t=1260.70  [white  ] luma=253.7  sat=10.0
+t=1260.75  [colored] luma=253.7  sat=42.0   <- stessa riga, stesso testo bianco
+t=1260.95  [colored] luma=253.7  sat=47.0
+t=1261.00  [white  ] luma=253.3  sat=25.0
+```
+
+La banda veniva trovata ogni frame, con luminanza da bianco puro; era la
+**saturazione di picco** a superare `sat_max` — per via di un oggetto di scena
+entrato nella ROI, non di un glifo. La regola "riga con glifi saturi ⇒ scarta la
+riga" e' giusta per i suggerimenti, dove il testo *e'* colorato; applicata al
+picco puniva il dialogo per colpa dello scenario. In venti minuti scartava **863
+righe**, e rileggendole senza i pixel saturi erano quasi tutte dialogo:
+`Ehi fratello, che succede?`, `Pensavi che ti avrei preso a calci in culo, eh?`,
+`Cazzo, siamo a Vespucci Beach`.
+
+Due ipotesi provate e cadute, che vale la pena aver scritto: le colonne sature
+**non** formano una fascia contigua (`run_frac` 0,04 in entrambi i gruppi), e non
+stanno **fuori** dalla fila dei glifi (640 righe su 863 le hanno dentro — la fila
+di una frase e' larga quasi quanto la ROI, quindi tutto ci cade dentro).
+
+Quello che separa e' la **quota**: ordinando le righe scartate per frazione di
+inchiostro saturo, sopra ~0,25 ci sono solo righe-obiettivo — `Scegli una delle
+auto`, `Raggiungi ...`, `Segui ...`, dove la parola colorata e' una fetta grossa
+di una riga corta — e sotto c'e' il dialogo. Ora i pixel saturi escono dalla
+maschera (non sono glifi, e nel ritaglio danno solo fastidio) e la riga e'
+`COLORED` solo se erano tanti: `vision.lines.colored` passa da 135 a 6 sulla
+fetta.
+
+### Due lettere sbagliate costano il doppio su una battuta corta
+
+`piantaladawwero` contro `piantaladavvero` fa 0,867 e cadeva sotto la soglia di
+0,88; le stesse due lettere su una frase di quarantacinque caratteri fanno 0,955
+e non la sfioravano. La battuta corta veniva riaperta e quella lunga no, per un
+motivo che non ha niente a che vedere con quanto sono diverse: una soglia in
+percentuale tollera un numero di errori proporzionale alla lunghezza, mentre
+l'OCR sbaglia **una lettera ogni tanto**. Il confronto ora e' in caratteri
+(`max_wrong_chars`), e prima ancora sulle sole lettere e cifre — la
+punteggiatura a larghezza intera (`！`, `，`) e i glifi spurii in testa (`I`,
+`——`, `→`) sono cio' che l'OCR riproduce meno volentieri, e contavano quanto una
+lettera vera.
+
+Restano le battute lette in pochi frame: una comparsa in dissolvenza da'
+`'Ciau, Lalliai:'` per `'Ciao, Lamar!'`, e li' il testo e' davvero diverso — tre
+delle 30 aperture sono quella sola battuta.
 
 Piano completo: `C:\Users\filde\.claude\plans\progetto-so-che-ci-fancy-rossum.md`

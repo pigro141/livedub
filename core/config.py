@@ -55,7 +55,25 @@ class VisionConfig:
     # testo" chiude una battuta ancora a schermo e la fa riaprire, mentre un
     # falso "c'e' testo" ritarda solo la chiusura di `hold_frames`.
     ink_min_columns: float = 0.20
-    sat_max: int = 60  # saturazione oltre la quale la riga non e' dialogo
+    sat_max: int = 60  # saturazione oltre la quale un pixel non e' un glifo di dialogo
+    # Quanta parte dell'inchiostro di una riga puo' essere satura prima che la
+    # riga smetta di essere dialogo.
+    #
+    # La prima versione bocciava la riga sul **picco** di saturazione, e
+    # sbagliava per una ragione che si e' vista solo sulla registrazione: i
+    # pixel saturi spesso non sono glifi, sono scenario entrato nella ROI. Una
+    # battuta bianca a luminanza 253 veniva scartata perche' una macchia viola
+    # passava nell'inquadratura — 863 righe scartate in venti minuti, e leggendo
+    # cosa contenevano erano quasi tutte dialogo.
+    #
+    # Ordinando le righe scartate per quota di inchiostro saturo, le due
+    # popolazioni si separano: sopra ~0,25 ci sono le righe-obiettivo (`Scegli
+    # una delle auto`, `Raggiungi ...`, `Segui ...`, dove la parola colorata e'
+    # una frazione grossa di una riga corta), sotto c'e' il dialogo con lo
+    # scenario dentro la ROI. I pixel saturi vengono comunque tolti dalla
+    # maschera prima del riconoscimento: non sono testo, e nel ritaglio danno
+    # solo fastidio.
+    sat_ink_max: float = 0.25
     white_min_luma: int = 200  # bianco pieno
     grey_min_luma: int = 110  # sotto questa soglia non e' testo
     # Il testo di gioco e' bordato di nero: non e' luminoso in assoluto, e'
@@ -77,12 +95,24 @@ class VisionConfig:
     # superano `min_line_fill`. Vedi `vision/lines.find_bands`.
     line_grow: float = 0.45
     # Ultimo filtro, e l'unico che non viene da una misura ma dalla lingua:
-    # nessuna battuta italiana e' lunga un carattere. Sulla registrazione vera
+    # nessuna battuta italiana e' lunga una lettera. Sulla registrazione vera
     # la texture della scena produce righe che l'OCR legge come '1', '?', '—';
     # passavano ogni soglia di colore perche' un cordolo bianco *e'* bianco.
+    # Si contano **lettere e cifre**: una riga letta '·..··' ha cinque caratteri
+    # e nessuna lettera, e non e' una battuta in nessuna lingua.
     min_ocr_chars: int = 2
     stable_reads: int = 2  # letture concordi prima di dare per buona una battuta
     hold_frames: int = 3  # frame senza testo prima di dichiarare chiusa la battuta
+    # Quanto due letture possono differire restando "la stessa battuta". Si
+    # confrontano le forme normalizzate (sole lettere e cifre), e il conto e' in
+    # **caratteri**, non in percentuale: l'OCR sbaglia una lettera ogni tanto,
+    # non una quota del testo. Vedi `vision/subtitles.wrong_chars`.
+    # Misurato sulla fetta di 50 s: 2 caratteri danno 33 aperture, 3 ne danno
+    # 30, 4 ne danno 29, 5 ne danno 28. Il salto e' fra 2 e 3 e poi la curva si
+    # appiattisce, quindi 3 prende quasi tutto il guadagno restando vicino al
+    # CER misurato dell'OCR (2,9%) — cioe' senza essere tarato sulla fetta.
+    max_wrong_chars: int = 3  # sempre tollerati, a qualunque lunghezza
+    max_wrong_frac: float = 0.06  # e in piu' questa quota della battuta piu' lunga
     ocr_backend: str = "ppocr"  # ppocr | none
     ocr_device: str = "cuda"  # cuda | cpu
     max_ocr_hz: float = 12.0

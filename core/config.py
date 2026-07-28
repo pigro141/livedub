@@ -102,7 +102,29 @@ class VisionConfig:
     # e nessuna lettera, e non e' una battuta in nessuna lingua.
     min_ocr_chars: int = 2
     stable_reads: int = 2  # letture concordi prima di dare per buona una battuta
-    hold_frames: int = 3  # frame senza testo prima di dichiarare chiusa la battuta
+    # Quanto una battuta puo' non farsi leggere restando a schermo: **entrambe**
+    # le condizioni devono cadere prima di dichiararla chiusa.
+    #
+    # `hold_frames` conta le passate del tracker, e non e' un ripiego: una
+    # passata avviene quando la scena cambia, e un sottotitolo che sparisce *e'*
+    # un cambiamento — sostituire il conteggio col solo tempo e' stato provato e
+    # peggiora (1105 aperture contro 1129 del migliore tempo puro).
+    # `hold_seconds` mette il pavimento che al conteggio manca nelle scene
+    # mosse, dove tre passate valgono un decimo di secondo. 0,6 s copre il
+    # novantesimo percentile delle raffiche di letture fallite misurate sui 27
+    # minuti (17 passate).
+    #
+    # Puo' essere generoso perche' la sparizione vera arriva dal diff
+    # (`certain`), non dal silenzio dell'OCR: sbagliare per eccesso allunga una
+    # durata, sbagliare per difetto spezza la battuta in due.
+    #
+    # **Da solo non serviva a niente**: finche' la sostituzione scavalcava la
+    # scadenza (64% delle chiusure passava di li') allungare la tenuta non
+    # cambiava una virgola. Ha cominciato a pagare solo insieme a
+    # `continue_similarity`, ed e' il motivo per cui i due valori vanno tarati
+    # insieme e non uno per volta.
+    hold_frames: int = 3
+    hold_seconds: float = 0.6
     # Quanto due letture possono differire restando "la stessa battuta". Si
     # confrontano le forme normalizzate (sole lettere e cifre), e il conto e' in
     # **caratteri**, non in percentuale: l'OCR sbaglia una lettera ogni tanto,
@@ -113,6 +135,18 @@ class VisionConfig:
     # CER misurato dell'OCR (2,9%) — cioe' senza essere tarato sulla fetta.
     max_wrong_chars: int = 3  # sempre tollerati, a qualunque lunghezza
     max_wrong_frac: float = 0.06  # e in piu' questa quota della battuta piu' lunga
+    # Soglia separata e piu' larga per un caso solo: una battuta appena
+    # confermata che sta per cacciare l'**unica** orfana a schermo. Li' le
+    # candidate sono due e la domanda e' piu' facile che nel caso generale,
+    # quindi ci si puo' permettere di essere generosi senza rischiare di fondere
+    # due frasi diverse in mezzo a molte. Vedi `SubtitleTracker.feed`.
+    #
+    # Il valore viene da una guardia della suite, non da una spazzata: a 0,60 il
+    # banco dava il risultato migliore (692 aperture contro 742), ma `prima
+    # battuta` e `seconda battuta` si somigliano per 0,62 e venivano fuse. Due
+    # righe che finiscono con la stessa parola sono un caso reale, quindi la
+    # soglia sta sopra quella fascia e si tiene l'83% del guadagno.
+    continue_similarity: float = 0.75
     ocr_backend: str = "ppocr"  # ppocr | none
     ocr_device: str = "cuda"  # cuda | cpu
     max_ocr_hz: float = 12.0

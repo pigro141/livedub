@@ -98,6 +98,47 @@ def describe(name: str, n: np.ndarray, d: np.ndarray, rate_limits: tuple[float, 
     coperti = ((d >= pred / hi) & (d <= pred / lo)).mean()
     print(f"   entro la fascia correggibile da WSOLA ({lo:.2f}-{hi:.2f}): {coperti:6.1%}")
 
+    # E la stessa cosa guardata come va guardata: i due errori non si
+    # equivalgono. Se la battuta dura piu' del previsto la voce finisce in
+    # anticipo, e non se ne accorge nessuno. Se dura meno, la voce sfora. Una
+    # misura che li somma non puo' esprimere la differenza fra un difetto e un
+    # non-difetto, e per met'a di questa tabella e' stata proprio quella.
+    tardi = res < 0  # durata vera piu' corta della prevista: si sfora
+    print(f"   in anticipo (innocuo) {(~tardi).mean():6.1%}   "
+          f"in ritardo (sfora) {tardi.mean():6.1%}, "
+          f"e di quanto: p50 {np.percentile(-res[tardi], 50) if tardi.any() else 0:.2f}s  "
+          f"p90 {np.percentile(-res[tardi], 90) if tardi.any() else 0:.2f}s")
+
+
+def collisions(events: list[SubtitleEvent], a: float, b: float) -> None:
+    """Sforare non e' il problema: **collidere con la battuta dopo** lo e'.
+
+    Una voce che continua mentre a schermo non c'e' piu' niente non disturba
+    nessuno — il sottotitolo e' sparito, il personaggio ha finito, e il
+    doppiaggio arriva un attimo dopo come in un doppiaggio qualsiasi. Il difetto
+    vero e' parlare sopra la battuta successiva, perche' li' due voci si
+    accavallano e si perde una riga.
+
+    Quindi la domanda giusta non e' quanto e' preciso `D`, ma se lo sforamento
+    entra nel silenzio o nella battuta dopo. E' anche la ragione per cui i
+    numeri qui sopra, presi da soli, dipingono la situazione peggiore di com'e'.
+    """
+    ordered = sorted((e for e in events if e.duration is not None), key=lambda e: e.t_on)
+    sforo, buchi = [], []
+    for cur, nxt in zip(ordered, ordered[1:]):
+        gap = nxt.t_on - cur.t_on  # quanto tempo c'e' prima della prossima
+        predetta = a + b * letters(cur.text)
+        buchi.append(gap - cur.duration)
+        sforo.append(predetta - gap)  # >0 = la voce invade la battuta dopo
+    if not sforo:
+        return
+    sf = np.array(sforo)
+    bu = np.array(buchi)
+    print(f"\n   intervallo fino alla battuta dopo: p10 {np.percentile(bu,10):+5.2f}  "
+          f"p50 {np.percentile(bu,50):+5.2f}  p90 {np.percentile(bu,90):+5.2f}s")
+    print(f"   la voce invaderebbe la battuta successiva: {(sf > 0).mean():6.1%}  "
+          f"(di quanto, p90: {np.percentile(sf[sf > 0], 90) if (sf > 0).any() else 0:.2f}s)")
+
 
 def buckets(n: np.ndarray, d: np.ndarray, width: int = 10) -> None:
     """La durata mediana per fascia di lunghezza. Guardare prima di adattare."""
@@ -149,8 +190,8 @@ def main(argv: list[str] | None = None) -> int:
           f"non battute corte")
     describe(f"senza i frammenti (>{args.min_duration:.1f}s)", n[keep], d[keep], limits)
     buckets(n[keep], d[keep])
-
     a, b = fit(n[keep], d[keep])
+    collisions([e for e, k in zip(usable, keep) if k], a, b)
     print(f"\ncoefficienti misurati:  predict_a = {a:.3f}   predict_b = {b:.4f}")
     print(f"coefficienti in config: predict_a = {cfg.timing.predict_a:.3f}   "
           f"predict_b = {cfg.timing.predict_b:.4f}")

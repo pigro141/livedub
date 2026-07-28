@@ -33,7 +33,7 @@ Sono domande diverse, e le insidie stanno tutte qui:
 from __future__ import annotations
 
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
 
 from core.config import VisionConfig
@@ -113,6 +113,7 @@ class _Pending:
     first_t: float
     cls: LineClass
     lines: tuple = ()
+    last_seen: float = 0.0
     missing: int = 0
 
 
@@ -121,6 +122,7 @@ class _Tracked:
     """Battuta confermata e ancora a schermo."""
 
     event: SubtitleEvent
+    last_seen: float = 0.0
     missing: int = 0
 
 
@@ -178,11 +180,13 @@ class SubtitleTracker:
         rilevatore di cambiamento che ha visto sparire l'inchiostro. In quel
         caso l'assenza si applica subito.
 
-        La distinzione non e' pedanteria. `hold_frames` conta le *passate*, e le
-        passate avvengono solo quando qualcosa cambia a schermo: senza questa
-        scorciatoia una battuta sparita resterebbe aperta fino al successivo
-        cambiamento qualunque, e la sua durata — che e' il dato su cui poggia
-        tutta la calibrazione del tempo — risulterebbe piu' lunga del vero.
+        La distinzione non e' pedanteria, e' l'asse portante della chiusura.
+        **Che l'OCR non legga una battuta non e' una prova che sia sparita**: e'
+        molto piu' spesso una prova che il frame era difficile. Chi ha la prova
+        vera e' il diff, e la porta con `certain`. Quindi la scadenza per
+        silenzio puo' essere generosa: sbagliarla per eccesso allunga una durata
+        di qualche decimo, sbagliarla per difetto spezza la battuta in due e
+        avvelena la calibrazione del tempo con due durate false.
         """
         out = TrackerOutput()
         matched_active: set[int] = set()
@@ -199,6 +203,7 @@ class SubtitleTracker:
             aid = self._best(self._active, cand.cls, norm, matched_active, lambda tr: normalize(tr.event.text))
             if aid is not None:
                 matched_active.add(aid)
+                self._active[aid].last_seen = t
                 self._active[aid].missing = 0
             else:
                 unmatched.append((cand, norm))
@@ -215,10 +220,12 @@ class SubtitleTracker:
                     first_t=cand.t_on,
                     cls=cand.cls,
                     lines=cand.lines,
+                    last_seen=t,
                 )
             else:
                 pending = self._pending[pid]
                 pending.count += 1
+                pending.last_seen = t
                 pending.missing = 0
                 # Fra due letture concordi si tiene la piu' ricca: la dissolvenza
                 # toglie caratteri, non ne aggiunge.
@@ -235,7 +242,7 @@ class SubtitleTracker:
             # classe e non e' stata ritrovata, questa la sostituisce e quella si
             # chiude adesso: una battuta che lascia il posto alla successiva
             # senza passare per lo schermo vuoto finirebbe altrimenti a durare
-            # `hold_frames` passate di troppo. Con piu' di una candidata a
+            # un `hold_seconds` di troppo. Con piu' di una candidata a
             # sostituirla non si sa quale sia, e si lascia decidere alla scadenza.
             orphans = [
                 a
@@ -243,13 +250,37 @@ class SubtitleTracker:
                 if a not in matched_active and tr.event.cls is pending.cls
             ]
             if len(orphans) == 1:
+                # Ma prima: la sostituzione e' anche la strada per cui una
+                # battuta si spezza. Misurato sui 27 minuti, 752 chiusure su
+                # 1177 passano di qui, e l'80% di quelle e' seguita subito da
+                # una riapertura di testo somigliante — cioe' erano la stessa
+                # battuta, letta abbastanza male da non rientrare nel budget di
+                # caratteri ma non abbastanza da essere un'altra frase.
+                #
+                # Allargare il budget generale le recupererebbe, al prezzo di
+                # fondere battute davvero diverse (`Sali sulla moto` e `Sali
+                # sulla macchina` distano sei caratteri). Qui invece il confronto
+                # e' fra due sole candidate — la nuova e l'unica orfana — e la
+                # domanda e' piu' facile: si somigliano tanto da essere la
+                # stessa? In quel caso non si sostituisce, si **continua**:
+                # l'orfana resta aperta col suo `t_on`, e prende la lettura piu'
+                # ricca fra le due.
+                keeper = self._active[orphans[0]]
+                if similarity(normalize(keeper.event.text), pending.norm) >= self.cfg.continue_similarity:
+                    if len(pending.text) > len(keeper.event.text):
+                        keeper.event = replace(keeper.event, text=pending.text, lines=pending.lines)
+                    keeper.last_seen = t
+                    keeper.missing = 0
+                    matched_active.add(orphans[0])
+                    del self._pending[pid]
+                    continue
                 old = self._active.pop(orphans[0])
                 out.closed.append(old.event.closed(t))
 
             event = SubtitleEvent(
                 text=pending.text, cls=pending.cls, t_on=pending.first_t, lines=pending.lines
             )
-            self._active[pid] = _Tracked(event)
+            self._active[pid] = _Tracked(event, last_seen=t)
             matched_active.add(pid)
             out.opened.append(event)
             del self._pending[pid]
@@ -307,14 +338,43 @@ class SubtitleTracker:
         out: TrackerOutput,
         force: bool = False,
     ) -> None:
-        """Chiude le battute che non si vedono piu' da abbastanza passate."""
-        hold = max(0, self.cfg.hold_frames)
+        """Chiude le battute che non si vedono piu' da abbastanza **tempo**.
+
+        Il conteggio era sulle passate, e le passate non sono tempo: il diff le
+        apre a raffiche, quindi tre passate valgono un decimo di secondo in una
+        scena ferma e diversi secondi in una immobile. Misurato sui 27 minuti,
+        539 raffiche di passate a vuoto, mediana 2 ma novantesimo percentile 17
+        e massimo 230: con `hold_frames = 3` ognuna delle 177 raffiche piu'
+        lunghe chiudeva una battuta ancora a schermo, che si riapriva subito
+        dopo come nuova. Il 94% dei frammenti sotto i 0,6 s aveva una gemella a
+        meno di quattro secondi — cioe' erano battute spezzate, non battute
+        corte.
+
+        Ma sostituire le passate col tempo, e basta, **peggiora**: misurato,
+        1105 aperture col conteggio a passate contro 1129 col migliore dei tempi
+        provati, e la curva sale da li' in poi. Il motivo e' che una passata non
+        e' un intervallo arbitrario: avviene quando la scena cambia, e un
+        sottotitolo che sparisce *e'* un cambiamento di scena. Contare le
+        passate era una regola adattiva che non dichiarava di esserlo.
+
+        Quindi servono entrambe, ed entrambe devono essere soddisfatte: si
+        chiude quando la battuta e' assente da abbastanza passate **e** da
+        abbastanza tempo. Il conteggio conserva l'adattivita', il tempo mette il
+        pavimento che mancava nelle scene mosse, dove tre passate erano un
+        decimo di secondo.
+        """
+        hold_n = max(0, self.cfg.hold_frames)
+        hold_t = max(0.0, self.cfg.hold_seconds)
+
+        def scaduta(missing: int, last_seen: float) -> bool:
+            return missing > hold_n and (t - last_seen) > hold_t
+
         for key in list(self._active):
             if key in matched_active:
                 continue
             tracked = self._active[key]
             tracked.missing += 1
-            if force or tracked.missing > hold:
+            if force or scaduta(tracked.missing, tracked.last_seen):
                 out.closed.append(self._active.pop(key).event.closed(t))
         for key in list(self._pending):
             if key in matched_pending:
@@ -322,5 +382,5 @@ class SubtitleTracker:
             # Una candidata mai confermata che sparisce era uno sfarfallio.
             pending = self._pending[key]
             pending.missing += 1
-            if force or pending.missing > hold:
+            if force or scaduta(pending.missing, pending.last_seen):
                 del self._pending[key]

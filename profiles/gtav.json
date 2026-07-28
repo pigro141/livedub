@@ -54,6 +54,15 @@
     },
     "grey_candidates": 12,
     "lines_total": 260,
-    "multi_line_frames": 28
+    "multi_line_frames": 28,
+    "timing": {
+      "battute": 475,
+      "sorgente": "reads_full.jsonl",
+      "residuo_mae": 0.58
+    }
+  },
+  "timing": {
+    "predict_a": 1.002,
+    "predict_b": 0.0313
   }
 }

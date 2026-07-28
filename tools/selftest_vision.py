@@ -372,9 +372,15 @@ def test_tracker(c) -> None:
         budget = max(float(cfg_.max_wrong_chars), cfg_.max_wrong_frac * max(len(na), len(nb)))
         c.ok(wrong_chars(na, nb) > budget, f"restano distinte: {why}")
 
+    # I gruppi che seguono verificano il conteggio a **passate**, quindi
+    # spengono la tenuta a tempo: con entrambe attive una scadenza non
+    # avverrebbe mai su timeline lunghe un decimo di secondo, e il test
+    # misurerebbe la condizione sbagliata. La tenuta a tempo ha un gruppo suo
+    # piu' sotto.
     cfg = VisionConfig()
     cfg.stable_reads = 2
     cfg.hold_frames = 0
+    cfg.hold_seconds = 0.0
 
     def w(text, t):
         return SubtitleEvent(text=text, cls=LineClass.WHITE, t_on=t)
@@ -423,6 +429,7 @@ def test_tracker(c) -> None:
     lento = VisionConfig()
     lento.stable_reads = 2
     lento.hold_frames = 5
+    lento.hold_seconds = 0.0
     tr_lento = SubtitleTracker(lento)
     tr_lento.feed([w("prima battuta", 0.0)], 0.0)
     tr_lento.feed([w("prima battuta", 0.1)], 0.1)
@@ -431,6 +438,37 @@ def test_tracker(c) -> None:
     c.eq(len(out.opened), 1, "la nuova si conferma")
     c.eq(len(out.closed), 1, "e chiude la vecchia, che non era ancora scaduta")
     c.eq(out.closed[0].text, "prima battuta", "quella chiusa e' la vecchia")
+
+    # Continuazione invece di sostituzione. E' la strada da cui passava il 64%
+    # delle chiusure sui 27 minuti, e l'80% di quelle era seguita subito da una
+    # riapertura: la stessa battuta, letta abbastanza male da uscire dal budget
+    # di caratteri ma non abbastanza da essere un'altra frase.
+    # Le tenute qui sono quelle vere, e non e' un dettaglio: con tenuta zero la
+    # battuta a schermo muore alla prima lettura che non la ritrova, e quando la
+    # storpiata si conferma non c'e' piu' nessuna orfana da continuare. La
+    # continuazione esiste solo finche' la vecchia e' ancora viva.
+    cont = VisionConfig()
+    cont.stable_reads = 2
+    tr_cont = SubtitleTracker(cont)
+    tr_cont.feed([w("Non ho mai avuto un figlio nero", 0.0)], 0.0)
+    tr_cont.feed([w("Non ho mai avuto un figlio nero", 0.1)], 0.1)
+    tr_cont.feed([w("Nan hg mai avuta un fiqlio nera", 0.2)], 0.2)
+    out = tr_cont.feed([w("Nan hg mai avuta un fiqlio nera", 0.3)], 0.3)
+    c.eq(len(out.opened), 0, "una lettura storpiata non apre una battuta nuova")
+    c.eq(len(out.closed), 0, "e non chiude quella che c'era")
+    c.eq(len(tr_cont.active), 1, "resta una battuta sola")
+    c.close(tr_cont.active[0].t_on, 0.0, "che conserva il t_on della prima lettura")
+
+    # E il caso che NON deve scattare, senza il quale il precedente non
+    # dimostra niente: due battute davvero diverse si sostituiscono.
+    tr_cont = SubtitleTracker(cont)
+    tr_cont.feed([w("Come va, bello?", 0.0)], 0.0)
+    tr_cont.feed([w("Come va, bello?", 0.1)], 0.1)
+    tr_cont.feed([w("Mi prendi per il culo, vero?", 0.2)], 0.2)
+    out = tr_cont.feed([w("Mi prendi per il culo, vero?", 0.3)], 0.3)
+    c.eq(len(out.opened), 1, "una battuta diversa apre davvero")
+    c.eq(len(tr_cont.active), 1, "e prende il posto della precedente")
+    c.eq(tr_cont.active[0].text, "Mi prendi per il culo, vero?", "quella giusta resta a schermo")
 
     # Una banda di texture che si infila sopra la riga vera ne sposterebbe la
     # posizione. Con l'abbinamento per somiglianza non cambia niente: e' il bug
@@ -464,6 +502,7 @@ def test_tracker(c) -> None:
     tolerant = VisionConfig()
     tolerant.stable_reads = 1
     tolerant.hold_frames = 2
+    tolerant.hold_seconds = 0.0
     tr = SubtitleTracker(tolerant)
     tr.feed([w("resisti", 0.0)], 0.0)
     c.eq(len(tr.active), 1, "con stable_reads=1 basta una lettura")
@@ -475,6 +514,29 @@ def test_tracker(c) -> None:
     tr.feed([], 0.4)
     out = tr.feed([], 0.5)
     c.eq(len(out.closed), 1, "dopo hold_frames assenze la battuta si chiude")
+
+    # E la tenuta a TEMPO, che e' l'altra meta' della stessa condizione:
+    # entrambe devono cadere. Nelle scene mosse il diff apre passate a raffica e
+    # tre di esse valgono un decimo di secondo — misurato sui 27 minuti, 539
+    # raffiche di letture fallite, novantesimo percentile 17 passate.
+    a_tempo = VisionConfig()
+    a_tempo.stable_reads = 1
+    a_tempo.hold_frames = 1
+    a_tempo.hold_seconds = 0.5
+    tr = SubtitleTracker(a_tempo)
+    tr.feed([w("resisti", 0.0)], 0.0)
+    for k in range(1, 8):  # sette passate a vuoto in 70 ms: le passate bastano...
+        out = tr.feed([], k * 0.01)
+    c.eq(len(out.closed), 0, "molte passate in poco tempo non chiudono la battuta")
+    out = tr.feed([], 0.6)  # ...ma il tempo no, finche' non passa
+    c.eq(len(out.closed), 1, "quando cade anche il tempo, la battuta si chiude")
+
+    # La prova indipendente scavalca entrambe: il diff ha VISTO sparire
+    # l'inchiostro, e non c'e' niente da attendere.
+    tr = SubtitleTracker(a_tempo)
+    tr.feed([w("resisti", 0.0)], 0.0)
+    out = tr.feed([], 0.01, certain=True)
+    c.eq(len(out.closed), 1, "la sparizione certa chiude subito, tenuta o no")
 
     # Testo vuoto e chiusura finale.
     tr = SubtitleTracker(tolerant)

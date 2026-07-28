@@ -114,6 +114,43 @@ esprimere altro numero; ancorarlo invece su "bianco e acromatico" da' −2,3,
 perche' nella ROI finiscono muri chiari e carrozzerie bianche. Serve il top-hat
 morfologico, che vede la *sottigliezza* di un tratto e non la sua luminosita'.
 
+### SuperTonic 3: provato dal vivo, scartato dall'orecchio
+
+Dieci voci italiane native contro le due di Piper, su CPU e in ONNX — sulla
+carta chiudeva il limite che il piano dava per insuperabile senza GPU. Sul
+banco i numeri erano difendibili: RTF 0,095, ritmo pareggiato a Piper con
+`speed` 1,50 (17,1 caratteri al secondo contro 17,4), arretrato mediano **zero**
+grazie alla compressione, cioe' migliore di Piper.
+
+**All'ascolto era inservibile**: battute mezze tagliate, in ritardo, non si
+capiva niente. E la ragione sta in un numero che sul banco sembrava innocuo —
+`dub.rate_x1000` a **1350 al p50**, cioe' *ogni* battuta detta al massimo
+dell'accelerazione, con 20 sforamenti su 23 contro i 10 su 24 di Piper. I 323 ms
+di sintesi non facevano piu' coda: mangiavano la finestra della battuta, e cio'
+che restava andava detto di corsa.
+
+| | Piper | SuperTonic 3 |
+|---|---|---|
+| sintesi p50 | 59 ms | 323 ms |
+| latenza p50 | 367 ms | 588 ms |
+| compressione applicata, p50 | 1,246 | **1,350 (satura)** |
+| sforamenti | 10 su 24 | **20 su 23** |
+| voci italiane | 2 | 10 |
+
+Il backend resta in `speak/backends/supertonic.py`, scegliibile da config: non
+e' codice morto, e' un'opzione per scene meno fitte. Ma il tier A resta Piper,
+e il motivo per cui vince non e' la qualita' della voce — e' che costa
+sessanta millisecondi invece di trecento, e in una catena live quello decide
+tutto il resto.
+
+**Quello che si perde tenendo Piper**, e va scritto perche' e' il prossimo
+problema: `riccardo` e' un modello `x_low`, sbaglia qualche accento, alcune
+parole non le pronuncia bene, e l'espressivita' e' quella che e'. E' un
+compromesso accettato con cognizione di causa, non una scelta soddisfacente.
+La strada da esplorare resta un TTS piu' veloce di SuperTonic e piu' fedele di
+Piper — Qwen3-TTS e simili, misurati **su CPU** e con la stessa griglia usata
+qui: sintesi p50, compressione applicata, sforamenti.
+
 ## Stato
 
 **F0 — scheletro misurabile** e **F1 — la catena parla**. Cattura dei

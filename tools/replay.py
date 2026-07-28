@@ -196,7 +196,16 @@ class Replay:
 
     # -- esecuzione --------------------------------------------------------
 
-    def run(self, quiet: bool = False, on_event=None) -> ReplayStats:
+    def run(self, quiet: bool = False, on_event=None, on_audio=None) -> ReplayStats:
+        """`on_audio(t, blocco)` riceve l'audio del pacchetto prima del video.
+
+        L'ordine non e' un dettaglio: il blocco audio di un pacchetto **comincia**
+        all'istante del suo frame, quindi chi ascolta deve averlo gia' consumato
+        quando il dominio video annuncia una battuta a quell'istante. Al
+        contrario, un onset trovato nell'audio arriverebbe sempre un pacchetto
+        dopo il sottotitolo, e la misura direbbe 33 ms di ritardo che non
+        esistono.
+        """
         import time
 
         stats = ReplayStats()
@@ -210,6 +219,8 @@ class Replay:
                 if packet.audio is not None:
                     self.ring.write(packet.audio)
                     stats.audio_frames += len(packet.audio)
+                    if on_audio is not None:
+                        on_audio(packet.t, packet.audio)
                 if packet.frame is not None:
                     stats.frames += 1
                     result = self.chain.run(packet.frame)

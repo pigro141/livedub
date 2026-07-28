@@ -56,7 +56,13 @@ Sulla registrazione, **in quest'ordine** — il primo comando non e' facoltativo
 .\.venv\Scripts\python.exe -m tools.replay gameplay.mp4 --peek 8      # guardare la ROI
 .\.venv\Scripts\python.exe -m tools.calibrate gameplay.mp4 --write profiles\gtav.json
 .\.venv\Scripts\python.exe -m tools.replay gameplay.mp4 --profile gtav --start 1240 --end 1290
+.\.venv\Scripts\python.exe -m tools.bench_onset gameplay.mp4 --profile gtav --start 1240 --end 1400
 ```
+
+`bench_onset` chiede se l'onset del parlato sappia dire dov'e' la battuta, e la
+risposta la da' **sempre accanto al suo caso nullo**: in un gioco d'azione una
+finestra di mezzo secondo intorno a un istante qualunque contiene quasi sempre
+un onset, e senza il confronto la misura direbbe di si' anche su tempi inventati.
 
 Per lavorare sullo **stabilizzatore** senza ri-pagare l'OCR a ogni tentativo, si
 registra una volta il flusso di letture e poi lo si rigioca:
@@ -151,6 +157,60 @@ La strada da esplorare resta un TTS piu' veloce di SuperTonic e piu' fedele di
 Piper — Qwen3-TTS e simili, misurati **su CPU** e con la stessa griglia usata
 qui: sintesi p50, compressione applicata, sforamenti.
 
+### L'aggancio all'onset: l'ipotesi non regge su GTA V
+
+Il piano dava per buono che sottotitolo e voce non coincidano — *«il sottotitolo
+compare quando il gioco decide di mostrarlo, la voce comincia quando il
+personaggio apre la bocca»* — e ne faceva il secondo dei tre pilastri di F2.
+`tools/bench_onset.py` misura quello sfasamento sulla registrazione vera, e la
+premessa cade:
+
+| | rec1 (160 s) | rec2 (340 s) |
+|---|---|---|
+| sfasamento mediano onset − sottotitolo | **−33 ms** | **−20 ms** |
+| dispersione (p90−p10) | 0,32 s | 0,38 s |
+| eccesso sul caso, alla finestra migliore | +18,8% a ±0,20 s | +10,7% a ±0,50 s |
+
+**I due istanti coincidono**, quindi non c'e' niente da correggere; e l'onset e'
+comunque *disponibile* sopra il caso per una battuta su cinque nella prima
+registrazione e su nove nella seconda. Agganciarcisi sposterebbe l'attacco di
+poche decine di millisecondi quando ci azzecca, e di mezzo secondo quando
+l'accoppiamento e' casuale. `timing.use_vad_onset` resta quindi **spento per
+misura, non per pigrizia**, e il banco esiste per rifare la domanda sul prossimo
+gioco — dove la premessa puo' benissimo tornare vera.
+
+Due avvertenze sulla portata di questo risultato, perche' non sono la stessa
+cosa: la **disponibilita'** e' confusa da due difetti del materiale (sotto), la
+**coincidenza** no. Un rilevatore migliore troverebbe piu' onset, ma li
+troverebbe sempre nello stesso posto — ed e' il posto a togliere valore
+all'aggancio.
+
+#### Due cose viste guardando l'ingresso del VAD
+
+**Il rilevatore era acceso, non stava rilevando.** Dichiarava parlato l'**87% del
+tempo** con otto aperture al minuto. Il fondo si stimava solo mentre si tace —
+giusto, perche' una battuta lunga alzerebbe il fondo fino a coprirsi da sola —
+ma quella regola da sola si avvita: un fondo fermo tiene acceso il rilevatore, e
+un rilevatore acceso impedisce al fondo di muoversi. Sui segnali sintetici della
+suite non si vedeva, perche' li' il parlato alterna sempre col silenzio. Con la
+guardia (`floor_hold_ms`: oltre quella durata non e' piu' una battuta, e' una
+scena diventata rumorosa) si passa a 55,9% e da 22 a 38 prese di parola.
+
+L'eccesso sul caso a ±0,2 s, pero', va da **+16,1% a +18,8%**: il difetto era
+vero e andava corretto, ma non era lui a nascondere l'aggancio. Vale la pena
+scriverlo perche' l'ordine dei fatti invitava alla conclusione opposta — trovato
+un difetto grosso nello strumento, la tentazione e' dare a lui la colpa del
+risultato scomodo. La conclusione sull'aggancio e' la stessa **prima e dopo**, ed
+e' piu' solida per questo.
+
+**Le registrazioni sono quasi mono.** `corr(L,R)` vale **0,997** su rec1 e 0,932
+su rec2, con i lati 23 dB sotto il centro: l'estrazione mid/side non isola
+niente, e il VAD riceve l'intero mix invece del solo dialogo. Vale per il banco —
+in gioco la cattura loopback e' un'altra sorgente — ma finche' il materiale e'
+questo, ogni misura che poggia sulla separazione del centro va letta sapendolo.
+Riguarda anche il duck: su un segnale quasi mono, abbassare il centro abbassa
+tutto.
+
 ## Stato
 
 **F0 — scheletro misurabile** e **F1 — la catena parla**. Cattura dei
@@ -167,9 +227,15 @@ le battute vere sono ventisei — ed e' la condizione che mancava per iniziare F
 la predizione `D̂ = a + b·n_caratteri` si tara su queste durate, e finche' erano
 frammenti non c'era niente da tarare.
 
-Non c'e' ancora: l'aggancio della durata al sottotitolo (F2), il riconoscimento
-di *quale* personaggio parla (F3, per ora bianco e grigio ricevono due voci
-fisse), l'emozione (F4) e la cattura dal vivo da schermo e scheda audio.
+**F2 — il tempo** e' chiusa. La durata si prevede da `D = a + b·n`, la battuta si
+stringe con WSOLA per stare nella finestra del suo sottotitolo, e oltre il limite
+si sfora senza mai scartare. Il terzo pilastro previsto dal piano — l'aggancio
+all'onset del parlato — e' stato misurato e **non serve su questo gioco**: vedi
+sopra.
+
+Non c'e' ancora: il riconoscimento di *quale* personaggio parla (F3, per ora
+bianco e grigio ricevono due voci fisse), l'emozione (F4) e la cattura dal vivo
+da schermo e scheda audio.
 
 Lo stabilizzatore riapriva la stessa battuta piu' volte, e andava sciolto
 **prima** di misurare le durate: una battuta riaperta quattro volte da' quattro

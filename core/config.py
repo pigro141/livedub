@@ -181,6 +181,15 @@ class VadConfig:
     floor_window_ms: int = 3000  # su quanto passato si stima il fondo
     floor_percentile: int = 25
     floor_db: float = -55.0  # sotto questo livello e' silenzio comunque
+    # Il fondo si stima mentre si tace, altrimenti una battuta lunga si
+    # coprirebbe da sola. Ma "mentre si tace" da solo si blocca: se il rilevatore
+    # resta attivo il fondo non si aggiorna piu', e non aggiornandosi resta
+    # attivo. Misurato sull'audio di GTA V, il VAD dichiarava parlato l'87% del
+    # tempo con 8 aperture al minuto — cioe' era acceso, non stava rilevando.
+    # Oltre questa durata la presa di parola non e' piu' credibile e il fondo
+    # riprende a stimarsi comunque: il blocco diventa limitato invece che
+    # definitivo.
+    floor_hold_ms: int = 4000
 
 
 @dataclass
@@ -260,7 +269,19 @@ class TimingConfig:
     rate_min: float = 0.85
     rate_max: float = 1.35
     lead_ms: int = 0  # anticipo/ritardo fisso sull'attacco
-    use_vad_onset: bool = True
+    # **Spento perche' misurato, non perche' non sia scritto.** Il piano dava per
+    # buono che il sottotitolo compaia quando il gioco decide e la voce cominci
+    # quando il personaggio apre la bocca, e che i due istanti non coincidano:
+    # su GTA V non e' cosi'. `tools/bench_onset.py` misura lo sfasamento fra
+    # l'onset del VAD e la comparsa del sottotitolo su due registrazioni, e trova
+    # una mediana di -33 ms e -20 ms — cioe' i due istanti coincidono, e non c'e'
+    # niente da correggere. L'eccesso sul caso e' +18,8% su una registrazione e
+    # +10,7% sull'altra, quindi l'onset e' anche *disponibile* per una battuta su
+    # cinque o su nove: agganciarcisi sposterebbe l'attacco di poche decine di
+    # millisecondi quando ci azzecca, e di mezzo secondo quando l'accoppiamento
+    # e' casuale. Su un gioco diverso la premessa puo' tornare vera: il banco
+    # esiste per rifare la domanda, e questo campo per rispondere di si'.
+    use_vad_onset: bool = False
     never_drop: bool = True  # oltre i limiti si sfora, non si scarta
     # Aggiornamento in linea dei coefficienti: `decay` e' quanto pesa il
     # passato a ogni nuova battuta (0,97 ≈ una memoria di una trentina), e

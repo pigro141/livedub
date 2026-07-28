@@ -754,6 +754,53 @@ def test_vad(c: Check) -> None:
     chiuse += vad.flush()
     c.eq(len(chiuse), 0, "su rumore uniforme non trova nessuna presa di parola")
 
+    # Il fondo si stima mentre si tace, e questo da solo si avvita: un fondo
+    # fermo tiene acceso il rilevatore, e un rilevatore acceso impedisce al
+    # fondo di muoversi. Qui una scena silenziosa passa a rumorosa e ci **resta**
+    # — un inseguimento, non una battuta. Senza la guardia il VAD dichiarava
+    # parlato fino in fondo; misurato sull'audio vero di GTA V faceva l'87% del
+    # tempo con otto aperture al minuto, che e' il ritratto di un rilevatore
+    # acceso e non di uno che rileva.
+    salita = scena((2.0, 0.005), (20.0, 0.15))
+    vad = EnergyVad(cfg, sr)
+    chiuse = []
+    for i in range(0, len(salita), 1600):
+        chiuse += vad.push(salita[i : i + 1600])
+    aperta = vad.current
+    chiuse += vad.flush()
+    tetto = (cfg.floor_hold_ms + cfg.floor_window_ms + 1000) / 1000.0
+    piu_lunga = max((s.duration or 0.0) for s in chiuse) if chiuse else 0.0
+    c.ok(
+        piu_lunga < tetto,
+        f"un rumore che non finisce non diventa una presa di parola infinita "
+        f"(la piu' lunga dura {piu_lunga:.1f}s, non 20)",
+    )
+    c.ok(
+        aperta is None or (22.0 - aperta.t0) < tetto,
+        "e a fine scena il rilevatore non e' rimasto incastrato sopra soglia",
+    )
+    parlato = sum(s.duration or 0.0 for s in chiuse)
+    c.ok(
+        parlato < 0.5 * 22.0,
+        f"il fondo si e' ritarato sulla scena nuova ({parlato:.1f}s di parlato su 22)",
+    )
+
+    # E la guardia non deve rubare le battute vere: una presa di parola normale,
+    # piu' corta di `floor_hold_ms`, resta intera. Senza questa verifica la
+    # precedente si accontenterebbe di un rilevatore che tronca tutto.
+    normale = scena((2.0, 0.005), (2.5, 0.15), (2.0, 0.005))
+    vad = EnergyVad(cfg, sr)
+    chiuse = []
+    for i in range(0, len(normale), 1600):
+        chiuse += vad.push(normale[i : i + 1600])
+    chiuse += vad.flush()
+    c.eq(len(chiuse), 1, "una battuta di due secondi e mezzo resta una presa sola")
+    if chiuse:
+        c.ok(
+            abs((chiuse[0].duration or 0) - 2.5) < 0.3,
+            f"e non viene troncata dalla guardia (d={chiuse[0].duration:.2f}s)",
+        )
+
     # Due prese separate da un silenzio lungo restano due; da uno breve, una.
     due = scena((1.5, 0.005), (0.8, 0.15), (1.0, 0.005), (0.8, 0.15), (1.5, 0.005))
     vad = EnergyVad(cfg, sr)

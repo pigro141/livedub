@@ -93,6 +93,8 @@ class EnergyVad:
         self._cand_peak = -120.0
         self._open: Speech | None = None
         self._last_off_t = 0.0
+        self._hold = 0  # da quanti frame consecutivi si e' sopra soglia
+        self._hold_max = max(1, int(cfg.floor_hold_ms / max(1, cfg.frame_ms)))
 
     # -- stato -------------------------------------------------------------
 
@@ -112,6 +114,7 @@ class EnergyVad:
         self._tail = np.zeros(0, dtype=np.float32)
         self._started = False
         self._run_on = self._run_off = 0
+        self._hold = 0
         self._open = None
 
     # -- alimentazione -----------------------------------------------------
@@ -143,7 +146,13 @@ class EnergyVad:
             # Il fondo si aggiorna solo quando NON si sta parlando: altrimenti
             # una battuta lunga alza il fondo fino a coprirsi da sola.
             attivo = level > floor + self.cfg.energy_margin_db and level > self.cfg.floor_db
-            if not attivo or not self._floor_window:
+            self._hold = self._hold + 1 if attivo else 0
+            # ...ma "solo quando non si parla" da solo si avvita: un fondo che
+            # non si aggiorna tiene acceso il rilevatore, e un rilevatore acceso
+            # impedisce al fondo di aggiornarsi. Oltre `floor_hold_ms` di attivita'
+            # continua non e' piu' una battuta — e' una scena diventata piu'
+            # rumorosa — e il fondo riprende a stimarsi comunque.
+            if not attivo or not self._floor_window or self._hold > self._hold_max:
                 self._floor_window.append(level)
 
             if attivo:

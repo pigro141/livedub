@@ -586,6 +586,93 @@ def test_replay_stats(c: Check) -> None:
     c.close(z.speedup, 10.0, "su una fetta che parte da zero il conto non cambia")
 
 
+def test_audio_source(c: Check) -> None:
+    """La traccia audio del banco, verificata contro un ingresso costruito.
+
+    Il file di prova si genera qui: e' l'unico modo di sapere cosa **deve**
+    uscire. I due canali portano frequenze diverse apposta — un mixdown mono
+    nascosto restituirebbe comunque un tono plausibile, e la verifica non lo
+    vedrebbe.
+
+    Non serve hardware e non serve un modello: solo il binario di ffmpeg che
+    arriva con `imageio-ffmpeg`. Se manca, il gruppo lo dice e passa oltre
+    invece di fallire — una dipendenza assente non e' codice rotto.
+    """
+    c.group("audio_source")
+
+    import subprocess
+
+    from tools.sources import AudioPipe, VideoSource, ffmpeg_exe, has_audio_track
+
+    exe = ffmpeg_exe()
+    if exe is None:
+        c.ok(True, "ffmpeg assente: gruppo saltato (pip install imageio-ffmpeg)")
+        return
+
+    sr, dur, f_sx, f_dx = 48000, 2.0, 440.0, 1000.0
+    with tempfile.TemporaryDirectory() as tmp:
+        tmpdir = Path(tmp)
+        raw, media, muto = tmpdir / "a.f32", tmpdir / "a.mp4", tmpdir / "muto.mp4"
+        t = np.arange(int(sr * dur), dtype=np.float32) / sr
+        stereo = np.stack(
+            [0.5 * np.sin(2 * np.pi * f_sx * t), 0.5 * np.sin(2 * np.pi * f_dx * t)], axis=1
+        ).astype(np.float32)
+        raw.write_bytes(stereo.tobytes())
+        base = [exe, "-hide_banner", "-loglevel", "error", "-y",
+                "-f", "lavfi", "-i", f"color=c=black:s=160x120:r=30:d={dur}"]
+        subprocess.run(
+            base + ["-f", "f32le", "-ar", str(sr), "-ac", "2", "-i", str(raw),
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                    "-shortest", str(media)],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            base + ["-c:v", "libx264", "-pix_fmt", "yuv420p", str(muto)],
+            check=True, capture_output=True,
+        )
+
+        c.ok(has_audio_track(media), "riconosce un file con traccia audio")
+        c.ok(not has_audio_track(muto), "e uno senza")
+
+        with AudioPipe(media, samplerate=sr, channels=2) as pipe:
+            got = np.concatenate([pipe.read(4800) for _ in range(15)], axis=0)
+        c.eq(got.shape, (72000, 2), "legge la forma richiesta")
+        c.ok(abs(float(np.sqrt((got[:, 0] ** 2).mean())) - 0.354) < 0.03, "il livello e' quello")
+
+        def picco(x: np.ndarray) -> float:
+            seg = x[sr // 2 : sr // 2 + 8192]
+            spec = np.abs(np.fft.rfft(seg * np.hanning(len(seg))))
+            return float(np.fft.rfftfreq(len(seg), 1 / sr)[int(np.argmax(spec))])
+
+        c.ok(abs(picco(got[:, 0]) - f_sx) < 5.0, "il canale sinistro porta la sua frequenza")
+        c.ok(abs(picco(got[:, 1]) - f_dx) < 5.0, "il destro la sua: i canali non sono mescolati")
+
+        # Oltre la fine della traccia si riempie di silenzio invece di
+        # accorciarsi: una sorgente che si accorcia da sola sfaserebbe i frame.
+        with AudioPipe(media, samplerate=sr, channels=2) as pipe:
+            coda = [pipe.read(sr) for _ in range(4)]  # 4 s da una traccia di 2
+        c.eq(coda[-1].shape, (sr, 2), "oltre la fine restituisce comunque la lunghezza chiesta")
+        c.close(float(np.abs(coda[-1]).max()), 0.0, "e la riempie di silenzio", tol=1e-6)
+
+        # L'allineamento con i frame e' costruito, non calcolato.
+        src = VideoSource(media, fps=30.0)
+        c.ok(src.has_audio, "la sorgente video dichiara di avere audio")
+        blocchi = [p.audio.shape[0] for p in src.packets() if p.audio is not None]
+        c.eq(set(blocchi), {sr // 30}, "ogni pacchetto porta samplerate/fps campioni")
+        c.ok(abs(sum(blocchi) / sr - len(blocchi) / 30.0) < 1e-9, "audio e video non scivolano")
+
+        muta = VideoSource(muto, fps=30.0)
+        c.ok(not muta.has_audio, "su un file senza traccia lo dichiara")
+        c.ok(
+            all(p.audio is None for p in muta.packets()),
+            "e non inventa silenzio spacciandolo per audio",
+        )
+        c.ok(
+            not VideoSource(media, fps=30.0, with_audio=False).has_audio,
+            "with_audio=False spegne la traccia anche quando c'e'",
+        )
+
+
 def test_duration_model(c: Check) -> None:
     """Il predittore di durata e le sue guardie."""
     c.group("duration")
@@ -691,6 +778,7 @@ GROUPS = {
     "timing": test_timing,
     "duration": test_duration_model,
     "replay": test_replay_stats,
+    "audio_source": test_audio_source,
     "roi": test_roi,
     "lines": test_lines,
     "diff": test_diff,

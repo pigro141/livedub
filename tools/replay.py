@@ -98,9 +98,14 @@ class Replay:
         self.tap = tap
         self.metrics = MetricsRegistry()
         self.clock = VirtualClock()
+        # Il ring segue la sorgente, non un'assunzione. Era fissato a mono, e ha
+        # smesso di funzionare nell'istante in cui la sorgente ha cominciato a
+        # dare davvero l'audio: il dialogo si isola dal canale **centrale**, che
+        # richiede due canali, e un ring mono avrebbe costretto a un mixdown
+        # prima ancora di poterlo estrarre.
         self.ring = RingBuffer(
             capacity=int(self.cfg.audio.ring_seconds * source.samplerate),
-            channels=1,
+            channels=getattr(source, "channels", 1),
             samplerate=source.samplerate,
         )
         self.reader = None

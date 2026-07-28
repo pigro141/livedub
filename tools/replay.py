@@ -58,7 +58,18 @@ class ReplayStats:
     events: list[tuple[float, str, str]] = field(default_factory=list)
     closed: list[SubtitleEvent] = field(default_factory=list)
     wall_seconds: float = 0.0
-    media_seconds: float = 0.0
+    # Quanto **media** e' passato: l'ultimo istante meno il primo, non l'ultimo
+    # istante e basta. Sono la stessa cosa solo quando la fetta parte da zero, e
+    # su `--start 1240 --end 1290` la seconda versione dichiarava 1290 s di
+    # media in 54 s — "24x tempo reale" per una corsa che gira a 0,9x. Non e'
+    # una imprecisione: e' una misura che non puo' esprimere la risposta, ed e'
+    # la stessa forma di errore dei due orologi in `core/stage.py`.
+    media_first: float | None = None
+    media_last: float = 0.0
+
+    @property
+    def media_seconds(self) -> float:
+        return self.media_last - (self.media_first if self.media_first is not None else 0.0)
 
     @property
     def speedup(self) -> float:
@@ -214,7 +225,9 @@ class Replay:
                                 stats.events.append((e.t_on, e.cls.value, e.text))
                                 if on_event is not None:
                                     on_event(e)
-                stats.media_seconds = packet.t
+                if stats.media_first is None:
+                    stats.media_first = packet.t
+                stats.media_last = packet.t
         finally:
             if self.reader is not None:
                 # Senza questa chiusura l'ultima battuta resta senza durata, e
@@ -229,7 +242,7 @@ class Replay:
     def _report(self, stats: ReplayStats) -> None:
         print(
             f"replay: {stats.frames} frame, {stats.media_seconds:.1f}s di media "
-            f"in {stats.wall_seconds:.2f}s ({stats.speedup:.0f}x tempo reale)"
+            f"in {stats.wall_seconds:.2f}s ({stats.speedup:.2f}x tempo reale)"
         )
         print(f"battute rilevate: {len(stats.events)}  chiuse: {len(stats.closed)}")
         print()

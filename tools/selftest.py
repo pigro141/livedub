@@ -565,6 +565,27 @@ def test_timing(c: Check) -> None:
     c.eq(fit(np.array([1.0]), np.array([1.0])), (0.0, 0.0), "un punto solo non definisce una retta")
 
 
+def test_replay_stats(c: Check) -> None:
+    """Il banco misura anche se stesso, e va verificato come il resto."""
+    c.group("replay")
+
+    from tools.replay import ReplayStats
+
+    s = ReplayStats()
+    c.close(s.media_seconds, 0.0, "una corsa vuota non ha media")
+    c.close(s.speedup, 0.0, "ne' velocita', invece di dividere per zero")
+
+    # Una fetta che NON parte da zero: e' il caso in cui la versione precedente
+    # dichiarava 1290s di media per 50s di fetta, cioe' 24x invece di 0,9x.
+    s.media_first, s.media_last, s.wall_seconds = 1240.0, 1290.0, 55.0
+    c.close(s.media_seconds, 50.0, "il media e' la lunghezza della fetta, non l'istante finale")
+    c.ok(0.8 < s.speedup < 1.0, "e la velocita' e' quella vera")
+
+    z = ReplayStats()
+    z.media_first, z.media_last, z.wall_seconds = 0.0, 10.0, 1.0
+    c.close(z.speedup, 10.0, "su una fetta che parte da zero il conto non cambia")
+
+
 def test_duration_model(c: Check) -> None:
     """Il predittore di durata e le sue guardie."""
     c.group("duration")
@@ -669,6 +690,7 @@ GROUPS = {
     "grammar": test_grammar,
     "timing": test_timing,
     "duration": test_duration_model,
+    "replay": test_replay_stats,
     "roi": test_roi,
     "lines": test_lines,
     "diff": test_diff,

@@ -124,6 +124,38 @@ class DubPipeline:
     def clock(self) -> Clock:
         return self._clock if self._clock is not None else get_clock()
 
+    # -- avvio dal vivo ----------------------------------------------------
+
+    def start_live(self, warmup: bool = True) -> None:
+        """Da chiamare **quando l'audio comincia a scorrere**, non prima.
+
+        Due difetti che si vedono solo dal vivo, e che questa riga chiude.
+
+        **Gli orologi hanno due origini diverse.** L'orologio della sessione
+        parte all'avvio del programma; quello del mixer avanza con l'audio
+        processato, quindi parte quando il primo blocco arriva. In mezzo ci
+        sono l'apertura dei device, il caricamento dei modelli e l'attesa per
+        portare il gioco davanti: misurato, una ventina di secondi. Siccome
+        `_speak` programma a `max(clock.now(), mixer.now)`, la prima battuta
+        finiva venti secondi avanti nella linea temporale del mixer — e da li'
+        in poi tutto arrivava con quel ritardo, **con le pause giuste**, che e'
+        il sintomo con cui il difetto si e' fatto notare. Le pause erano giuste
+        perche' i due orologi corrono alla stessa velocita': sbagliava solo
+        l'origine. E' la stessa forma dell'errore dei due tempi in
+        `core/stage.py`, in un travestimento nuovo.
+
+        **Il primo `synthesize` carica il modello.** Misurato: fino a 1,9 s,
+        contro i 60 ms di quelli dopo. Pagarlo sulla prima battuta vera
+        significa perdere proprio quella, quindi lo si paga adesso su una frase
+        che non deve andare in onda.
+        """
+        if warmup:
+            try:
+                self.tts.synthesize("via", self.pool.voices[0])
+            except Exception:
+                pass  # un riscaldamento fallito non e' un motivo per non partire
+        self.mixer.reset(self.clock.now())
+
     # -- dominio video -----------------------------------------------------
 
     def on_frame(self, frame: np.ndarray | None) -> list[SpokenLine]:

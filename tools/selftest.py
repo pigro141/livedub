@@ -813,6 +813,52 @@ def _vad_cfg(backend: str):
     return cfg
 
 
+def test_live_start(c: Check) -> None:
+    """Le due origini: quella della sessione e quella del mixer.
+
+    Esiste perche' il difetto e' arrivato in produzione e si e' sentito prima
+    di essere misurato: il doppiaggio partiva venti secondi dopo la realta',
+    con le pause giuste. Le pause erano giuste perche' i due orologi corrono
+    alla stessa velocita'; a essere diverse erano le origini.
+    """
+    c.group("live_start")
+
+    from core.config import Config
+    from core.pipeline import DubPipeline
+    from speak.base import ToneTts
+
+    cfg = Config()
+    cfg.vision.ocr_backend = "none"  # nessun modello: la suite non scarica
+    orologio = VirtualClock()
+    pipeline = DubPipeline(cfg, ToneTts(), clock=orologio, samplerate=48000)
+
+    # Il tempo passato ad aprire i device e a caricare i modelli, prima che il
+    # primo blocco audio arrivi.
+    orologio.set(18.0)
+    c.close(pipeline.mixer.now, 0.0, "il mixer parte da zero, l'orologio no")
+
+    pipeline.start_live(warmup=False)
+    c.close(pipeline.mixer.now, 18.0, "start_live allinea l'origine del mixer")
+
+    evento = SubtitleEvent(text="sali in macchina", cls=LineClass.WHITE, t_on=18.0)
+    riga = pipeline._speak(evento)
+    anticipo = riga.t_scheduled - pipeline.mixer.now
+    c.ok(
+        0.0 <= anticipo < 0.05,
+        f"la battuta e' programmata sul presente del mixer, non nel futuro "
+        f"(scarto {anticipo:.3f}s)",
+    )
+
+    # E la prova al contrario, senza la quale la precedente non dimostra nulla:
+    # senza allineamento la stessa battuta nasce diciotto secondi avanti.
+    storto = DubPipeline(cfg, ToneTts(), clock=orologio, samplerate=48000)
+    riga_storta = storto._speak(evento)
+    c.ok(
+        riga_storta.t_scheduled - storto.mixer.now > 17.0,
+        "senza allineamento la battuta nasce con tutto il ritardo dell'avvio",
+    )
+
+
 def test_duration_model(c: Check) -> None:
     """Il predittore di durata e le sue guardie."""
     c.group("duration")
@@ -920,6 +966,7 @@ GROUPS = {
     "replay": test_replay_stats,
     "audio_source": test_audio_source,
     "vad": test_vad,
+    "live_start": test_live_start,
     "roi": test_roi,
     "lines": test_lines,
     "diff": test_diff,

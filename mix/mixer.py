@@ -17,6 +17,7 @@ distorsione udibile proprio sui picchi, cioe' sulle grida.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -66,6 +67,9 @@ class Mixer:
         self.metrics = metrics or MetricsRegistry()
         self._queue: list[Scheduled] = []
         self._t = 0.0
+        # Solo la coda e' condivisa: si veda `schedule`. Il lucchetto e'
+        # rientrante perche' `clear` puo' essere chiamata da dentro `process`.
+        self._lock = threading.RLock()
         self._n_played = self.metrics.counter("mix.utterances")
         self._n_dropped = self.metrics.counter("mix.dropped")
         self._n_clipped = self.metrics.counter("mix.limited")
@@ -100,10 +104,16 @@ class Mixer:
         blocco utile. Perdere una battuta perche' e' arrivata tardi sarebbe il
         contrario di quello che il progetto si e' ripromesso — si sfora, non si
         scarta — ma il ritardo va contato, perche' e' un sintomo.
+
+        **La coda e' l'unica cosa condivisa fra i due thread**, quindi il
+        lucchetto sta qui e non attorno a chi chiama. Dal vivo il thread video
+        sintetizza (misurato: fino a 1,9 s su una battuta lunga) e il thread
+        audio deve scrivere un blocco ogni dieci millisecondi: un lucchetto piu'
+        largo di questo trasforma il costo della sintesi in un buco nel suono.
+        Il primo tentativo lo aveva messo attorno all'intero passo video, e il
+        thread audio e' rimasto fermo 1,9 secondi — cioe' esattamente il tempo
+        della sintesi.
         """
-        if t_start < self._t:
-            self._n_late.inc()
-            t_start = self._t
         item = Scheduled(
             audio=np.asarray(audio, dtype=np.float32),
             t_start=t_start,
@@ -111,13 +121,18 @@ class Mixer:
             speaker_id=speaker_id,
             text=text,
         )
-        self._queue.append(item)
+        with self._lock:
+            if item.t_start < self._t:
+                self._n_late.inc()
+                item.t_start = self._t
+            self._queue.append(item)
         self._n_played.inc()
         return item
 
     def clear(self) -> int:
-        n = len(self._queue)
-        self._queue.clear()
+        with self._lock:
+            n = len(self._queue)
+            self._queue.clear()
         self._n_dropped.inc(n)
         return n
 
@@ -144,24 +159,26 @@ class Mixer:
 
         dub = np.zeros(n, dtype=np.float32)
         active = False
-        for item in self._queue:
-            if item.t_start >= t1 or item.done:
-                continue
-            # Dove cade, dentro questo blocco, l'inizio della parte da versare.
-            offset = max(0, int(round((item.t_start - t0) * self.samplerate)))
-            if item.consumed > 0:
-                offset = 0
-            take = min(n - offset, item.remaining)
-            if take <= 0:
-                continue
-            dub[offset : offset + take] += (
-                item.audio[item.consumed : item.consumed + take] * item.gain
-            )
-            item.consumed += take
-            active = True
-        self._queue = [s for s in self._queue if not s.done]
+        with self._lock:
+            for item in self._queue:
+                if item.t_start >= t1 or item.done:
+                    continue
+                # Dove cade, dentro questo blocco, l'inizio della parte da versare.
+                offset = max(0, int(round((item.t_start - t0) * self.samplerate)))
+                if item.consumed > 0:
+                    offset = 0
+                take = min(n - offset, item.remaining)
+                if take <= 0:
+                    continue
+                dub[offset : offset + take] += (
+                    item.audio[item.consumed : item.consumed + take] * item.gain
+                )
+                item.consumed += take
+                active = True
+            self._queue = [s for s in self._queue if not s.done]
+            imminente = self._starts_soon(t1)
 
-        envelope = self.envelope.block(n, active or self._starts_soon(t1))
+        envelope = self.envelope.block(n, active or imminente)
         if game is not None and self.passthrough:
             out = duck_center(game, envelope)
         else:

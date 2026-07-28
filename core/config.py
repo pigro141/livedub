@@ -218,8 +218,10 @@ class TtsConfig:
     """Sintesi. `tone` e' un backend finto che produce un bip: serve al banco di
     prova per misurare la catena senza scaricare nulla."""
 
-    backend: str = "piper"  # piper | qwen | tone
-    voices: tuple[str, ...] = ("it_IT-paola-medium", "it_IT-riccardo-x_low")
+    backend: str = "piper"  # piper | supertonic | tone
+    # Vuoto = le native del backend scelto. Dichiararle serve solo a
+    # restringere: la lista di Piper non ha senso per SuperTonic e viceversa.
+    voices: tuple[str, ...] = ()
     pool_size: int = 6  # voci distinte ottenute variando pitch e velocita'
     samplerate: int = 22050
     device: str = "cpu"
@@ -227,6 +229,13 @@ class TtsConfig:
     # attaccate senza stacco si sentono come una frase sola, e in un dialogo
     # fanno sembrare che parli sempre la stessa persona.
     gap_seconds: float = 0.12
+    # Solo per SuperTonic. `steps` sono i passi di diffusione: quattro bastano,
+    # otto costano il doppio. `speed` non e' un gusto ma una misura — a 1,50 il
+    # ritmo pareggia quello di Piper (17,1 caratteri al secondo contro 17,4),
+    # che all'ascolto era gia' giusto. A 1,05, il default del pacchetto, la
+    # stessa frase durava il 47% in piu'.
+    steps: int = 4
+    speed: float = 1.50
 
 
 @dataclass

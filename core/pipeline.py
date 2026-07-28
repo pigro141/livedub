@@ -101,7 +101,11 @@ class DubPipeline:
             clock=clock,
             on_error="bypass",  # in gioco una battuta persa e' meglio di una sessione persa
         )
-        self.pool = VoicePool(build_pool(cfg.tts.voices, cfg.tts.pool_size))
+        # Il pool segue il backend: senza, una sessione SuperTonic riceverebbe
+        # in dote le voci di Piper e non saprebbe pronunciarle.
+        self.pool = VoicePool(
+            build_pool(cfg.tts.voices, cfg.tts.pool_size, backend=cfg.tts.backend)
+        )
         self.mixer = Mixer(
             samplerate=samplerate,
             duck_db=cfg.mix.duck_db,

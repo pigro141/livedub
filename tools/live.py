@@ -63,6 +63,12 @@ def costruisci_tts(nome: str, cfg):
     modo di capire se un problema e' di ritmo o di sintesi."""
     if nome == "tone":
         return ToneTts()
+    if nome == "supertonic":
+        from speak.backends.supertonic import SupertonicTts
+
+        return SupertonicTts(
+            samplerate=cfg.tts.samplerate, steps=cfg.tts.steps, speed=cfg.tts.speed
+        )
     from speak.backends.piper import PiperTts
 
     return PiperTts(samplerate=cfg.tts.samplerate)

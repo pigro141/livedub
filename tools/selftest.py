@@ -1626,6 +1626,7 @@ def test_duration_model(c: Check) -> None:
 
 from tools.selftest_audio import (  # noqa: E402
     test_center,
+    test_embed,
     test_mixer,
     test_pool,
     test_stretch,
@@ -1744,6 +1745,7 @@ GROUPS = {
     "tracker": test_tracker,
     "reader": test_reader,
     "stretch": test_stretch,
+    "embed": test_embed,
     "center": test_center,
     "pool": test_pool,
     "tts": test_tts_fake,

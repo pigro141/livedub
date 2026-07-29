@@ -145,6 +145,26 @@ def test_stretch(c) -> None:
         c.ok(_corr(x, z) > 0.99, f"{SR}->{sr2}->{SR}: il giro torna")
         c.close(_f0(y, sr2), 120.0, f"{SR}->{sr2}: l'intonazione non si sposta", tol=4.0)
     c.ok(np.array_equal(resample(x, SR, SR), x), "stessa frequenza e' l'identita'")
+
+    # **L'anti-alias, con una prova che puo' dire di no.** Le verifiche qui
+    # sopra girano su un segnale a 120 Hz e passavano identiche quando il filtro
+    # anti-alias era, per tutti i rapporti usati dal progetto, `[0, 1, 0]` —
+    # cioe' l'identita'. Un giro identita' su una fondamentale bassa non puo'
+    # esprimere il ripiegamento, perche' il ripiegamento vive sopra il Nyquist
+    # di destinazione e li' quel segnale non ha niente. L'unica prova che lo
+    # vede e' un tono messo apposta dove il danno si produce.
+    for src, dst in ((48000, 16000), (44100, 22050)):
+        t = np.arange(src, dtype=np.float32) / src
+        sotto = np.sin(2 * np.pi * (0.3 * dst / 2) * t).astype(np.float32)
+        sopra = np.sin(2 * np.pi * (1.3 * dst / 2) * t).astype(np.float32)
+        rms_sotto = float(np.sqrt(np.mean(resample(sotto, src, dst) ** 2)))
+        rms_sopra = float(np.sqrt(np.mean(resample(sopra, src, dst) ** 2)))
+        c.ok(rms_sotto > 0.6, f"{src}->{dst}: la banda utile passa ({rms_sotto:.3f} su 0,707)")
+        c.ok(
+            rms_sopra < 0.02,
+            f"{src}->{dst}: sopra il Nyquist non si ripiega ({rms_sopra:.4f}, "
+            f"{20*np.log10(rms_sopra/0.7071 + 1e-12):+.0f} dB)",
+        )
     c.raises(ValueError, lambda: resample(x, 0, SR), "frequenza nulla e' un errore")
 
     # 6. fit_duration: centra la scadenza, e quando non puo' si ferma al limite
@@ -387,3 +407,124 @@ def test_mixer(c) -> None:
     pulizia.process(blocco)
     pulizia.reset()
     c.close(pulizia.now, 0.0, "reset riporta il tempo a zero")
+
+
+def test_embed(c) -> None:
+    """L'impronta di chi parla, e soprattutto la trasformata che la precede.
+
+    Nessun modello viene caricato: qui si prova cio' che sta *intorno* al
+    modello, che e' esattamente dove si sbaglia in silenzio. Un banco mel
+    spostato di un bin, una preenfasi applicata dopo la finestra o un'ampiezza
+    nella scala sbagliata non danno errore: danno un embedding che separa
+    qualcosa, ma non le voci. Il modello vero si verifica altrove, con una
+    risposta nota — `tools.bench_speaker --clean` — perche' quella prova ha
+    bisogno di sintetizzare, e la suite non sintetizza.
+    """
+    c.group("embed")
+
+    from core.config import SpeakerConfig
+    from listen.embed import (
+        MODEL_RATE,
+        MfccEmbedder,
+        cmn,
+        dct2,
+        fbank,
+        make_embedder,
+        mel_bank,
+        similarity,
+        to_model_rate,
+    )
+
+    # 1. Il banco mel. Le colonne sono `n_fft // 2` e non una di piu': Kaldi
+    #    scarta la banda di Nyquist, e un banco largo un bin di troppo non da'
+    #    errore, da' tutte le bande spostate.
+    bank = mel_bank(80, 512, MODEL_RATE)
+    c.eq(bank.shape, (80, 256), "il banco ha 80 bande su 256 bin")
+    c.ok(float(bank.min()) >= 0.0, "nessun peso negativo")
+    c.ok(bool(np.all(bank.sum(axis=1) > 0)), "nessuna banda vuota")
+    # I picchi salgono, ma non a ogni banda: sotto i 200 Hz le bande mel sono
+    # piu' strette dei 31,25 Hz che separano due bin di FFT, quindi alcune
+    # cadono sullo stesso bin. Pretendere una crescita stretta sarebbe chiedere
+    # al banco una risoluzione che la finestra non ha.
+    picchi = np.argmax(bank, axis=1)
+    c.ok(bool(np.all(np.diff(picchi) >= 0)), "le bande salgono in frequenza, in ordine")
+    c.ok(int(picchi[-1]) > int(picchi[0]) + 200, "e coprono lo spettro da un capo all'altro")
+    c.raises(ValueError, lambda: mel_bank(80, 512, MODEL_RATE, 8000.0, 20.0), "banda assurda e' un errore")
+
+    # 2. La trasformata contro una risposta nota: un tono puro deve accendere
+    #    la banda che lo contiene. E' la forma che qui sostituisce l'inversa —
+    #    una fbank non e' invertibile, ma sa dire dove ha messo l'energia.
+    def banda_di(hz: float) -> int:
+        m = 1127.0 * np.log(1.0 + hz / 700.0)
+        m_low = 1127.0 * np.log(1.0 + 20.0 / 700.0)
+        m_high = 1127.0 * np.log(1.0 + (MODEL_RATE / 2) / 700.0)
+        return int(round((m - m_low) / ((m_high - m_low) / 81.0) - 1.0))
+
+    t = np.arange(MODEL_RATE, dtype=np.float32) / MODEL_RATE
+    for hz in (300.0, 1000.0, 4000.0):
+        fb = fbank((0.3 * np.sin(2 * np.pi * hz * t)).astype(np.float32), MODEL_RATE)
+        atteso = banda_di(hz)
+        trovata = int(np.argmax(fb.mean(axis=0)))
+        c.ok(abs(trovata - atteso) <= 1, f"un tono a {hz:.0f} Hz accende la banda {atteso} (trovata {trovata})")
+
+    # 3. Il conto dei frame. Kaldi non riempie i bordi: da un secondo escono
+    #    98 frame, non 100. Sbagliarlo di due non si vede a occhio e sposta
+    #    ogni statistica temporale.
+    fb = fbank(np.zeros(MODEL_RATE, np.float32) + 0.01, MODEL_RATE)
+    c.eq(fb.shape, (98, 80), "un secondo a 16 kHz sono 98 frame da 80 bande")
+    c.eq(fbank(np.zeros(100, np.float32), MODEL_RATE).shape, (0, 80), "meno di un frame non esplode")
+
+    # 4. La media sottratta toglie cio' che e' costante, e il guadagno globale
+    #    lo e': in scala logaritmica un fattore due e' un'offset uguale su tutte
+    #    le bande. Due registrazioni della stessa voce a volume diverso devono
+    #    dare la stessa cosa, altrimenti l'impronta misura la manopola.
+    rng = np.random.default_rng(3)
+    voce = (0.2 * rng.standard_normal(MODEL_RATE)).astype(np.float32)
+    piano, forte = cmn(fbank(voce, MODEL_RATE)), cmn(fbank(voce * 4.0, MODEL_RATE))
+    c.ok(float(np.abs(piano - forte).max()) < 1e-3, "la media sottratta annulla il guadagno")
+    c.ok(float(np.abs(cmn(fbank(voce, MODEL_RATE)).mean(axis=0)).max()) < 1e-4, "e lascia media nulla")
+
+    # 5. La DCT: ortonormale, quindi conserva la norma quando si tengono tutti
+    #    i coefficienti.
+    x = rng.standard_normal((7, 40))
+    c.close(
+        float(np.linalg.norm(dct2(x, 40))), float(np.linalg.norm(x)), "la DCT conserva la norma", tol=1e-3
+    )
+
+    # 6. Il backend leggero. Non deve riconoscere nessuno — non ne e' capace —
+    #    ma deve essere deterministico, normalizzato e non esplodere sul vuoto.
+    e = MfccEmbedder()
+    a = e.embed(voce, MODEL_RATE)
+    c.eq(a.shape, (e.dim,), f"l'impronta mfcc ha {e.dim} dimensioni")
+    c.close(float(np.linalg.norm(a)), 1.0, "ed e' normalizzata", tol=1e-5)
+    c.ok(np.array_equal(a, e.embed(voce, MODEL_RATE)), "due calcoli danno lo stesso vettore")
+    c.close(similarity(a, a), 1.0, "il coseno con se stessi vale 1", tol=1e-5)
+    c.ok(float(np.linalg.norm(e.embed(np.zeros(200, np.float32), MODEL_RATE))) == 0.0,
+         "un ritaglio troppo corto da' il vettore nullo, non rumore")
+    a48 = e.embed(to_model_rate(np.repeat(voce, 3), 48000), MODEL_RATE)
+    c.ok(a48.shape == a.shape, "l'audio a 48 kHz arriva al modello nella forma giusta")
+
+    # 7. `make_embedder`: il ripiego esiste ma si dichiara. Un ripiego
+    #    silenzioso farebbe misurare il backend stupido credendo di misurare il
+    #    modello, e la curva sbagliata sarebbe indistinguibile da quella giusta.
+    cfg = SpeakerConfig()
+    cfg.backend = "mfcc"
+    c.eq(make_embedder(cfg).name, "mfcc", "il backend chiesto e' quello che si ottiene")
+    cfg.backend = "sconosciuto"
+    c.raises(ValueError, lambda: make_embedder(cfg), "un backend inventato e' un errore")
+    cfg.backend = "none"
+    c.raises(ValueError, lambda: make_embedder(cfg), "'none' non e' un'impronta")
+
+    import listen.embed as _embed
+    from pathlib import Path
+    import tempfile
+
+    cfg.backend = "ecapa-onnx"
+    originale = _embed.ECAPA_DIR
+    try:
+        _embed.ECAPA_DIR = Path(tempfile.mkdtemp()) / "assente"
+        ripiego = make_embedder(cfg, download=False, quiet=True)
+        c.eq(ripiego.name, "mfcc", "modello assente: si ripiega")
+        c.ok(ripiego.name != "ecapa-onnx", "e `.name` lo dice, cosi' il banco lo puo' stampare")
+    finally:
+        _embed.ECAPA_DIR = originale

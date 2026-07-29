@@ -71,19 +71,38 @@ def resample(x: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
 
 
 def _lowpass(x: np.ndarray, cutoff_ratio: float) -> np.ndarray:
-    """Media mobile grossolana come anti-alias prima di decimare.
+    """Anti-alias prima di decimare: sinc finestrato, taglio sotto il Nyquist
+    di destinazione.
 
-    Non e' un filtro raffinato, ma toglie la parte di banda che il
-    ricampionamento ripiegherebbe sulle frequenze basse — che e' il danno udibile.
+    **Qui c'era una media mobile che non filtrava niente.** Il numero di
+    coefficienti si ricavava da `1 / cutoff_ratio`, e per tutti i rapporti che il
+    progetto usa davvero — 48k->16k, 44,1k->22,05k, 22,05k->16k — veniva 3;
+    `np.hanning(3)` e' `[0, 1, 0]`, cioe' l'identita'. Il filtro c'era nel
+    docstring e non nel segnale: un tono a 10 kHz ricampionato a 16 kHz
+    sopravviveva a -1,2 dB e si ripiegava a 6 kHz.
+
+    Non se ne accorgeva nessuno perche' la verifica esistente era un giro
+    identita' su un tono a 120 Hz, che passa uguale con il filtro, senza filtro
+    e con qualunque filtro in mezzo — una misura che non poteva esprimere la
+    risposta sbagliata. La verifica giusta e' l'unica che il ripiegamento
+    produce: un tono **sopra** il Nyquist di destinazione deve sparire.
+
+    La transizione si chiude fra 0,85 e 1,0 del Nyquist di destinazione, e il
+    numero di coefficienti segue da li' (finestra di Blackman, ~5,5 / larghezza
+    di transizione): quanto piu' si decima, tanto piu' stretta e' la transizione
+    e tanto piu' lungo il filtro.
     """
     if cutoff_ratio >= 1.0:
         return x
-    taps = max(3, int(round(1.0 / max(cutoff_ratio, 1e-3))))
-    if taps % 2 == 0:
-        taps += 1
+    # Frequenza di taglio in cicli/campione: 0,85 del Nyquist di destinazione.
+    nyquist = 0.5 * cutoff_ratio
+    cutoff = 0.85 * nyquist
+    taps = int(np.ceil(5.5 / max(nyquist - cutoff, 1e-6)))
+    taps = min(1023, taps + 1 - taps % 2)  # dispari, per non spostare la fase
     if taps >= len(x):
         return x
-    kernel = np.hanning(taps)
+    n = np.arange(taps, dtype=np.float64) - (taps - 1) / 2.0
+    kernel = 2.0 * cutoff * np.sinc(2.0 * cutoff * n) * np.blackman(taps)
     kernel /= kernel.sum()
     return np.convolve(x, kernel, mode="same").astype(np.float32)
 

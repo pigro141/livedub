@@ -103,6 +103,17 @@ class VisionConfig:
     # zero di lingua. Le cifre nella ROI vengono dalla scena — civici, cartelli,
     # cordoli — mentre una battuta di soli numeri non esiste.
     min_ocr_chars: int = 2
+    # L'ultimo filtro, e l'unico che guarda la **lingua** invece della forma.
+    # Una battuta italiana contiene almeno una parola italiana; una banda di
+    # asfalto no. Basta UNA parola riconosciuta, perche' l'OCR ne rompe sempre
+    # qualcuna e pretenderle tutte buone scarterebbe il dialogo vero.
+    #
+    # Il prezzo, misurato su 173 battute: restano fuori le forme che i dizionari
+    # non elencano — `'accoglilo'`, imperativo piu' pronome — circa una su
+    # trenta. E' l'unico filtro del progetto che puo' scartare una battuta vera,
+    # quindi si spegne da qui.
+    use_lexicon: bool = True
+    lexicon_dir: str = "models/lexicon"
     stable_reads: int = 2  # letture concordi prima di dare per buona una battuta
     # Quanto una battuta puo' non farsi leggere restando a schermo: **entrambe**
     # le condizioni devono cadere prima di dichiararla chiusa.

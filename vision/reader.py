@@ -80,6 +80,15 @@ class SubtitleReader(Stage):
         self._n_ocr = m.counter("vision.ocr.lines")
         self._n_colored = m.counter("vision.lines.colored")
         self._n_empty = m.counter("vision.ocr.empty")
+        self._n_gergo = m.counter("vision.ocr.non_italiano")
+        # Il lessico si carica una volta e si dichiara: se la cartella non c'e'
+        # il filtro e' **spento**, e va detto invece che scoperto misurando.
+        self._lex = None
+        if getattr(cfg, "use_lexicon", False):
+            from vision.lexicon import carica
+
+            lex = carica(cfg.lexicon_dir)
+            self._lex = lex if lex else None
         self._n_opened = m.counter("vision.subtitles.opened")
         self._n_closed = m.counter("vision.subtitles.closed")
         self._n_gated = m.counter("vision.frames.gated")
@@ -142,11 +151,26 @@ class SubtitleReader(Stage):
             # entra nell'inquadratura di continuo. Misurato dal vivo: `'11'`,
             # `"Tr'"` e `'er-s.'` sono passate tutte e tre in centocinquanta
             # secondi, e due hanno preso la voce del secondo personaggio.
+            if self._lex:
+                # Prima si riattaccano le parole che l'OCR ha incollato, poi si
+                # conta: `'Vabene..'` non e' una parola italiana, `'va bene'`
+                # sono due. Contare prima di separare boccerebbe la riga per un
+                # difetto che si sa gia' riparare.
+                text = self._lex.scolla(text)
             if sum(ch.isalpha() for ch in text) < max(1, self.cfg.min_ocr_chars):
                 # Vuoto, o troppo corto per essere una battuta. Conta come
                 # vuoto: il numero serve a vedere quanta scena sta entrando
                 # nella ROI, ed e' il sintomo che una soglia va rifatta.
                 self._n_empty.inc()
+                continue
+            if self._lex and self._lex.conta(text) == 0:
+                # Nessuna parola italiana: e' la scena, non una battuta. E'
+                # l'unico filtro che puo' scartare del dialogo vero — una forma
+                # che i dizionari non elencano, misurata a circa una su trenta —
+                # quindi si conta a parte da `empty`, che sono le righe senza
+                # testo. Confonderli renderebbe impossibile vedere quale dei due
+                # sta crescendo.
+                self._n_gergo.inc()
                 continue
             lines.append(
                 OcrLine(

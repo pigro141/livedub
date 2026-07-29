@@ -140,6 +140,71 @@ def collisions(events: list[SubtitleEvent], a: float, b: float) -> None:
           f"(di quanto, p90: {np.percentile(sf[sf > 0], 90) if (sf > 0).any() else 0:.2f}s)")
 
 
+def punteggiatura(events: list[SubtitleEvent]) -> None:
+    """La durata dipende anche da **come finisce** la battuta?
+
+    L'ipotesi viene dall'ascolto: una battuta che finisce con la virgola e' un
+    pezzo di frase, il personaggio tira via, e il sottotitolo resta a schermo
+    meno di quanto la sua lunghezza farebbe pensare. Se e' cosi', `D = a + b*n`
+    la sovrastima sistematicamente — e sovrastimare la finestra significa
+    comprimere troppo poco, cioe' sforare proprio dove c'e' un'altra battuta che
+    arriva subito.
+
+    Il confronto giusto non e' fra le durate — le battute con la virgola
+    potrebbero essere semplicemente piu' corte di lettere — ma fra i **residui**
+    rispetto alla retta. Un residuo mediano negativo su un gruppo dice: qui la
+    retta sbaglia sempre nello stesso verso, e c'e' un pezzo di segnale che non
+    sta usando.
+    """
+    usable = [e for e in events if e.duration is not None and letters(e.text) > 0]
+    if len(usable) < 20:
+        return
+    n = np.array([letters(e.text) for e in usable], float)
+    d = np.array([e.duration for e in usable], float)
+    a, b = fit(n, d)
+    res = d - (a + b * n)
+
+    def classe(text: str) -> str:
+        t = text.rstrip()
+        if not t:
+            return "altro"
+        if t[-1] == ",":
+            return "virgola"
+        if t[-1] in ".!?":
+            return "punto"
+        if t.endswith("..") or t[-1] in "…":
+            return "sospeso"
+        return "altro"
+
+    gruppi: dict[str, list[int]] = {}
+    for i, e in enumerate(usable):
+        gruppi.setdefault(classe(e.text), []).append(i)
+
+    print("\n   come finisce      n   lettere p50   durata p50   residuo p50   residuo medio")
+    for nome in ("virgola", "punto", "sospeso", "altro"):
+        idx = gruppi.get(nome)
+        if not idx or len(idx) < 5:
+            continue
+        print(
+            f"   {nome:12} {len(idx):5d}   {np.median(n[idx]):9.0f}   {np.median(d[idx]):9.2f}s  "
+            f"{np.median(res[idx]):+10.2f}s   {res[idx].mean():+11.2f}s"
+        )
+    virg = gruppi.get("virgola", [])
+    punt = gruppi.get("punto", [])
+    if len(virg) >= 5 and len(punt) >= 5:
+        delta = float(np.median(res[virg]) - np.median(res[punt]))
+        print(
+            f"\n   la virgola vale {delta:+.2f}s di durata rispetto al punto, "
+            f"a parita' di lunghezza."
+        )
+        if abs(delta) < 0.15:
+            print("   Sotto i 150 ms non vale un termine in piu' nel modello: la")
+            print("   dispersione dei residui e' molto piu' grande di questa differenza.")
+        else:
+            print("   Abbastanza da meritare un termine nel modello: una battuta che")
+            print("   finisce col la virgola va prevista piu' corta, quindi compressa di piu'.")
+
+
 def buckets(n: np.ndarray, d: np.ndarray, width: int = 10) -> None:
     """La durata mediana per fascia di lunghezza. Guardare prima di adattare."""
     print("\n   lunghezza    n   durata p50   p10..p90")
@@ -190,6 +255,7 @@ def main(argv: list[str] | None = None) -> int:
           f"non battute corte")
     describe(f"senza i frammenti (>{args.min_duration:.1f}s)", n[keep], d[keep], limits)
     buckets(n[keep], d[keep])
+    punteggiatura([e for e, k in zip(usable, keep) if k])
     a, b = fit(n[keep], d[keep])
     collisions([e for e, k in zip(usable, keep) if k], a, b)
     print(f"\ncoefficienti misurati:  predict_a = {a:.3f}   predict_b = {b:.4f}")

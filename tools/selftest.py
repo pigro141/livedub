@@ -968,6 +968,85 @@ def test_lingua(c: Check) -> None:
     c.eq(italian_only("... e poi?"), "e poi?", "un '...' iniziale e' il prezzo di questa pulizia")
 
 
+def test_lessico(c: Check) -> None:
+    """Il filtro sulla lingua: l'ultimo che sta fra l'OCR e le cuffie.
+
+    Le soglie di colore e contrasto hanno gia' fatto il possibile — un cordolo
+    bianco **e'** bianco e sottile — e cio' che resta si separa solo sapendo
+    che il dialogo e' italiano e l'asfalto no.
+    """
+    c.group("lessico")
+
+    from vision.lexicon import Lexicon, carica
+
+    lex = Lexicon({"va", "bene", "sfogati", "pure", "tuo", "figlio", "cazzo",
+                   "un", "altra", "brillante", "ideona", "di", "perche"})
+
+    c.ok(lex.nota("bene"), "una parola del dizionario e' nota")
+    c.ok(lex.nota("Bene."), "e la punteggiatura attorno non la nasconde")
+    c.ok(lex.nota("CAZZO"), "ne' le maiuscole")
+    c.ok(not lex.nota("IIFIL"), "la spazzatura no")
+    c.eq(lex.conta("Un altra brillante ideona"), 4, "conta le parole note della riga")
+    c.eq(lex.conta("IIFIL REEr"), 0, "e zero e' il segnale che cerchiamo")
+
+    # Basta UNA parola: l'OCR ne rompe sempre qualcuna, e pretenderle tutte
+    # buone scarterebbe il dialogo vero insieme alla scena.
+    c.ok(lex.conta("Propric qui, cazzo!") >= 1, "una parola buona basta a salvare la riga")
+
+    # `separa` non puo' inventare: o trova due parole vere, o si arrende.
+    c.eq(lex.separa("Vabene"), "Va bene", "due parole incollate si separano")
+    c.eq(lex.separa("Sfogatipure"), "Sfogati pure", "anche quando sono lunghe")
+    c.eq(lex.separa("IIFIL"), None, "ma la spazzatura non si separa in niente")
+    c.eq(lex.separa("bene"), None, "e una parola gia' buona si lascia stare")
+    c.eq(
+        lex.separa("benecazzoxyz"), None,
+        "e se una delle due meta' non e' una parola, non si taglia",
+    )
+    # La maiuscola si conserva: e' l'inizio di una battuta, non un dettaglio.
+    c.eq(lex.separa("VABENE"), "VA BENE", "e le maiuscole restano come stavano")
+    # E la punteggiatura pure. Separare `'Vabene,'` perdendo la virgola
+    # riparerebbe una cosa rompendone un'altra: quella virgola e' la pausa che
+    # il sintetizzatore ci mette.
+    c.eq(lex.separa("Vabene,"), "Va bene,", "e la virgola non si perde per strada")
+    c.eq(lex.separa("«Vabene!»"), "«Va bene!»", "ne' i segni che stanno da tutt'e due i lati")
+    c.eq(lex.scolla("Vabene, tuofiglio"), "Va bene, tuo figlio", "scolla tutta la riga")
+
+    # **I nomi propri non si toccano.** 'Lamar' -> 'La mar' e 'Davis' -> 'Da
+    # vis' passavano la regola "solo se esistono tutt'e due", perche' esistono
+    # davvero: la parola spezzata era giusta e il risultato sbagliato. A
+    # distinguerli e' la maiuscola in mezzo alla frase, e a inizio riga quel
+    # segnale non c'e' perche' ce l'hanno tutte le battute.
+    nomi = Lexicon({"la", "mar", "da", "vis", "di", "va", "bene", "casa"})
+    c.eq(
+        nomi.scolla("di Lamar Davis"), "di Lamar Davis",
+        "un nome proprio in mezzo alla frase resta intero",
+    )
+    c.eq(nomi.separa("Vabene", prima=True), "Va bene", "ma a inizio riga si separa lo stesso")
+    c.eq(nomi.separa("Vabene", prima=False), None, "e in mezzo no, che e' il prezzo dichiarato")
+
+    # Un taglio solo. Se i punti buoni sono due, la parola e' ambigua e
+    # sceglierne uno sarebbe indovinare.
+    ambigua = Lexicon({"can", "tare", "canta", "re"})
+    c.eq(ambigua.separa("cantare"), None, "una parola con due tagli buoni non si tocca")
+
+    # Un lessico vuoto deve DICHIARARSI vuoto. Se rispondesse "conosciuta" a
+    # tutto, il filtro sarebbe spento in silenzio e si continuerebbe a misurare
+    # credendo che stia lavorando — che e' peggio di non averlo.
+    vuoto = Lexicon(set())
+    c.ok(not vuoto, "un lessico vuoto e' falso in verita', cosi' chi lo usa se ne accorge")
+    c.eq(vuoto.conta("qualunque cosa"), 0, "e non conosce niente")
+    mancante = carica("cartella/che/non/esiste")
+    c.ok(not mancante, "una cartella assente da un lessico vuoto, non un errore")
+
+    # E quello vero, se e' stato scaricato: qui non si finge.
+    reale = carica("models/lexicon")
+    if reale:
+        c.ok(len(reale) > 100_000, f"il lessico italiano vero ha {len(reale)} parole")
+        for w in ("vaffanculo", "cazzo", "puttane", "rapinato", "banche", "perche"):
+            c.ok(reale.nota(w), f"e contiene {w!r}")
+        c.eq(reale.conta("IIFIL REEr lte"), 0, "mentre la spazzatura resta spazzatura")
+
+
 def test_una_voce_alla_volta(c: Check) -> None:
     """Due battute vicine non devono partire insieme.
 
@@ -1259,6 +1338,7 @@ GROUPS = {
     "vad": test_vad,
     "live_start": test_live_start,
     "lingua": test_lingua,
+    "lessico": test_lessico,
     "una_voce": test_una_voce_alla_volta,
     "stringi": test_stringi_non_accodare,
     "roi": test_roi,

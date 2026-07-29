@@ -1160,6 +1160,68 @@ def test_fretta(c: Check) -> None:
     )
 
 
+def test_duck_non_pompa(c: Check) -> None:
+    """Fra due battute incatenate il gioco non deve risalire e riabbassarsi.
+
+    E' un difetto che si sente sull'**audio del gioco**, non sulla voce, ed e'
+    per questo che all'ascolto sembrava che si tagliuzzasse tutto invece che il
+    doppiaggio. Nel dialogo fitto le battute stanno a 120 ms l'una dall'altra —
+    misurato dal vivo, il 26% degli intervalli — e un rilascio da 220 ms in quei
+    120 ms risale a meta' strada per poi essere rischiacciato in quaranta.
+
+    La verifica guarda **l'inviluppo**, non la logica che lo decide: si misura
+    quanto il guadagno risale nel buco, che e' la grandezza che l'orecchio sente.
+    """
+    c.group("duck")
+
+    from mix.mixer import Mixer
+
+    sr = 24000
+    voce = np.full(int(sr * 0.6), 0.3, dtype=np.float32)
+    gioco = np.full((int(sr * 0.02), 2), 0.5, dtype=np.float32)
+
+    def corsa(hold_ms: float) -> float:
+        """Due battute a 120 ms di distanza. Quanto risale il gioco nel mezzo?"""
+        m = Mixer(samplerate=sr, duck_db=-14.0, hold_ms=hold_ms)
+        m.schedule(voce, 0.0)
+        m.schedule(voce, 0.6 + 0.12)
+        picco = 0.0
+        for i in range(int(1.4 / 0.02)):
+            fuori = m.process(gioco)
+            t = i * 0.02
+            if 0.6 <= t < 0.72:  # dentro il buco fra le due battute
+                # Il centro del gioco: mid = (L+R)/2, e la voce e' identica sui
+                # due canali, quindi si guarda la differenza dal doppiaggio.
+                mid = float(np.max(np.abs(fuori[:, 0] + fuori[:, 1]) / 2))
+                picco = max(picco, mid)
+        return picco
+
+    senza = corsa(0.0)
+    con = corsa(500.0)
+    c.ok(
+        con < senza,
+        f"con l'attesa il gioco risale meno nel buco ({con:.3f} contro {senza:.3f})",
+    )
+    # In decibel, che e' la scala in cui il pompaggio si sente.
+    salita_senza = 20 * np.log10(max(senza, 1e-6) / 0.5 * (10 ** (14 / 20)))
+    c.ok(
+        salita_senza > 3.0,
+        f"e senza l'attesa la risalita e' udibile: +{salita_senza:.1f} dB sopra il duck",
+    )
+
+    # Ma con un silenzio lungo il duck DEVE rilasciare, altrimenti il gioco
+    # resterebbe abbassato per tutta la scena.
+    m = Mixer(samplerate=sr, duck_db=-14.0, hold_ms=500.0)
+    m.schedule(voce, 0.0)
+    for _ in range(int(2.5 / 0.02)):
+        fuori = m.process(gioco)
+    finale = float(np.max(np.abs(fuori[:, 0] + fuori[:, 1]) / 2))
+    c.ok(
+        finale > 0.45,
+        f"dopo due secondi di silenzio il gioco e' tornato su ({finale:.3f} di 0.5)",
+    )
+
+
 def test_una_voce_alla_volta(c: Check) -> None:
     """Due battute vicine non devono partire insieme.
 
@@ -1455,6 +1517,7 @@ GROUPS = {
     "una_voce": test_una_voce_alla_volta,
     "stringi": test_stringi_non_accodare,
     "fretta": test_fretta,
+    "duck": test_duck_non_pompa,
     "roi": test_roi,
     "lines": test_lines,
     "diff": test_diff,

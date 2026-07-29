@@ -62,10 +62,12 @@ class Mixer:
         release_ms: float = 220.0,
         dub_gain_db: float = 0.0,
         passthrough: bool = True,
+        hold_ms: float = 500.0,
         metrics: MetricsRegistry | None = None,
     ) -> None:
         self.samplerate = samplerate
         self.passthrough = passthrough
+        self.hold_seconds = max(0.0, hold_ms / 1000.0)
         self.dub_gain = db_to_gain(dub_gain_db)
         self.envelope = DuckEnvelope(samplerate, duck_db, attack_ms, release_ms)
         self.metrics = metrics or MetricsRegistry()
@@ -279,13 +281,25 @@ class Mixer:
         return self._limit(out)
 
     def _starts_soon(self, t1: float) -> bool:
-        """Sta per iniziare una battuta entro il tempo di attacco del duck?
+        """Sta per iniziare una battuta, abbastanza presto da non rialzare?
 
-        Abbassare il gioco *mentre* la voce parte la lascerebbe coperta per i
-        primi quaranta millisecondi, che sono quelli in cui l'orecchio decide se
-        ha capito o no.
+        Due motivi diversi, e il secondo e' costato una sessione d'ascolto.
+
+        **Non rialzare troppo tardi.** Abbassare il gioco *mentre* la voce parte
+        la lascerebbe coperta per i primi quaranta millisecondi, che sono quelli
+        in cui l'orecchio decide se ha capito o no. Da qui l'anticipo pari al
+        tempo di attacco.
+
+        **E non rialzare affatto, se sta per riabbassarsi.** Nel dialogo fitto
+        le battute si incatenano a 120 ms l'una dall'altra: il rilascio da 220 ms
+        fa risalire il gioco a meta' strada, e quaranta millisecondi dopo lo
+        rischiaccia. Sono otto decibel su e giu' ogni centosessanta
+        millisecondi, sull'audio del gioco e non sulla voce — all'ascolto si
+        taglia tutto. Il duck resta quindi giu' per `hold_seconds` se un'altra
+        battuta arriva entro quel tempo: una risalita che deve subito tornare
+        indietro non e' un rilascio, e' un difetto.
         """
-        lookahead = self.envelope.attack_seconds
+        lookahead = max(self.envelope.attack_seconds, self.hold_seconds)
         return any(t1 <= s.t_start <= t1 + lookahead for s in self._queue)
 
     def _limit(self, x: np.ndarray) -> np.ndarray:

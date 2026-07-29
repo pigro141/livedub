@@ -321,6 +321,17 @@ class MixConfig:
     duck_db: float = -14.0
     duck_attack_ms: int = 40
     duck_release_ms: int = 220
+    # **Quanto il duck resta giu' aspettando la battuta successiva.**
+    # Senza questa attesa, nel dialogo fitto il gioco pompa: misurato dal vivo,
+    # il 26% degli intervalli fra una battuta e la seguente vale 0,12 s — la
+    # pausa di respiro fra due battute incatenate — e in 120 ms un rilascio da
+    # 220 ms risale a meta' strada, per poi essere rischiacciato in 40 ms.
+    # Sono oltre 8 dB su e giu' ogni centosessanta millisecondi, e non sulla
+    # voce ma sull'**audio del gioco**: all'ascolto si taglia tutto, non solo il
+    # doppiaggio. Quando i personaggi parlano lenti gli intervalli sono di
+    # secondi e il difetto sparisce, che e' il motivo per cui si sente solo
+    # nelle scene fitte.
+    duck_hold_ms: float = 500.0
     dub_gain_db: float = 0.0
     output_device: str = ""
 

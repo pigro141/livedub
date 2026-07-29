@@ -115,6 +115,7 @@ class DubPipeline:
             release_ms=cfg.mix.duck_release_ms,
             dub_gain_db=cfg.mix.dub_gain_db,
             passthrough=cfg.mix.passthrough,
+            hold_ms=cfg.mix.duck_hold_ms,
             metrics=self.metrics,
         )
 

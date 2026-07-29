@@ -255,6 +255,23 @@ class SpeakerConfig:
 
     backend: str = "ecapa-onnx"  # ecapa-onnx | mfcc | none
     similarity: float = 0.55  # soglia coseno per "e' la stessa voce", sui ritagli INTERI
+    # **Quanto audio guardare PRIMA della comparsa del sottotitolo.**
+    # Al momento di decidere la battuta corrente non ha ancora audio: il testo
+    # compare e si decide li'. Misurato su 82 battute etichettate all'ascolto,
+    # scegliendo fra tre personaggi noti:
+    #
+    #     finestra                        sceglie giusto
+    #     [t_on-0,35 ; t_on]   (solo prima)     76,5%
+    #     [t_on-0,20 ; t_on+0,15]  (a cavallo)  88,9%
+    #     [t_on      ; t_on+0,35]  (solo dopo)  89,0%
+    #
+    # Le ultime due sono equivalenti, ma la seconda costa **150 ms** di attesa
+    # invece di 350: la voce originale comincia intorno alla comparsa del testo,
+    # quindi i 200 ms precedenti contengono gia' il suo attacco. Finche' lo
+    # scheduler non sa rinviare l'attacco, si usa solo la parte disponibile
+    # subito — cioe' la prima riga, 76,5% — e la differenza fra 76 e 89 e' il
+    # prezzo esatto di non aspettare.
+    lead_ms: int = 200
     min_clip_ms: int = 400  # sotto questa durata la decisione e' provvisoria
     max_wait_ms: int = 200  # quanto si puo' rinviare l'attacco per decidere meglio
     max_speakers: int = 16

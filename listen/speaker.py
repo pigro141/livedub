@@ -78,6 +78,23 @@ class Personaggio:
         return self.somma / n if n > 1e-9 else self.somma
 
     @property
+    def confermato(self) -> bool:
+        """Sentito almeno due volte, quindi degno di una voce.
+
+        Misurato su cento secondi di GTA V: il tracker apriva 16 personaggi, ma
+        **tredici parlavano una volta sola** e non tornavano mai. Erano battute
+        sporche, sovrapposizioni, o semplicemente un ritaglio infelice; e
+        ognuna si portava via una voce del pool, che ne ha sei. Il risultato
+        all'ascolto e' il difetto peggiore possibile — la voce che cambia a ogni
+        riga — ottenuto non sbagliando a riconoscere, ma **credendo troppo in
+        fretta** a una somiglianza bassa.
+
+        Un personaggio che parla una volta e sparisce non ha bisogno di una voce
+        propria: nessuno potra' accorgersi che non ce l'ha. Uno che torna si'.
+        """
+        return self.battute >= 2
+
+    @property
     def gender(self) -> str:
         """Maschile, femminile, o non si sa.
 
@@ -142,7 +159,12 @@ class SpeakerTracker:
         un dialogo e' sbagliato circa una volta su due; inventare un personaggio
         e' sbagliato sempre, e per giunta consuma una voce del pool.
         """
-        if embedding is None or not self.people or float(np.linalg.norm(embedding)) < 1e-9:
+        # Solo i confermati danno una voce. Gli altri restano in banca — servono
+        # a `impara`, che li puo' confermare — ma non entrano in una decisione
+        # che si sente: un personaggio nato dalla battuta precedente non ha
+        # ancora dimostrato di esistere.
+        noti = [p for p in self.people if p.confermato]
+        if embedding is None or not noti or float(np.linalg.norm(embedding)) < 1e-9:
             # Nessuno da scegliere: si risponde un'identita' provvisoria **senza
             # aprire un posto in banca**. Aprirlo qui vorrebbe dire iscrivere un
             # personaggio la cui impronta non si conosce, e un centroide vuoto
@@ -150,7 +172,7 @@ class SpeakerTracker:
             # ritroverebbe mai piu', e la sua voce resterebbe bruciata.
             return Decisione(self._ultimo or "S0", 0.0, provisional=True)
 
-        punteggi = np.array([float(np.dot(embedding, p.centroide)) for p in self.people])
+        punteggi = np.array([float(np.dot(embedding, p.centroide)) for p in noti])
         k = int(np.argmax(punteggi))
         migliore = float(punteggi[k])
         if migliore < PLAUSIBILE_SOPRA and self._ultimo is not None:
@@ -158,8 +180,8 @@ class SpeakerTracker:
             # contiene voce. Si resta su chi parlava, che e' l'ipotesi meno
             # dannosa, e la battuta intera dira' com'e' andata davvero.
             return Decisione(self._ultimo, migliore, provisional=True)
-        self._ultimo = self.people[k].speaker_id
-        return Decisione(self.people[k].speaker_id, migliore, provisional=True)
+        self._ultimo = noti[k].speaker_id
+        return Decisione(noti[k].speaker_id, migliore, provisional=True)
 
     # -- la porta lenta ----------------------------------------------------
 
@@ -182,13 +204,18 @@ class SpeakerTracker:
                 p.somma = p.somma + embedding
                 p.battute += 1
                 p.ultima_volta = t
+                # `_ultimo` non si tocca qui. E' l'ultimo a cui e' stata **data
+                # una voce**, non l'ultimo di cui si e' imparato qualcosa:
+                # confonderli faceva risuscitare dal ripiego i personaggi appena
+                # nati e non ancora confermati, che e' esattamente cio' che la
+                # conferma doveva impedire. Il difetto non dava errore — dava
+                # tredici voci in cento secondi.
                 if f0 > 0:
                     # Mediana incrementale povera ma stabile: la media si fa
                     # portare via da un ritaglio in cui l'ottava e' stata
                     # sbagliata, e sbagliare ottava e' l'errore tipico di ogni
                     # stimatore di intonazione.
                     p.f0 = f0 if p.f0 <= 0 else 0.8 * p.f0 + 0.2 * f0
-                self._ultimo = p.speaker_id
                 return Decisione(p.speaker_id, float(punteggi[k]))
         if len(self.people) >= self.cfg.max_speakers:
             # Il pool e' pieno. Si attacca al migliore invece di rifiutare: due
@@ -196,7 +223,6 @@ class SpeakerTracker:
             if self.people:
                 punteggi = np.array([float(np.dot(embedding, p.centroide)) for p in self.people])
                 k = int(np.argmax(punteggi))
-                self._ultimo = self.people[k].speaker_id
                 return Decisione(self.people[k].speaker_id, float(punteggi[k]))
         return self._apri(embedding, t, f0=f0)
 
@@ -216,7 +242,6 @@ class SpeakerTracker:
                 f0=f0,
             )
         )
-        self._ultimo = sid
         return Decisione(sid, 0.0, is_new=True)
 
     # -- lettura -----------------------------------------------------------

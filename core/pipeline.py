@@ -464,7 +464,17 @@ class DubPipeline:
         """
         if self.tracker is None:
             return "S-grey" if event.cls is LineClass.GREY else "S-white"
-        emb = self._embed(self._clip(event.t_on, self.mixer.now))
+        # Si guarda **indietro** dalla comparsa del sottotitolo, non avanti: la
+        # battuta corrente, in questo istante, non ha ancora un solo campione di
+        # audio. Vale 76,5% invece dell'89% che si avrebbe aspettando 150 ms —
+        # si veda `SpeakerConfig.lead_ms`, dove il prezzo e' scritto.
+        # `self.clock.now()` e non `self.mixer.now`: l'anello e' timbrato col
+        # tempo del media, e il mixer ha un orologio suo che parte da zero. Dal
+        # vivo i due coincidono, sul banco no — ed e' la seconda volta in questo
+        # file che i due tempi si scambiano di posto senza dare errore.
+        emb = self._embed(
+            self._clip(event.t_on - self.cfg.speaker.lead_ms / 1000.0, self.clock.now())
+        )
         return self.tracker.scegli(emb, t=event.t_on).speaker_id
 
     def _learn(self, event: SubtitleEvent) -> None:
@@ -495,7 +505,7 @@ class DubPipeline:
         if self._ring_t0 is None:
             return None
         durata = fino_a - t_on
-        if durata < 0.25:  # meno di questo non contiene una sillaba intera
+        if durata < 0.20:  # meno di questo non contiene una sillaba intera
             return None
         durata = min(durata, 2.0)
         inizio = self._voices.time_to_frame(t_on, self._ring_t0)

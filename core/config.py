@@ -353,6 +353,13 @@ class TimingConfig:
     # perche' un doppiaggio che sfora di due decimi non lo nota nessuno mentre
     # una parola finale impastata si sente sempre.
     hurry_min_residue_ms: float = 600.0
+    # **Quanta coda della battuta non passa mai dallo stiramento.** WSOLA perde
+    # la fine di cio' che comprime — misurato, a rate 1,20 di un tono
+    # riconoscibile negli ultimi 200 ms non resta niente — e dal vivo si sente
+    # come "si ferma a 'questa roba stia' e non dice 'funzionando'". Finche' la
+    # riparazione vera non c'e', l'ultima parola non ci passa: si comprime solo
+    # il corpo e la fine si riattacca com'e' uscita dal sintetizzatore.
+    keep_tail_seconds: float = 0.7
     # Aggiornamento in linea dei coefficienti: `decay` e' quanto pesa il
     # passato a ogni nuova battuta (0,97 ≈ una memoria di una trentina), e
     # `max_drift` quanto la retta imparata puo' allontanarsi da quella del

@@ -32,7 +32,7 @@ from core.metrics import MetricsRegistry
 from core.types import Emotion, LineClass, SubtitleEvent, Utterance
 from fuse.timing import DurationModel, spoken_length
 from mix.mixer import Mixer
-from mix.stretch import fit_duration
+from mix.stretch import fit_duration, fit_duration_keep_tail  # noqa: F401
 from speak.base import TtsBackend
 from speak.pool import VoicePool, build_pool
 from vision.ocr import OcrBackend, make_ocr
@@ -349,8 +349,14 @@ class DubPipeline:
             # che e' — una richiesta.
             bersaglio = max(piano.budget, durata / self.cfg.timing.rate_max)
             if durata > bersaglio + 1e-3:
-                audio, rate = fit_duration(
-                    audio, bersaglio, self.samplerate, limits=(1.0, self.cfg.timing.rate_max)
+                # La coda non passa da WSOLA: lo stiramento perde la fine di
+                # cio' che comprime, e la fine e' l'ultima parola.
+                audio, rate = fit_duration_keep_tail(
+                    audio,
+                    bersaglio,
+                    self.samplerate,
+                    limits=(1.0, self.cfg.timing.rate_max),
+                    tail_seconds=self.cfg.timing.keep_tail_seconds,
                 )
             self._t_rate.add(rate * 1000.0)
             if piano.overflow > 0:

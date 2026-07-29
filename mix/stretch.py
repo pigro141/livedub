@@ -258,3 +258,47 @@ def fit_duration(
     rate = current / target_seconds
     rate = float(np.clip(rate, limits[0], limits[1]))
     return time_stretch(x, rate, samplerate=samplerate), rate
+
+
+def fit_duration_keep_tail(
+    x: np.ndarray,
+    target_seconds: float,
+    samplerate: int,
+    limits: tuple[float, float] = (0.7, 1.5),
+    tail_seconds: float = 0.7,
+) -> tuple[np.ndarray, float]:
+    """Come `fit_duration`, ma **l'ultima parola non passa da WSOLA**.
+
+    Lo stiramento perde la fine di cio' che comprime — il puntatore di analisi
+    insegue la periodicita', arretra, e gli arretramenti si sommano finche' la
+    coda dell'ingresso non viene mai letta. Misurato con un tono riconoscibile
+    negli ultimi 200 ms: a rate 1,20 e 1,35 non ne resta **niente**. Dal vivo si
+    sente cosi': *«si ferma a "questa roba stia" e non dice "funzionando"»*.
+
+    Ancorare il puntatore alla griglia ideale recupera la coda e peggiora lo
+    spettro di dieci volte (0,0043 -> 0,0432, misurato in diretta e non
+    attraverso il giro identita'). La riparazione vera di WSOLA e' un lavoro a
+    se'; questa funzione non la fa e non finge di farla.
+
+    Quello che fa e' togliere la coda dalla strada: si comprime **solo il
+    corpo** e si riattacca la fine come e' uscita dal sintetizzatore. L'ultima
+    parola arriva quindi verbatim, e il prezzo e' che la compressione si
+    concentra su cio' che viene prima — dove qualche decimo in piu' non si nota,
+    mentre una parola finale mancante si nota sempre.
+    """
+    if x.size == 0 or target_seconds <= 0:
+        return x.astype(np.float32, copy=True), 1.0
+    coda_n = min(len(x), int(max(0.0, tail_seconds) * samplerate))
+    corpo = x[: len(x) - coda_n]
+    coda = x[len(x) - coda_n :]
+    # Se il corpo e' troppo corto per essere stirato utilmente, non si fa
+    # niente: comprimere venti millisecondi non guadagna nulla e li rovina.
+    if len(corpo) < int(0.2 * samplerate):
+        return x.astype(np.float32, copy=True), 1.0
+    bersaglio_corpo = target_seconds - coda_n / samplerate
+    if bersaglio_corpo <= 0.05:
+        # Non c'e' finestra nemmeno per il solo corpo: si stringe quanto e'
+        # lecito e si sfora, che e' la promessa del progetto.
+        bersaglio_corpo = (len(corpo) / samplerate) / limits[1]
+    stretto, rate = fit_duration(corpo, bersaglio_corpo, samplerate, limits=limits)
+    return np.concatenate([stretto, coda]).astype(np.float32), rate

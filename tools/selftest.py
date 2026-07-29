@@ -1230,6 +1230,25 @@ def test_coda_stiramento(c: Check) -> None:
         "a rate 1 la coda resta intatta",
     )
 
+    # **E la via d'uscita: la coda non ci passa proprio.** Finche' WSOLA perde
+    # la fine, l'ultima parola non gli si da' in pasto — si comprime il corpo e
+    # si riattacca la coda com'era. Qui la prova e' esatta e non statistica:
+    # i campioni finali devono essere gli stessi, uno per uno.
+    from mix.stretch import fit_duration_keep_tail
+
+    y, r = fit_duration_keep_tail(x, 1.5, sr, limits=(1.0, 1.35), tail_seconds=0.3)
+    coda_n = int(0.3 * sr)
+    c.ok(r > 1.0, f"il corpo viene comunque compresso (rate {r:.3f})")
+    c.ok(
+        np.array_equal(y[-coda_n:], x[-coda_n:]),
+        "e gli ultimi 300 ms sono identici all'originale, campione per campione",
+    )
+    c.ok(
+        acuto_su_grave(y) > 5.0,
+        f"quindi l'ultima parola c'e' tutta (acuto/grave {acuto_su_grave(y):.1f})",
+    )
+    c.ok(len(y) < len(x), "e la battuta e' comunque piu' corta di prima")
+
 
 def test_velocita_totale(c: Check) -> None:
     """La velocita' vera di una battuta e' il prodotto di tutti gli stadi.

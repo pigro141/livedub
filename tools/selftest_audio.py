@@ -96,10 +96,30 @@ def test_stretch(c) -> None:
     # 3. Giro identita' — valido solo in ALLUNGAMENTO. In compressione si butta
     #    via materiale e riespandere non lo reinventa: non e' un difetto della
     #    trasformata, e pretenderlo sarebbe una prova mal posta.
+    #
+    #    **Le soglie sono state allargate, e il motivo va letto prima di
+    #    stringerle di nuovo.** Una versione precedente le superava con
+    #    larghissimo margine — corr 0,9999 e spettro 0,0001 — e lo faceva
+    #    **grazie a un difetto**: il puntatore di analisi arretrava
+    #    cumulativamente, e la deriva della compressione veniva annullata da
+    #    quella dell'allungamento. Un'inversa quasi esatta ottenuta da due
+    #    errori che si compensano. Nel frattempo, in una direzione sola, quella
+    #    versione perdeva l'ultima parola di ogni battuta compressa: misurato in
+    #    diretta, spettro 0,0043 contro 0,0432 ma **contenuto della coda 0,00
+    #    contro 28,2**.
+    #
+    #    Questa prova, da sola, sceglieva quindi l'algoritmo che cancella le
+    #    parole. Resta perche' serve — un giro identita' che si rompe davvero
+    #    direbbe qualcosa — ma non e' piu' la prova principale: quella e' il
+    #    gruppo `coda` in `tools/selftest.py`, che chiede che la fine del
+    #    segnale ci sia ancora. Fra spettro e contenuto vince il contenuto.
     for r in (0.7, 0.85):
         z = time_stretch(time_stretch(x, r, SR), 1.0 / r, SR)
-        c.ok(_corr(x, z) > 0.99, f"allungamento r={r}: il giro identita' torna (corr {_corr(x,z):.4f})")
-        c.ok(_spec_diff(x, z) < 0.02, f"allungamento r={r}: lo spettro e' intatto")
+        c.ok(_corr(x, z) > 0.98, f"allungamento r={r}: il giro identita' torna (corr {_corr(x,z):.4f})")
+        c.ok(
+            _spec_diff(x, z) < 0.06,
+            f"allungamento r={r}: lo spettro regge ({_spec_diff(x,z):.4f})",
+        )
 
     # ...e la misura campione-per-campione non saprebbe dirlo, perche' WSOLA
     # sfasa. Verificarlo impedisce di rifare l'errore.
@@ -107,7 +127,7 @@ def test_stretch(c) -> None:
     n = min(len(x), len(z))
     rms_diff = float(np.sqrt(np.mean((x[:n] - z[:n]) ** 2)))
     c.ok(rms_diff > 0.0, "il residuo campione-per-campione non e' nullo (c'e' sfasamento)")
-    c.ok(_corr(x, z) > 0.99, "ma la correlazione dice che il segnale e' lo stesso")
+    c.ok(_corr(x, z) > 0.98, "ma la correlazione dice che il segnale e' lo stesso")
 
     # 4. pitch_shift: cambia l'intonazione, NON la durata.
     for s in (-4.0, -2.0, 2.0, 4.0):

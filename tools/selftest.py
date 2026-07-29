@@ -1216,12 +1216,13 @@ def test_coda_stiramento(c: Check) -> None:
 
     for r in (1.10, 1.20, 1.35):
         q = acuto_su_grave(time_stretch(x, r, samplerate=sr))
-        # Soglia bassa di proposito: **registra il difetto invece di
-        # nasconderlo**. Prima della toppa in coda questo valore era 0,0 a 1,20
-        # e 1,35 — la fine spariva del tutto. Oggi c'e' ma e' indebolita, e la
-        # riparazione vera resta da fare: se qualcuno la fa, questa verifica
-        # glielo confermera' salendo.
-        c.ok(q > 0.25, f"rate {r}: la fine del segnale c'e' ancora (acuto/grave {q:.2f})")
+        # **Questa e' la prova principale sullo stiramento**, piu' del giro
+        # identita': con il puntatore che accumulava arretramento questo valore
+        # era 0,00 a 1,20 e 1,35 — la fine spariva del tutto — mentre durata,
+        # ampiezza, intonazione e giro identita' erano tutti perfetti. Fra
+        # spettro e contenuto vince il contenuto: una parola che manca si sente
+        # sempre, uno spettro un po' piu' ruvido no.
+        c.ok(q > 1.0, f"rate {r}: la fine del segnale c'e' ancora (acuto/grave {q:.2f})")
 
     # E il controllo opposto, senza il quale il precedente non dimostra niente:
     # a rate 1 non si tocca niente, quindi la coda deve essere quella intera.

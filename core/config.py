@@ -359,7 +359,14 @@ class TimingConfig:
     # come "si ferma a 'questa roba stia' e non dice 'funzionando'". Finche' la
     # riparazione vera non c'e', l'ultima parola non ci passa: si comprime solo
     # il corpo e la fine si riattacca com'e' uscita dal sintetizzatore.
-    keep_tail_seconds: float = 0.7
+    #
+    # **Spento a zero adesso che il puntatore di analisi e' stato corretto.**
+    # Spezzare la battuta non chiudeva il buco: lo spostava. WSOLA perde la fine
+    # di *qualunque* segmento riceve, quindi con il taglio in corpo+coda a
+    # sparire era la fine del **corpo**, cioe' il mezzo della frase — dal vivo
+    # si sentiva "l'inizio e la fine, non tutta la frase". Il codice resta
+    # perche' documenta il ragionamento e serve se qualcuno alza `search_ms`.
+    keep_tail_seconds: float = 0.0
     # Aggiornamento in linea dei coefficienti: `decay` e' quanto pesa il
     # passato a ogni nuova battuta (0,97 ≈ una memoria di una trentina), e
     # `max_drift` quanto la retta imparata puo' allontanarsi da quella del

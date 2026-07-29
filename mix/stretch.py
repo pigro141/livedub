@@ -155,18 +155,31 @@ def time_stretch(
         # contro cui il `CLAUDE.md` mette in guardia: una trasformata sbagliata
         # non da' errore, da' spazzatura plausibile. Dal vivo si sentiva come
         # "taglia l'ultima parola delle frasi lunghe".
-        # Il passo di analisi resta libero di inseguire la periodicita': e' la
-        # ragione per cui si usa WSOLA invece di ricampionare, ed e' la
-        # proprieta' che il giro identita' misura. Provato ad ancorarlo alla
-        # griglia ideale per non perdere la coda, e ancorarlo costa piu' di
-        # quanto renda — lo spettro del giro identita' passa da 0,01 a 0,04 e la
-        # coda si recupera solo ai rate bassi. La coda si ripara alla fine, dove
-        # il buco sta davvero.
-        next_centre = ta + hop_ana
-        lo = max(0, next_centre - search)
-        hi = min(len(data) - n, next_centre + search)
+        # **Il centro di ricerca viene dalla posizione IDEALE.** Scrivere
+        # `ta + hop_ana` sembra equivalente e non lo e': `_best_offset` puo'
+        # spostare `ta` indietro fino a `search`, e sommando quello spostamento
+        # al passo dopo l'arretramento si **accumula**. Il puntatore resta
+        # sempre piu' indietro e non arriva mai in fondo all'ingresso: l'uscita
+        # ha durata e ampiezza giuste, ma la fine e' **sostituita** da audio
+        # ripetuto.
+        #
+        # Le due varianti misurate in diretta, non attraverso il giro identita':
+        #
+        #                    spettro (r=1,2)   ultima parola
+        #   accumulando      0,0043            0,00  sparita
+        #   griglia ideale   0,0432            28,2  intatta
+        #
+        # Si sceglie la seconda, e la ragione e' che le due colonne non pesano
+        # uguale: 0,043 su una distanza spettrale normalizzata resta un numero
+        # piccolo, mentre "0,00" vuol dire che una parola non c'e'. Dal vivo si
+        # sentiva cosi': *«si ferma a "questa roba stia" e non dice
+        # "funzionando"»*. Un doppiaggio leggermente piu' ruvido si ascolta; uno
+        # a cui mancano le parole no.
+        ideale = passo * hop_ana
+        lo = max(0, ideale - search)
+        hi = min(len(data) - n, ideale + search)
         if hi <= lo:
-            ta = min(max(0, next_centre), max(0, len(data) - n))
+            ta = min(max(0, ideale), max(0, len(data) - n))
         else:
             ta = lo + _best_offset(data, lo, hi, n, natural)
         natural = data[ta + hop_syn : ta + hop_syn + n]
@@ -289,6 +302,12 @@ def fit_duration_keep_tail(
     if x.size == 0 or target_seconds <= 0:
         return x.astype(np.float32, copy=True), 1.0
     coda_n = min(len(x), int(max(0.0, tail_seconds) * samplerate))
+    if coda_n <= 0:
+        # Coda a zero: e' `fit_duration` e basta. Con il puntatore di analisi
+        # corretto e' il caso normale — spezzare non chiudeva il buco, lo
+        # spostava dalla fine della battuta alla fine del corpo, cioe' in mezzo
+        # alla frase.
+        return fit_duration(x, target_seconds, samplerate, limits=limits)
     corpo = x[: len(x) - coda_n]
     coda = x[len(x) - coda_n :]
     # Se il corpo e' troppo corto per essere stirato utilmente, non si fa

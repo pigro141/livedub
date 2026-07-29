@@ -48,7 +48,20 @@ sottotitolo compare, quando l'embedding audio e' ancora incerto.
 .\.venv\Scripts\python.exe -m tools.demo --no-duck        # la stessa, per sentire cosa fa il duck
 .\.venv\Scripts\python.exe -m tools.say --pool            # ascoltare le voci
 .\.venv\Scripts\python.exe main.py --dump-config
+.\.venv\Scripts\python.exe -m tools.fetch_lexicon             # il filtro sulla lingua
 ```
+
+Dal vivo, e per riaprire cio' che si e' sentito:
+
+```powershell
+.\.venv\Scripts\python.exe -m tools.live --profile live --loopback voicemeeter --seconds 150
+.\.venv\Scripts\python.exe -m tools.reopen runs\<data>          # il quadro d'insieme
+.\.venv\Scripts\python.exe -m tools.reopen runs\<data> 95.4     # cosa succedeva li'
+```
+
+Su una cattura nuova la ROI va rifatta: e' del **setup**, non del gioco. Il
+profilo del file non vale per lo stesso video riprodotto a schermo — misurato,
+il ritaglio taglia i glifi a meta' e l'OCR restituisce testo plausibile e falso.
 
 Sulla registrazione, **in quest'ordine** — il primo comando non e' facoltativo:
 
@@ -211,6 +224,67 @@ questo, ogni misura che poggia sulla separazione del centro va letta sapendolo.
 Riguarda anche il duck: su un segnale quasi mono, abbassare il centro abbassa
 tutto.
 
+### La sessione d'ascolto dal vivo, e i sette difetti che ha trovato
+
+Una giornata di prove su GTA V riprodotto a schermo. Ogni difetto qui sotto e'
+stato trovato **dall'orecchio** e poi confermato da un numero: nessuno era
+visibile nella suite, e due erano invisibili *per costruzione*.
+
+| difetto | come si sentiva | causa |
+|---|---|---|
+| profilo sbagliato | testo storpiato, `'Oaai'`, `'Drmrc.Miinzl'` | ROI del file su una cattura da schermo: il ritaglio tagliava i glifi a meta' |
+| riquadro stretto | frasi lunghe mozzate in testa **e** in coda | la ROI copriva il 37% della larghezza; il calibratore aveva visto solo battute corte |
+| simboli pronunciati | *«va bene barra»* | `/ & + = * @ #` stavano nella lista "serve alla prosodia" |
+| voci fantasma | una voce femminile senza sottotitolo | `'11'` passava il filtro sulla lingua: contava gli alfanumerici |
+| prima battuta persa | un buco all'ingresso del secondo personaggio | `start_live` scaldava solo `pool.voices[0]`: 1826 ms sulla prima riga di `paola` |
+| il mix pompava | *«quando parlano veloce si tagliuzza tutto»* | il duck risaliva e riscendeva nei 120 ms fra due battute: +5,8 dB ogni 160 ms |
+| l'ultima parola | *«si ferma a "questa roba stia" e non dice "funzionando"»* | WSOLA perdeva la fine di cio' che comprimeva |
+
+**Il piu' istruttivo e' l'ultimo**, e vale piu' della sua correzione. Il puntatore
+di analisi di WSOLA insegue la periodicita' e a ogni passo puo' arretrare; quegli
+arretramenti si **sommano**, e a fine corsa non ha mai letto l'ultimo tratto
+dell'ingresso. L'overlap-add riempiva il buco con cio' che stava intorno, quindi
+la fine non mancava: era **sostituita**. Durata esatta al campione, ampiezza
+esatta, intonazione ferma, giro identita' a 0,9999 — ogni misura esistente
+guardava *quanto* e nessuna guardava *cosa*.
+
+E il giro identita' non era solo cieco: **premiava il difetto**. Tornava quasi
+perfetto perche' la deriva della compressione veniva annullata da quella
+dell'allungamento, cioe' un'inversa esatta ottenuta da due errori che si
+compensano. Quella prova, da sola, sceglieva l'algoritmo che cancella le parole.
+Oggi la prova principale sullo stiramento e' il gruppo `coda`, che mette un tono
+riconoscibile in fondo e chiede di ritrovarlo.
+
+Fra spettro e contenuto vince il contenuto: 0,043 su una distanza spettrale
+normalizzata resta un numero piccolo, mentre `0,00` vuol dire che una parola non
+c'e'.
+
+#### E due cose che si chiedevano senza guardare la risposta
+
+**La fretta si chiedeva a occhi chiusi.** `length_scale` di Piper non e'
+proporzionale — sta scritto nel suo stesso modulo — quindi chiedere 1,45 dava
+molto meno, e nessuno controllava. Ora l'anello e' chiuso: si misura
+l'accelerazione **ottenuta** (`stima / durata`) e il divario corregge la
+richiesta successiva. Dal vivo il guadagno impara a chiedere fino a 1,75 per
+ottenere 1,39.
+
+**E la pausa si pagava anche in ritardo.** I 120 ms di respiro fra due battute
+esistono perche' due battute attaccate suonano come una frase sola; venivano
+aggiunti anche quando la successiva era gia' in coda, cioe' silenzio deliberato
+mentre si e' indietro di un secondo.
+
+| | inizio giornata | fine |
+|---|---|---|
+| latenza p50 | 2208 ms | **263 ms** |
+| latenza p95 | 8301 ms | **811 ms** |
+| arretrato p95 | 7919 ms | **445 ms** |
+| compressione WSOLA p50 | 1,350 *(satura)* | **1,067** |
+| sforamenti | 39 su 39 | 10 su 39 |
+
+La riga che riassume la direzione presa e' la penultima: **WSOLA e' passato da
+fare tutto a fare quasi niente**. La fretta la fa il sintetizzatore, che articola;
+lo stiramento resta per la correzione fine, dove non si sente.
+
 ## Stato
 
 **F0 — scheletro misurabile** e **F1 — la catena parla**. Cattura dei
@@ -233,9 +307,16 @@ si sfora senza mai scartare. Il terzo pilastro previsto dal piano — l'aggancio
 all'onset del parlato — e' stato misurato e **non serve su questo gioco**: vedi
 sopra.
 
+**La catena gira dal vivo e si ascolta.** `tools/live.py` cattura schermo e
+loopback, `tools/session.py` lascia `mix.wav` + `events.jsonl` + `config.json` in
+`runs/<data>/`, e `tools/reopen.py` fa il percorso inverso: da un secondo del
+WAV alla riga con tutti i suoi numeri. E' quello che ha reso analizzabile ogni
+lamentela della sessione d'ascolto invece di lasciarla un'impressione.
+
 Non c'e' ancora: il riconoscimento di *quale* personaggio parla (F3, per ora
-bianco e grigio ricevono due voci fisse), l'emozione (F4) e la cattura dal vivo
-da schermo e scheda audio.
+bianco e grigio ricevono due voci fisse), l'emozione (F4), e il tasto che marca
+una battuta *mentre* la sessione gira — con il gioco a schermo intero il
+terminale non ha il fuoco, e `Session.mark` aspetta un modo di premerlo.
 
 Lo stabilizzatore riapriva la stessa battuta piu' volte, e andava sciolto
 **prima** di misurare le durate: una battuta riaperta quattro volte da' quattro

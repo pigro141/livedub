@@ -23,7 +23,14 @@ serve una logica che li' esisteva, si riscrive e si rimisura qui.
 .\.venv\Scripts\python.exe -m tools.replay gameplay.mp4 --peek 8   # guardare la ROI
 .\.venv\Scripts\python.exe -m tools.calibrate gameplay.mp4 --write profiles\gtav.json
 .\.venv\Scripts\python.exe -m tools.replay gameplay.mp4 --profile gtav --start 60 --end 120
+.\.venv\Scripts\python.exe -m tools.bench_speaker --clean                 # solo la risposta nota
+.\.venv\Scripts\python.exe -m tools.bench_speaker gameplay.mp4 --profile gtav --audio-only --start 300 --end 900
 ```
+
+`bench_speaker --audio-only` salta l'OCR, che costa **piu' del tempo reale**:
+420 s di video sono ~10 minuti di passata completa e ~40 secondi di sola
+traccia audio. La curva non ha bisogno dei sottotitoli; l'analisi del grigio
+si'.
 
 **Su una registrazione nuova si guarda prima e si misura dopo.** `--peek` salva
 i ritagli della ROI cosi' come la pipeline li vede, e costa dieci secondi. La
@@ -89,6 +96,23 @@ Quello che distingue un glifo non e' quanto e' chiaro ma che e' **sottile**, e
 serve un operatore diverso da quello della pipeline (top-hat morfologico contro
 sottrazione di media) perche' selezionare con uno e misurare con l'altro sia una
 misura e non un'eco.
+
+**Il caso nullo migliore condivide tutto tranne la risposta.** Un embedding di
+speaker sull'audio del gioco dava EER 27% e sembrava un riconoscitore debole. Lo
+stesso identico protocollo sui **lati** del segnale stereo — dove il dialogo per
+costruzione non c'e' — dava 25,0% dove il centro dava 25,0. Non era un
+riconoscitore debole: non stava riconoscendo niente, stava misurando quanto due
+ritagli fossero vicini nel tempo. Il silenzio e il backend stupido dicevano la
+stessa cosa, ma i lati la dicono meglio perche' sono *simultanei* al parlato:
+stessa scena, stesso istante, stessa energia che entra ed esce. Un caso nullo
+preso in un altro momento lascia sempre aperta l'obiezione "li' era diverso".
+
+**Un si'/no diventa una diagnosi aggiungendo il gradino di mezzo.** "Le voci
+pulite si separano, quelle del gioco no" ha quattro spiegazioni possibili e un
+solo numero. Sommare le *stesse* voci pulite al fondo *vero* della registrazione,
+a rapporti segnale/rumore decrescenti, ne lascia in piedi una sola: da 0% di EER
+a +24 dB si scende a 18% a 0 dB, e il gioco — che stacca dal fondo di +3 dB —
+cade esattamente li'. Il colpevole non e' il modello, e' quello che gli si da'.
 
 **Una statistica robusta invece del minimo.** Prendere il minimo fra i frame
 significa lasciar decidere al frame peggiore: un solo frame con un muro bianco

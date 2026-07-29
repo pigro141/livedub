@@ -272,7 +272,24 @@ class TtsConfig:
     # perde carattere. Si chiede al sintetizzatore la parte comoda
     # dell'accelerazione, e a WSOLA solo il residuo — che restando piccolo non
     # si sente.
-    native_rate_max: float = 1.30
+    # Alzato a 1,45 e `timing.rate_max` abbassato a 1,20, per una ragione
+    # misurata: WSOLA **perde la fine** di cio' che comprime. Il puntatore di
+    # analisi insegue la periodicita' e puo' arretrare a ogni passo; quegli
+    # arretramenti si sommano, e a fine battuta non ha mai letto l'ultimo tratto
+    # dell'ingresso. Provato con un tono riconoscibile negli ultimi 200 ms: a
+    # rate 1,20 e 1,35 di quel tono nell'uscita non resta niente, mentre durata
+    # e ampiezza sono perfette — la fine non manca, e' **sostituita** da audio
+    # ripetuto. E' il motivo per cui all'ascolto "taglia l'ultima parola delle
+    # frasi lunghe".
+    #
+    # Ancorare il puntatore alla griglia ideale recupera la coda ma rovina cio'
+    # per cui WSOLA esiste: il giro identita' in allungamento passa da uno
+    # spettro di 0,0001 a 0,04. Misurate tutte e tre le varianti; nessuna le
+    # prende entrambe, e la riparazione vera e' un lavoro a se'.
+    #
+    # Nel frattempo si sposta il lavoro su chi non ha quel difetto: il
+    # sintetizzatore accelera articolando, e a WSOLA resta il minimo.
+    native_rate_max: float = 1.45
     # Caratteri al secondo alla velocita' nominale, per stimare quanto durera'
     # la battuta **prima** di sintetizzarla. Misurato su Piper: 17,4 car/s.
     # Serve solo a scegliere la velocita' da chiedere: sbagliarlo costa un
@@ -300,7 +317,11 @@ class TimingConfig:
     min_duration: float = 0.6
     max_duration: float = 8.0
     rate_min: float = 0.85
-    rate_max: float = 1.35
+    # 1,20 e non 1,35: e' il tetto di **WSOLA**, che sopra quel valore comincia
+    # a mangiare la coda delle battute (vedi `tts.native_rate_max`). La fretta
+    # oltre questa soglia la fa il sintetizzatore, che articola invece di
+    # schiacciare.
+    rate_max: float = 1.20
     lead_ms: int = 0  # anticipo/ritardo fisso sull'attacco
     # **Spento perche' misurato, non perche' non sia scritto.** Il piano dava per
     # buono che il sottotitolo compaia quando il gioco decide e la voce cominci

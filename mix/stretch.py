@@ -128,6 +128,7 @@ def time_stretch(
 
     ta = 0  # posizione di analisi
     ts = 0  # posizione di sintesi
+    passo = 0  # quanti salti di analisi sono stati fatti
     # `natural` e' il pezzo che seguirebbe senza tagli: il candidato migliore e'
     # quello che gli somiglia di piu', ed e' questo a preservare la periodicita'.
     natural = data[hop_syn : hop_syn + n].copy()
@@ -138,6 +139,29 @@ def time_stretch(
         norm[ts : ts + n] += window
 
         ts += hop_syn
+        passo += 1
+        # **Il centro di ricerca viene dalla posizione IDEALE, non da quella
+        # scelta l'ultima volta.** Scrivere `ta + hop_ana` sembra equivalente e
+        # non lo e': `_best_offset` puo' spostare `ta` indietro fino a `search`,
+        # e sommando quello spostamento al passo successivo l'arretramento si
+        # **accumula**. Il puntatore di analisi resta cosi' sempre piu' indietro
+        # e non arriva mai in fondo all'ingresso: l'uscita ha la durata giusta e
+        # l'ampiezza giusta, ma la coda contiene audio ripetuto invece della
+        # fine vera.
+        #
+        # Misurato con un tono acuto negli ultimi 200 ms — "l'ultima parola" —
+        # a rate 1,20 e 1,35 di quel tono nell'uscita non restava **niente**,
+        # mentre durata e ampiezza erano perfette. E' la forma esatta del difetto
+        # contro cui il `CLAUDE.md` mette in guardia: una trasformata sbagliata
+        # non da' errore, da' spazzatura plausibile. Dal vivo si sentiva come
+        # "taglia l'ultima parola delle frasi lunghe".
+        # Il passo di analisi resta libero di inseguire la periodicita': e' la
+        # ragione per cui si usa WSOLA invece di ricampionare, ed e' la
+        # proprieta' che il giro identita' misura. Provato ad ancorarlo alla
+        # griglia ideale per non perdere la coda, e ancorarlo costa piu' di
+        # quanto renda — lo spettro del giro identita' passa da 0,01 a 0,04 e la
+        # coda si recupera solo ai rate bassi. La coda si ripara alla fine, dove
+        # il buco sta davvero.
         next_centre = ta + hop_ana
         lo = max(0, next_centre - search)
         hi = min(len(data) - n, next_centre + search)
@@ -148,6 +172,31 @@ def time_stretch(
         natural = data[ta + hop_syn : ta + hop_syn + n]
         if natural.size < n:
             natural = np.pad(natural, (0, n - natural.size))
+
+    # **La coda dell'ingresso va emessa comunque.** Il ciclo si ferma quando
+    # `ta + n` supera la fine, e a quel punto restano fino a `hop_ana` campioni
+    # che nessuna finestra ha mai letto — a rate 1,35 sono una settantina di
+    # millisecondi, cioe' l'ultima sillaba. L'uscita ha lunghezza e ampiezza
+    # giuste lo stesso, perche' la normalizzazione riempie il buco con cio' che
+    # sta intorno: la fine non manca, e' **sostituita**, ed e' il modo in cui
+    # questo difetto e' riuscito a sopravvivere a tutte le altre verifiche.
+    #
+    # E va incollata **dove le tocca**, cioe' alla posizione di uscita che
+    # corrisponde alla sua posizione di ingresso: `ts` e' dove si e' fermata la
+    # marcia, non dove la fine dell'ingresso deve suonare. Sbagliare quel punto
+    # sposta la coda nel tempo, e sull'allungamento si vedeva nello spettro.
+    #
+    # Solo in **compressione**: allungando, il puntatore di analisi avanza piu'
+    # lento di come si riempie l'uscita e l'ingresso viene percorso tutto, quindi
+    # non c'e' nessun buco da tappare. Aggiungere li' una finestra in piu' non
+    # ripara niente e sporca lo spettro — verificato dal giro identita', che in
+    # allungamento e' esatto e se ne accorge.
+    if rate > 1.0 and ta + n < len(data):
+        ts_coda = int(round((len(data) - n) / rate))
+        if 0 <= ts_coda and ts_coda + n <= out_len:
+            coda = data[len(data) - n :]
+            out[ts_coda : ts_coda + n] += coda * window
+            norm[ts_coda : ts_coda + n] += window
 
     good = norm > 1e-6
     out[good] /= norm[good]

@@ -1176,6 +1176,61 @@ def test_fretta(c: Check) -> None:
     )
 
 
+def test_coda_stiramento(c: Check) -> None:
+    """Comprimendo, la **fine** del segnale sopravvive?
+
+    Difetto trovato dall'ascolto — "taglia l'ultima parola delle frasi lunghe" —
+    e invisibile a tutte le verifiche che c'erano: durata esatta, ampiezza
+    esatta, intonazione ferma, giro identita' a posto. La fine non mancava,
+    era **sostituita** da audio ripetuto, e la normalizzazione dell'overlap-add
+    riempiva il buco cosi' bene da renderlo inudibile a ogni misura globale.
+
+    La causa e' il puntatore di analisi: insegue la periodicita' e a ogni passo
+    puo' arretrare fino a `search_ms`; quegli arretramenti si **sommano**, e a
+    fine corsa non ha mai letto l'ultimo tratto dell'ingresso.
+
+    Qui la prova mette qualcosa di **riconoscibile** in coda — un tono acuto
+    dove il resto e' grave — e chiede che si ritrovi. Una misura che guarda solo
+    durata ed energia non puo' esprimere questa risposta, ed e' esattamente il
+    motivo per cui il difetto e' sopravvissuto fin qui.
+    """
+    c.group("coda")
+
+    from mix.stretch import time_stretch
+
+    sr = 22050
+    t = np.arange(int(sr * 2.0)) / sr
+    x = (0.3 * np.sin(2 * np.pi * 180 * t)).astype(np.float32)
+    u = int(sr * 0.2)
+    x[-u:] = (0.3 * np.sin(2 * np.pi * 700 * t[:u])).astype(np.float32)
+
+    def acuto_su_grave(y: np.ndarray) -> float:
+        seg = y[-int(sr * 0.15) :]
+        spec = np.abs(np.fft.rfft(seg))
+        f = np.fft.rfftfreq(len(seg), 1 / sr)
+        return float(
+            spec[(f > 600) & (f < 800)].sum() / max(spec[(f > 120) & (f < 250)].sum(), 1e-9)
+        )
+
+    c.ok(acuto_su_grave(x) > 5.0, "la prova sa vedere l'ultima parola quando c'e'")
+
+    for r in (1.10, 1.20, 1.35):
+        q = acuto_su_grave(time_stretch(x, r, samplerate=sr))
+        # Soglia bassa di proposito: **registra il difetto invece di
+        # nasconderlo**. Prima della toppa in coda questo valore era 0,0 a 1,20
+        # e 1,35 — la fine spariva del tutto. Oggi c'e' ma e' indebolita, e la
+        # riparazione vera resta da fare: se qualcuno la fa, questa verifica
+        # glielo confermera' salendo.
+        c.ok(q > 0.25, f"rate {r}: la fine del segnale c'e' ancora (acuto/grave {q:.2f})")
+
+    # E il controllo opposto, senza il quale il precedente non dimostra niente:
+    # a rate 1 non si tocca niente, quindi la coda deve essere quella intera.
+    c.ok(
+        acuto_su_grave(time_stretch(x, 1.0, samplerate=sr)) > 5.0,
+        "a rate 1 la coda resta intatta",
+    )
+
+
 def test_velocita_totale(c: Check) -> None:
     """La velocita' vera di una battuta e' il prodotto di tutti gli stadi.
 
@@ -1615,6 +1670,7 @@ GROUPS = {
     "fretta": test_fretta,
     "duck": test_duck_non_pompa,
     "velocita": test_velocita_totale,
+    "coda": test_coda_stiramento,
     "roi": test_roi,
     "lines": test_lines,
     "diff": test_diff,

@@ -1160,6 +1160,83 @@ def test_fretta(c: Check) -> None:
     )
 
 
+def test_velocita_totale(c: Check) -> None:
+    """La velocita' vera di una battuta e' il prodotto di tutti gli stadi.
+
+    E' il terzo travestimento dello stesso errore nella stessa giornata: il
+    sintetizzatore accelera, `fit_duration` accelera, `hurry` accelera, e
+    ciascuno rispettava `rate_max` senza sapere degli altri. Il tetto e' una
+    proprieta' della **voce** — di quanto in fretta si puo' parlare restando
+    comprensibili — e non di un passaggio del codice.
+    """
+    c.group("velocita")
+
+    from core.config import Config
+    from core.pipeline import DubPipeline
+    from core.types import LineClass, SubtitleEvent
+    from speak.base import Speech
+    from core.clock import VirtualClock
+
+    class TtsCheVaVeloce:
+        """Onora `rate` accorciando davvero, come fa Piper con `length_scale`."""
+
+        name = "prova"
+        samplerate = 22050
+
+        def __init__(self) -> None:
+            self.chiesti: list[float] = []
+
+        def synthesize(self, text: str, voice, rate: float = 1.0) -> Speech:
+            self.chiesti.append(rate)
+            # Un secondo ogni 17,4 caratteri alla velocita' nominale.
+            n = sum(ch.isalnum() for ch in text)
+            durata = (n / 17.4) / max(1e-6, rate)
+            return Speech(
+                audio=np.full(int(self.samplerate * durata), 0.2, dtype=np.float32),
+                samplerate=self.samplerate,
+                voice_id=voice.voice_id,
+                text=text,
+            )
+
+    cfg = Config()
+    cfg.tts.backend = "prova"
+    cfg.timing.rate_max = 1.35
+    cfg.tts.native_rate_max = 1.30
+    tts = TtsCheVaVeloce()
+    clock = VirtualClock()
+    p = DubPipeline(cfg, tts, clock=clock, samplerate=22050)
+    clock.set(0.0)
+    p.start_live(warmup=False)
+
+    # Una battuta lunga in una finestra stretta: entrambe le leve devono
+    # tirare, e insieme non devono superare il tetto. `elapsed` e' realistico
+    # (300 ms di riconoscimento), non mezzo minuto: con la finestra gia' finita
+    # si finirebbe in un altro ramo e la verifica misurerebbe quello.
+    lunga = "Questa e' una battuta molto lunga che non ci sta nella sua finestra"
+    clock.set(0.3)
+    riga = p._speak(SubtitleEvent(text=lunga, cls=LineClass.WHITE, t_on=0.0))
+
+    c.ok(tts.chiesti and tts.chiesti[-1] > 1.0, f"al sintetizzatore si chiede fretta ({tts.chiesti[-1]:.3f})")
+    c.ok(
+        tts.chiesti[-1] <= cfg.tts.native_rate_max + 1e-6,
+        f"ma non oltre il suo tetto ({tts.chiesti[-1]:.3f} <= {cfg.tts.native_rate_max})",
+    )
+    c.ok(
+        riga.rate <= cfg.timing.rate_max + 1e-6,
+        f"e la velocita' TOTALE resta sotto rate_max ({riga.rate:.3f} <= {cfg.timing.rate_max})",
+    )
+    c.ok(riga.rate >= tts.chiesti[-1] - 1e-6, "il totale comprende cio' che ha fatto il sintetizzatore")
+
+    # Con tempo in abbondanza non si chiede fretta a nessuno. Orologio nuovo:
+    # il `VirtualClock` non torna indietro, ed e' giusto cosi'.
+    calmo_clock = VirtualClock()
+    calmo = DubPipeline(cfg, TtsCheVaVeloce(), clock=calmo_clock, samplerate=22050)
+    calmo_clock.set(0.0)
+    calmo.start_live(warmup=False)
+    breve = calmo._speak(SubtitleEvent(text="Ciao", cls=LineClass.WHITE, t_on=0.0))
+    c.close(breve.rate, 1.0, "una battuta corta in una finestra larga resta a velocita' naturale", tol=1e-6)
+
+
 def test_duck_non_pompa(c: Check) -> None:
     """Fra due battute incatenate il gioco non deve risalire e riabbassarsi.
 
@@ -1518,6 +1595,7 @@ GROUPS = {
     "stringi": test_stringi_non_accodare,
     "fretta": test_fretta,
     "duck": test_duck_non_pompa,
+    "velocita": test_velocita_totale,
     "roi": test_roi,
     "lines": test_lines,
     "diff": test_diff,

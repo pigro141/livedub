@@ -30,7 +30,7 @@ from core.clock import Clock, get_clock
 from core.config import Config
 from core.metrics import MetricsRegistry
 from core.types import Emotion, LineClass, SubtitleEvent, Utterance
-from fuse.timing import DurationModel
+from fuse.timing import DurationModel, spoken_length
 from mix.mixer import Mixer
 from mix.stretch import fit_duration
 from speak.base import TtsBackend
@@ -126,6 +126,7 @@ class DubPipeline:
         self._t_backlog = self.metrics.timer("dub.backlog")
         self._t_rate = self.metrics.timer("dub.rate_x1000")
         self._t_hurry = self.metrics.timer("dub.hurry_x1000")
+        self._t_nativo = self.metrics.timer("dub.native_x1000")
         self._n_collision = self.metrics.counter("dub.collision")
         self._n_overflow = self.metrics.counter("dub.overflow")
         self._t_synth = self.metrics.timer("speak.synth")
@@ -200,9 +201,40 @@ class DubPipeline:
         speaker_id = self._speaker_for(event)
         voice = self.pool.voice_for(speaker_id, event.t_on)
 
+        # **Chiedere al sintetizzatore di parlare svelto, invece di schiacciarlo
+        # dopo.** Sono due cose diverse e all'ascolto non si somigliano affatto:
+        # WSOLA ripete e butta via pezzi di forma d'onda, e sopra 1,3 le
+        # consonanti spariscono — la voce "si mangia le parole". Un TTS a cui si
+        # chiede di andare piu' in fretta articola comunque tutto, come un
+        # attore che parla svelto invece di un nastro mandato avanti.
+        #
+        # La velocita' va decisa **prima** di sintetizzare, quindi la durata si
+        # stima dal testo e non si misura: `chars_per_second` e' quella misurata
+        # per il backend. Sbagliarla non rovina la battuta, lascia solo un
+        # residuo piu' grosso a WSOLA — che e' esattamente il lavoro che WSOLA
+        # sa fare bene, perche' sulla durata e' esatto mentre `length_scale` non
+        # e' nemmeno proporzionale.
+        nativo = 1.0
+        if self.cfg.tts.native_rate_max > 1.0:
+            n = spoken_length(event.text)
+            stima = n / max(1e-6, self.cfg.tts.chars_per_second)
+            budget = self.timing.plan(
+                event.text, stima, elapsed=max(0.0, self.clock.now() - event.t_on)
+            ).budget
+            if budget <= 0.05:
+                # Finestra gia' finita: si e' comunque in ritardo, e allora tanto
+                # vale che a parlare svelto sia il sintetizzatore invece di
+                # WSOLA. E' il caso in cui la differenza fra le due si sente di
+                # piu', perche' e' quello in cui si accelera di piu'.
+                nativo = self.cfg.tts.native_rate_max
+            elif stima > budget:
+                nativo = min(self.cfg.tts.native_rate_max, stima / budget)
+
         t0 = time.perf_counter()
-        speech = self.tts.synthesize(event.text, voice)
+        speech = self.tts.synthesize(event.text, voice, rate=nativo)
         synth_ms = (time.perf_counter() - t0) * 1000.0
+        if nativo > 1.0:
+            self._t_nativo.add(nativo * 1000.0)
         self._t_synth.add(synth_ms)
 
         audio = speech.audio
@@ -276,14 +308,19 @@ class DubPipeline:
             # il primo caso che la verifica ha trovato. Il pavimento
             # `durata / rate_max` dice: se non c'e' piu' spazio, stringi quanto
             # e' lecito e poi sfora.
-            bersaglio = max(piano.budget, durata / self.cfg.timing.rate_max)
+            #
+            # **E il tetto tiene conto di quanto ha gia' fatto il
+            # sintetizzatore.** Se Piper ha gia' parlato a 1,30, a WSOLA resta
+            # `rate_max / 1,30`: le due accelerazioni si moltiplicano, ed e' lo
+            # stesso errore gia' visto fra `_speak` e `hurry` — un limite
+            # rispettato da ogni stadio e sfondato dall'insieme.
+            resto = max(1.0, self.cfg.timing.rate_max / max(1e-6, nativo))
+            bersaglio = max(piano.budget, durata / resto)
             if durata > bersaglio + 1e-3:
                 audio, rate = fit_duration(
-                    audio,
-                    bersaglio,
-                    self.samplerate,
-                    limits=(1.0, self.cfg.timing.rate_max),
+                    audio, bersaglio, self.samplerate, limits=(1.0, resto)
                 )
+            rate *= nativo  # la velocita' vera della battuta, non quella di uno stadio
             self._t_rate.add(rate * 1000.0)
             if piano.overflow > 0:
                 # Oltre il limite si sfora, non si scarta: e' la promessa del

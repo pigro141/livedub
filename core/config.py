@@ -258,6 +258,26 @@ class TtsConfig:
     # stessa frase durava il 47% in piu'.
     steps: int = 4
     speed: float = 1.50
+    # **Quanto in fretta si chiede al sintetizzatore di parlare**, prima di
+    # sintetizzare, quando la finestra della battuta e' stretta.
+    #
+    # Non e' la stessa cosa di comprimere dopo. WSOLA ripete e butta via pezzi di
+    # forma d'onda: a 1,5 le consonanti si perdono e all'ascolto la voce **si
+    # mangia le parole**. Un TTS a cui si chiede di andare piu' svelto produce
+    # invece parlato articolato, come un attore che parla in fretta invece di una
+    # registrazione mandata avanti veloce.
+    #
+    # Il tetto e' basso di proposito: `length_scale` di Piper non e'
+    # proporzionale (a 0,8 si sbaglia del 14%) e oltre un certo punto la voce
+    # perde carattere. Si chiede al sintetizzatore la parte comoda
+    # dell'accelerazione, e a WSOLA solo il residuo — che restando piccolo non
+    # si sente.
+    native_rate_max: float = 1.30
+    # Caratteri al secondo alla velocita' nominale, per stimare quanto durera'
+    # la battuta **prima** di sintetizzarla. Misurato su Piper: 17,4 car/s.
+    # Serve solo a scegliere la velocita' da chiedere: sbagliarlo costa un
+    # residuo piu' grande per WSOLA, non una battuta sbagliata.
+    chars_per_second: float = 17.4
 
 
 @dataclass

@@ -941,6 +941,32 @@ def test_lingua(c: Check) -> None:
     c.eq(latin_letters("Ehi!"), 3, "latin_letters conta lettere e cifre, non punteggiatura")
     c.eq(latin_letters("...!?"), 0, "una riga di sola punteggiatura non ha lettere")
 
+    # I simboli non sono punteggiatura: il sintetizzatore li legge come PAROLE.
+    # 'Va bene.../' usciva dalle cuffie come "va bene barra", ed e' arrivato di
+    # li' perche' la barra stava nella lista chiamata "serve alla prosodia".
+    c.eq(italian_only("Va bene.../"), "Va bene...", "la barra sparisce: Piper la direbbe 'barra'")
+    c.eq(italian_only("r ilii-+il"), "r ilii-il", "e il piu', che l'OCR produce a ogni tratto spezzato")
+    c.eq(italian_only("Ti do 500$"), "Ti do 500$", "il dollaro resta: in GTA V la cifra E' la battuta")
+
+    # Spazzatura di scena in TESTA alla frase, che e' il prezzo del riquadro
+    # allargato per non tagliare le battute lunghe. In mezzo e' un inciampo, in
+    # testa e' la prima cosa che si sente.
+    c.eq(
+        italian_only("-- :- Pero devo dirglielo"),
+        "Pero devo dirglielo",
+        "i gruppi di sola punteggiatura in testa se ne vanno",
+    )
+    c.eq(italian_only(". obbligato a parlare"), "obbligato a parlare", "anche uno solo")
+    c.eq(italian_only("Ehi, fermo. , 1"), "Ehi, fermo. , 1", "ma una cifra in coda NON e' spazzatura")
+    c.eq(
+        italian_only("Aspetta, arrivo. --"),
+        "Aspetta, arrivo.",
+        "e la coda si pulisce come la testa",
+    )
+    # Il prezzo, dichiarato invece che scoperto dopo: un'ellissi iniziale se ne
+    # va con la spazzatura, perche' di lettere non ne ha nessuna.
+    c.eq(italian_only("... e poi?"), "e poi?", "un '...' iniziale e' il prezzo di questa pulizia")
+
 
 def test_una_voce_alla_volta(c: Check) -> None:
     """Due battute vicine non devono partire insieme.

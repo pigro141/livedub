@@ -1,10 +1,10 @@
 {
   "vision": {
     "roi": [
-      0.3134,
-      0.8988,
-      0.3731,
-      0.0492
+      0.08,
+      0.87,
+      0.84,
+      0.082
     ],
     "white_min_luma": 230,
     "grey_min_luma": 110,
@@ -13,7 +13,7 @@
   },
   "_calibrazione": {
     "video": "schermo dal vivo",
-    "risoluzione": "?",
+    "risoluzione": "2560x1440",
     "frames_sampled": 150,
     "frames_with_text": 103,
     "row_band": [
@@ -54,5 +54,12 @@
     "grey_candidates": 0,
     "lines_total": 96,
     "multi_line_frames": 0
+  },
+  "_roi_allargata_a_mano": {
+    "perche": "la ROI calibrata copriva 0.3134..0.6865, il 37% della larghezza, e le battute lunghe uscivano dal riquadro da entrambi i lati: 'ato a parlare con lei perche a nes' arriva mozzata in testa E in coda. Il calibratore non ha sbagliato: ha misurato bene un campione che non conteneva il caso difficile (lines_total 96, multi_line_frames 0), e col_band 0.3234..0.6766 e' l'estensione delle battute CORTE che aveva visto.",
+    "prima": [0.3134, 0.8988, 0.3731, 0.0492],
+    "adesso": [0.08, 0.87, 0.84, 0.082],
+    "copertura": "orizzontale 0.08..0.92 (era 0.31..0.69); verticale 0.870..0.952 (era 0.899..0.948), cioe' cinque altezze di riga invece di tre, per le battute andate a capo",
+    "prezzo_atteso": "l'OCR costa in proporzione alla larghezza e piu' scena entra nel riquadro: attendersi piu' bande spurie e un p50 sopra i 19 ms della ROI stretta. Da confermare sul banco, non da dare per buono."
   }
 }

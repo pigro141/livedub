@@ -134,7 +134,15 @@ class SubtitleReader(Stage):
             # restituisce glifi CJK, che di caratteri alfanumerici contano come
             # lettere e finivano dritti in bocca al sintetizzatore.
             text = italian_only(text)
-            if sum(ch.isalnum() for ch in text) < max(1, self.cfg.min_ocr_chars):
+            # **Lettere, non alfanumerici.** Una riga letta `'11'` di caratteri
+            # alfanumerici ne ha due e di lingua nessuna: passava la soglia,
+            # riceveva una voce e veniva detta. Le cifre nella ROI vengono dai
+            # numeri civici, dai cartelli e dai cordoli, cioe' dalla scena — una
+            # battuta di soli numeri non esiste, mentre una riga di soli numeri
+            # entra nell'inquadratura di continuo. Misurato dal vivo: `'11'`,
+            # `"Tr'"` e `'er-s.'` sono passate tutte e tre in centocinquanta
+            # secondi, e due hanno preso la voce del secondo personaggio.
+            if sum(ch.isalpha() for ch in text) < max(1, self.cfg.min_ocr_chars):
                 # Vuoto, o troppo corto per essere una battuta. Conta come
                 # vuoto: il numero serve a vedere quanta scena sta entrando
                 # nella ROI, ed e' il sintomo che una soglia va rifatta.

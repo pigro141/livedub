@@ -98,8 +98,10 @@ class VisionConfig:
     # nessuna battuta italiana e' lunga una lettera. Sulla registrazione vera
     # la texture della scena produce righe che l'OCR legge come '1', '?', '—';
     # passavano ogni soglia di colore perche' un cordolo bianco *e'* bianco.
-    # Si contano **lettere e cifre**: una riga letta '·..··' ha cinque caratteri
-    # e nessuna lettera, e non e' una battuta in nessuna lingua.
+    # Si contano le **lettere**, non gli alfanumerici: una riga letta '·..··' ha
+    # cinque caratteri e nessuna lettera, e '11' ne ha due di alfanumerici e
+    # zero di lingua. Le cifre nella ROI vengono dalla scena — civici, cartelli,
+    # cordoli — mentre una battuta di soli numeri non esiste.
     min_ocr_chars: int = 2
     stable_reads: int = 2  # letture concordi prima di dare per buona una battuta
     # Quanto una battuta puo' non farsi leggere restando a schermo: **entrambe**

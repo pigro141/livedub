@@ -51,7 +51,17 @@ PAD = 4
 # Punteggiatura che ha senso in una battuta italiana, e che al sintetizzatore
 # serve: il punto interrogativo e l'esclamativo cambiano l'intonazione, la
 # virgola mette la pausa. Si tiene, non si butta.
-PUNTEGGIATURA = set(" .,;:!?'\"()[]-–—…«»‘’“”/&%€$@#+=*")
+#
+# **I simboli no.** `/ & + = * @ #` erano in questa lista sotto la stessa
+# etichetta, ma nessuno di loro cambia l'intonazione di niente: il
+# sintetizzatore li legge come *parole* — `'Va bene.../'` usciva dalla bocca di
+# Piper come "va bene barra". E sono precisamente gli artefatti che l'OCR
+# produce qui, dove un tratto spezzato o il bordo di un oggetto di scena diventa
+# un `+`: `'r ilii-+il'`, `'rnri biit+n a'`. Un glifo inventato che viene
+# *pronunciato* e' peggio di uno scartato.
+#
+# `% € $` restano: in GTA V si parla di soldi, e li' la cifra e' la battuta.
+PUNTEGGIATURA = set(" .,;:!?'\"()[]-–—…«»‘’“”%€$")
 
 
 def italian_only(text: str) -> str:
@@ -80,7 +90,30 @@ def italian_only(text: str) -> str:
         base = unicodedata.normalize("NFD", ch)[0]
         if "a" <= base.lower() <= "z":
             fuori.append(ch)
-    return " ".join("".join(fuori).split())
+    return _senza_bordi(" ".join("".join(fuori).split()))
+
+
+def _senza_bordi(text: str) -> str:
+    """Toglie i gruppi di sola punteggiatura in testa e in coda.
+
+    Nascono dal bordo del riquadro: allargandolo per non tagliare le battute
+    lunghe, entrano anche gli oggetti di scena ai due lati, e cio' che l'OCR ne
+    ricava finisce **attaccato alla frase** — `'-- :- Pero devo dirglielo'`,
+    `'. obbligato a parlare'`. In mezzo alla frase un segno spurio e' un
+    inciampo; in testa e' la prima cosa che il sintetizzatore pronuncia, cioe'
+    la parte della battuta su cui l'orecchio decide se ha capito.
+
+    Si tolgono solo i gruppi **senza nessuna lettera e nessuna cifra**: un
+    `'...'` iniziale se ne va con loro, e si perde una sfumatura di prosodia.
+    E' il prezzo, ed e' piccolo rispetto a una battuta che comincia con "meno
+    meno due punti".
+    """
+    parole = text.split()
+    while parole and not any(ch.isalnum() for ch in parole[0]):
+        parole.pop(0)
+    while parole and not any(ch.isalnum() for ch in parole[-1]):
+        parole.pop()
+    return " ".join(parole)
 
 
 def latin_letters(text: str) -> int:

@@ -209,12 +209,40 @@ class VadConfig:
 class SpeakerConfig:
     """Riconoscimento di chi parla.
 
-    `use_color_cue` accende il vincolo che arriva dal video: due righe di
-    luminanza diversa non possono finire nello stesso cluster.
+    **Questi numeri erano punti di partenza dichiarati. Ora sono stati misurati,
+    e due dei tre presupposti non hanno retto** (`tools/bench_speaker.py`, video
+    `testGameplayFattoDaMe`, ECAPA-TDNN 192 dimensioni sul canale centrale):
+
+    - su voci sintetiche pulite di identita' nota l'EER e' 0% da 1 s in su, 5%
+      a 0,5 s e 23% a 0,3 s. **Il ginocchio sta a mezzo secondo**: la decisione a
+      300 ms che il piano sperava non e' disponibile nemmeno nel caso facile, e
+      la rete di sicurezza (`max_wait_ms`, voce provvisoria) non e' un
+      accorgimento ma la strada principale;
+    - sull'audio del gioco l'EER non scende sotto il 27% a nessuna durata, e i
+      casi nulli lo raggiungono: due prese di parola diverse a meno di dieci
+      secondi si somigliano **piu'** di due meta' della stessa. L'impronta li'
+      sta descrivendo la scena, non la persona. La causa e' misurata: il parlato
+      stacca dal fondo di circa +3 dB, e le stesse voci note sommate al fondo
+      vero del gioco passano da 0% a 18% di EER fra +24 dB e 0 dB. Il rimedio
+      sta **a monte** dell'impronta — estrarre meglio il parlato — non in un
+      modello migliore;
+    - `use_color_cue` assumeva che una riga grigia fosse un secondo personaggio.
+      Su 675 battute bianche registrate dal vivo in 17 sessioni, le grigie sono
+      **15, e nessuna e' dialogo**: sono `'11111'`, `"Tr'"`, `'IIFIL'`, e una
+      volta l'interfaccia di un terminale entrata nella ROI. Il filtro del
+      lessico ne ferma tredici su quindici; le due che passano vengono comunque
+      pronunciate con la seconda voce. Su questo gioco e questa cattura il
+      grigio non porta l'informazione che il vincolo vorrebbe usare.
+
+    `similarity` resta 0,62 perche' **nessun numero fisso funziona**: la
+    somiglianza fra due ritagli della stessa voce cresce con la loro durata
+    (soglia di pari errore +0,13 a 0,2 s, +0,41 a 1 s, +0,77 a 3 s sul pulito).
+    Chi costruira' il tracker la faccia dipendere dalla durata della clip, o
+    scoprira' che a 0,62 tutto e' un personaggio nuovo.
     """
 
     backend: str = "ecapa-onnx"  # ecapa-onnx | mfcc | none
-    similarity: float = 0.62  # soglia coseno per "e' la stessa voce"
+    similarity: float = 0.62  # soglia coseno per "e' la stessa voce" — si veda sopra
     min_clip_ms: int = 400  # sotto questa durata la decisione e' provvisoria
     max_wait_ms: int = 200  # quanto si puo' rinviare l'attacco per decidere meglio
     max_speakers: int = 16

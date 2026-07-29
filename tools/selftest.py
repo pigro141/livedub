@@ -1223,9 +1223,12 @@ def test_velocita_totale(c: Check) -> None:
     )
     c.ok(
         riga.rate <= cfg.timing.rate_max + 1e-6,
-        f"e la velocita' TOTALE resta sotto rate_max ({riga.rate:.3f} <= {cfg.timing.rate_max})",
+        f"e WSOLA resta sotto rate_max ({riga.rate:.3f} <= {cfg.timing.rate_max})",
     )
-    c.ok(riga.rate >= tts.chiesti[-1] - 1e-6, "il totale comprende cio' che ha fatto il sintetizzatore")
+    # I due fattori restano **separati**: quanto il sintetizzatore abbia davvero
+    # accelerato non e' misurabile senza sintetizzare due volte, e un totale
+    # stimato qui sarebbe una stima travestita da misura — proprio nel numero su
+    # cui si decide se la voce sta correndo troppo.
 
     # Con tempo in abbondanza non si chiede fretta a nessuno. Orologio nuovo:
     # il `VirtualClock` non torna indietro, ed e' giusto cosi'.

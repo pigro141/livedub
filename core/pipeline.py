@@ -123,6 +123,15 @@ class DubPipeline:
         self.closed: list[SubtitleEvent] = []
         self._free_at = 0.0  # quando la voce torna libera
         self.timing = DurationModel(cfg.timing)
+        # **Quanto in fretta parla questa voce quando non le si chiede niente.**
+        # Il valore di config e' un punto di partenza dichiarato; quello vero si
+        # misura sulle battute che non hanno avuto bisogno di fretta, che sono la
+        # maggioranza. Serve da riferimento sia al tetto sia alla metrica: senza,
+        # "compressione 1,2" vorrebbe dire "un quinto piu' veloce di quanto
+        # credevo io", che non e' una proprieta' della battuta ma della mia
+        # assunzione.
+        self._cps = float(cfg.tts.chars_per_second)
+        self._cps_n = 0
         self._t_backlog = self.metrics.timer("dub.backlog")
         self._t_rate = self.metrics.timer("dub.rate_x1000")
         self._t_hurry = self.metrics.timer("dub.hurry_x1000")
@@ -215,9 +224,9 @@ class DubPipeline:
         # sa fare bene, perche' sulla durata e' esatto mentre `length_scale` non
         # e' nemmeno proporzionale.
         nativo = 1.0
+        n = spoken_length(event.text)
         if self.cfg.tts.native_rate_max > 1.0:
-            n = spoken_length(event.text)
-            stima = n / max(1e-6, self.cfg.tts.chars_per_second)
+            stima = n / max(1e-6, self._cps)
             budget = self.timing.plan(
                 event.text, stima, elapsed=max(0.0, self.clock.now() - event.t_on)
             ).budget
@@ -242,6 +251,15 @@ class DubPipeline:
             from mix.stretch import resample
 
             audio = resample(audio, speech.samplerate, self.samplerate)
+
+        # La velocita' naturale della voce si impara dalle battute a cui non e'
+        # stata chiesta fretta: li' la durata che torna **e'** quella naturale,
+        # e non c'e' niente da dedurre. Il peso cala col numero di campioni,
+        # cosi' i primi contano molto e poi il valore si assesta.
+        if nativo <= 1.0 and audio.size and n >= 8:
+            misurato = n / (len(audio) / self.samplerate)
+            self._cps_n += 1
+            self._cps += min(0.25, 1.0 / self._cps_n) * (misurato - self._cps)
 
         now = self.clock.now()
         # **La battuta nuova e' arrivata: quella in corso ha finito il suo tempo.**
@@ -309,18 +327,29 @@ class DubPipeline:
             # `durata / rate_max` dice: se non c'e' piu' spazio, stringi quanto
             # e' lecito e poi sfora.
             #
-            # **E il tetto tiene conto di quanto ha gia' fatto il
-            # sintetizzatore.** Se Piper ha gia' parlato a 1,30, a WSOLA resta
-            # `rate_max / 1,30`: le due accelerazioni si moltiplicano, ed e' lo
-            # stesso errore gia' visto fra `_speak` e `hurry` — un limite
-            # rispettato da ogni stadio e sfondato dall'insieme.
-            resto = max(1.0, self.cfg.timing.rate_max / max(1e-6, nativo))
-            bersaglio = max(piano.budget, durata / resto)
+            # **I due fattori si riportano separati, e non si moltiplicano.**
+            # Quanto Piper abbia davvero accelerato non e' misurabile senza
+            # sintetizzare due volte la stessa battuta — `length_scale` non e'
+            # proporzionale, chiedendo 1,30 ne arriva meno — quindi qualunque
+            # "totale" stampato qui sarebbe una stima travestita da misura.
+            #
+            # Un primo tentativo lo stimava dal conteggio dei caratteri
+            # (`naturale/finale`) e la verifica l'ha bocciato subito: quel
+            # rapporto misura quanto e' veloce il *backend* rispetto ai
+            # caratteri al secondo che gli avevo attribuito, e su una voce piu'
+            # lenta dava 0,85 senza che si fosse compresso niente. Una metrica
+            # sbagliata qui e' peggio di nessuna metrica, perche' e' su questa
+            # che si decide se la voce sta correndo troppo.
+            #
+            # Quindi: `dub.rate_x1000` resta **il fattore WSOLA**, esatto e
+            # confrontabile con tutte le sessioni di prima, e la fretta chiesta
+            # al sintetizzatore sta in `dub.native_x1000`, dichiarata per quello
+            # che e' — una richiesta.
+            bersaglio = max(piano.budget, durata / self.cfg.timing.rate_max)
             if durata > bersaglio + 1e-3:
                 audio, rate = fit_duration(
-                    audio, bersaglio, self.samplerate, limits=(1.0, resto)
+                    audio, bersaglio, self.samplerate, limits=(1.0, self.cfg.timing.rate_max)
                 )
-            rate *= nativo  # la velocita' vera della battuta, non quella di uno stadio
             self._t_rate.add(rate * 1000.0)
             if piano.overflow > 0:
                 # Oltre il limite si sfora, non si scarta: e' la promessa del

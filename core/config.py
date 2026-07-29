@@ -323,6 +323,15 @@ class TimingConfig:
     # di battute che sul banco invaderebbero la successiva — l'unico sforamento
     # che fa danno, perche' due voci accavallate fanno perdere una riga.
     hurry_on_next: bool = True
+    # **Sotto questo residuo non si stringe piu': si sfora.**
+    # `hurry` mette tutta la compressione sulla coda, cioe' esattamente dove sta
+    # l'ultima parola — e l'ultima parola e' quella che chiude il senso della
+    # frase. Con la guardia a 150 ms si stringeva ancora quella, e all'ascolto
+    # la battuta sembrava interrompersi. Mezzo secondo scarso e' una parola o
+    # due: guadagnare due decimi accelerandole costa piu' di quanto rende,
+    # perche' un doppiaggio che sfora di due decimi non lo nota nessuno mentre
+    # una parola finale impastata si sente sempre.
+    hurry_min_residue_ms: float = 600.0
     # Aggiornamento in linea dei coefficienti: `decay` e' quanto pesa il
     # passato a ogni nuova battuta (0,97 ≈ una memoria di una trentina), e
     # `max_drift` quanto la retta imparata puo' allontanarsi da quella del

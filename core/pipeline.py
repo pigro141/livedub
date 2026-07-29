@@ -283,7 +283,9 @@ class DubPipeline:
         if self.cfg.timing.hurry_on_next and self.mixer.speaking:
             self._n_collision.inc()
             fretta = self.mixer.hurry(
-                now, limits=(1.0, self.cfg.timing.rate_max)
+                now,
+                limits=(1.0, self.cfg.timing.rate_max),
+                min_residue=self.cfg.timing.hurry_min_residue_ms / 1000.0,
             )
             if fretta > 1.0:
                 # La coda si e' accorciata di quanto lo stiramento ha guadagnato.

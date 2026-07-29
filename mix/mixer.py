@@ -155,7 +155,12 @@ class Mixer:
         self._n_played.inc()
         return item
 
-    def hurry(self, t_finish: float, limits: tuple[float, float] = (1.0, 1.35)) -> float:
+    def hurry(
+        self,
+        t_finish: float,
+        limits: tuple[float, float] = (1.0, 1.35),
+        min_residue: float = 0.6,
+    ) -> float:
         """Stringe il **residuo non ancora suonato** perche' finisca entro `t_finish`.
 
         Serve quando arriva un sottotitolo nuovo mentre la voce italiana sta
@@ -188,9 +193,16 @@ class Mixer:
             if corrente is None:
                 return 1.0
             residuo = corrente.audio[corrente.consumed :]
-            # Sotto un certo residuo lo stiramento non guadagna niente di udibile
-            # e rischia un artefatto sull'ultima sillaba, che e' la piu' esposta.
-            if len(residuo) < int(0.15 * self.samplerate):
+            # **Sotto un certo residuo si sfora invece di stringere.** Tutta la
+            # compressione di `hurry` cade sulla coda, cioe' esattamente
+            # sull'ultima parola — quella che chiude il senso della frase. Con la
+            # guardia a 150 ms si stringeva ancora quella, e all'ascolto la
+            # battuta sembrava interrompersi a meta' parola. Mezzo secondo
+            # scarso e' una parola o due: guadagnare due decimi accelerandole
+            # costa piu' di quanto renda, perche' uno sforamento di due decimi
+            # non lo nota nessuno mentre una parola finale impastata si sente
+            # sempre.
+            if len(residuo) < int(max(0.0, min_residue) * self.samplerate):
                 return 1.0
             # **Il tetto vale sul totale, non su questo stadio.** Questa battuta
             # e' gia' arrivata accelerata: comprimerla di nuovo fino al limite

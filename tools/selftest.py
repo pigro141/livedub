@@ -1118,8 +1118,24 @@ def test_fretta(c: Check) -> None:
 
     # Un residuo brevissimo si lascia stare: il guadagno e' inudibile e
     # l'artefatto cadrebbe sull'ultima sillaba, che e' la piu' esposta.
-    m3, corto = scena(2.0, 1.95)
-    c.eq(m3.hurry(m3.now, limits=(1.0, 1.35)), 1.0, "un residuo sotto i 150 ms non si stringe")
+    # **L'ultima parola si dice, non si schiaccia.** Tutta la compressione di
+    # `hurry` cade sulla coda, cioe' proprio sulla parola che chiude la frase:
+    # sotto la soglia si sfora, che e' la stessa promessa del progetto applicata
+    # alla fine della battuta.
+    m3, corto = scena(2.0, 1.7)  # residuo 300 ms: una parola
+    lungo_prima = len(corto.audio)
+    c.eq(
+        m3.hurry(m3.now, limits=(1.0, 1.35), min_residue=0.6), 1.0,
+        "con l'ultima parola sola non si stringe: si sfora",
+    )
+    c.eq(len(corto.audio), lungo_prima, "e la coda resta lunga com'era")
+    # Ma con abbastanza residuo si stringe eccome, altrimenti la soglia avrebbe
+    # semplicemente spento la funzione.
+    m3b, _ = scena(3.0, 0.5)
+    c.ok(
+        m3b.hurry(m3b.now, limits=(1.0, 1.35), min_residue=0.6) > 1.0,
+        "mentre con due secondi e mezzo davanti si stringe",
+    )
 
     # **Il tetto vale sul totale.** Una battuta arrivata gia' accelerata non
     # puo' essere accelerata di nuovo fino al limite: le due compressioni si

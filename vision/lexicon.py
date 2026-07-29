@@ -64,9 +64,21 @@ class Lexicon:
     def nota(self, parola: str) -> bool:
         return parola.strip(_SEGNI).lower() in self.parole
 
-    def conta(self, testo: str) -> int:
-        """Quante parole del testo sono italiane. Zero e' il segnale forte."""
-        return sum(1 for w in testo.split() if self.nota(w))
+    def conta(self, testo: str, min_lettere: int = 2) -> int:
+        """Quante parole del testo sono italiane. Zero e' il segnale forte.
+
+        **Le parole di una lettera non contano.** `'i'`, `'e'`, `'a'`, `'o'`
+        sono italiano vero e stanno in qualunque dizionario, ma l'OCR le produce
+        da ogni tratto verticale della scena: `'I ler!'` e' passato per la sola
+        `'I'`, ha preso la voce del secondo personaggio, ed e' uscito dalle
+        cuffie mentre a schermo non c'era nessun sottotitolo. Una parola di una
+        lettera non e' una prova che qualcuno stia parlando.
+        """
+        return sum(
+            1
+            for w in testo.split()
+            if len(w.strip(_SEGNI)) >= min_lettere and self.nota(w)
+        )
 
     def separa(self, parola: str, min_pezzo: int = 2, prima: bool = True) -> str | None:
         """`'Vabene'` -> `'va bene'`, ma solo se entrambe le meta' esistono.

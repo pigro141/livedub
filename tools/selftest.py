@@ -989,6 +989,17 @@ def test_lessico(c: Check) -> None:
     c.eq(lex.conta("Un altra brillante ideona"), 4, "conta le parole note della riga")
     c.eq(lex.conta("IIFIL REEr"), 0, "e zero e' il segnale che cerchiamo")
 
+    # Una parola di UNA lettera non e' una prova. 'i', 'e', 'a', 'o' sono
+    # italiano vero e stanno in ogni dizionario, ma l'OCR le ricava da qualunque
+    # tratto verticale della scena. Dal vivo `'I ler!'` e' passato per la sola
+    # 'I', ha preso la voce del secondo personaggio, ed e' uscito dalle cuffie
+    # mentre a schermo non c'era nessun sottotitolo.
+    articoli = Lexicon({"i", "e", "a", "va", "bene", "si"})
+    c.eq(articoli.conta("I ler!"), 0, "un articolo di una lettera non valida la riga")
+    c.eq(articoli.conta("e"), 0, "ne' una congiunzione da sola")
+    c.eq(articoli.conta("Si."), 1, "ma due lettere si', altrimenti si perde 'Si.'")
+    c.eq(articoli.conta("i bene"), 1, "e la parola vera accanto conta lo stesso")
+
     # Basta UNA parola: l'OCR ne rompe sempre qualcuna, e pretenderle tutte
     # buone scarterebbe il dialogo vero insieme alla scena.
     c.ok(lex.conta("Propric qui, cazzo!") >= 1, "una parola buona basta a salvare la riga")
@@ -1109,6 +1120,34 @@ def test_fretta(c: Check) -> None:
     # l'artefatto cadrebbe sull'ultima sillaba, che e' la piu' esposta.
     m3, corto = scena(2.0, 1.95)
     c.eq(m3.hurry(m3.now, limits=(1.0, 1.35)), 1.0, "un residuo sotto i 150 ms non si stringe")
+
+    # **Il tetto vale sul totale.** Una battuta arrivata gia' accelerata non
+    # puo' essere accelerata di nuovo fino al limite: le due compressioni si
+    # moltiplicano. Dal vivo una battuta a 1,550 riceveva la fretta a 1,550 e la
+    # coda usciva a 2,40x — ciascuno stadio dentro il limite, insieme molto
+    # fuori, e all'ascolto la frase veniva inghiottita invece che finita.
+    m5 = Mixer(samplerate=sr, passthrough=False)
+    lungo = np.full(int(sr * 2.0), 0.2, dtype=np.float32)
+    gia_veloce = m5.schedule(lungo, 0.0, rate=1.35)
+    m5.process(None, n=int(sr * 0.5))
+    c.eq(
+        m5.hurry(m5.now, limits=(1.0, 1.35)), 1.0,
+        "una battuta gia' al tetto non si stringe ancora: si sfora",
+    )
+    c.eq(len(gia_veloce.audio), len(lungo), "e resta lunga com'era")
+
+    m6 = Mixer(samplerate=sr, passthrough=False)
+    mezzo = m6.schedule(lungo, 0.0, rate=1.2)
+    m6.process(None, n=int(sr * 0.5))
+    r6 = m6.hurry(m6.now, limits=(1.0, 1.55))
+    c.ok(
+        1.0 < r6 <= 1.55 / 1.2 + 1e-6,
+        f"con budget residuo si stringe solo di quello che resta (rate={r6:.3f} <= {1.55/1.2:.3f})",
+    )
+    c.ok(
+        mezzo.rate <= 1.55 + 1e-6,
+        f"e il totale speso resta sotto il tetto (rate totale={mezzo.rate:.3f})",
+    )
 
     # `finisce_a` deve leggere la coda com'e' ADESSO: dopo `hurry` la durata e'
     # cambiata, e un contatore tenuto a parte direbbe la lunghezza di prima.

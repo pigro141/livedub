@@ -36,6 +36,10 @@ class Scheduled:
     speaker_id: str = "?"
     text: str = ""
     consumed: int = 0  # campioni gia' versati
+    # Quanto e' gia' stata accelerata prima di arrivare qui. Serve a `hurry`:
+    # il tetto e' una proprieta' della **voce**, non di uno stadio, e due
+    # compressioni ciascuna dentro il limite lo sfondano insieme.
+    rate: float = 1.0
 
     @property
     def remaining(self) -> int:
@@ -115,6 +119,7 @@ class Mixer:
         gain_db: float = 0.0,
         speaker_id: str = "?",
         text: str = "",
+        rate: float = 1.0,
     ) -> Scheduled:
         """Mette una battuta in coda per l'istante indicato.
 
@@ -138,6 +143,7 @@ class Mixer:
             gain=db_to_gain(gain_db),
             speaker_id=speaker_id,
             text=text,
+            rate=rate,
         )
         with self._lock:
             if item.t_start < self._t:
@@ -184,6 +190,16 @@ class Mixer:
             # e rischia un artefatto sull'ultima sillaba, che e' la piu' esposta.
             if len(residuo) < int(0.15 * self.samplerate):
                 return 1.0
+            # **Il tetto vale sul totale, non su questo stadio.** Questa battuta
+            # e' gia' arrivata accelerata: comprimerla di nuovo fino al limite
+            # moltiplica le due accelerazioni. Misurato dal vivo, una battuta a
+            # 1,550 riceveva la fretta a 1,550 e la coda usciva a **2,40x** —
+            # ciascuno stadio dentro il limite, insieme molto fuori, e
+            # all'ascolto la frase non finiva: veniva inghiottita. Se il budget
+            # e' gia' speso non si stringe, e si sfora: si sfora, non si scarta.
+            resto = limits[1] / max(1e-6, corrente.rate)
+            if resto <= 1.001:
+                return 1.0
             disponibile = t_finish - self._t
             if disponibile <= 0:
                 rate = limits[1]
@@ -191,11 +207,12 @@ class Mixer:
                 rate = (len(residuo) / self.samplerate) / disponibile
             if rate <= 1.001:
                 return 1.0
-            rate = float(np.clip(rate, max(1.0, limits[0]), limits[1]))
+            rate = float(np.clip(rate, max(1.0, limits[0]), resto))
             stretto = time_stretch(residuo, rate, samplerate=self.samplerate)
             corrente.audio = np.concatenate(
                 [corrente.audio[: corrente.consumed], stretto]
             ).astype(np.float32)
+            corrente.rate *= rate  # il totale speso, per la prossima volta
             self._n_hurried.inc()
             return rate
 

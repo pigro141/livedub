@@ -292,7 +292,7 @@ class DubPipeline:
 
         if audio.size:
             self.mixer.schedule(
-                audio, t_start, speaker_id=speaker_id, text=event.text
+                audio, t_start, speaker_id=speaker_id, text=event.text, rate=rate
             )
             self._free_at = t_start + len(audio) / self.samplerate + self.cfg.tts.gap_seconds
             self._n_lines.inc()

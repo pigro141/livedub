@@ -1047,6 +1047,80 @@ def test_lessico(c: Check) -> None:
         c.eq(reale.conta("IIFIL REEr lte"), 0, "mentre la spazzatura resta spazzatura")
 
 
+def test_fretta(c: Check) -> None:
+    """Stringere il residuo di una battuta gia' cominciata.
+
+    L'invariante e' una sola e vale piu' di tutte le altre: **cio' che e' gia'
+    uscito dalle cuffie non si tocca**. Ristirare l'intera battuta darebbe una
+    forma d'onda diversa da quella gia' suonata, e la giunzione cadrebbe dove
+    l'orecchio e' gia' passato — un salto udibile, e non rimediabile perche' il
+    suono e' gia' andato. Si ristira solo da `consumed` in poi.
+    """
+    c.group("fretta")
+
+    from mix.mixer import Mixer
+
+    sr = 24000
+
+    def scena(durata: float, suonato: float):
+        m = Mixer(samplerate=sr, passthrough=False)
+        t = np.linspace(0, durata, int(sr * durata), endpoint=False, dtype=np.float32)
+        voce = (0.4 * np.sin(2 * np.pi * 220 * t)).astype(np.float32)
+        m.schedule(voce, 0.0)
+        m.process(None, n=int(sr * suonato))
+        return m, m._queue[0]
+
+    m, item = scena(2.0, 0.5)
+    consumato = item.consumed
+    prima = item.audio[:consumato].copy()
+    lunga_prima = len(item.audio)
+    rate = m.hurry(m.now, limits=(1.0, 1.35))
+    c.ok(rate > 1.0, f"con la battuta dopo alle porte si stringe (rate={rate:.3f})")
+    c.ok(rate <= 1.35 + 1e-6, "senza superare il limite dichiarato")
+    c.eq(item.consumed, consumato, "la posizione di lettura non si sposta")
+    c.ok(
+        np.array_equal(item.audio[:consumato], prima),
+        "e i campioni GIA' SUONATI sono identici, campione per campione",
+    )
+    c.ok(len(item.audio) < lunga_prima, "mentre il totale si accorcia")
+    residuo = (len(item.audio) - consumato) / sr
+    c.close(residuo, 1.5 / rate, "il residuo dura quanto lo stiramento promette", tol=0.05)
+
+    # Con tempo in abbondanza non si tocca niente: la fretta e' una risposta a
+    # un fatto, non un modo di parlare.
+    m, item = scena(2.0, 0.5)
+    lunga = len(item.audio)
+    c.eq(m.hurry(m.now + 10.0, limits=(1.0, 1.35)), 1.0, "con tempo avanzo non si stringe")
+    c.eq(len(item.audio), lunga, "e la battuta resta lunga uguale")
+
+    # Nessuno sta parlando: niente da stringere, e non e' un errore.
+    vuoto = Mixer(samplerate=sr, passthrough=False)
+    c.eq(vuoto.hurry(0.0), 1.0, "senza niente in corso non succede niente")
+
+    # Una battuta programmata ma non ancora cominciata non si tocca: non e' lei
+    # a essere in ritardo, e stringerla toglierebbe tempo a chi non l'ha speso.
+    m2 = Mixer(samplerate=sr, passthrough=False)
+    suono = np.full(int(sr * 2.0), 0.2, dtype=np.float32)
+    fra_poco = m2.schedule(suono, 5.0)
+    c.eq(m2.hurry(m2.now, limits=(1.0, 1.35)), 1.0, "una battuta non ancora iniziata resta intera")
+    c.eq(len(fra_poco.audio), len(suono), "davvero intera")
+
+    # Un residuo brevissimo si lascia stare: il guadagno e' inudibile e
+    # l'artefatto cadrebbe sull'ultima sillaba, che e' la piu' esposta.
+    m3, corto = scena(2.0, 1.95)
+    c.eq(m3.hurry(m3.now, limits=(1.0, 1.35)), 1.0, "un residuo sotto i 150 ms non si stringe")
+
+    # `finisce_a` deve leggere la coda com'e' ADESSO: dopo `hurry` la durata e'
+    # cambiata, e un contatore tenuto a parte direbbe la lunghezza di prima.
+    m4, item4 = scena(2.0, 0.5)
+    prima_fine = m4.finisce_a
+    m4.hurry(m4.now, limits=(1.0, 1.35))
+    c.ok(
+        m4.finisce_a < prima_fine,
+        f"dopo la stretta la coda finisce prima ({m4.finisce_a:.3f} < {prima_fine:.3f})",
+    )
+
+
 def test_una_voce_alla_volta(c: Check) -> None:
     """Due battute vicine non devono partire insieme.
 
@@ -1341,6 +1415,7 @@ GROUPS = {
     "lessico": test_lessico,
     "una_voce": test_una_voce_alla_volta,
     "stringi": test_stringi_non_accodare,
+    "fretta": test_fretta,
     "roi": test_roi,
     "lines": test_lines,
     "diff": test_diff,

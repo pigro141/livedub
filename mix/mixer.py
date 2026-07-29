@@ -74,6 +74,7 @@ class Mixer:
         self._n_dropped = self.metrics.counter("mix.dropped")
         self._n_clipped = self.metrics.counter("mix.limited")
         self._n_late = self.metrics.counter("mix.late")
+        self._n_hurried = self.metrics.counter("mix.hurried")
 
     # -- programmazione ----------------------------------------------------
 
@@ -84,6 +85,23 @@ class Mixer:
     @property
     def pending(self) -> int:
         return len(self._queue)
+
+    @property
+    def finisce_a(self) -> float:
+        """Quando l'ultima battuta in coda smette di suonare.
+
+        Si ricava da cio' che c'e' **adesso** nella coda, e non da un contatore
+        tenuto a parte: dopo `hurry` la durata residua e' cambiata, e un
+        contatore aggiornato altrove direbbe la lunghezza di prima. E' la stessa
+        forma dei due orologi con origini diverse, un travestimento piu' in la'.
+        """
+        with self._lock:
+            if not self._queue:
+                return self._t
+            return max(
+                max(s.t_start, self._t) + s.remaining / self.samplerate
+                for s in self._queue
+            )
 
     @property
     def speaking(self) -> bool:
@@ -128,6 +146,58 @@ class Mixer:
             self._queue.append(item)
         self._n_played.inc()
         return item
+
+    def hurry(self, t_finish: float, limits: tuple[float, float] = (1.0, 1.35)) -> float:
+        """Stringe il **residuo non ancora suonato** perche' finisca entro `t_finish`.
+
+        Serve quando arriva un sottotitolo nuovo mentre la voce italiana sta
+        ancora dicendo il precedente. Sul banco quel caso e' il **34,9%** delle
+        battute, ed e' l'unico sforamento che fa danno: una voce che continua
+        mentre a schermo non c'e' piu' niente non disturba nessuno, mentre due
+        battute accavallate fanno perdere una riga.
+
+        **Perche' qui non serve prevedere.** La durata del sottotitolo si prevede
+        da `D = a + b*n`, e misurata sulla registrazione quella retta ha R2 0,15:
+        la lunghezza del testo spiega il quindici per cento della durata, cioe' il
+        modello e' appena meglio di una costante. L'arrivo della battuta dopo,
+        invece, non si stima — **accade**, e accade esattamente nell'istante in
+        cui la decisione va presa.
+
+        **E cio' che e' gia' uscito dalle cuffie non si tocca.** Si ristira solo
+        da `consumed` in poi, quindi non c'e' niente da rimediare a posteriori e
+        il punto di giunzione cade dove l'orecchio non e' ancora arrivato. Se il
+        rate necessario esce dai limiti si applica il limite e si sfora lo
+        stesso: si sfora, non si scarta.
+
+        Restituisce il rate applicato (1.0 se non c'era niente da fare).
+        """
+        from mix.stretch import time_stretch
+
+        with self._lock:
+            corrente = next(
+                (s for s in self._queue if s.consumed > 0 and not s.done), None
+            )
+            if corrente is None:
+                return 1.0
+            residuo = corrente.audio[corrente.consumed :]
+            # Sotto un certo residuo lo stiramento non guadagna niente di udibile
+            # e rischia un artefatto sull'ultima sillaba, che e' la piu' esposta.
+            if len(residuo) < int(0.15 * self.samplerate):
+                return 1.0
+            disponibile = t_finish - self._t
+            if disponibile <= 0:
+                rate = limits[1]
+            else:
+                rate = (len(residuo) / self.samplerate) / disponibile
+            if rate <= 1.001:
+                return 1.0
+            rate = float(np.clip(rate, max(1.0, limits[0]), limits[1]))
+            stretto = time_stretch(residuo, rate, samplerate=self.samplerate)
+            corrente.audio = np.concatenate(
+                [corrente.audio[: corrente.consumed], stretto]
+            ).astype(np.float32)
+            self._n_hurried.inc()
+            return rate
 
     def clear(self) -> int:
         with self._lock:

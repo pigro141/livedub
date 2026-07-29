@@ -124,6 +124,8 @@ class DubPipeline:
         self.timing = DurationModel(cfg.timing)
         self._t_backlog = self.metrics.timer("dub.backlog")
         self._t_rate = self.metrics.timer("dub.rate_x1000")
+        self._t_hurry = self.metrics.timer("dub.hurry_x1000")
+        self._n_collision = self.metrics.counter("dub.collision")
         self._n_overflow = self.metrics.counter("dub.overflow")
         self._t_synth = self.metrics.timer("speak.synth")
         self._t_latency = self.metrics.timer("dub.latency")
@@ -209,6 +211,34 @@ class DubPipeline:
             audio = resample(audio, speech.samplerate, self.samplerate)
 
         now = self.clock.now()
+        # **La battuta nuova e' arrivata: quella in corso ha finito il suo tempo.**
+        # Sul banco, una battuta su tre invaderebbe la successiva, ed e' l'unico
+        # sforamento che fa danno — due voci accavallate fanno perdere una riga,
+        # mentre una voce che continua a schermo vuoto non disturba nessuno.
+        #
+        # Qui non si prevede niente: `D = a + b*n` ha R2 0,15 sulla registrazione
+        # vera, cioe' la lunghezza spiega il quindici per cento della durata e
+        # nessuna previsione salva. L'arrivo di *questo* sottotitolo invece non e'
+        # una stima, e' un fatto, e capita nell'istante esatto in cui la
+        # decisione va presa. Si stringe il residuo non ancora suonato di cio'
+        # che sta parlando, e cio' che e' gia' uscito resta com'era.
+        #
+        # La condizione e' "sta **suonando** qualcosa", non "la voce e'
+        # occupata": `_free_at` comprende i 120 ms di respiro fra una battuta e
+        # l'altra, quindi e' nel futuro anche quando l'audio e' gia' finito. Il
+        # contatore, con la prima versione, dichiarava una collisione dove non
+        # ce n'era — e un contatore che conta piu' di cio' che nomina fa perdere
+        # tempo la prima volta che qualcuno lo legge.
+        if self.cfg.timing.hurry_on_next and self.mixer.speaking:
+            self._n_collision.inc()
+            fretta = self.mixer.hurry(
+                now, limits=(1.0, self.cfg.timing.rate_max)
+            )
+            if fretta > 1.0:
+                # La coda si e' accorciata di quanto lo stiramento ha guadagnato.
+                self._free_at = self.mixer.finisce_a + self.cfg.tts.gap_seconds
+                self._t_hurry.add(fretta * 1000.0)
+
         # **Una voce alla volta.** Il mixer somma tutto cio' che e' attivo, e
         # senza questa riga due sottotitoli vicini partivano insieme: due voci
         # italiane sovrapposte non si capiscono, ed e' peggio di una battuta in

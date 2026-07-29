@@ -161,10 +161,20 @@ class DubPipeline:
         che non deve andare in onda.
         """
         if warmup:
-            try:
-                self.tts.synthesize("via", self.pool.voices[0])
-            except Exception:
-                pass  # un riscaldamento fallito non e' un motivo per non partire
+            # **Tutte le voci del pool, non la prima.** Scaldarne una sola
+            # manteneva la promessa per il primo personaggio e la rompeva per il
+            # secondo: misurato dal vivo in due sessioni diverse, la prima
+            # battuta di `paola` e' costata 1826 ms e 1800 ms di sintesi contro
+            # un p50 di 52 ms — cioe' esattamente il difetto che questa riga
+            # esiste per evitare, spostato di un personaggio piu' in la'. E
+            # capita nel momento peggiore: la seconda voce entra quando due
+            # personaggi si parlano sopra, che e' quando una battuta persa si
+            # nota di piu'.
+            for voce in self.pool.voices:
+                try:
+                    self.tts.synthesize("via", voce)
+                except Exception:
+                    pass  # un riscaldamento fallito non e' un motivo per non partire
         self.mixer.reset(self.clock.now())
         self._free_at = self.clock.now()
 

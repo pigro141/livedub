@@ -528,3 +528,109 @@ def test_embed(c) -> None:
         c.ok(ripiego.name != "ecapa-onnx", "e `.name` lo dice, cosi' il banco lo puo' stampare")
     finally:
         _embed.ECAPA_DIR = originale
+
+
+def test_speaker(c) -> None:
+    """Il tracker dei personaggi, su impronte costruite.
+
+    Costruite perche' la risposta deve essere nota prima: su impronte vere "il
+    tracker sbaglia" e "le voci non si distinguono" hanno lo stesso aspetto. Qui
+    i vettori sono fabbricati in modo che la verita' sia scritta, e cio' che si
+    verifica e' la *logica* — quale porta crea personaggi, quale no, e cosa
+    succede quando l'impronta non c'e'.
+    """
+    c.group("speaker")
+
+    from core.config import SpeakerConfig
+    from listen.speaker import PLAUSIBILE_SOPRA, SpeakerTracker, stima_f0
+
+    def voce(seed: int, rumore: float = 0.0) -> np.ndarray:
+        """Un'impronta normalizzata: stessa `seed` = stessa persona."""
+        rng = np.random.default_rng(seed)
+        v = rng.standard_normal(192).astype(np.float32)
+        if rumore:
+            v = v + rumore * np.random.default_rng(seed + 1000).standard_normal(192).astype(np.float32)
+        return (v / np.linalg.norm(v)).astype(np.float32)
+
+    cfg = SpeakerConfig()
+    cfg.similarity = 0.55
+
+    # 1. Due persone distinte, imparate dalle battute intere.
+    t = SpeakerTracker(cfg)
+    a1 = t.impara(voce(1), t=1.0)
+    b1 = t.impara(voce(2), t=2.0)
+    c.eq(len(t), 2, "due impronte lontane sono due personaggi")
+    c.ok(a1.speaker_id != b1.speaker_id, "e prendono due identita' diverse")
+    c.ok(b1.is_new, "il secondo si dichiara nuovo")
+    a2 = t.impara(voce(1), t=3.0)
+    c.eq(a2.speaker_id, a1.speaker_id, "la stessa impronta ritrova il suo personaggio")
+    c.eq(len(t), 2, "e non ne apre un terzo")
+    c.eq(t.get(a1.speaker_id).battute, 2, "il centroide ha imparato due battute")
+
+    # 2. **Il difetto peggiore possibile, e la prova che lo vede.** La porta
+    #    veloce riceve ritagli corti, che somigliano poco al proprio centroide:
+    #    misurato, sotto 0,40 tre volte su quattro a 0,30 s. Se creasse
+    #    personaggi, ne inventerebbe uno a ogni battuta — all'ascolto "la voce
+    #    cambia in continuazione", che e' il guasto peggiore di tutti.
+    prima = len(t)
+    for k in range(20):
+        d = t.scegli(voce(1, rumore=3.0), t=10.0 + k)
+        c.ok(d.provisional, f"scelta {k}: si dichiara provvisoria") if k == 0 else None
+    c.eq(len(t), prima, "venti scelte veloci non creano nemmeno un personaggio")
+
+    # 3. Senza impronta si resta su chi parlava, non si inventa.
+    prima = len(t)
+    d = t.scegli(None, t=30.0)
+    c.eq(len(t), prima, "impronta assente: nessun personaggio nuovo")
+    c.ok(d.speaker_id in {p.speaker_id for p in t.people}, "e si risponde uno gia' noto")
+    d = t.scegli(np.zeros(192, np.float32), t=31.0)
+    c.eq(len(t), prima, "impronta nulla: idem")
+
+    # 4. Un ritaglio senza voce da' somiglianze intorno a zero con tutti: la
+    #    scelta veloce non deve prenderlo per un personaggio a caso.
+    quasi = voce(99)
+    d = t.scegli(quasi * 0.0 + 1e-6, t=32.0)
+    c.ok(d.confidence < PLAUSIBILE_SOPRA + 1e-6, "impronta senza voce: fiducia bassa")
+
+    # 5. Il tetto: oltre `max_speakers` ci si attacca al migliore invece di
+    #    lasciare un personaggio senza voce.
+    stretto = SpeakerTracker(SpeakerConfig())
+    stretto.cfg.similarity = 0.9
+    stretto.cfg.max_speakers = 3
+    for s in range(10):
+        stretto.impara(voce(100 + s), t=float(s))
+    c.eq(len(stretto), 3, "non si superano i max_speakers")
+
+    # 6. Un tracker vuoto non esplode, e il primo che parla apre il primo posto.
+    vuoto = SpeakerTracker(cfg)
+    d = vuoto.scegli(voce(7), t=0.0)
+    c.eq(len(vuoto), 0, "a banca vuota la porta veloce non iscrive nessuno")
+    c.eq(d.speaker_id, "S0", "ma risponde un'identita' provvisoria utilizzabile")
+    c.ok(d.provisional, "dichiarandola provvisoria")
+    c.eq(vuoto.impara(voce(7), t=0.1).speaker_id, "S0", "e la porta lenta la conferma")
+    c.eq(len(vuoto), 1, "iscrivendola davvero")
+    vuoto.reset()
+    c.eq(len(vuoto), 0, "reset svuota la banca")
+    c.ok("nessun personaggio" in vuoto.report(), "e il report lo dice")
+
+    # 7. L'intonazione, con risposta nota: una sinusoide a 120 Hz vale 120 Hz.
+    for hz in (110.0, 200.0):
+        sr = 16000
+        tt = np.arange(int(0.8 * sr), dtype=np.float32) / sr
+        onda = sum((0.5 / k) * np.sin(2 * np.pi * hz * k * tt) for k in (1, 2, 3)).astype(np.float32)
+        c.close(stima_f0(onda, sr), hz, f"l'intonazione a {hz:.0f} Hz si ritrova", tol=6.0)
+    c.eq(stima_f0(np.zeros(16000, np.float32), 16000), 0.0, "sul silenzio non si inventa")
+    c.eq(stima_f0(np.zeros(10, np.float32), 16000), 0.0, "e su un frammento nemmeno")
+
+    # 8. Il genere segue l'intonazione, con una fascia morta in mezzo: li' un
+    #    uomo chiaro e una donna scura non si distinguono, e "non so" fa
+    #    scegliere al pool la prossima voce libera invece di quella sbagliata.
+    t2 = SpeakerTracker(cfg)
+    t2.impara(voce(11), t=0.0, f0=120.0)
+    c.eq(t2.people[0].gender, "m", "120 Hz e' maschile")
+    t2.impara(voce(12), t=1.0, f0=220.0)
+    c.eq(t2.people[1].gender, "f", "220 Hz e' femminile")
+    t2.impara(voce(13), t=2.0, f0=175.0)
+    c.eq(t2.people[2].gender, "?", "175 Hz non si sa, e lo dice")
+    t2.impara(voce(14), t=3.0)
+    c.eq(t2.people[3].gender, "?", "senza intonazione non si sa")

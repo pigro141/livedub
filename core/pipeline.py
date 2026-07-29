@@ -30,7 +30,10 @@ from core.clock import Clock, get_clock
 from core.config import Config
 from core.metrics import MetricsRegistry
 from core.types import Emotion, LineClass, SubtitleEvent, Utterance
+from core.ring import Overrun, RingBuffer
 from fuse.timing import DurationModel, spoken_length
+from listen.speaker import SpeakerTracker, stima_f0
+from mix.center import split
 from mix.mixer import Mixer
 from mix.stretch import fit_duration, fit_duration_keep_tail  # noqa: F401
 from speak.base import TtsBackend
@@ -119,6 +122,22 @@ class DubPipeline:
             metrics=self.metrics,
         )
 
+        # **Chi parla.** L'analisi dell'audio serve a due momenti diversi e
+        # lontani fra loro: quando bisogna parlare (poco parlato, si sceglie fra
+        # i noti) e quando la battuta e' finita (parlato intero, si impara e
+        # semmai si iscrive qualcuno). Per il secondo momento l'audio va tenuto,
+        # e finora la pipeline lo lasciava passare: da qui l'anello.
+        self.tracker: SpeakerTracker | None = (
+            SpeakerTracker(cfg.speaker) if cfg.speaker.backend != "none" else None
+        )
+        self._embedder = None  # costruito alla prima battuta: scarica il modello
+        self._voices = RingBuffer(
+            capacity=int(cfg.audio.ring_seconds * samplerate),
+            channels=1,
+            samplerate=samplerate,
+        )
+        self._ring_t0: float | None = None  # tempo del primo campione scritto
+
         self.spoken: list[SpokenLine] = []
         self.closed: list[SubtitleEvent] = []
         self._free_at = 0.0  # quando la voce torna libera
@@ -145,6 +164,9 @@ class DubPipeline:
         self._t_synth = self.metrics.timer("speak.synth")
         self._t_latency = self.metrics.timer("dub.latency")
         self._t_live = self.metrics.timer("dub.latency_live")
+        self._t_embed = self.metrics.timer("speaker.embed")
+        self._n_speakers = self.metrics.counter("speaker.new")
+        self._n_no_clip = self.metrics.counter("speaker.no_clip")
         self._n_lines = self.metrics.counter("dub.lines")
         self._n_empty = self.metrics.counter("dub.empty")
 
@@ -207,6 +229,7 @@ class DubPipeline:
         for ev in out.closed:
             if ev.duration is not None:
                 self.timing.observe(ev.text, ev.duration)
+            self._learn(ev)
         return [self._speak(ev) for ev in out.opened if ev.text.strip()]
 
     def _speak(self, event: SubtitleEvent) -> SpokenLine:
@@ -424,19 +447,109 @@ class DubPipeline:
         return line
 
     def _speaker_for(self, event: SubtitleEvent) -> str:
-        """Chi parla.
+        """Chi parla, con quel poco che si e' riusciti a sentire finora.
 
-        F1: la sola classe cromatica. Il bianco e' lo speaker principale, il
-        grigio quello che gli si sovrappone. Non dice *quale* personaggio sia —
-        per quello serve l'embedding di F3 — ma dice con certezza che sono due
-        persone diverse, che e' l'informazione piu' urgente.
+        Il colore della riga **non** entra piu' in questa decisione. Assumeva
+        che il grigio fosse un secondo personaggio: misurato su 675 battute
+        bianche in 17 sessioni, le grigie sono 15 e nessuna e' dialogo. Un
+        vincolo su quel segnale vincolerebbe rumore, e in cambio bruciava una
+        voce del pool per `S-grey`.
+
+        Qui si sceglie e basta. Iscrivere un personaggio nuovo con mezzo secondo
+        di parlato ne inventerebbe uno a ogni battuta — la somiglianza col
+        proprio centroide sta sotto 0,40 tre volte su quattro a 0,30 s, per via
+        della durata e non dell'identita' — e all'ascolto sarebbe "la voce
+        cambia in continuazione". L'iscrizione avviene in `_learn`, a battuta
+        finita.
         """
-        return "S-grey" if event.cls is LineClass.GREY else "S-white"
+        if self.tracker is None:
+            return "S-grey" if event.cls is LineClass.GREY else "S-white"
+        emb = self._embed(self._clip(event.t_on, self.mixer.now))
+        return self.tracker.scegli(emb, t=event.t_on).speaker_id
+
+    def _learn(self, event: SubtitleEvent) -> None:
+        """La battuta e' sparita dallo schermo: adesso il suo audio c'e' tutto.
+
+        E' l'unico punto in cui nasce un personaggio. Non si disdice niente di
+        gia' detto — la voce ha gia' parlato — ma la banca migliora, e la
+        battuta successiva dello stesso personaggio la trovera' piu' facilmente.
+        """
+        if self.tracker is None or event.t_off is None:
+            return
+        clip = self._clip(event.t_on, min(event.t_off, event.t_on + 2.0))
+        emb = self._embed(clip)
+        if emb is None:
+            return
+        f0 = stima_f0(clip, self.samplerate) if clip is not None else 0.0
+        d = self.tracker.impara(emb, t=event.t_on, f0=f0)
+        if d.is_new:
+            self._n_speakers.inc()
+
+    def _clip(self, t_on: float, fino_a: float) -> np.ndarray | None:
+        """L'audio del centro fra due istanti, o `None` se non c'e' abbastanza.
+
+        Il centro e non il mixdown: il dialogo sta li', ed e' la stessa
+        estrazione che usa il duck. Misurare un segnale diverso da quello che la
+        pipeline tratta darebbe un'identita' che vale per un altro audio.
+        """
+        if self._ring_t0 is None:
+            return None
+        durata = fino_a - t_on
+        if durata < 0.25:  # meno di questo non contiene una sillaba intera
+            return None
+        durata = min(durata, 2.0)
+        inizio = self._voices.time_to_frame(t_on, self._ring_t0)
+        try:
+            clip = self._voices.read_from(inizio, int(durata * self.samplerate))
+        except (Overrun, ValueError):
+            # `Overrun`: l'anello ha girato, la battuta e' piu' vecchia della
+            # memoria. `ValueError`: si sta chiedendo audio non ancora scritto.
+            # Nessuno dei due e' un errore da propagare — sono una battuta
+            # inanalizzabile — ma **restituire audio sbagliato lo sarebbe**, e
+            # sarebbe invisibile: darebbe l'impronta di un altro momento, cioe'
+            # un personaggio verosimile e sbagliato.
+            self._n_no_clip.inc()
+            return None
+        return clip.reshape(-1) if clip.size else None
+
+    def _embed(self, clip: np.ndarray | None):
+        """L'impronta del ritaglio. Il modello si carica alla prima richiesta."""
+        if clip is None or clip.size == 0 or self.tracker is None:
+            return None
+        if self._embedder is None:
+            from listen.embed import make_embedder
+
+            self._embedder = make_embedder(self.cfg.speaker)
+        # Il costo si misura a muro con `perf_counter` e non con l'orologio del
+        # media: sul banco il secondo non avanza mentre il modello lavora, e
+        # l'impronta risulterebbe gratis proprio dove si vuole sapere se lo e'.
+        t0 = time.perf_counter()
+        out = self._embedder.embed(clip, self.samplerate)
+        self._t_embed.add((time.perf_counter() - t0) * 1000.0)
+        return out
 
     # -- dominio audio -----------------------------------------------------
 
     def on_audio(self, game: np.ndarray | None, n: int | None = None) -> np.ndarray:
-        """Un blocco di audio di gioco. Restituisce il blocco da mandare in uscita."""
+        """Un blocco di audio di gioco. Restituisce il blocco da mandare in uscita.
+
+        Prima di mixare, il centro finisce nell'anello: e' l'unico posto da cui
+        il dominio video potra' ripescarlo quando la battuta sara' finita. Si
+        scrive **prima** di `process`, perche' `mixer.now` e' il tempo del primo
+        campione del blocco e dopo non lo sarebbe piu'.
+        """
+        if self.tracker is not None and game is not None and getattr(game, "size", 0):
+            mono = split(game)[0] if game.ndim == 2 and game.shape[1] == 2 else game.reshape(-1)
+            if self._ring_t0 is None:
+                # **L'orologio del media, non quello del mixer.** Dal vivo i due
+                # coincidono e l'errore non si vedrebbe; sul banco no — il mixer
+                # parte da zero mentre le battute sono timbrate al minuto 1240 —
+                # e l'anello verrebbe letto a un indice di sessanta milioni.
+                # Qui serve la stessa base con cui e' timbrato `t_on`, perche'
+                # l'unica cosa che si chiede all'anello e' "dov'era quella
+                # battuta".
+                self._ring_t0 = self.clock.now()
+            self._voices.write(mono.astype(np.float32))
         return self.mixer.process(game, n)
 
     # -- chiusura ----------------------------------------------------------
@@ -449,6 +562,8 @@ class DubPipeline:
         righe = [
             f"battute doppiate: {len(self.spoken)}",
             f"personaggi sentiti: {len(self.pool)}",
+            "",
+            self.tracker.report() if self.tracker is not None else "(tracker spento)",
             "",
             self.pool.report(),
             "",

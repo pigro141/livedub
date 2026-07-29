@@ -234,15 +234,27 @@ class SpeakerConfig:
       pronunciate con la seconda voce. Su questo gioco e questa cattura il
       grigio non porta l'informazione che il vincolo vorrebbe usare.
 
-    `similarity` resta 0,62 perche' **nessun numero fisso funziona**: la
-    somiglianza fra due ritagli della stessa voce cresce con la loro durata
-    (soglia di pari errore +0,13 a 0,2 s, +0,41 a 1 s, +0,77 a 3 s sul pulito).
-    Chi costruira' il tracker la faccia dipendere dalla durata della clip, o
-    scoprira' che a 0,62 tutto e' un personaggio nuovo.
+    **La terza voce si e' poi rivelata falsa, e vale la pena dire come.** La
+    seconda misura confrontava due ritagli **brevi** fra loro, e costruiva le
+    coppie "persone diverse" prendendo due momenti qualunque: in un dialogo i
+    personaggi si alternano, quindi meta' di quelle coppie erano la stessa
+    persona. Quel numero non poteva salire nemmeno con un riconoscitore
+    perfetto. Rifatta la domanda come la pone il tracker — un ritaglio breve
+    contro il **centroide** di un personaggio, costruito sulle sue battute
+    intere — la risposta e' un'altra: su 82 battute di GTA V etichettate
+    all'ascolto, il personaggio giusto si sceglie nell'86,6% dei casi con 0,30 s
+    di parlato, nel 93,9% con 0,50 s e nel **100% con 0,75 s**.
+
+    `similarity` **e' 0,55, ed e' misurata**: e' la soglia con cui raggruppando
+    126 battute di una scena i gruppi sono risultati, all'ascolto, una persona
+    ciascuno, e si sono ritrovati identici a sei minuti e piu' scene di
+    distanza. Vale pero' **solo per i ritagli interi**: applicata al poco
+    parlato disponibile al momento di parlare aprirebbe un personaggio nuovo a
+    ogni battuta. Per questo `listen/speaker.py` ha due porte e non una.
     """
 
     backend: str = "ecapa-onnx"  # ecapa-onnx | mfcc | none
-    similarity: float = 0.62  # soglia coseno per "e' la stessa voce" — si veda sopra
+    similarity: float = 0.55  # soglia coseno per "e' la stessa voce", sui ritagli INTERI
     min_clip_ms: int = 400  # sotto questa durata la decisione e' provvisoria
     max_wait_ms: int = 200  # quanto si puo' rinviare l'attacco per decidere meglio
     max_speakers: int = 16

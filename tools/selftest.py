@@ -1627,6 +1627,7 @@ def test_duration_model(c: Check) -> None:
 from tools.selftest_audio import (  # noqa: E402
     test_center,
     test_embed,
+    test_speaker,
     test_mixer,
     test_pool,
     test_stretch,
@@ -1715,6 +1716,90 @@ def test_session(c: Check) -> None:
         c.eq(senza[0]["t_wav"], None, "senza audio la posizione e' None, non zero")
 
 
+def test_chi_parla(c: Check) -> None:
+    """L'aggancio fra i due domini per l'identita' di chi parla.
+
+    Con il backend leggero: qui non si verifica *quanto bene* si riconoscono le
+    voci — quello lo dice `tools/bench_speaker.py` su audio vero, e la suite non
+    scarica modelli — ma che il giro esista e sia orientato giusto. Cioe' le tre
+    cose che, se rotte, non darebbero errore ma un doppiaggio sbagliato in modo
+    plausibile.
+    """
+    c.group("chi_parla")
+
+    from core.config import Config
+    from core.pipeline import DubPipeline
+    from speak.base import ToneTts
+
+    cfg = Config()
+    cfg.vision.ocr_backend = "none"
+    cfg.speaker.backend = "mfcc"  # niente modelli nella suite
+    sr = 48000
+    orologio = VirtualClock()
+    p = DubPipeline(cfg, ToneTts(), clock=orologio, samplerate=sr)
+    p.start_live(warmup=False)
+
+    def versa(seconds: float, f0: float) -> None:
+        """Audio di gioco con una voce finta: stereo, dialogo al centro."""
+        n = int(seconds * sr)
+        t = np.arange(n, dtype=np.float32) / sr
+        voce = sum((0.3 / k) * np.sin(2 * np.pi * f0 * k * t) for k in (1, 2, 3)).astype(np.float32)
+        blocco = np.stack([voce, voce], axis=1)  # centrato: sta nel mid
+        for i in range(0, n, 480):
+            p.on_audio(blocco[i : i + 480], n=len(blocco[i : i + 480]))
+
+    # 1. L'anello si riempie da `on_audio`. Senza, l'identita' sarebbe decisa su
+    #    audio che non esiste e ogni battuta sarebbe la stessa persona.
+    c.eq(p._voices.written, 0, "l'anello parte vuoto")
+    versa(1.5, 120.0)
+    c.ok(p._voices.written >= sr, "l'audio di gioco finisce nell'anello")
+    c.ok(p._ring_t0 is not None, "e si sa a che istante comincia")
+
+    # 2. Un ritaglio si ripesca per tempo, e uno troppo vecchio no. Il secondo
+    #    caso conta quanto il primo: l'anello ha memoria finita, e leggere oltre
+    #    darebbe l'audio di **un'altra** battuta invece di niente.
+    ora = p.mixer.now
+    c.ok(p._clip(0.0, ora) is not None, "il ritaglio della battuta appena detta c'e'")
+    c.ok(p._clip(ora - 0.05, ora) is None, "un ritaglio troppo corto non si azzarda")
+    c.ok(p._clip(-9999.0, -9998.0) is None, "e uno fuori dall'anello risponde None, non spazzatura")
+
+    # 3. **Il colore della riga non decide piu' chi parla.** Prima il grigio
+    #    apriva `S-grey` e si portava via una voce del pool; misurato, le righe
+    #    grigie sono code del rumore dell'OCR. La prova guarda proprio questo,
+    #    perche' il difetto vecchio non darebbe errore: darebbe una voce diversa.
+    bianca = SubtitleEvent(text="Sali in macchina", cls=LineClass.WHITE, t_on=0.2)
+    grigia = SubtitleEvent(text="Sali in macchina", cls=LineClass.GREY, t_on=0.2)
+    c.eq(p._speaker_for(bianca), p._speaker_for(grigia),
+         "stesso audio, colore diverso: stesso personaggio")
+    c.ok(not p._speaker_for(grigia).startswith("S-grey"), "e `S-grey` non esiste piu'")
+
+    # 4. La porta veloce non iscrive nessuno: e' la regola che tiene ferma la
+    #    voce. Venti battute su audio ambiguo devono lasciare la banca com'era.
+    prima = len(p.tracker)
+    for k in range(20):
+        p._speaker_for(SubtitleEvent(text="ehi", cls=LineClass.WHITE, t_on=0.2 + 0.01 * k))
+    c.eq(len(p.tracker), prima, "venti decisioni veloci non creano personaggi")
+
+    # 5. La porta lenta si', ma solo a battuta chiusa e con l'audio intero.
+    chiusa = SubtitleEvent(text="Sali in macchina", cls=LineClass.WHITE, t_on=0.2, t_off=1.4)
+    p._learn(chiusa)
+    c.eq(len(p.tracker), 1, "a battuta chiusa il personaggio si iscrive")
+    aperta = SubtitleEvent(text="ancora", cls=LineClass.WHITE, t_on=0.3)
+    p._learn(aperta)
+    c.eq(len(p.tracker), 1, "una battuta ancora a schermo non insegna niente")
+
+    # 6. Spegnendo il riconoscimento la catena continua a doppiare: un modello
+    #    che manca non deve zittire il gioco.
+    muto = Config()
+    muto.vision.ocr_backend = "none"
+    muto.speaker.backend = "none"
+    q = DubPipeline(muto, ToneTts(), clock=VirtualClock(), samplerate=sr)
+    q.start_live(warmup=False)
+    c.ok(q.tracker is None, "backend 'none': nessun tracker")
+    riga = q._speak(SubtitleEvent(text="Andiamo via", cls=LineClass.WHITE, t_on=0.0))
+    c.ok(riga.duration > 0, "e la battuta viene detta lo stesso")
+
+
 GROUPS = {
     "clock": test_clock,
     "session": test_session,
@@ -1733,6 +1818,7 @@ GROUPS = {
     "lingua": test_lingua,
     "lessico": test_lessico,
     "una_voce": test_una_voce_alla_volta,
+    "chi_parla": test_chi_parla,
     "stringi": test_stringi_non_accodare,
     "fretta": test_fretta,
     "duck": test_duck_non_pompa,
@@ -1746,6 +1832,7 @@ GROUPS = {
     "reader": test_reader,
     "stretch": test_stretch,
     "embed": test_embed,
+    "speaker": test_speaker,
     "center": test_center,
     "pool": test_pool,
     "tts": test_tts_fake,

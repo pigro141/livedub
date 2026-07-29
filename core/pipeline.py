@@ -132,6 +132,10 @@ class DubPipeline:
         # assunzione.
         self._cps = float(cfg.tts.chars_per_second)
         self._cps_n = 0
+        # Quanto chiedere in piu' al sintetizzatore per ottenere la velocita'
+        # voluta. Parte da 1 e si impara: `length_scale` non e' proporzionale,
+        # e senza questa correzione il tetto sulla velocita' resta un desiderio.
+        self._native_gain = 1.0
         self._t_backlog = self.metrics.timer("dub.backlog")
         self._t_rate = self.metrics.timer("dub.rate_x1000")
         self._t_hurry = self.metrics.timer("dub.hurry_x1000")
@@ -225,8 +229,8 @@ class DubPipeline:
         # e' nemmeno proporzionale.
         nativo = 1.0
         n = spoken_length(event.text)
+        stima = n / max(1e-6, self._cps)
         if self.cfg.tts.native_rate_max > 1.0:
-            stima = n / max(1e-6, self._cps)
             budget = self.timing.plan(
                 event.text, stima, elapsed=max(0.0, self.clock.now() - event.t_on)
             ).budget
@@ -239,11 +243,17 @@ class DubPipeline:
             elif stima > budget:
                 nativo = min(self.cfg.tts.native_rate_max, stima / budget)
 
+        # **Si chiede di piu' di quanto si vuole, perche' il sintetizzatore ne
+        # consegna di meno.** `length_scale` di Piper non e' proporzionale:
+        # chiedendo 1,45 la battuta si accorcia molto meno di quanto quel numero
+        # promette, e finora io lo chiedevo a occhi chiusi senza mai controllare
+        # cosa fosse arrivato. Il tetto vale su cio' che si **ottiene**, quindi
+        # la richiesta va corretta del divario misurato.
+        richiesta = min(nativo * self._native_gain, 3.0) if nativo > 1.0 else 1.0
+
         t0 = time.perf_counter()
-        speech = self.tts.synthesize(event.text, voice, rate=nativo)
+        speech = self.tts.synthesize(event.text, voice, rate=richiesta)
         synth_ms = (time.perf_counter() - t0) * 1000.0
-        if nativo > 1.0:
-            self._t_nativo.add(nativo * 1000.0)
         self._t_synth.add(synth_ms)
 
         audio = speech.audio
@@ -260,6 +270,19 @@ class DubPipeline:
             misurato = n / (len(audio) / self.samplerate)
             self._cps_n += 1
             self._cps += min(0.25, 1.0 / self._cps_n) * (misurato - self._cps)
+        elif nativo > 1.0 and audio.size and n >= 8:
+            # **L'anello si chiude qui.** `stima` e' quanto sarebbe durata al
+            # naturale, quindi `stima / durata` e' l'accelerazione davvero
+            # ottenuta. Se avevo chiesto `richiesta` e ne e' arrivata meno, il
+            # divario entra nel guadagno e la prossima volta si chiede di piu'.
+            # Senza questo anello il tetto sulla velocita' e' un desiderio.
+            ottenuto = stima / max(1e-6, len(audio) / self.samplerate)
+            if ottenuto > 0.5:
+                divario = richiesta / max(ottenuto, 1e-6)
+                self._native_gain = float(
+                    np.clip(self._native_gain * (1.0 + 0.3 * (divario - 1.0)), 1.0, 2.5)
+                )
+            self._t_nativo.add(ottenuto * 1000.0)
 
         now = self.clock.now()
         # **La battuta nuova e' arrivata: quella in corso ha finito il suo tempo.**
@@ -369,7 +392,17 @@ class DubPipeline:
             self.mixer.schedule(
                 audio, t_start, speaker_id=speaker_id, text=event.text, rate=rate
             )
-            self._free_at = t_start + len(audio) / self.samplerate + self.cfg.tts.gap_seconds
+            # **La pausa di respiro non si paga quando si e' gia' in ritardo.**
+            # `gap_seconds` esiste perche' due battute attaccate suonano come
+            # una frase sola, e in un dialogo fanno sembrare che parli sempre la
+            # stessa persona. Ma finora si aggiungeva dopo *ogni* battuta, anche
+            # quando la successiva stava gia' aspettando in coda: centoventi
+            # millisecondi di silenzio deliberato mentre si e' indietro di un
+            # secondo. Se la battuta e' partita in ritardo, la pausa e' un lusso
+            # e si toglie.
+            in_ritardo = t_start > now + 0.05
+            respiro = 0.0 if in_ritardo else self.cfg.tts.gap_seconds
+            self._free_at = t_start + len(audio) / self.samplerate + respiro
             self._n_lines.inc()
         else:
             self._n_empty.inc()

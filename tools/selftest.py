@@ -1321,6 +1321,52 @@ def test_velocita_totale(c: Check) -> None:
     # stimato qui sarebbe una stima travestita da misura — proprio nel numero su
     # cui si decide se la voce sta correndo troppo.
 
+    # **Un sintetizzatore che consegna meno di quanto promette.** E' il caso di
+    # Piper: `length_scale` non e' proporzionale. Chiedendo 1,3 ne arriva 1,15,
+    # e senza correzione il tetto sulla velocita' resta un desiderio.
+    class TtsPigro(TtsCheVaVeloce):
+        """Onora solo meta' della fretta che gli si chiede."""
+
+        def synthesize(self, text: str, voice, rate: float = 1.0) -> Speech:
+            return super().synthesize(text, voice, rate=1.0 + (rate - 1.0) * 0.5)
+
+    pigro = TtsPigro()
+    pc = VirtualClock()
+    pp = DubPipeline(cfg, pigro, clock=pc, samplerate=22050)
+    pc.set(0.0)
+    pp.start_live(warmup=False)
+    for i in range(8):
+        pc.set(0.3 + i * 6.0)
+        pp._speak(SubtitleEvent(text=lunga, cls=LineClass.WHITE, t_on=i * 6.0))
+    # La soglia e' bassa perche' in questa scena la finestra e' larga e la
+    # fretta chiesta e' appena sopra 1: il divario da correggere e' piccolo e la
+    # correzione ci mette. Cio' che si verifica e' la **direzione** e il fatto
+    # che l'anello sia chiuso; quanto in fretta converga dipende da quanto e'
+    # grosso l'errore, e in gioco lo e' molto di piu'.
+    c.ok(
+        pp._native_gain > 1.02,
+        f"il guadagno impara che il sintetizzatore e' pigro ({pp._native_gain:.3f})",
+    )
+    c.ok(
+        pigro.chiesti[-1] > pigro.chiesti[0],
+        f"e gli si chiede via via di piu' ({pigro.chiesti[0]:.3f} -> {pigro.chiesti[-1]:.3f})",
+    )
+
+    # E con un sintetizzatore onesto il guadagno non deve gonfiarsi: correggere
+    # un divario che non c'e' farebbe correre la voce senza motivo.
+    onesto = TtsCheVaVeloce()
+    oc = VirtualClock()
+    op = DubPipeline(cfg, onesto, clock=oc, samplerate=22050)
+    oc.set(0.0)
+    op.start_live(warmup=False)
+    for i in range(8):
+        oc.set(0.3 + i * 6.0)
+        op._speak(SubtitleEvent(text=lunga, cls=LineClass.WHITE, t_on=i * 6.0))
+    c.ok(
+        op._native_gain < 1.05,
+        f"con un sintetizzatore fedele il guadagno resta a uno ({op._native_gain:.3f})",
+    )
+
     # Con tempo in abbondanza non si chiede fretta a nessuno. Orologio nuovo:
     # il `VirtualClock` non torna indietro, ed e' giusto cosi'.
     calmo_clock = VirtualClock()

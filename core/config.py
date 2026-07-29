@@ -317,11 +317,12 @@ class TimingConfig:
     min_duration: float = 0.6
     max_duration: float = 8.0
     rate_min: float = 0.85
-    # 1,20 e non 1,35: e' il tetto di **WSOLA**, che sopra quel valore comincia
-    # a mangiare la coda delle battute (vedi `tts.native_rate_max`). La fretta
-    # oltre questa soglia la fa il sintetizzatore, che articola invece di
-    # schiacciare.
-    rate_max: float = 1.20
+    # Il tetto di **WSOLA**, misurato: con il puntatore di analisi corretto la
+    # fine della battuta sopravvive fino a 1,25 (rapporto 55) e crolla da 1,30
+    # in su (3,4, poi 1,7). Non e' una scelta di gusto, e' dove sta il gradino.
+    # La fretta oltre questa soglia la fa il sintetizzatore, che articola
+    # invece di schiacciare.
+    rate_max: float = 1.25
     lead_ms: int = 0  # anticipo/ritardo fisso sull'attacco
     # **Spento perche' misurato, non perche' non sia scritto.** Il piano dava per
     # buono che il sottotitolo compaia quando il gioco decide e la voce cominci

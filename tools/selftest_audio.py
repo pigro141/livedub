@@ -418,6 +418,29 @@ def test_tts_fake(c) -> None:
     c.ok(float(np.abs(s.audio).max()) <= 1.0, "l'audio sta dentro il fondo scala")
     c.ok(s.rtf < 1.0, "sintetizza piu' in fretta di quanto duri")
 
+    # **La velocita' chiesta a SuperTonic sta dentro cio' che accetta.** Fuori
+    # dai suoi limiti il modello non rallenta: solleva `ValueError` e la sessione
+    # finisce li'. Ed e' facile uscirne senza volerlo, perche' quel numero e' il
+    # prodotto di tre decisioni prese in tre posti — ritmo di base 1,50, fretta
+    # della catena fino a 1,45, carattere della voce. Col difetto, la scena del
+    # concessionario si interrompeva alla battuta 10 di 44. Non serve il modello
+    # per verificarlo, solo il conto.
+    from speak.backends.supertonic import (
+        DEFAULT_SPEED,
+        VELOCITA_MAX,
+        VELOCITA_MIN,
+        velocita_effettiva,
+    )
+
+    c.close(velocita_effettiva(DEFAULT_SPEED, 1.0, 1.0), 1.50, "senza fretta si chiede il ritmo di base")
+    c.eq(velocita_effettiva(DEFAULT_SPEED, 1.45, 1.0), VELOCITA_MAX,
+         "con la fretta massima si chiede il massimo accettato, non 2,08")
+    c.eq(velocita_effettiva(DEFAULT_SPEED, 0.1, 0.5), VELOCITA_MIN, "e sotto non si scende")
+    for r in (0.5, 0.8, 1.0, 1.2, 1.45):
+        for car in (0.96, 1.0, 1.05):
+            v = velocita_effettiva(DEFAULT_SPEED, r, car)
+            c.ok(VELOCITA_MIN <= v <= VELOCITA_MAX, f"rate {r} carattere {car}: {v:.2f} e' accettabile")
+
     lungo = tts.synthesize("a" * 100, voce)
     corto = tts.synthesize("a" * 20, voce)
     c.ok(lungo.duration > corto.duration, "un testo piu' lungo dura di piu'")

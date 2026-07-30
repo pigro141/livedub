@@ -58,6 +58,27 @@ VOICES = {
 # Ritmo pareggiato a Piper: si veda il docstring del modulo.
 DEFAULT_SPEED = 1.50
 
+# **Quanto il modello accetta, e cosa succede se glielo si chiede lo stesso.**
+# Fuori da questi due numeri SuperTonic non rallenta e non tronca: solleva
+# `ValueError` e la sessione muore. Ed e' facile uscirne senza accorgersene,
+# perche' la velocita' finale e' un prodotto di tre cose decise in tre posti
+# diversi — il ritmo di base (1,50, pareggiato a Piper), la fretta chiesta dalla
+# catena (fino a `tts.native_rate_max`, 1,45) e il carattere della voce. Con i
+# default del progetto fa 2,08, e sfora al primo sottotitolo lungo: succedeva
+# alla battuta 10 di 44.
+VELOCITA_MIN, VELOCITA_MAX = 0.7, 2.0
+
+
+def velocita_effettiva(base: float, rate: float, carattere: float) -> float:
+    """La velocita' da chiedere al modello, dentro cio' che accetta.
+
+    Il residuo non si perde: chi chiama misura la durata che esce e la porta a
+    quella voluta con WSOLA. Tagliare qui costa quindi un po' di compressione in
+    piu' — che si sente poco — invece di una sessione interrotta, che si sente
+    tutta.
+    """
+    return min(VELOCITA_MAX, max(VELOCITA_MIN, base * rate * carattere))
+
 
 class SupertonicTts:
     """Sintesi SuperTonic 3, con gli stili caricati su richiesta."""
@@ -122,10 +143,7 @@ class SupertonicTts:
             return Speech(np.zeros(0, np.float32), self.samplerate, voice.voice_id, text=text)
 
         style = self._style(voice.base_voice)
-        # `rate` e' la correzione del tempo chiesta dalla catena, `voice.rate` il
-        # carattere della voce, `self.speed` il ritmo di base pareggiato a Piper.
-        # Si moltiplicano: sono tre cose diverse che parlano tutte di velocita'.
-        effective = max(0.1, self.speed * rate * voice.rate)
+        effective = velocita_effettiva(self.speed, rate, voice.rate)
 
         t0 = time.perf_counter()
         wav, _ = self._engine().synthesize(

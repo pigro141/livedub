@@ -150,17 +150,46 @@ class VoicePool:
     def assignments(self) -> list[VoiceAssignment]:
         return sorted(self._by_speaker.values(), key=lambda a: a.first_seen)
 
-    def voice_for(self, speaker_id: str, t: float = 0.0) -> VoiceSpec:
-        """Voce del personaggio, assegnandogliene una se e' la prima volta."""
+    def voice_for(self, speaker_id: str, t: float = 0.0, gender: str = "?") -> VoiceSpec:
+        """Voce del personaggio, assegnandogliene una se e' la prima volta.
+
+        **`gender` non e' una raffinatezza, e l'ascolto lo ha dimostrato.**
+        L'ordine del pool alterna maschile e femminile di proposito: due
+        personaggi consecutivi si distinguono molto di piu' se cambia il sesso
+        della voce. Ma quell'alternanza presuppone di non sapere niente su chi
+        parla, e appena si sa qualcosa diventa il difetto peggiore della lista.
+
+        Misurato all'ascolto su una scena con tre uomini: il secondo personaggio
+        confermato prendeva `paola`, e quando il tracker spezzava un personaggio
+        in due identita' lo stesso uomo alternava una voce femminile e una
+        maschile a seconda di come parlava. Un uomo con la voce di un altro uomo
+        e' una scelta discutibile; un uomo che diventa donna a frase alterne e'
+        un errore che chiude l'ascolto.
+
+        Quindi: prima una voce libera dello stesso sesso, poi una libera
+        qualunque, poi si ricicla. Con `?` — intonazione dentro la fascia in cui
+        un uomo chiaro e una donna scura non si distinguono — si torna
+        all'ordine del pool, che e' la scelta giusta quando davvero non si sa.
+        """
         existing = self._by_speaker.get(speaker_id)
         if existing is not None:
             existing.lines += 1
             return existing.voice
 
-        if self._next >= len(self.voices):
+        prese = {a.voice.voice_id for a in self._by_speaker.values()}
+        libere = [v for v in self.voices if v.voice_id not in prese]
+        scelta = None
+        if gender in ("m", "f"):
+            scelta = next((v for v in libere if v.gender == gender), None)
+        if scelta is None:
+            scelta = libere[0] if libere else None
+        if scelta is not None:
+            voice = scelta
+            self._next = max(self._next, self.voices.index(scelta) + 1)
+        else:
             self.collisions += 1
-        voice = self.voices[self._next % len(self.voices)]
-        self._next += 1
+            voice = self.voices[self._next % len(self.voices)]
+            self._next += 1
         self._by_speaker[speaker_id] = VoiceAssignment(
             speaker_id=speaker_id, voice=voice, first_seen=t, lines=1
         )

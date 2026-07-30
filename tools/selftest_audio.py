@@ -287,6 +287,55 @@ def test_pool(c) -> None:
     c.ok("nessun personaggio" in VoicePool().report(), "report di un pool vuoto")
 
 
+def test_pool_genere(c) -> None:
+    """Il pool rispetta il sesso della voce quando lo si sa.
+
+    Questa prova nasce da un ascolto, non da un ragionamento: in una scena con
+    tre uomini uno parlava con la voce di `paola`, e quando il tracker lo
+    spezzava in due identita' alternava femminile e maschile a seconda di come
+    parlava. La causa non era un difetto: era l'alternanza voluta del pool, che
+    e' giusta finche' non si sa niente su chi parla e diventa il peggiore dei
+    difetti appena si sa.
+    """
+    c.group("pool_genere")
+
+    voci = build_pool(("it_IT-paola-medium", "it_IT-riccardo-x_low"), size=6)
+    maschili = [v.voice_id for v in voci if v.gender == "m"]
+    femminili = [v.voice_id for v in voci if v.gender == "f"]
+    c.ok(len(maschili) >= 3 and len(femminili) >= 3, "il pool ha voci di entrambi i sessi")
+
+    # Tre uomini di fila: tre voci maschili **diverse**. Senza il vincolo il
+    # secondo prenderebbe una voce femminile, ed e' esattamente cio' che si e'
+    # sentito.
+    p = VoicePool(voci)
+    dati = [p.voice_for(f"S{k}", gender="m") for k in range(3)]
+    c.ok(all(v.gender == "m" for v in dati), "tre uomini ricevono tre voci maschili")
+    c.eq(len({v.voice_id for v in dati}), 3, "e sono tre voci distinte, non la stessa")
+
+    # La voce, una volta data, non si tocca piu': e' la promessa del pool, e un
+    # personaggio che cambia voce a meta' scena e' peggio di uno con la voce
+    # sbagliata.
+    c.eq(p.voice_for("S0", gender="f").voice_id, dati[0].voice_id,
+         "chiedere l'altro sesso non riassegna una voce gia' data")
+
+    # Una donna dopo tre uomini prende una voce femminile, non l'avanzo.
+    donna = p.voice_for("S3", gender="f")
+    c.eq(donna.gender, "f", "una donna riceve una voce femminile")
+
+    # Senza informazione si torna all'ordine del pool, che alterna: quando non si
+    # sa, alternare e' la scelta giusta perche' massimizza il contrasto.
+    q = VoicePool(voci)
+    ignoti = [q.voice_for(f"X{k}").gender for k in range(2)]
+    c.ok(ignoti[0] != ignoti[1], "senza sapere il sesso, il pool alterna")
+
+    # Esaurite le voci di un sesso si ripiega sull'altro invece di lasciare muto
+    # un personaggio.
+    r = VoicePool(voci)
+    tutte = [r.voice_for(f"M{k}", gender="m") for k in range(len(voci) + 2)]
+    c.eq(len(tutte), len(voci) + 2, "nessun personaggio resta senza voce")
+    c.ok(r.collisions > 0, "e il riciclo si segnala invece di passare inosservato")
+
+
 def test_tts_fake(c) -> None:
     c.group("tts")
 

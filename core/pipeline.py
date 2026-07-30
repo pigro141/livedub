@@ -235,7 +235,12 @@ class DubPipeline:
     def _speak(self, event: SubtitleEvent) -> SpokenLine:
         """Da battuta letta a audio programmato."""
         speaker_id = self._speaker_for(event)
-        voice = self.pool.voice_for(speaker_id, event.t_on)
+        # Il sesso della voce arriva dall'intonazione misurata sulle battute
+        # intere di questo personaggio. Senza, il pool alterna maschile e
+        # femminile — giusto quando non si sa niente, sbagliato appena si sa — e
+        # in una scena di tre uomini uno di loro parla con la voce di una donna.
+        p = self.tracker.get(speaker_id) if self.tracker is not None else None
+        voice = self.pool.voice_for(speaker_id, event.t_on, gender=p.gender if p else "?")
 
         # **Chiedere al sintetizzatore di parlare svelto, invece di schiacciarlo
         # dopo.** Sono due cose diverse e all'ascolto non si somigliano affatto:

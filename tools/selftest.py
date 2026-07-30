@@ -1628,6 +1628,7 @@ from tools.selftest_audio import (  # noqa: E402
     test_center,
     test_embed,
     test_speaker,
+    test_pool_genere,
     test_mixer,
     test_pool,
     test_stretch,
@@ -1835,6 +1836,7 @@ GROUPS = {
     "speaker": test_speaker,
     "center": test_center,
     "pool": test_pool,
+    "pool_genere": test_pool_genere,
     "tts": test_tts_fake,
     "mixer": test_mixer,
 }

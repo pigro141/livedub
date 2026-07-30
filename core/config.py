@@ -272,6 +272,30 @@ class SpeakerConfig:
     # subito — cioe' la prima riga, 76,5% — e la differenza fra 76 e 89 e' il
     # prezzo esatto di non aspettare.
     lead_ms: int = 200
+    # **Quanto aspettare, dopo la comparsa del sottotitolo, prima di scegliere
+    # la voce.** E' il numero piu' caro del progetto e va scelto con la tabella
+    # in mano, non per gusto. Misurato sulle battute di una scena confrontate
+    # con il giudizio dell'orecchio:
+    #
+    #     attesa    accordo   peggior personaggio
+    #       0 ms     65,9%           0%
+    #     150 ms     80,5%          68%
+    #     350 ms     84,1%          73%
+    #     500 ms     91,5%          86%
+    #
+    # La colonna che conta e' l'ultima. Con attesa zero **un personaggio su tre
+    # e' sbagliato sempre**: il ritaglio disponibile e' l'audio *precedente* al
+    # sottotitolo, cioe' quasi sempre chi parlava prima, e in un dialogo con
+    # alternanza quello e' sistematicamente l'altro. Non e' rumore, e' un errore
+    # con il segno sbagliato, e all'ascolto suona come voci messe a caso.
+    #
+    # Il prezzo e' latenza, tutta intera: la voce italiana attacca mezzo secondo
+    # dopo il sottotitolo invece di 263 ms. Sfora il budget di 350 ms che il
+    # piano si era dato — ma quel budget nasceva dall'idea che il ritardo fosse
+    # la cosa piu' fastidiosa, e l'ascolto dice un'altra cosa: un ritardo
+    # costante si dimentica dopo un minuto, una voce che salta da un personaggio
+    # all'altro no. Si abbassa con `--set speaker.decide_after_ms=150`.
+    decide_after_ms: int = 500
     min_clip_ms: int = 400  # sotto questa durata la decisione e' provvisoria
     max_wait_ms: int = 200  # quanto si puo' rinviare l'attacco per decidere meglio
     max_speakers: int = 16

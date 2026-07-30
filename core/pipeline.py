@@ -149,6 +149,7 @@ class DubPipeline:
         # ritagli cosi' non e' sporco: e' di due persone.
         self._vad = make_vad(cfg.vad, samplerate) if self.tracker is not None else None
         self._onsets: list[float] = []
+        self._da_dire: list[SubtitleEvent] = []  # battute in attesa di sapere chi parla
 
         self.spoken: list[SpokenLine] = []
         self.closed: list[SubtitleEvent] = []
@@ -242,7 +243,20 @@ class DubPipeline:
             if ev.duration is not None:
                 self.timing.observe(ev.text, ev.duration)
             self._learn(ev)
-        return [self._speak(ev) for ev in out.opened if ev.text.strip()]
+        # **Non si parla subito: si aspetta che il personaggio parli.** Alla
+        # comparsa del sottotitolo la sua voce non ha ancora emesso un suono, e
+        # decidere li' vuol dire decidere sull'audio del personaggio precedente.
+        # Misurato: con attesa zero uno dei tre personaggi della scena riceveva
+        # la voce giusta **zero volte su ventidue**. Si veda
+        # `SpeakerConfig.decide_after_ms`, dove sta la tabella.
+        self._da_dire.extend(ev for ev in out.opened if ev.text.strip())
+        if self.tracker is None:
+            pronte, self._da_dire = self._da_dire, []
+        else:
+            scadenza = self.clock.now() - self.cfg.speaker.decide_after_ms / 1000.0
+            pronte = [e for e in self._da_dire if e.t_on <= scadenza]
+            self._da_dire = [e for e in self._da_dire if e.t_on > scadenza]
+        return [self._speak(ev) for ev in pronte]
 
     def _speak(self, event: SubtitleEvent) -> SpokenLine:
         """Da battuta letta a audio programmato."""
@@ -622,6 +636,12 @@ class DubPipeline:
     def finish(self) -> None:
         """Chiude le battute ancora a schermo: senza, l'ultima resta senza durata."""
         self.closed.extend(self.reader.close().closed)
+        # Le battute ancora in attesa vanno dette comunque: la promessa e' che
+        # non si scarta niente, e una battuta trattenuta per scegliere meglio la
+        # voce sarebbe il modo piu' assurdo di perderla.
+        for ev in self._da_dire:
+            self._speak(ev)
+        self._da_dire.clear()
 
     def report(self) -> str:
         righe = [

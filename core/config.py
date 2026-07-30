@@ -346,7 +346,34 @@ class TtsConfig:
     #
     # Nel frattempo si sposta il lavoro su chi non ha quel difetto: il
     # sintetizzatore accelera articolando, e a WSOLA resta il minimo.
-    native_rate_max: float = 1.45
+    # **Abbassato a 1,20 su richiesta d'ascolto: a 1,45 la lettura correva.**
+    # Il numero non era sbagliato per come era stato scelto — 1,45 e' il punto
+    # oltre il quale Piper perde carattere, e spostare il lavoro su di lui
+    # serviva a togliere compressione a WSOLA, che perde le code. Ma "quanto in
+    # fretta si puo' andare senza rovinare la voce" e "quanto in fretta e'
+    # piacevole ascoltare" sono due domande diverse, e solo la prima si misura.
+    #
+    # Il prezzo si paga in **sforamenti**: una battuta lunga sotto un sottotitolo
+    # corto finira' piu' spesso oltre la sua finestra. E' la direzione giusta in
+    # cui sbagliare — `never_drop` esiste per questo — perche' una battuta che
+    # invade di poco la successiva si capisce, mentre una battuta corsa non si
+    # capisce e non si riascolta.
+    #
+    # **1,05 e non 1,20, e il perche' e' una misura di Piper.** `length_scale`
+    # non e' proporzionale, e nella direzione opposta a quella che immaginavo:
+    # sulla stessa frase, chiedendo 1,45 si ottiene 1,21, chiedendo 1,20 si
+    # ottiene 1,02. Il tetto vale su cio' che si **ottiene**, quindi abbassarlo a
+    # 1,20 lasciava la lettura quasi dov'era — l'anello di correzione chiedeva
+    # semplicemente di piu'.
+    #
+    # **E 1,20 e' il fondo utile, non un compromesso.** Provato 1,05: la durata
+    # della prima battuta passa da 3,57 s a 3,62 s — cinque centesimi — ma la
+    # compressione di WSOLA sale al suo massimo su **tutte** le battute (p50 da
+    # 1,000 a 1,250) e gli sforamenti da 14 a 38 su 46. Sotto 1,20 la voce non
+    # rallenta: il lavoro passa a WSOLA, che comprime schiacciando invece di
+    # articolare ed e' quello che mangia le fini delle parole. Si guadagnano
+    # cinque centesimi di calma e si perde l'ultima sillaba di ogni frase.
+    native_rate_max: float = 1.20
     # Caratteri al secondo alla velocita' nominale, per stimare quanto durera'
     # la battuta **prima** di sintetizzarla. Misurato su Piper: 17,4 car/s.
     # Serve solo a scegliere la velocita' da chiedere: sbagliarlo costa un

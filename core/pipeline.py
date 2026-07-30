@@ -33,6 +33,7 @@ from core.types import Emotion, LineClass, SubtitleEvent, Utterance
 from core.ring import Overrun, RingBuffer
 from fuse.timing import DurationModel, spoken_length
 from listen.speaker import SpeakerTracker, stima_f0
+from listen.vad import make_vad
 from mix.center import split
 from mix.mixer import Mixer
 from mix.stretch import fit_duration, fit_duration_keep_tail  # noqa: F401
@@ -137,6 +138,17 @@ class DubPipeline:
             samplerate=samplerate,
         )
         self._ring_t0: float | None = None  # tempo del primo campione scritto
+        # **L'attacco della voce, non la comparsa del testo.** Nell'esperimento
+        # che ha prodotto i gruppi confermati all'ascolto il ritaglio partiva
+        # dall'onset del VAD piu' vicino al sottotitolo; nella pipeline partiva
+        # da `t_on`. E' l'unica differenza fra i due, e i due danno risultati
+        # diversi: il testo compare quando il gioco decide di mostrarlo, la voce
+        # comincia quando il personaggio apre la bocca, e mezzo secondo di
+        # scarto su un ritaglio da un secondo e mezzo vuol dire un terzo di
+        # ritaglio preso dal personaggio precedente. Un centroide costruito su
+        # ritagli cosi' non e' sporco: e' di due persone.
+        self._vad = make_vad(cfg.vad, samplerate) if self.tracker is not None else None
+        self._onsets: list[float] = []
 
         self.spoken: list[SpokenLine] = []
         self.closed: list[SubtitleEvent] = []
@@ -307,8 +319,17 @@ class DubPipeline:
             ottenuto = stima / max(1e-6, len(audio) / self.samplerate)
             if ottenuto > 0.5:
                 divario = richiesta / max(ottenuto, 1e-6)
+                # **Il limite basso era 1,0, e rendeva il tetto un desiderio.**
+                # L'anello poteva solo chiedere *piu'* del bersaglio, mai meno:
+                # nato per correggere Piper che consegna meno di quanto promette,
+                # non prevedeva il caso opposto. Misurato abbassando il tetto a
+                # 1,20: l'accelerazione ottenuta restava a 1,47, cioe' un quarto
+                # oltre il tetto, con il guadagno inchiodato al suo minimo. Non
+                # dava errore — dava una voce che corre mentre la configurazione
+                # dice che non deve. Un correttore che sa girare in un verso solo
+                # non e' un correttore, e' un acceleratore.
                 self._native_gain = float(
-                    np.clip(self._native_gain * (1.0 + 0.3 * (divario - 1.0)), 1.0, 2.5)
+                    np.clip(self._native_gain * (1.0 + 0.3 * (divario - 1.0)), 0.55, 2.5)
                 )
             self._t_nativo.add(ottenuto * 1000.0)
 
@@ -491,7 +512,8 @@ class DubPipeline:
         """
         if self.tracker is None or event.t_off is None:
             return
-        clip = self._clip(event.t_on, min(event.t_off, event.t_on + 2.0))
+        inizio = self._onset_vicino(event.t_on)
+        clip = self._clip(inizio, min(event.t_off, inizio + 2.0))
         emb = self._embed(clip)
         if emb is None:
             return
@@ -499,6 +521,21 @@ class DubPipeline:
         d = self.tracker.impara(emb, t=event.t_on, f0=f0)
         if d.is_new:
             self._n_speakers.inc()
+
+    def _onset_vicino(self, t_on: float, pre: float = 0.5, post: float = 0.8) -> float:
+        """L'attacco di parlato piu' vicino alla comparsa del sottotitolo.
+
+        Fuori dalla finestra si torna a `t_on`: un onset a due secondi di
+        distanza non e' l'attacco di questa battuta, e agganciarcisi sposterebbe
+        il ritaglio **a caso** — un difetto peggiore di quello che cura, e
+        indistinguibile all'ascolto da un riconoscimento che sbaglia.
+        """
+        migliore, distanza = t_on, 1e9
+        for t in self._onsets:
+            d = abs(t - t_on)
+            if -pre <= t - t_on <= post and d < distanza:
+                migliore, distanza = t, d
+        return migliore
 
     def _clip(self, t_on: float, fino_a: float) -> np.ndarray | None:
         """L'audio del centro fra due istanti, o `None` se non c'e' abbastanza.
@@ -564,7 +601,20 @@ class DubPipeline:
                 # l'unica cosa che si chiede all'anello e' "dov'era quella
                 # battuta".
                 self._ring_t0 = self.clock.now()
-            self._voices.write(mono.astype(np.float32))
+            mono = mono.astype(np.float32)
+            self._voices.write(mono)
+            if self._vad is not None:
+                for seg in self._vad.push(mono, t=self.clock.now()):
+                    self._onsets.append(seg.t0)
+                aperto = self._vad.current
+                if aperto is not None and (not self._onsets or self._onsets[-1] != aperto.t0):
+                    # Anche la presa di parola **in corso** conta: la battuta si
+                    # decide mentre il personaggio sta ancora parlando, e
+                    # aspettare che il VAD la chiuda vorrebbe dire non avere
+                    # mai l'onset che serve.
+                    self._onsets.append(aperto.t0)
+                if len(self._onsets) > 512:
+                    del self._onsets[:256]
         return self.mixer.process(game, n)
 
     # -- chiusura ----------------------------------------------------------

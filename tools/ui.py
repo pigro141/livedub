@@ -300,7 +300,7 @@ class App:
             self.coda.put(("nota", self.pipeline.pool.report()))
         if self.sessione is not None:
             try:
-                self.coda.put(("nota", f"sessione salvata in {self.sessione.save()}"))
+                self.coda.put(("nota", f"sessione salvata in {self.sessione.close(self.cfg)}"))
             except Exception as exc:
                 self.coda.put(("nota", f"! salvataggio fallito: {exc}"))
         self.pipeline = None

@@ -60,6 +60,46 @@ from core.config import SpeakerConfig
 # ritaglio di silenzio o di motore da' somiglianze intorno a zero con tutti.
 PLAUSIBILE_SOPRA = 0.15
 
+# **Le soglie del genere, e la misura che le ha spostate.** Erano 165 e 185, e
+# venivano dalla fisiologia della voce parlata. Sul mix del gioco non
+# funzionavano: dei tre uomini della scena del concessionario — risposta nota,
+# confermata all'ascolto — uno riceveva `paola` e un altro finiva nella fascia
+# morta.
+#
+# La causa non e' la soglia ed e' stata guardata: nei ritagli c'e' una
+# periodicita' forte intorno ai 230 Hz che non e' la voce, e le finestre piu'
+# *sicure* sono proprio quelle sbagliate (limitandosi a quelle con
+# autocorrelazione sopra 0,6 la stima peggiora, da 221 a 230 Hz). Nessuna media
+# di quel numero puo' tornare giusta, perche' il numero non descrive la voce.
+#
+# Il rimedio sta nella forma della contaminazione: **e' a senso unico**. Il
+# fondo aggiunge periodicita' alte, non ne aggiunge di basse. Quindi non la
+# mediana delle finestre ma il loro quindicesimo percentile — si veda
+# `stima_f0` — e le soglie ricalibrate su quella statistica:
+#
+#     misura (p15 per ritaglio, mediana sui ritagli)   attuale   prima
+#     S0   Simeon, uomo                                   124     153
+#     S9   uomo                                           118     134
+#     S10  uomo                                           140     181
+#     S11  Lamar, uomo, 15 battute                        174     218   <- prendeva `paola`
+#     riccardo, voce Piper pulita                         142     160
+#     paola, voce Piper pulita                            185     210
+#
+# 175 e 195 tengono i quattro uomini a maschile e `paola` a femminile. Il
+# margine sul lato femminile e' di dieci hertz su un solo riferimento pulito:
+# **questa taratura sa dire "uomo" molto meglio di quanto sappia dire "donna"**,
+# e su una registrazione con una voce femminile va rifatta.
+F0_MASCHILE_SOTTO = 175.0
+F0_FEMMINILE_SOPRA = 195.0
+# **Quante misure servono prima di dichiarare un sesso.** Con due, Lamar veniva
+# dichiarato femmina sui suoi primi due ritagli — 242 e 193 Hz — e riceveva
+# `paola` alla prima battuta detta, tenendosela per tutta la scena: la stima si
+# raddrizza (a fine sessione la sua mediana e' 166 Hz, maschile), ma la voce era
+# gia' data e non si tocca piu'. Con quattro non capita: la sua mediana resta
+# dentro la fascia morta fino in fondo, quindi "non si sa" — che e' la risposta
+# giusta — mentre gli altri due uomini sono maschili gia' alla quarta misura.
+MISURE_MINIME = 4
+
 
 @dataclass
 class Personaggio:
@@ -70,7 +110,12 @@ class Personaggio:
     battute: int = 0
     prima_volta: float = 0.0
     ultima_volta: float = 0.0
-    f0: float = 0.0  # intonazione mediana, per il genere
+    # **Le misure, non la loro media.** Prima c'era una media mobile 0,8/0,2, che
+    # ha due difetti in uno: un ritaglio in cui l'intonazione e' stata presa dal
+    # fondo la sposta e non torna piu' indietro, e quanto valga la stima non si
+    # puo' piu' sapere — un valore solo non ha dispersione. Tenendo i valori si
+    # risponde a tutte e due le domande con la stessa lista.
+    f0_valori: list[float] = field(default_factory=list)
     # Se questo personaggio si e' rivelato un frammento di un altro, l'identita'
     # che lo ha assorbito. Non si cancella dalla banca: le battute gia' dette
     # portano il suo id, e senza di lui non si saprebbe piu' di chi erano.
@@ -99,19 +144,32 @@ class Personaggio:
         return self.battute >= 2
 
     @property
-    def gender(self) -> str:
-        """Maschile, femminile, o non si sa.
+    def f0(self) -> float:
+        """Intonazione del personaggio: la mediana delle misure. Zero se non ce ne sono."""
+        return float(np.median(self.f0_valori)) if self.f0_valori else 0.0
 
-        La fascia morta fra 165 e 185 Hz e' voluta: li' dentro un uomo con la
-        voce chiara e una donna con la voce scura non si distinguono, e
-        rispondere "non so" fa scegliere al pool la prossima voce libera invece
-        di quella sbagliata con convinzione.
+    @property
+    def gender(self) -> str:
+        """Maschile, femminile, o non si sa — e "non si sa" e' una risposta.
+
+        La fascia morta fra le due soglie e' voluta: li' dentro un uomo con la
+        voce chiara e una donna con la voce scura non si distinguono. Dirlo
+        lascia decidere a chi assegna la voce, che puo' aspettare; rispondere a
+        caso no.
         """
-        if self.f0 <= 0:
+        if len(self.f0_valori) < MISURE_MINIME or self.f0 <= 0:
             return "?"
-        if self.f0 < 165.0:
+        if self.f0 < F0_MASCHILE_SOTTO:
             return "m"
-        return "f" if self.f0 > 185.0 else "?"
+        return "f" if self.f0 > F0_FEMMINILE_SOPRA else "?"
+
+    @property
+    def f0_dispersione(self) -> float:
+        """Quanto le misure sono d'accordo fra loro (MAD, in Hz)."""
+        if len(self.f0_valori) < 2:
+            return 0.0
+        v = np.asarray(self.f0_valori, dtype=np.float64)
+        return float(np.median(np.abs(v - np.median(v))))
 
 
 @dataclass
@@ -242,11 +300,7 @@ class SpeakerTracker:
                 # conferma doveva impedire. Il difetto non dava errore — dava
                 # tredici voci in cento secondi.
                 if f0 > 0:
-                    # Mediana incrementale povera ma stabile: la media si fa
-                    # portare via da un ritaglio in cui l'ottava e' stata
-                    # sbagliata, e sbagliare ottava e' l'errore tipico di ogni
-                    # stimatore di intonazione.
-                    p.f0 = f0 if p.f0 <= 0 else 0.8 * p.f0 + 0.2 * f0
+                    p.f0_valori.append(f0)
                 # Il centroide di `p` e' appena cambiato: e' l'unico istante in
                 # cui puo' essersi avvicinato abbastanza a un altro da rivelarsi
                 # lo stesso personaggio.
@@ -274,7 +328,7 @@ class SpeakerTracker:
                 battute=1,
                 prima_volta=t,
                 ultima_volta=t,
-                f0=f0,
+                f0_valori=[f0] if f0 > 0 else [],
             )
         )
         return Decisione(sid, 0.0, is_new=True)
@@ -326,8 +380,7 @@ class SpeakerTracker:
         vincitore.battute += perdente.battute
         vincitore.prima_volta = min(vincitore.prima_volta, perdente.prima_volta)
         vincitore.ultima_volta = max(vincitore.ultima_volta, perdente.ultima_volta)
-        if vincitore.f0 <= 0:
-            vincitore.f0 = perdente.f0
+        vincitore.f0_valori.extend(perdente.f0_valori)
         perdente.merged_into = vincitore.speaker_id
         self._alias[perdente.speaker_id] = vincitore.speaker_id
         self.fusioni.append((perdente.speaker_id, vincitore.speaker_id, somiglianza))
@@ -363,14 +416,32 @@ class SpeakerTracker:
 # -- l'intonazione, che serve solo a scegliere maschile o femminile ---------
 
 
-def stima_f0(x: np.ndarray, samplerate: int, lo: float = 60.0, hi: float = 300.0) -> float:
-    """Intonazione mediana delle finestre sonore, in Hz. Zero se non si sa.
+def stima_f0(
+    x: np.ndarray, samplerate: int, lo: float = 60.0, hi: float = 300.0, quantile: float = 15.0
+) -> float:
+    """Intonazione delle finestre sonore, in Hz. Zero se non si sa.
 
     Autocorrelazione su finestre di 40 ms. Non e' un estrattore raffinato e non
     deve esserlo: l'unica domanda a cui risponde e' "voce maschile o femminile",
-    cioe' quale meta' del pool guardare. La mediana invece della media perche'
-    sbagliare ottava e' l'errore tipico qui, e un solo raddoppio trascina una
-    media abbastanza da cambiare risposta.
+    cioe' quale meta' del pool guardare.
+
+    **Non la mediana delle finestre ma il loro quindicesimo percentile, e il
+    motivo e' una misura.** Nei ritagli del gioco le finestre sonore di un uomo
+    si distribuiscono su tutta la banda: sui quindici ritagli di Lamar, 64
+    finestre fra 90 e 130 Hz — la sua voce — e 673 sopra i 190, che sono il
+    fondo della scena. La mediana cade in mezzo al fondo e risponde 221 Hz per
+    un uomo; e non e' un problema di finestre incerte, perche' tenendo solo
+    quelle con autocorrelazione sopra 0,6 la risposta peggiora a 230.
+
+    Quello che si puo' sfruttare e' la **forma** della contaminazione: il fondo
+    aggiunge periodicita' alte e non ne aggiunge di basse. Un percentile basso
+    guarda quindi la parte della distribuzione che il fondo non puo' aver
+    creato. Sui quattro personaggi maschili di riferimento la risposta passa da
+    153/134/181/218 Hz a 124/118/140/174, e su `paola` pulita resta 185.
+
+    Il prezzo, dichiarato: la stima **scende anche sulle voci femminili**, e il
+    margine sul lato femminile e' di dieci hertz. Questa misura sa dire "uomo"
+    molto meglio di quanto sappia dire "donna".
     """
     x = np.asarray(x, dtype=np.float32).reshape(-1)
     n = int(0.04 * samplerate)
@@ -390,4 +461,4 @@ def stima_f0(x: np.ndarray, samplerate: int, lo: float = 60.0, hi: float = 300.0
         k = int(np.argmax(r[a:b])) + a
         if r[k] > 0.35:
             valori.append(samplerate / k)
-    return float(np.median(valori)) if len(valori) >= 3 else 0.0
+    return float(np.percentile(valori, quantile)) if len(valori) >= 3 else 0.0

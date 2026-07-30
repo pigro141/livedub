@@ -61,7 +61,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.config import Config, load_profile  # noqa: E402
 from listen.speaker import SpeakerTracker  # noqa: E402
-from speak.pool import VoicePool, build_pool  # noqa: E402
+from speak.pool import VoicePool, build_pool, voce_neutra, voce_per  # noqa: E402
 
 
 def load(path: str | Path) -> list[dict]:
@@ -101,25 +101,30 @@ class Esito:
     def fusioni(self) -> int:
         return len(self.tracker.fusioni)
 
-    def cambi_voce(self) -> tuple[int, int]:
-        """(assorbite, tradite): il costo della fusione, e cio' che non deve accadere.
+    def cambi_voce(self) -> tuple[int, int, int]:
+        """(assorbite, in_attesa, tradite): due prezzi dichiarati, e il difetto.
 
-        *assorbite* sono le battute di un'identita' poi confluita in un'altra: la
-        loro voce non e' piu' quella del personaggio, ed e' il prezzo dichiarato
-        della fusione. *tradite* sono le battute di un'identita' **sopravvissuta**
-        che parla con una voce diversa da quella che ha adesso: quello non e' un
-        prezzo, e' il difetto, e deve restare zero.
+        *assorbite* sono le battute di un'identita' poi confluita in un'altra;
+        *in attesa* quelle dette con la voce neutra prima di sapere il sesso.
+        Tutte e due sono prezzi scelti, e si contano per sapere quanto costano.
+
+        *tradite* e' un'altra cosa: un'identita' **sopravvissuta**, che non stava
+        aspettando niente, e che parla con una voce diversa da quella che ha
+        adesso. Quello non e' un prezzo, e' il difetto peggiore della lista, e
+        deve restare zero.
         """
-        assorbite = tradite = 0
+        assorbite = attesa = tradite = 0
         for b in self.dette:
             finale = self.pool.assegnata(b.sid)
             if finale is None or finale.voice_id == b.voice_id:
                 continue
-            if self.tracker.risolvi(b.sid) != b.sid:
+            if b.voice_id == "neutra":
+                attesa += 1
+            elif self.tracker.risolvi(b.sid) != b.sid:
                 assorbite += 1
             else:
                 tradite += 1
-        return assorbite, tradite
+        return assorbite, attesa, tradite
 
 
 def rigioca(records: list[dict], cfg: Config, *, mescola: int | None = None) -> Esito:
@@ -140,6 +145,7 @@ def rigioca(records: list[dict], cfg: Config, *, mescola: int | None = None) -> 
 
     tracker = SpeakerTracker(cfg.speaker)
     pool = VoicePool(build_pool(cfg.tts.voices, cfg.tts.pool_size, backend=cfg.tts.backend))
+    neutra = voce_neutra(pool.voices, backend=cfg.tts.backend)
     dette: list[Detta] = []
     imparate: list[tuple[dict, str]] = []
 
@@ -150,7 +156,11 @@ def rigioca(records: list[dict], cfg: Config, *, mescola: int | None = None) -> 
         if r["kind"] == "scegli":
             sid = tracker.scegli(emb, t=t).speaker_id
             p = tracker.get(sid)
-            voce = pool.voice_for(sid, t, gender=p.gender if p else "?")
+            voce = voce_per(
+                pool, sid, p, t, neutra=neutra,
+                defer_max=cfg.speaker.gender_defer_max_lines,
+                ripiego=cfg.speaker.gender_fallback,
+            )
             dette.append(Detta(t_on=t, text=r.get("text", ""), sid=sid, voice_id=voce.voice_id))
         else:
             d = tracker.impara(emb, t=t, f0=float(r.get("f0", 0.0)))
@@ -275,11 +285,11 @@ def scrivi_wav(
 
 
 def riga(esito: Esito) -> str:
-    assorbite, tradite = esito.cambi_voce()
+    assorbite, attesa, tradite = esito.cambi_voce()
     return (
         f"identita' {esito.identita:>3}   con una battuta sola {esito.solitarie:>3}   "
         f"fusioni {esito.fusioni:>3}   voci {len(esito.pool):>2}   "
-        f"battute assorbite {assorbite:>3}   tradite {tradite:>3}"
+        f"assorbite {assorbite:>3}   in attesa {attesa:>3}   tradite {tradite:>3}"
     )
 
 

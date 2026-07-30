@@ -118,6 +118,100 @@ def build_pool(
     return pool
 
 
+def voce_neutra(pool: list[VoiceSpec], backend: str = "piper") -> VoiceSpec:
+    """La voce con cui si parla mentre non si sa ancora chi sia.
+
+    **Sta fuori dal pool assegnabile, ed e' il punto.** Se fosse una voce del
+    pool, prima o poi diventerebbe la voce definitiva di qualcuno, e chi ascolta
+    sentirebbe la voce «di attesa» trasformarsi in un personaggio: due cose
+    diverse dette con lo stesso timbro. Fuori dal pool e' invece un segnale
+    coerente — *questo non si sa ancora chi sia* — e nessuno se la tiene.
+
+    Si prende la prima variante della famiglia che il pool ha lasciato libera:
+    e' gia' ordinata per contrasto, quindi la prima scartata e' anche la piu'
+    diversa da quelle in uso. Se la famiglia e' esaurita si ripiega sulla prima
+    voce del pool abbassata di un semitono — un compromesso, e va detto: li' la
+    voce di attesa somiglia a quella di un personaggio.
+
+    Una battuta o due, poi si assegna comunque: si veda
+    `SpeakerConfig.gender_defer_max_lines`.
+    """
+    prese = {v.voice_id for v in pool}
+    basi = set(FAMIGLIE.get(backend, FAMIGLIE["piper"]))
+    for base, semitones, rate in VARIANTS:
+        if base not in basi:
+            continue
+        suffix = "" if semitones == 0 else f"{semitones:+g}".replace(".", "_")
+        vid = f"{base.split('-')[1]}{suffix}"
+        if vid in prese:
+            continue
+        return VoiceSpec(
+            voice_id="neutra",
+            backend=backend,
+            base_voice=base,
+            semitones=semitones,
+            rate=rate,
+            gender="?",
+        )
+    prima = pool[0]
+    return VoiceSpec(
+        voice_id="neutra",
+        backend=backend,
+        base_voice=prima.base_voice,
+        semitones=prima.semitones - 1.0,
+        rate=prima.rate,
+        gender="?",
+    )
+
+
+def voce_per(
+    pool: "VoicePool",
+    speaker_id: str,
+    personaggio,
+    t: float = 0.0,
+    *,
+    neutra: VoiceSpec,
+    defer_max: int = 3,
+    ripiego: str = "m",
+) -> VoiceSpec:
+    """La voce di questa battuta, rinviando l'assegnazione se il sesso non si sa.
+
+    **Una voce data e' data per sempre**, quindi darla al primo respiro
+    significa deciderla sull'intonazione di uno o due ritagli — e su questo audio
+    l'intonazione di un ritaglio solo puo' essere quella della musica. Misurato:
+    il personaggio con quindici battute della scena del concessionario, un uomo,
+    riceveva `paola` e la teneva fino alla fine.
+
+    Finche' il genere non si sa si parla con la voce neutra, che non e' del pool
+    e nessuno terra'. Ma non all'infinito: dopo `defer_max` battute si assegna
+    comunque, col `ripiego`. Restare in eterno sulla neutra vorrebbe dire tutti
+    con la stessa voce, cioe' il difetto di partenza.
+
+    **Il ripiego e' maschile, e non e' un pregiudizio: e' la forma della misura.**
+    L'intonazione presa sul mix del gioco e' spostata verso l'alto dal fondo, e
+    la taratura che ne esce sa dire "uomo" molto meglio di quanto sappia dire
+    "donna" (`listen/speaker.py`). Con un ripiego alternato — l'ordine del pool,
+    che alterna apposta per fare contrasto — il personaggio incerto prende una
+    voce femminile una volta su due, e su questo materiale "incerto" vuol dire
+    quasi sempre un uomo. Una voce femminile si da' solo quando la misura la
+    dichiara, e in cambio una donna in scena rischia una voce maschile: si cambia
+    con `speaker.gender_fallback` quando la scena lo richiede.
+
+    Sta qui e non nella pipeline perche' il banco deve poter rigiocare **questa**
+    politica: una taratura provata su una politica diversa da quella che gira
+    misurerebbe un doppiaggio che non esiste.
+    """
+    if personaggio is None or pool.known(speaker_id):
+        genere = getattr(personaggio, "gender", "?") if personaggio is not None else "?"
+        return pool.voice_for(speaker_id, t, gender=genere)
+    genere = personaggio.gender
+    if genere == "?":
+        if personaggio.battute < max(1, defer_max):
+            return neutra
+        genere = ripiego  # non si puo' piu' aspettare
+    return pool.voice_for(speaker_id, t, gender=genere)
+
+
 @dataclass
 class VoiceAssignment:
     """Chi ha quale voce, e da quando."""

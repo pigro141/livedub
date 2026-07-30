@@ -353,6 +353,51 @@ def test_pool_genere(c) -> None:
     ignoti = [q.voice_for(f"X{k}").gender for k in range(2)]
     c.ok(ignoti[0] != ignoti[1], "senza sapere il sesso, il pool alterna")
 
+    # **La voce di attesa non e' del pool.** Se lo fosse, prima o poi diventerebbe
+    # la voce definitiva di qualcuno e chi ascolta sentirebbe la voce «non so chi
+    # sia» trasformarsi in un personaggio.
+    from speak.pool import voce_neutra
+
+    piccolo = build_pool(size=3)
+    n = voce_neutra(piccolo)
+    c.ok(n.voice_id not in {v.voice_id for v in piccolo}, "la neutra non e' una voce del pool")
+    c.ok(
+        n.base_voice != piccolo[0].base_voice or n.semitones != piccolo[0].semitones,
+        "e non e' nemmeno la stessa voce con un altro nome",
+    )
+    pieno = build_pool(size=99)
+    esaurito = voce_neutra(pieno)
+    c.ok(
+        esaurito.voice_id not in {v.voice_id for v in pieno},
+        "anche a famiglia esaurita resta distinta da tutte",
+    )
+
+    # **L'assegnazione rinviata, tutta insieme.** E' la politica che gira in
+    # pipeline e sul banco: la stessa funzione, altrimenti una taratura provata
+    # sul banco misurerebbe un doppiaggio che non esiste.
+    from speak.pool import voce_per
+
+    class FintoPersonaggio:
+        def __init__(self, gender, battute):
+            self.gender, self.battute = gender, battute
+
+    d = VoicePool(build_pool(size=6))
+    neutra = voce_neutra(d.voices)
+    incerto = FintoPersonaggio("?", 1)
+    c.eq(voce_per(d, "S0", incerto, neutra=neutra).voice_id, "neutra",
+         "chi non si sa ancora chi sia parla con la neutra")
+    c.eq(len(d), 0, "e non consuma nessuna voce del pool")
+    incerto.battute = 3
+    dato = voce_per(d, "S0", incerto, neutra=neutra)
+    c.eq(dato.gender, "m", "scaduto il rinvio si assegna col ripiego, che e' maschile")
+    c.eq(voce_per(d, "S0", incerto, neutra=neutra).voice_id, dato.voice_id,
+         "e da li' in poi la voce non cambia piu'")
+    donna = FintoPersonaggio("f", 1)
+    c.eq(voce_per(d, "S1", donna, neutra=neutra).gender, "f",
+         "un sesso dichiarato non aspetta: si assegna subito")
+    c.eq(voce_per(d, "S2", FintoPersonaggio("?", 3), neutra=neutra, ripiego="f").gender, "f",
+         "il ripiego si puo' cambiare per una scena con voci femminili")
+
     # Esaurite le voci di un sesso si ripiega sull'altro invece di lasciare muto
     # un personaggio.
     r = VoicePool(voci)
@@ -700,14 +745,45 @@ def test_speaker(c) -> None:
     #    uomo chiaro e una donna scura non si distinguono, e "non so" fa
     #    scegliere al pool la prossima voce libera invece di quella sbagliata.
     t2 = SpeakerTracker(cfg)
-    t2.impara(voce(11), t=0.0, f0=120.0)
-    c.eq(t2.people[0].gender, "m", "120 Hz e' maschile")
-    t2.impara(voce(12), t=1.0, f0=220.0)
-    c.eq(t2.people[1].gender, "f", "220 Hz e' femminile")
-    t2.impara(voce(13), t=2.0, f0=175.0)
-    c.eq(t2.people[2].gender, "?", "175 Hz non si sa, e lo dice")
+    for k, hz in enumerate((120.0, 124.0, 118.0)):
+        t2.impara(voce(11), t=0.1 * k, f0=hz)
+    c.eq(t2.people[0].gender, "?", "tre misure non bastano ancora a dichiarare un sesso")
+    t2.impara(voce(11), t=0.5, f0=122.0)
+    c.eq(t2.people[0].gender, "m", "120 Hz confermati quattro volte sono maschile")
+    for k, hz in enumerate((220.0, 214.0, 231.0, 226.0)):
+        t2.impara(voce(12), t=1.0 + 0.1 * k, f0=hz)
+    c.eq(t2.people[1].gender, "f", "220 Hz sono femminile")
+    for k, hz in enumerate((190.0, 188.0, 186.0, 191.0)):
+        t2.impara(voce(13), t=2.0 + 0.1 * k, f0=hz)
+    c.eq(t2.people[2].gender, "?", "fra le due soglie non si sa, e lo dice")
     t2.impara(voce(14), t=3.0)
     c.eq(t2.people[3].gender, "?", "senza intonazione non si sa")
+
+    # **La prova che ha cambiato `MISURE_MINIME`.** I primi due ritagli di Lamar
+    # misurano 242 e 193 Hz: con due misure il tracker lo dichiarava femmina, la
+    # voce partiva femminile e non si toccava piu'. Le misure vere di quel
+    # personaggio, in ordine, non devono mai produrre una "f".
+    lamar = SpeakerTracker(cfg)
+    generi = []
+    for k, hz in enumerate((242.8, 193.1, 194.0, 145.8, 201.3, 165.8, 184.0, 205.8, 176.8)):
+        lamar.impara(voce(31), t=float(k), f0=hz)
+        generi.append(lamar.people[0].gender)
+    c.ok("f" not in generi, "le misure vere di un uomo non danno mai 'femminile'")
+    c.eq(generi[-1], "?", "restano un onesto 'non si sa'")
+
+    # **La mediana invece della media mobile**, con la prova che le distingue:
+    # un solo ritaglio in cui l'intonazione e' quella della musica. La media
+    # mobile ci si sposta e non torna piu'; la mediana lo ignora.
+    t3 = SpeakerTracker(cfg)
+    for hz in (118.0, 260.0, 122.0, 126.0):
+        t3.impara(voce(21), t=0.0, f0=hz)
+    c.close(t3.people[0].f0, 124.0, "un valore fuori posto non sposta la mediana", tol=3.0)
+    c.eq(t3.people[0].gender, "m", "e il sesso resta quello giusto")
+    c.ok(t3.people[0].f0_dispersione < 10.0, "misure d'accordo: dispersione bassa")
+    t4 = SpeakerTracker(cfg)
+    for hz in (98.0, 268.0, 171.0, 248.0):  # i valori veri di Lamar, in miniatura
+        t4.impara(voce(22), t=0.0, f0=hz)
+    c.ok(t4.people[0].f0_dispersione > 40.0, "misure sparse: la dispersione lo dice")
 
     # 9. **La fusione**, su vettori costruiti perche' la risposta sia scritta.
     #    Il difetto vero: dal vivo, sedici identita' per tre personaggi reali.

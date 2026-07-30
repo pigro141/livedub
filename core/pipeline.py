@@ -42,7 +42,7 @@ from mix.center import split
 from mix.mixer import Mixer
 from mix.stretch import fit_duration, fit_duration_keep_tail  # noqa: F401
 from speak.base import TtsBackend
-from speak.pool import VoicePool, build_pool
+from speak.pool import VoicePool, build_pool, voce_neutra, voce_per
 from vision.ocr import OcrBackend, make_ocr
 from vision.reader import SubtitleReader
 
@@ -128,6 +128,9 @@ class DubPipeline:
         self.pool = VoicePool(
             build_pool(cfg.tts.voices, cfg.tts.pool_size, backend=cfg.tts.backend)
         )
+        # La voce di chi non si sa ancora chi sia. Fuori dal pool: nessuno se la
+        # tiene, quindi non diventa mai la voce di un personaggio.
+        self._neutra = voce_neutra(self.pool.voices, backend=cfg.tts.backend)
         self.mixer = Mixer(
             samplerate=samplerate,
             duck_db=cfg.mix.duck_db,
@@ -205,6 +208,7 @@ class DubPipeline:
         self._t_embed = self.metrics.timer("speaker.embed")
         self._n_speakers = self.metrics.counter("speaker.new")
         self._n_merged = self.metrics.counter("speaker.merged")
+        self._n_neutra = self.metrics.counter("speaker.voce_neutra")
         self._n_no_clip = self.metrics.counter("speaker.no_clip")
         self._n_repeated = self.metrics.counter("dub.repeated")
         self._n_lines = self.metrics.counter("dub.lines")
@@ -293,7 +297,7 @@ class DubPipeline:
         # femminile — giusto quando non si sa niente, sbagliato appena si sa — e
         # in una scena di tre uomini uno di loro parla con la voce di una donna.
         p = self.tracker.get(speaker_id) if self.tracker is not None else None
-        voice = self.pool.voice_for(speaker_id, event.t_on, gender=p.gender if p else "?")
+        voice = self._voce_per(speaker_id, p, event.t_on)
 
         # **Chiedere al sintetizzatore di parlare svelto, invece di schiacciarlo
         # dopo.** Sono due cose diverse e all'ascolto non si somigliano affatto:
@@ -536,6 +540,22 @@ class DubPipeline:
                 self._n_repeated.inc()
                 return True
         return False
+
+    def _voce_per(self, speaker_id: str, p, t: float):
+        """La voce di questa battuta. La politica sta in `speak/pool.py`, perche'
+        il banco deve poter rigiocare esattamente questa."""
+        voce = voce_per(
+            self.pool,
+            speaker_id,
+            p,
+            t,
+            neutra=self._neutra,
+            defer_max=self.cfg.speaker.gender_defer_max_lines,
+            ripiego=self.cfg.speaker.gender_fallback,
+        )
+        if voce is self._neutra:
+            self._n_neutra.inc()
+        return voce
 
     def _speaker_for(self, event: SubtitleEvent) -> str:
         """Chi parla, con quel poco che si e' riusciti a sentire finora.

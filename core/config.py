@@ -365,6 +365,25 @@ class SpeakerConfig:
     # c'e' **una** fusione, sempre la stessa e sempre nel verso giusto (S9 in S11,
     # 0,76 fra i due centroidi finali, quattro battute che raggiungono quindici).
     merge_similarity: float = 0.70
+    # **Quante battute si puo' restare sulla voce neutra aspettando di sapere il
+    # sesso.** Una voce assegnata non si toglie piu', quindi darla al primo
+    # respiro vuol dire deciderla su uno o due ritagli — e su questo audio
+    # l'intonazione di un ritaglio solo puo' essere quella della musica: il
+    # personaggio con quindici battute della scena del concessionario, un uomo,
+    # riceveva `paola` e la teneva fino in fondo.
+    #
+    # Il tetto pero' serve: senza, in una scena rumorosa dove l'intonazione non
+    # si stabilizza mai, tutti resterebbero sulla neutra — cioe' tutti con la
+    # stessa voce, il difetto da cui si e' partiti. A tre battute si assegna
+    # comunque, con la parte verso cui la misura pende.
+    gender_defer_max_lines: int = 3
+    # Con che sesso si assegna la voce quando il tetto scade e non si sa ancora.
+    # Maschile perche' l'intonazione presa sul mix del gioco e' spostata verso
+    # l'alto: questa taratura sa dire "uomo" molto meglio di "donna", e un
+    # ripiego alternato darebbe una voce femminile a un uomo una volta su due.
+    # In una scena con personaggi femminili si mette "f", o si rifa' la taratura
+    # delle soglie in `listen/speaker.py` su una registrazione che ne contenga.
+    gender_fallback: str = "m"
     max_speakers: int = 16
     use_color_cue: bool = True
     use_alternation: bool = True  # isteresi conversazionale

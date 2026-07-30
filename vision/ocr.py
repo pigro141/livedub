@@ -221,6 +221,108 @@ class RapidOcr:
         return str(text).strip(), float(conf)
 
 
+class OneOcr:
+    """OneOCR di Windows 11, in un processo separato.
+
+    E' il riconoscitore dello Strumento di cattura, e sul testo bordato dei
+    giochi legge molto meglio di PP-OCR. Il prezzo e' che **non puo' girare in
+    questo processo**: porta con se' la propria `onnxruntime.dll` e pretende una
+    versione di API che l'onnxruntime di Python non offre. Caricarlo qui dentro
+    non da' un errore d'importazione — da' un accesso a memoria non valido,
+    dopo aver stampato che l'API 21 non e' disponibile. Due runtime ONNX nello
+    stesso spazio di indirizzamento sono incompatibili per costruzione.
+
+    Quindi il motore vive in `vision/oneocr_worker.py`, dietro una pipe. La
+    barriera va difesa: quel modulo non deve importare niente che si tiri dietro
+    `onnxruntime`, o il guasto torna sotto forma di crash in un processo figlio,
+    che e' anche piu' difficile da leggere.
+
+    **Il ripiego e' dichiarato, non silenzioso.** Se il worker non parte —
+    file mancanti, DLL cambiata da un aggiornamento di Windows — si dice su
+    stderr e si solleva. Un doppiaggio che legge peggio senza spiegazione
+    sarebbe indistinguibile da un gioco con i sottotitoli piu' brutti.
+    """
+
+    name = "oneocr"
+
+    def __init__(self, device: str = "cpu", timeout: float = 5.0) -> None:
+        import subprocess
+        import sys as _sys
+        from pathlib import Path as _Path
+
+        self.device = device
+        self.timeout = float(timeout)
+        radice = _Path(__file__).resolve().parent.parent
+        self._proc = subprocess.Popen(
+            [_sys.executable, "-m", "vision.oneocr_worker"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=str(radice),
+            bufsize=0,
+        )
+        # Si aspetta che dichiari di essere pronto **prima** di dire che lo e':
+        # il caricamento del modello costa qualche secondo, e una prima battuta
+        # persa perche' il worker stava ancora aprendo il file sarebbe un difetto
+        # che si manifesta una volta su venti.
+        riga = self._proc.stderr.readline().decode("utf-8", "replace").strip()
+        if not riga.startswith("ONEOCR-PRONTO"):
+            self.close()
+            raise RuntimeError(riga or "il worker OneOCR e' morto senza dire perche'")
+
+    def read(self, line: np.ndarray) -> tuple[str, float]:
+        # **`prepare()` qui non si usa, e la differenza e' grossa.** Quella
+        # funzione serve a PP-OCR, che e' un *riconoscitore* senza rilevatore:
+        # gli si porge una riga gia' ritagliata stretta e riscalata all'altezza
+        # che si aspetta. OneOCR invece rileva da solo, e su un ritaglio stretto
+        # e gonfiato non trova piu' niente: misurato sullo stesso tratto di
+        # video, 7 battute contro 46 — leggeva meglio quelle poche che trovava e
+        # perdeva le altre. Con il ritaglio intero e un margine bianco intorno
+        # il rilevatore ha di nuovo il contesto che gli serve.
+        img = np.asarray(line)
+        if img.ndim == 2:
+            img = np.stack([img] * 3, axis=2)
+        img = np.ascontiguousarray(img[:, :, :3].astype(np.uint8))
+        m = 12
+        img = np.pad(img, ((m, m), (m, m), (0, 0)), mode="constant", constant_values=0)
+        h, w, c = img.shape
+        try:
+            self._proc.stdin.write(("%d %d %d" % (h, w, c) + chr(10)).encode("ascii"))
+            self._proc.stdin.write(img.tobytes())
+            self._proc.stdin.flush()
+            risposta = self._proc.stdout.readline()
+        except (BrokenPipeError, OSError):
+            return "", 0.0
+        if not risposta:
+            return "", 0.0
+        import json as _json
+
+        try:
+            d = _json.loads(risposta.decode("utf-8", "replace"))
+        except ValueError:
+            return "", 0.0
+        return str(d.get("t", "")).strip(), float(d.get("c", 0.0))
+
+    def close(self) -> None:
+        proc = getattr(self, "_proc", None)
+        if proc is None:
+            return
+        for flusso in (proc.stdin, proc.stdout, proc.stderr):
+            try:
+                if flusso is not None:
+                    flusso.close()
+            except Exception:
+                pass
+        try:
+            proc.terminate()
+            proc.wait(timeout=3)
+        except Exception:
+            pass
+
+    def __del__(self) -> None:
+        self.close()
+
+
 def make_ocr(backend: str, device: str = "cpu") -> OcrBackend:
     """Costruisce il backend richiesto.
 
@@ -229,6 +331,8 @@ def make_ocr(backend: str, device: str = "cpu") -> OcrBackend:
     """
     if backend in ("rapidocr", "ppocr"):
         return RapidOcr(device=device)
+    if backend == "oneocr":
+        return OneOcr(device=device)
     if backend in ("none", "null"):
         return NullOcr()
     if backend == "echo":

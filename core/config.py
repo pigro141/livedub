@@ -160,7 +160,19 @@ class VisionConfig:
     # righe che finiscono con la stessa parola sono un caso reale, quindi la
     # soglia sta sopra quella fascia e si tiene l'83% del guadagno.
     continue_similarity: float = 0.75
-    ocr_backend: str = "ppocr"  # ppocr | none
+    # `oneocr` e' il riconoscitore dello Strumento di cattura di Windows 11 e
+    # legge meglio: misurato sullo stesso tratto di GTA V, 45 battute contro 46
+    # ma con testo piu' pulito (`'I ma se ne avessi uno'` -> `'ma se ne avessi
+    # uno'`, `'Che succede, fratello? t'` -> `'Che succede, fratello?'`) e
+    # quasi-duplicati dal 13% al 9%. I duplicati contano piu' della qualita': in
+    # diretta due letture diverse della stessa battuta diventano due voci
+    # accodate, ed e' da li' che vengono i ritardi da due secondi.
+    #
+    # Non e' il default perche' i suoi tre file non sono ridistribuibili e vanno
+    # copiati dalla macchina con `python -m tools.fetch_oneocr`. Senza quelli il
+    # backend non parte, e un default che non parte sarebbe peggio di uno che
+    # legge peggio.
+    ocr_backend: str = "ppocr"  # ppocr | oneocr | none
     ocr_device: str = "cuda"  # cuda | cpu
     max_ocr_hz: float = 12.0
 

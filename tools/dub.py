@@ -66,6 +66,12 @@ def main(argv: list[str] | None = None) -> int:
         help="scrivi anche il video con la traccia doppiata, per vedere il sincro",
     )
     ap.add_argument("--mp4-width", type=int, default=1280)
+    ap.add_argument(
+        "--dump-speaker",
+        default=None,
+        metavar="PERCORSO",
+        help="registra le impronte per il banco (tools.recluster): una passata, mille tarature",
+    )
     args = ap.parse_args(argv)
 
     cfg = (
@@ -100,6 +106,12 @@ def main(argv: list[str] | None = None) -> int:
     precedente = set_clock(clock)
     pipeline = DubPipeline(cfg, tts, clock=clock, samplerate=sr)
     uscita: list[np.ndarray] = []
+    registro = None
+    if args.dump_speaker:
+        percorso = Path(args.dump_speaker)
+        percorso.parent.mkdir(parents=True, exist_ok=True)
+        registro = percorso.open("w", encoding="utf-8")
+        pipeline.speaker_log = registro
 
     print(f"doppio {args.start:.0f}s-{args.end if args.end else 'fine'} di {source.info.path.name}\n")
     # **Il tempo parte da zero, non da `--start`.** Il mixer ha un orologio suo
@@ -138,6 +150,9 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         set_clock(precedente)
     pipeline.finish()
+    if registro is not None:
+        registro.close()
+        print(f"\nimpronte registrate in {args.dump_speaker} (-> python -m tools.recluster)")
 
     mix = np.concatenate(uscita) if uscita else np.zeros((0, 2), np.float32)
     out = Path(args.out)

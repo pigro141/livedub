@@ -21,6 +21,7 @@ in contemporanea, che e' il caso in cui l'errore darebbe piu' fastidio.
 
 from __future__ import annotations
 
+import json
 import re
 import time
 import unicodedata
@@ -165,6 +166,15 @@ class DubPipeline:
         self._vad = make_vad(cfg.vad, samplerate) if self.tracker is not None else None
         self._onsets: list[float] = []
         self._da_dire: list[SubtitleEvent] = []  # battute in attesa di sapere chi parla
+        # **Il registro delle impronte, spento di suo.** Chi lo accende (il
+        # banco, `tools/dub.py --dump-speaker`) ci trova dentro l'intero ingresso
+        # del tracker: l'impronta breve con cui si e' scelta la voce e quella
+        # intera da cui si e' imparato. Con quelle due un raggruppamento diverso
+        # si prova in millisecondi invece che in una passata di OCR — lo stesso
+        # rapporto che c'e' fra `replay --dump-reads` e `tools/retrack.py`, e per
+        # la stessa ragione: due tarature confrontate su due esecuzioni diverse
+        # sarebbero confrontate anche su tutto il rumore che le separa.
+        self.speaker_log = None  # file di testo aperto, una riga JSON per evento
 
         self.spoken: list[SpokenLine] = []
         self.closed: list[SubtitleEvent] = []
@@ -194,6 +204,7 @@ class DubPipeline:
         self._t_live = self.metrics.timer("dub.latency_live")
         self._t_embed = self.metrics.timer("speaker.embed")
         self._n_speakers = self.metrics.counter("speaker.new")
+        self._n_merged = self.metrics.counter("speaker.merged")
         self._n_no_clip = self.metrics.counter("speaker.no_clip")
         self._n_repeated = self.metrics.counter("dub.repeated")
         self._n_lines = self.metrics.counter("dub.lines")
@@ -555,7 +566,9 @@ class DubPipeline:
         emb = self._embed(
             self._clip(event.t_on - self.cfg.speaker.lead_ms / 1000.0, self.clock.now())
         )
-        return self.tracker.scegli(emb, t=event.t_on).speaker_id
+        sid = self.tracker.scegli(emb, t=event.t_on).speaker_id
+        self._registra("scegli", event, emb, deciso=sid)
+        return sid
 
     def _learn(self, event: SubtitleEvent) -> None:
         """La battuta e' sparita dallo schermo: adesso il suo audio c'e' tutto.
@@ -573,8 +586,36 @@ class DubPipeline:
             return
         f0 = stima_f0(clip, self.samplerate) if clip is not None else 0.0
         d = self.tracker.impara(emb, t=event.t_on, f0=f0)
+        self._registra("impara", event, emb, f0=round(f0, 2), deciso=d.speaker_id)
         if d.is_new:
             self._n_speakers.inc()
+        if d.merged is not None:
+            # Due identita' erano la stessa persona. Le battute gia' dette
+            # restano dette — non si disdice niente — ma da qui in avanti c'e'
+            # una voce sola, quella di chi ha parlato di piu'.
+            self.pool.merge(*d.merged)
+            self._n_merged.inc()
+
+    def _registra(self, kind: str, event: SubtitleEvent, emb, **extra) -> None:
+        """Una riga del registro delle impronte. Non fa niente se e' spento.
+
+        L'impronta si scrive per intero e non riassunta: il banco deve poter
+        rifare **la stessa** somiglianza che ha fatto la sessione, e una
+        riduzione qualunque cambierebbe di poco tutti i numeri e di molto la
+        soglia che se ne ricava.
+        """
+        if self.speaker_log is None:
+            return
+        record = {
+            "kind": kind,
+            "t_on": round(event.t_on, 3),
+            "t_off": None if event.t_off is None else round(event.t_off, 3),
+            "text": event.text,
+            "cls": event.cls.value,
+            "emb": None if emb is None else [round(float(v), 6) for v in np.asarray(emb).reshape(-1)],
+        }
+        record.update(extra)
+        self.speaker_log.write(json.dumps(record, ensure_ascii=False) + "\n")
 
     def _onset_vicino(self, t_on: float, pre: float = 0.5, post: float = 0.8) -> float:
         """L'attacco di parlato piu' vicino alla comparsa del sottotitolo.

@@ -71,6 +71,10 @@ class Personaggio:
     prima_volta: float = 0.0
     ultima_volta: float = 0.0
     f0: float = 0.0  # intonazione mediana, per il genere
+    # Se questo personaggio si e' rivelato un frammento di un altro, l'identita'
+    # che lo ha assorbito. Non si cancella dalla banca: le battute gia' dette
+    # portano il suo id, e senza di lui non si saprebbe piu' di chi erano.
+    merged_into: str | None = None
 
     @property
     def centroide(self) -> np.ndarray:
@@ -118,6 +122,7 @@ class Decisione:
     confidence: float
     is_new: bool = False
     provisional: bool = False  # deciso con poco parlato: si potra' solo imparare, non disdire
+    merged: tuple[str, str] | None = None  # (assorbito, vincitore), se questa battuta li ha uniti
 
 
 class SpeakerTracker:
@@ -138,16 +143,41 @@ class SpeakerTracker:
         self.cfg = cfg or SpeakerConfig()
         self.people: list[Personaggio] = []
         self._ultimo: str | None = None
+        # Gli id si contano a parte e non si riusano mai. Erano `f"S{len(people)}"`,
+        # e con i fusi che restano in lista quel conto continuerebbe a tornare —
+        # ma legare l'identita' di un personaggio alla lunghezza di una lista che
+        # ha cambiato significato e' il genere di dettaglio che si rompe piu'
+        # tardi, quando due battute distanti portano lo stesso nome.
+        self._creati = 0
+        self._alias: dict[str, str] = {}  # assorbito -> vincitore
+        self.fusioni: list[tuple[str, str, float]] = []  # (assorbito, vincitore, somiglianza)
 
     def __len__(self) -> int:
-        return len(self.people)
+        """Quanti personaggi **attivi**: i fusi non contano piu' come persone."""
+        return len(self.attivi)
+
+    @property
+    def attivi(self) -> list[Personaggio]:
+        return [p for p in self.people if p.merged_into is None]
+
+    def risolvi(self, speaker_id: str | None) -> str | None:
+        """L'identita' viva dietro un id, seguendo le fusioni fino in fondo."""
+        visti = set()
+        while speaker_id in self._alias and speaker_id not in visti:
+            visti.add(speaker_id)
+            speaker_id = self._alias[speaker_id]
+        return speaker_id
 
     def get(self, speaker_id: str) -> Personaggio | None:
-        return next((p for p in self.people if p.speaker_id == speaker_id), None)
+        vivo = self.risolvi(speaker_id)
+        return next((p for p in self.people if p.speaker_id == vivo), None)
 
     def reset(self) -> None:
         self.people.clear()
         self._ultimo = None
+        self._creati = 0
+        self._alias.clear()
+        self.fusioni.clear()
 
     # -- la porta veloce ---------------------------------------------------
 
@@ -163,14 +193,14 @@ class SpeakerTracker:
         # a `impara`, che li puo' confermare — ma non entrano in una decisione
         # che si sente: un personaggio nato dalla battuta precedente non ha
         # ancora dimostrato di esistere.
-        noti = [p for p in self.people if p.confermato]
+        noti = [p for p in self.attivi if p.confermato]
         if embedding is None or not noti or float(np.linalg.norm(embedding)) < 1e-9:
             # Nessuno da scegliere: si risponde un'identita' provvisoria **senza
             # aprire un posto in banca**. Aprirlo qui vorrebbe dire iscrivere un
             # personaggio la cui impronta non si conosce, e un centroide vuoto
             # non somiglia a niente per sempre: quel personaggio non si
             # ritroverebbe mai piu', e la sua voce resterebbe bruciata.
-            return Decisione(self._ultimo or "S0", 0.0, provisional=True)
+            return Decisione(self.risolvi(self._ultimo) or "S0", 0.0, provisional=True)
 
         punteggi = np.array([float(np.dot(embedding, p.centroide)) for p in noti])
         k = int(np.argmax(punteggi))
@@ -179,7 +209,7 @@ class SpeakerTracker:
             # Nessuno somiglia: quasi sempre vuol dire che il ritaglio non
             # contiene voce. Si resta su chi parlava, che e' l'ipotesi meno
             # dannosa, e la battuta intera dira' com'e' andata davvero.
-            return Decisione(self._ultimo, migliore, provisional=True)
+            return Decisione(self.risolvi(self._ultimo), migliore, provisional=True)
         self._ultimo = noti[k].speaker_id
         return Decisione(noti[k].speaker_id, migliore, provisional=True)
 
@@ -195,12 +225,13 @@ class SpeakerTracker:
         davvero "non l'ho mai sentito" e non "non ho sentito abbastanza".
         """
         if embedding is None or float(np.linalg.norm(embedding)) < 1e-9:
-            return Decisione(self._ultimo or "S?", 0.0)
-        if self.people:
-            punteggi = np.array([float(np.dot(embedding, p.centroide)) for p in self.people])
+            return Decisione(self.risolvi(self._ultimo) or "S?", 0.0)
+        attivi = self.attivi
+        if attivi:
+            punteggi = np.array([float(np.dot(embedding, p.centroide)) for p in attivi])
             k = int(np.argmax(punteggi))
             if float(punteggi[k]) >= self.cfg.similarity:
-                p = self.people[k]
+                p = attivi[k]
                 p.somma = p.somma + embedding
                 p.battute += 1
                 p.ultima_volta = t
@@ -216,14 +247,17 @@ class SpeakerTracker:
                     # sbagliata, e sbagliare ottava e' l'errore tipico di ogni
                     # stimatore di intonazione.
                     p.f0 = f0 if p.f0 <= 0 else 0.8 * p.f0 + 0.2 * f0
-                return Decisione(p.speaker_id, float(punteggi[k]))
-        if len(self.people) >= self.cfg.max_speakers:
+                # Il centroide di `p` e' appena cambiato: e' l'unico istante in
+                # cui puo' essersi avvicinato abbastanza a un altro da rivelarsi
+                # lo stesso personaggio.
+                fusione = self._fondi(p)
+                vivo = self.risolvi(p.speaker_id)
+                return Decisione(vivo, float(punteggi[k]), merged=fusione)
+        if attivi and len(attivi) >= self.cfg.max_speakers:
             # Il pool e' pieno. Si attacca al migliore invece di rifiutare: due
             # personaggi con la stessa voce sono brutti, un personaggio muto no.
-            if self.people:
-                punteggi = np.array([float(np.dot(embedding, p.centroide)) for p in self.people])
-                k = int(np.argmax(punteggi))
-                return Decisione(self.people[k].speaker_id, float(punteggi[k]))
+            k = int(np.argmax(punteggi))
+            return Decisione(attivi[k].speaker_id, float(punteggi[k]))
         return self._apri(embedding, t, f0=f0)
 
     # -- interno -----------------------------------------------------------
@@ -231,7 +265,8 @@ class SpeakerTracker:
     def _apri(self, embedding: np.ndarray, t: float, *, f0: float = 0.0) -> Decisione:
         """Iscrive un personaggio. Solo dalla porta lenta, e solo con un'impronta
         vera: un centroide vuoto non somiglierebbe mai piu' a niente."""
-        sid = f"S{len(self.people)}"
+        sid = f"S{self._creati}"
+        self._creati += 1
         self.people.append(
             Personaggio(
                 speaker_id=sid,
@@ -244,17 +279,85 @@ class SpeakerTracker:
         )
         return Decisione(sid, 0.0, is_new=True)
 
+    # -- la fusione --------------------------------------------------------
+
+    def _fondi(self, p: Personaggio) -> tuple[str, str] | None:
+        """Se `p` si e' rivelato lo stesso personaggio di un altro, li unisce.
+
+        **Il difetto che cura.** Il tracker apre un personaggio quando un
+        ritaglio intero non somiglia a nessuno; ma un ritaglio intero puo' essere
+        sporco, sovrapposto, o preso mezzo secondo troppo tardi, e allora la
+        stessa persona si spezza in due identita' che restano due per sempre.
+        Misurato dal vivo: **sedici identita' per tre personaggi reali**, con
+        Simeon sparso fra S3, S6 e S8 e undici identita' con una battuta sola.
+
+        Il rimedio esiste perche' i centroidi non sono fermi: ogni battuta ne
+        aggiunge una, e due frammenti della stessa persona si somigliano sempre
+        di piu'. Prima o poi si somigliano abbastanza da poterlo dire, ed e'
+        allora — non prima — che si possono unire.
+
+        **La soglia e' un'altra da quella di `similarity`, ed e' piu' alta.**
+        Li' si confronta un ritaglio con un centroide, qui due centroidi fra
+        loro: due medie si somigliano piu' di quanto un campione somigli alla
+        propria media, e usare lo stesso numero fonderebbe due persone diverse.
+
+        **Chi vince tiene la voce: quello con piu' battute**, a parita' il piu'
+        vecchio di comparsa. Non il primo comparso, che era la formulazione
+        istintiva: un frammento da una battuta nato a inizio scena che
+        assorbisse un personaggio da venti farebbe cambiare voce a venti
+        battute gia' sentite, cioe' esattamente il difetto — la voce che cambia
+        a meta' scena — che la fusione dovrebbe togliere di mezzo.
+        """
+        if not self.cfg.merge:
+            return None
+        altri = [q for q in self.attivi if q is not p]
+        if not altri:
+            return None
+        centro = p.centroide
+        punteggi = np.array([float(np.dot(centro, q.centroide)) for q in altri])
+        k = int(np.argmax(punteggi))
+        somiglianza = float(punteggi[k])
+        if somiglianza < self.cfg.merge_similarity:
+            return None
+        q = altri[k]
+        vincitore, perdente = (p, q) if self._anziano(p, q) else (q, p)
+
+        vincitore.somma = vincitore.somma + perdente.somma
+        vincitore.battute += perdente.battute
+        vincitore.prima_volta = min(vincitore.prima_volta, perdente.prima_volta)
+        vincitore.ultima_volta = max(vincitore.ultima_volta, perdente.ultima_volta)
+        if vincitore.f0 <= 0:
+            vincitore.f0 = perdente.f0
+        perdente.merged_into = vincitore.speaker_id
+        self._alias[perdente.speaker_id] = vincitore.speaker_id
+        self.fusioni.append((perdente.speaker_id, vincitore.speaker_id, somiglianza))
+        if self._ultimo == perdente.speaker_id:
+            self._ultimo = vincitore.speaker_id
+        return (perdente.speaker_id, vincitore.speaker_id)
+
+    @staticmethod
+    def _anziano(a: Personaggio, b: Personaggio) -> bool:
+        """`a` e' quello che l'orecchio ha sentito di piu'? A parita', il piu' vecchio."""
+        if a.battute != b.battute:
+            return a.battute > b.battute
+        return a.prima_volta <= b.prima_volta
+
     # -- lettura -----------------------------------------------------------
 
     def report(self) -> str:
         if not self.people:
             return "(nessun personaggio ancora sentito)"
-        return "\n".join(
+        righe = [
             f"  {p.speaker_id:>4}  {p.battute:>3} battute  "
             f"da {p.prima_volta:7.1f}s a {p.ultima_volta:7.1f}s  "
             f"f0 {p.f0:5.0f} Hz -> {p.gender}"
-            for p in self.people
-        )
+            for p in self.attivi
+        ]
+        # Le fusioni si stampano: senza, un id sparito dal report sembrerebbe un
+        # personaggio dimenticato invece di uno riconosciuto.
+        for perdente, vincitore, s in self.fusioni:
+            righe.append(f"  {perdente:>4}  fuso in {vincitore} (somiglianza {s:.2f})")
+        return "\n".join(righe)
 
 
 # -- l'intonazione, che serve solo a scegliere maschile o femminile ---------

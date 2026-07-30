@@ -140,6 +140,7 @@ class VoicePool:
     def __init__(self, voices: list[VoiceSpec] | None = None) -> None:
         self.voices = list(voices) if voices else build_pool()
         self._by_speaker: dict[str, VoiceAssignment] = {}
+        self._alias: dict[str, str] = {}  # identita' assorbita -> identita' viva
         self._next = 0
         self.collisions = 0
 
@@ -171,6 +172,7 @@ class VoicePool:
         un uomo chiaro e una donna scura non si distinguono — si torna
         all'ordine del pool, che e' la scelta giusta quando davvero non si sa.
         """
+        speaker_id = self.risolvi(speaker_id)
         existing = self._by_speaker.get(speaker_id)
         if existing is not None:
             existing.lines += 1
@@ -196,10 +198,61 @@ class VoicePool:
         return voice
 
     def known(self, speaker_id: str) -> bool:
-        return speaker_id in self._by_speaker
+        return self.risolvi(speaker_id) in self._by_speaker
+
+    def assegnata(self, speaker_id: str) -> VoiceSpec | None:
+        """La voce di questo personaggio, **senza dargliene una** se non ce l'ha.
+
+        `voice_for` assegna: chiamarla per sapere e basta creerebbe la cosa che
+        si voleva osservare, e il banco conterebbe voci che nessuno ha sentito."""
+        a = self._by_speaker.get(self.risolvi(speaker_id))
+        return a.voice if a is not None else None
+
+    def risolvi(self, speaker_id: str) -> str:
+        """L'identita' viva dietro un id, seguendo le fusioni fino in fondo."""
+        visti = set()
+        while speaker_id in self._alias and speaker_id not in visti:
+            visti.add(speaker_id)
+            speaker_id = self._alias[speaker_id]
+        return speaker_id
+
+    def merge(self, perdente: str, vincitore: str) -> None:
+        """Due identita' erano la stessa persona: una voce sola, la sua.
+
+        **Quale voce sopravvive non e' una scelta di questo oggetto**: arriva
+        gia' decisa dal tracker, che sa chi ha piu' battute. Qui si esegue, e si
+        esegue in modo che il vincitore **non cambi voce mai** — e' il punto
+        dell'operazione. Chi ha parlato di piu' continua come prima; chi era un
+        frammento lo raggiunge.
+
+        La voce del perdente non si spreca: `libere` si calcola dalle
+        assegnazioni vive, quindi cancellarla la rimette in circolo per il
+        prossimo personaggio. In una scena con sedici identita' e sei voci
+        questo e' l'unico motivo per cui ne resta ancora una da dare.
+        """
+        perdente, vincitore = self.risolvi(perdente), self.risolvi(vincitore)
+        if perdente == vincitore:
+            return
+        vecchia = self._by_speaker.pop(perdente, None)
+        self._alias[perdente] = vincitore
+        viva = self._by_speaker.get(vincitore)
+        if viva is None and vecchia is not None:
+            # Il vincitore non ha ancora parlato: gli si passa la voce del
+            # perdente invece di prenderne una nuova. Quella voce e' gia' stata
+            # sentita, e toglierla sarebbe il cambio che si vuole evitare.
+            self._by_speaker[vincitore] = VoiceAssignment(
+                speaker_id=vincitore,
+                voice=vecchia.voice,
+                first_seen=vecchia.first_seen,
+                lines=vecchia.lines,
+            )
+        elif viva is not None and vecchia is not None:
+            viva.lines += vecchia.lines
+            viva.first_seen = min(viva.first_seen, vecchia.first_seen)
 
     def reset(self) -> None:
         self._by_speaker.clear()
+        self._alias.clear()
         self._next = 0
         self.collisions = 0
 

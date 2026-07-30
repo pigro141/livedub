@@ -334,6 +334,37 @@ class SpeakerConfig:
     decide_after_ms: int = 500
     min_clip_ms: int = 400  # sotto questa durata la decisione e' provvisoria
     max_wait_ms: int = 200  # quanto si puo' rinviare l'attacco per decidere meglio
+    # **Unire due identita' che si sono rivelate la stessa persona.**
+    # Senza, un personaggio che il tracker spezza in due resta spezzato per
+    # sempre: misurato dal vivo, sedici identita' per tre personaggi reali,
+    # Simeon sparso fra S3/S6/S8 e undici identita' con una battuta sola.
+    merge: bool = True
+    # La soglia della fusione **non e' `similarity` e sta piu' in alto**: li' si
+    # confronta un ritaglio con un centroide, qui due centroidi fra loro, e due
+    # medie si somigliano piu' di quanto un campione somigli alla propria media.
+    #
+    # **0,70 e' misurata**, sul banco (`tools/recluster.py`, 44 battute di GTA V
+    # dal secondo 1240). La colonna che decide non e' la prima ma la seconda: le
+    # stesse impronte **permutate fra le battute**, dove per costruzione non c'e'
+    # piu' nessuna identita' da ritrovare.
+    #
+    #     soglia   fusioni vere   fusioni sul permutato
+    #      0,45         7                  7
+    #      0,50         5                  6
+    #      0,55         2                  3
+    #      0,60         1                  2
+    #      0,625        1                  1
+    #      0,65         1                  0
+    #      0,70         1                  0
+    #      0,75         1                  0
+    #      0,775        0                  0
+    #
+    # Sotto 0,625 il rumore fonde quanto l'identita', e le sedici identita' che
+    # diventano dieci sono dieci gruppi a caso: un conteggio che migliora mentre
+    # la risposta peggiora. Sopra 0,775 non fonde piu' niente. Dentro la finestra
+    # c'e' **una** fusione, sempre la stessa e sempre nel verso giusto (S9 in S11,
+    # 0,76 fra i due centroidi finali, quattro battute che raggiungono quindici).
+    merge_similarity: float = 0.70
     max_speakers: int = 16
     use_color_cue: bool = True
     use_alternation: bool = True  # isteresi conversazionale

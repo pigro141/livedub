@@ -282,6 +282,31 @@ def test_pool(c) -> None:
     c.eq(vp.voice_for("S0").voice_id, a1.voice_id, "e chi aveva gia' una voce la conserva")
 
     c.ok("S0" in vp.report(), "il report nomina i personaggi")
+
+    # **La fusione vista dal pool.** Il tracker decide chi vince, qui si esegue —
+    # e l'esecuzione ha due obblighi: il vincitore non cambia voce (e' il punto
+    # dell'operazione), e la voce del perdente torna in circolo, perche' in una
+    # scena con sedici identita' e sei voci quella e' l'unica ragione per cui ne
+    # resta ancora una da dare.
+    f = VoicePool(build_pool(size=3))
+    v0 = f.voice_for("S0", 1.0)
+    v1 = f.voice_for("S1", 2.0)
+    f.merge("S1", "S0")
+    c.eq(f.voice_for("S0", 3.0).voice_id, v0.voice_id, "il vincitore non cambia voce")
+    c.eq(f.voice_for("S1", 3.0).voice_id, v0.voice_id, "il vecchio id parla con la voce del vincitore")
+    c.eq(len(f), 1, "e i due contano come un personaggio solo")
+    c.eq(f.voice_for("S2", 4.0).voice_id, v1.voice_id, "la voce liberata torna al prossimo personaggio")
+    c.eq(f.assegnata("S1").voice_id, v0.voice_id, "`assegnata` segue la fusione")
+    c.eq(f.assegnata("S9"), None, "e non assegna niente a chi non ha ancora parlato")
+
+    # Il vincitore che non ha ancora parlato eredita la voce gia' sentita invece
+    # di prenderne una nuova: quella voce e' gia' nell'orecchio di chi ascolta.
+    g = VoicePool(build_pool(size=3))
+    vecchia = g.voice_for("S1", 1.0)
+    g.merge("S1", "S0")
+    c.eq(g.voice_for("S0", 2.0).voice_id, vecchia.voice_id, "la voce si trasferisce, non si rifa'")
+    c.eq(len(g), 1, "e resta una assegnazione sola")
+
     vp.reset()
     c.eq(len(vp), 0, "reset dimentica tutto")
     c.ok("nessun personaggio" in VoicePool().report(), "report di un pool vuoto")
@@ -683,3 +708,62 @@ def test_speaker(c) -> None:
     c.eq(t2.people[2].gender, "?", "175 Hz non si sa, e lo dice")
     t2.impara(voce(14), t=3.0)
     c.eq(t2.people[3].gender, "?", "senza intonazione non si sa")
+
+    # 9. **La fusione**, su vettori costruiti perche' la risposta sia scritta.
+    #    Il difetto vero: dal vivo, sedici identita' per tre personaggi reali.
+    #    Qui si riproduce in piccolo — una persona spezzata in due — e si verifica
+    #    che il secondo pezzo venga riassorbito quando, e non prima che, i due
+    #    centroidi si somiglino abbastanza.
+    def asse(*coefficienti: float) -> np.ndarray:
+        v = np.zeros(192, np.float32)
+        for i, x in enumerate(coefficienti):
+            v[i] = x
+        return (v / np.linalg.norm(v)).astype(np.float32)
+
+    def scena(soglia_fusione: float) -> SpeakerTracker:
+        """S0, un frammento S1 che gli somiglia poco, e una battuta che li avvicina."""
+        cfg2 = SpeakerConfig()
+        cfg2.similarity = 0.55
+        cfg2.merge_similarity = soglia_fusione
+        s = SpeakerTracker(cfg2)
+        s.impara(asse(1.0, 0.0), t=0.0)  # S0
+        s.impara(asse(0.5, 0.866), t=1.0)  # 0,50 con S0: sotto soglia, si apre S1
+        # 0,90 con S0 contro 0,83 con S1: va a S0, e ne sposta il centroide fino
+        # a 0,681 da S1. E' il meccanismo vero — il centroide si arricchisce e i
+        # due frammenti si somigliano sempre di piu' — in tre battute.
+        s.impara(asse(0.9, 0.436), t=2.0)
+        return s
+
+    unita = scena(0.65)  # i due centroidi finiscono a 0,681 l'uno dall'altro
+    c.eq(len(unita), 1, "due frammenti della stessa persona tornano un personaggio solo")
+    c.eq(len(unita.people), 2, "il frammento resta in banca, non si cancella")
+    c.eq(unita.fusioni[0][:2], ("S1", "S0"), "vince chi ha piu' battute, non chi e' comparso prima")
+    c.eq(unita.risolvi("S1"), "S0", "e il vecchio id continua a portare al personaggio vivo")
+    c.eq(unita.get("S1").speaker_id, "S0", "anche chiedendo il personaggio per il vecchio id")
+    c.eq(unita.get("S0").battute, 3, "le battute del frammento si sommano a quelle del vincitore")
+    c.ok("fuso in S0" in unita.report(), "il report dice dove e' finito, invece di farlo sparire")
+
+    separate = scena(0.75)  # sopra la somiglianza raggiunta: non si deve fondere
+    c.eq(len(separate), 2, "sopra la soglia i due restano due")
+    c.eq(len(separate.fusioni), 0, "e non risulta nessuna fusione")
+
+    spenta = SpeakerTracker(SpeakerConfig())
+    spenta.cfg.merge = False
+    spenta.cfg.merge_similarity = 0.10  # fonderebbe qualunque cosa, se fosse accesa
+    spenta.impara(asse(1.0, 0.0), t=0.0)
+    spenta.impara(asse(0.5, 0.866), t=1.0)
+    spenta.impara(asse(0.8, 0.6), t=2.0)
+    c.eq(len(spenta), 2, "con `merge` spento non si fonde niente, qualunque sia la soglia")
+
+    # Gli id non si riusano dopo una fusione: due battute lontane non devono
+    # potersi ritrovare con lo stesso nome.
+    dopo = scena(0.65)
+    dopo.impara(asse(0.0, 0.0, 1.0), t=3.0)
+    c.eq(sorted(p.speaker_id for p in dopo.people), ["S0", "S1", "S2"], "il nuovo id e' S2, non S1")
+
+    # La porta veloce non propone piu' un'identita' assorbita: sarebbe una voce
+    # che il pool ha gia' spostato altrove.
+    veloce = scena(0.65)
+    veloce.impara(asse(0.5, 0.866), t=4.0)  # il vincitore diventa confermato di sicuro
+    d = veloce.scegli(asse(0.9, 0.4), t=5.0)
+    c.ok(veloce.get(d.speaker_id).merged_into is None, "la scelta veloce nomina solo identita' vive")

@@ -96,9 +96,17 @@ def main(argv: list[str] | None = None) -> int:
     uscita: list[np.ndarray] = []
 
     print(f"doppio {args.start:.0f}s-{args.end if args.end else 'fine'} di {source.info.path.name}\n")
+    # **Il tempo parte da zero, non da `--start`.** Il mixer ha un orologio suo
+    # che avanza coi campioni versati e comincia sempre a zero: dandogli battute
+    # timbrate al minuto 1240 le programma millecentoquaranta secondi nel futuro,
+    # e non le versa mai. Il guasto non e' un errore, e' un WAV **identico
+    # all'ingresso** mentre i log dicono 46 battute doppiate — cioe' una catena
+    # che sembra funzionare e non si sente. Portare tutti i tempi a un'origine
+    # comune e' l'unico modo di non doverli riconciliare.
+    origine = args.start
     try:
         for packet in source.packets():
-            clock.set(packet.t)
+            clock.set(packet.t - origine)
             # **L'audio prima del video, come nel banco.** Il blocco audio di un
             # pacchetto comincia all'istante del suo frame: se il dominio video
             # annunciasse la battuta prima che quell'audio sia entrato
@@ -110,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
             if packet.frame is not None:
                 for riga in pipeline.on_frame(packet.frame):
                     print(
-                        f"  t={riga.t_subtitle:7.1f}s  {riga.speaker_id:>4} -> "
+                        f"  t={riga.t_subtitle + origine:7.1f}s  {riga.speaker_id:>4} -> "
                         f"{riga.voice_id:<14} {riga.duration:4.2f}s  {riga.text[:46]!r}"
                     )
     finally:
@@ -120,6 +128,31 @@ def main(argv: list[str] | None = None) -> int:
     mix = np.concatenate(uscita) if uscita else np.zeros((0, 2), np.float32)
     out = Path(args.out)
     path = scrivi_wav(out / "dub.wav", mix, sr)
+
+    # **La verifica che questo file non sia l'originale travestito.** Nata da un
+    # difetto vero: la catena riportava 46 battute doppiate e produceva un WAV
+    # bit per bit identico all'ingresso. Nessun contatore lo diceva — le battute
+    # erano state programmate, semplicemente in un futuro irraggiungibile — e
+    # l'unico modo di accorgersene era ascoltare. Una misura che non puo' dire di
+    # no non sta misurando: questa puo'.
+    from tools.sources import AudioPipe
+
+    pipe = AudioPipe(args.video, samplerate=sr, channels=2, start=args.start, end=args.end)
+    originale = pipe.read(len(mix))
+    pipe.close()
+    n = min(len(mix), len(originale))
+    scarto = float(np.abs(mix[:n] - originale[:n]).max()) if n else 0.0
+    if scarto < 1e-3:
+        print(
+            f"\nATTENZIONE: l'uscita e' identica all'audio di gioco (scarto {scarto:.2e}).\n"
+            "Nessuna voce italiana e' stata versata. Se i log dicono che le battute\n"
+            "sono state doppiate, sono state programmate a un istante che il mixer\n"
+            "non raggiunge: e' un disallineamento fra orologi, non un problema di\n"
+            "sintesi, e non si vede in nessun contatore.",
+            file=sys.stderr,
+        )
+    else:
+        print(f"\nl'uscita differisce dall'audio di gioco (scarto max {scarto:.3f}): la voce c'e'")
 
     print(f"\n{pipeline.report()}")
     t_emb = pipeline.metrics.timer("speaker.embed")

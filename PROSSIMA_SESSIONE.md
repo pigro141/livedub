@@ -10,131 +10,153 @@ il README per intero**, costa e non serve.
 
 ## Usa il grafo come memoria, non grep
 
-`graphify-out/graph.json` contiene anche le misure e i difetti, non solo il
-codice. Per qualunque domanda su architettura, dipendenze, "dove sta X", "cosa
-rompo se tocco Y", o su un difetto già trovato:
+`graphify-out/graph.json` contiene le misure e i difetti, non solo il codice. Per
+qualunque domanda su architettura, dipendenze, "dove sta X", "cosa rompo se tocco
+Y", o su un difetto già trovato, interroga il grafo invece di partire a grep.
 
-```powershell
-graphify query "la tua domanda"
-graphify explain "nome-nodo"
-graphify path "NodoA" "NodoB"
-```
-
-Nodi utili: `wsola-deriva-puntatore`, `giro-identita-premia-difetto`,
-`duck-pompaggio`, `onset-vad-falsificato`, `mis-roi-per-setup`,
-`ocr-glifi-decapitati`, `anello-chiuso-accelerazione`.
+Nodi utili da cui partire: `sparizione-su-un-frame`, `cancello-anti-ripetizione`,
+`due-porte-del-tracker`, `attesa-500ms`, `genere-deciso-troppo-presto`,
+`identita-frammentate`, `oneocr-processo-separato`, `anti-alias-identita`,
+`domanda-sbagliata-embedding`.
 
 **Attenzione**: `graphify.exe` è bloccato da un criterio di controllo
-applicazioni su questa macchina (`ApplicationFailedException` sia da PowerShell
-sia da bash). Se serve, o si sblocca, o si legge `graph.json` direttamente.
+applicazioni su questa macchina (`ApplicationFailedException` da PowerShell,
+`Permission denied` da bash). Se serve, o lo sblocchi tu, o si legge
+`graph.json` direttamente con tre righe di Python.
 
-Ricostruisci il grafo a fine sessione con `graphify update` (codice, gratis) o
-`/graphify` se ho toccato README/CLAUDE.md. **La sessione appena chiusa non l'ha
-fatto**: il grafo non conosce ancora `listen/embed.py` né `tools/bench_speaker.py`.
+## Stato: cosa funziona
 
-## Stato
-
-F0, F1, F2 chiuse. **F3 misurata, e la misura ha chiuso due strade invece di
-aprirle.** La catena gira dal vivo e si ascolta.
+La catena gira dal vivo, si ascolta, e i due difetti che rovinavano le prove sono
+chiusi. Ultima prova dal vivo, 78 battute in 164 s di dialogo:
 
 | | |
 |---|---|
-| latenza sottotitolo→voce | p50 263 ms, p95 811 ms (budget 350 al p50) |
-| compressione WSOLA | p50 1,067 |
-| accelerazione del TTS | p50 1,39 |
+| OCR | **OneOCR**, testo italiano leggibile per intero |
+| doppioni | **spariti** (uno solo residuo, sotto la soglia di somiglianza) |
+| latenza sottotitolo→voce | p50 ~650 ms (500 sono attesa voluta, vedi sotto) |
+| sfori | rari; a volte l'italiano finisce **prima** dell'inglese |
 
-### Cosa ha detto `tools/bench_speaker.py`
+Due garanzie indipendenti contro i doppioni, entrambe misurate:
 
-**1. Il codice è giusto.** Su voci sintetiche di identità nota, EER 0% da 1 s in
-su. Il modello ECAPA, la fbank in scala Kaldi, il ricampionamento: tutto regge.
+1. `vision.vanish_frames` — il diff non può più dichiarare sparito un
+   sottotitolo su un frame solo. Causa vera: l'inchiostro si misura col
+   contrasto locale dei glifi, e una scena chiara dietro il testo lo fa crollare
+   per un frame; il tracker chiudeva d'autorità e la lettura dopo riapriva lo
+   **stesso identico testo**;
+2. `cfg.repeat` — cancello finale: normalizza a sole lettere, confronta con le
+   battute dette negli ultimi 6 s, sopra 0,90 non pronuncia. Forma presa da
+   RSTGameTranslation (`C:\Users\filde\Documents\!code\RSTGameTranslation`, open
+   source, gira su questa macchina con lo stesso OneOCR e non ha doppioni).
 
-**2. La decisione a 300 ms non esiste, nemmeno nel caso facile.** Pulito: 23% di
-EER a 0,3 s, 5% a 0,5 s, 0% a 1 s. Il ginocchio è a mezzo secondo. Rinviare
-l'attacco e partire con una voce provvisoria non è il ripiego, è la strada.
+**I 500 ms di attesa servono solo a riconoscere chi parla.** Alla comparsa del
+sottotitolo quel personaggio non ha ancora emesso un suono. Misurato: senza
+attesa un personaggio su tre riceve la voce giusta **zero volte**; con 500 ms
+l'accordo col giudizio dell'orecchio passa da 65,9% a 91,5%. Togliendo il
+riconoscimento si torna a 263 ms.
 
-**3. Sull'audio del gioco non si riconosce nessuno.** EER mai sotto il 27%, e
-**tre casi nulli indipendenti lo pareggiano**: i lati del segnale stereo (dove il
-dialogo per costruzione non c'è) danno 25,0% dove il centro dà 25,0; il silenzio
-e il backend `mfcc` idem. Due prese di parola *diverse* a meno di dieci secondi si
-somigliano più di due metà della *stessa*. Non è un riconoscitore debole: sta
-datando l'audio, non identificandolo.
+## Il lavoro di questa sessione: separare le voci come attori
 
-La causa è misurata, non ipotizzata: il parlato stacca dal fondo di **+3 dB**, e
-le stesse voci note sommate al fondo vero del gioco fanno 0% di EER a +24 dB, 2%
-a +12, **18% a 0 dB**, 48% a −6. Il gioco cade dove cade la curva. E non è la
-selezione dei ritagli: 84 prese di parola su 94 cadono sotto un sottotitolo, e
-restringersi a quelle **peggiora**.
+Il riconoscimento **funziona in laboratorio e si sfalda dal vivo**. Sulla
+registrazione, raggruppando le battute di una scena, i gruppi risultano
+all'ascolto una persona ciascuno e si ritrovano identici a sei minuti di
+distanza — confermato dall'utente. Dal vivo, sulla **stessa scena**, il report
+finale dice:
 
-**4. Il grigio non è un secondo personaggio.** Su 675 battute bianche registrate
-dal vivo in 17 sessioni, le grigie sono **15, e nessuna è dialogo**: `'11111'`,
-`"Tr'"`, `'IIFIL'`, `'er-s.'`, e una volta l'interfaccia di un terminale entrata
-nella ROI. Il filtro del lessico ne ferma tredici; le due che passano vengono
-pronunciate con la voce del secondo personaggio. Il vincolo di colore sul tracker
-non ha su cosa appoggiarsi.
+    16 identità per 3 personaggi reali (Franklin, Lamar, Simeon)
+    Simeon sparso fra S3, S6, S8   Franklin fra S0 e S4
+    11 identità con una battuta sola
+    5 voci assegnate
+
+Tre difetti distinti, in ordine di quanto si sentono:
+
+**1. Le identità non si fondono mai.** Se il tracker spezza un personaggio in
+due, restano due per sempre. I centroidi però si arricchiscono battuta dopo
+battuta, e due frammenti della stessa persona diventano sempre più simili: a quel
+punto si possono unire, **tenendo la voce del più anziano** (una voce che cambia
+a metà scena è il difetto peggiore di tutti). È il lavoro con più margine.
+
+**2. Il genere è deciso prima di conoscerlo.** `Personaggio.gender` viene
+dall'intonazione, ma la voce si assegna alla **prima apparizione**, quando l'f0 è
+stimata su uno o due ritagli rumorosi. Prova: nel report finale S3 ha
+`f0 155 Hz -> m` e ha ricevuto `paola+2`, femminile. L'f0 si stabilizza dopo, ma
+la voce è già data e non si tocca più. Da fare: mediana su N misure invece della
+media mobile, e **rinviare l'assegnazione** finché il genere non è confidente,
+usando intanto una voce neutra. Occhio: in scena rumorosa (spari, sirene) l'f0
+aggancia il rumore e dichiara "femminile" per uomini — misurato, 187-273 Hz su
+personaggi maschili.
+
+**3. Le voci si somigliano.** Le tre maschili sono `riccardo` a 0 e ±2,5
+semitoni: anche assegnate bene, l'orecchio fatica. **SuperTonic ha cinque voci
+maschili native** (`speak/backends/supertonic.py`), i modelli (~398 MB) non sono
+ancora scaricati. È il rimedio più diretto alla percezione di "voci a caso".
+
+E la partenza lenta: finché nessuno ha parlato due volte non c'è nessun
+confermato, quindi le prime battute vanno tutte sulla prima voce. Nella prova
+sono i primi ~30 s.
 
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                 # 672 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest                 # 742 verifiche
+.\.venv\Scripts\python.exe -m tools.ui --profile live --loopback voicemeeter --set vision.ocr_backend=oneocr
+.\.venv\Scripts\python.exe -m tools.dub testGameplayFattoDaMe.mp4 --profile gtav --start 1240 --end 1340 --mp4 --set vision.ocr_backend=oneocr
 .\.venv\Scripts\python.exe -m tools.bench_speaker --clean
-.\.venv\Scripts\python.exe -m tools.bench_speaker testGameplayFattoDaMe.mp4 --profile gtav --audio-only --start 300 --end 900
-.\.venv\Scripts\python.exe -m tools.live --profile live --loopback voicemeeter --seconds 150 --delay 15
 .\.venv\Scripts\python.exe -m tools.reopen runs\<data> [secondo]
 ```
 
-Le prove dal vivo si fanno sul **video di GTA V riprodotto in Chrome a schermo
-intero**, audio su VoiceMeeter, uscita sulle cuffie. Profilo `live`. Chiedimi di
-far ripartire il video prima di lanciare, e lascia 15 secondi.
+`tools/ui.py` è la finestra: selettore d'area col mouse, avvia/ferma, log
+colorato per personaggio. **Il rettangolo disegnato a mano è il percorso di
+produzione** — l'utente finale farà così — quindi non si torna ai profili
+calibrati per far tornare i conti.
+
+`tools/dub.py` doppia una registrazione su file senza gioco, e con `--mp4`
+produce il video con la traccia doppiata: è il modo di giudicare il sincro a
+freddo. Verifica che l'uscita **differisca** dall'audio di ingresso, perché una
+volta produceva un file identico all'originale mentre i log dicevano 46 battute
+doppiate.
+
+Le prove dal vivo si fanno sul **video di GTA V in Chrome a schermo intero**,
+audio su VoiceMeeter, uscita sulle cuffie. Chiedi all'utente di far ripartire il
+video prima di lanciare.
 
 ## Cosa fare, in ordine
 
-0. **Ascolta `runs\speaker_peek\*.wav`** (dodici file, un secondo l'uno). Sono i
-   ritagli che il modello riceve davvero, salvati da `--peek`. Confermano o
-   smentiscono a orecchio la storia dei +3 dB in trenta secondi, e la sessione
-   scorsa sette difetti su sette li ha trovati l'orecchio.
+1. **Fondere le identità.** Punto 1 qui sopra. È il margine grosso.
+2. **Genere robusto e assegnazione rinviata.** Punto 2.
+3. **SuperTonic**, cinque voci maschili native invece di tre pitch-shift.
+4. La partenza lenta, se dopo 1–3 si sente ancora.
 
-1. **Estrarre meglio il parlato, prima di toccare l'identità.** Il mid/side
-   attenua di 3 dB ciò che è decorrelato e basta: musica e motori restano quasi
-   interi. La curva dice quanto serve guadagnare — **da +3 a +12 dB** porterebbe
-   l'EER da 30% a 2%. Da provare, e da misurare con lo stesso banco (la riga
-   `parlato` deve staccarsi dai casi nulli, altrimenti non è successo niente):
-   separazione spettrale del centro, oppure un denoiser leggero in ONNX.
-   Se non si guadagnano quei decibel, **l'identità dall'audio non si fa** e F3
-   diventa un'altra cosa: due voci fisse, o l'identità dedotta dal testo.
+Non toccare i 500 ms di attesa senza rimisurare: c'è una tabella in
+`SpeakerConfig.decide_after_ms` che dice cosa si perde a ogni valore.
 
-2. **La voce.** `riccardo` è `x_low`, sbaglia accenti. Ora che il tempo regge è
-   il collo di bottiglia della qualità. SuperTonic ha dieci voci native italiane
-   (`speak/backends/supertonic.py`) e i modelli **non sono ancora scaricati**:
-   ~398 MB. Griglia: sintesi p50, compressione applicata, sforamenti, su CPU.
+## Le lezioni di metodo, che valgono più del codice
 
-3. **La riparazione vera di WSOLA.** Il gruppo `coda` registra dove siamo (28,2 a
-   rate 1,25, crollo da 1,30). Se il puntatore di analisi viene sistemato senza
-   rovinare lo spettro, quella verifica lo confermerà salendo.
+**Il caso nullo migliore condivide tutto tranne la risposta.** Un embedding sul
+gioco dava EER 27% e sembrava un riconoscitore debole; lo stesso protocollo sui
+**lati** del segnale stereo — dove il dialogo per costruzione non c'è — dava
+25,0% dove il centro dava 25,0. Non era debole: non stava riconoscendo niente.
 
-4. **Il tasto per marcare una battuta dal vivo.** `Session.mark` è scritto, manca
-   un modo di premerlo col gioco a schermo intero.
+**Una misura può essere incapace di esprimere la risposta giusta, non solo
+quella sbagliata.** La prima curva confrontava due ritagli *brevi* fra loro e
+costruiva i negativi da due momenti qualunque: in un dialogo i personaggi si
+alternano, quindi metà erano la stessa persona. Nessun riconoscitore poteva
+prendere più di quel voto. Riformulata come la pone il tracker — ritaglio breve
+contro **centroide** — la risposta è 100% a 0,75 s.
 
-Non ricostruire il tracker di F3 finché il punto 1 non ha una risposta: con
-questi numeri assegnerebbe voci a caso e sembrerebbe un problema di soglia.
+**Guardare l'ingresso prima di accusare il modello, sempre.** OneOCR sembrava
+inservibile (7 battute contro 46): riceveva un ritaglio preparato per un
+riconoscitore *senza* rilevatore. Col ritaglio intero torna a 45.
 
-## Le due lezioni di metodo, che valgono più del codice
+**Verificare in isolamento prima di installare.** `winocr` nel venv di
+produzione ha rotto `onnxruntime` — niente ECAPA, niente Piper, niente
+RapidOCR. Si guarda `pip install --dry-run --report` **prima**.
 
-**Il caso nullo migliore condivide tutto tranne la risposta.** Il silenzio e il
-backend stupido dicevano già "stai misurando la scena", ma lasciavano aperta
-l'obiezione "lì era diverso". I **lati** del segnale la chiudono: stesso istante,
-stessa scena, stessa energia, e nessuna voce da riconoscere. Quando un caso nullo
-pareggia la misura vera, non c'è soglia da aggiustare — non c'è segnale.
-
-**Un sì/no diventa una diagnosi col gradino di mezzo.** "Le voci pulite si
-separano, quelle del gioco no" ha quattro spiegazioni e un solo numero. Sommare
-le *stesse* voci pulite al fondo *vero* della registrazione a SNR decrescenti ne
-lascia in piedi una, e dice pure quanti decibel servono per uscirne.
-
-E quella della sessione prima, che resta: **prima di credere a una misura verde,
-chiediti se può esprimere la risposta sbagliata.** In questa sessione ne ha
-beccata un'altra — l'anti-alias di `resample` era `[0, 1, 0]`, cioè l'identità,
-per *tutti* i rapporti che il progetto usa, e la verifica era un giro identità su
-un tono a 120 Hz che torna uguale con qualunque filtro, o senza.
+**E la più importante, dimostrata quattro volte oggi: l'orecchio dell'utente
+trova ciò che la suite non può.** L'anti-alias che non filtrava, la misura che
+confondeva "stessa voce" con "stesso momento", il doppiaggio programmato in un
+futuro irraggiungibile, e i doppioni da sparizione — nessuno trovato dalle
+verifiche. Quando l'utente dice "non funziona" e i numeri dicono di sì, **sono i
+numeri a essere sotto esame**.
 
 ---
 

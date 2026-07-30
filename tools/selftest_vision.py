@@ -222,7 +222,32 @@ def test_diff(c) -> None:
     other = black.copy()
     other[20:40, 20:100] = 255
     c.eq(d.update(other).change, Change.REPLACED, "testo diverso al posto del precedente")
-    c.eq(d.update(black).change, Change.VANISHED, "il testo che sparisce e' una sparizione")
+    # **La sparizione si conferma, non si intravede.** Il primo frame senza
+    # inchiostro non basta piu': dal vivo, una scena chiara dietro il sottotitolo
+    # abbassa il contrasto dei glifi per un frame, l'inchiostro scende, e il
+    # diff dichiarava sparita una battuta ancora a schermo. Il tracker la
+    # chiudeva d'autorita' e la lettura dopo la riapriva **identica**: e' il
+    # difetto della voce doppia, trovato all'ascolto e invisibile sul banco.
+    c.eq(d.update(black).change, Change.NONE, "un solo frame senza testo non e' una sparizione")
+    c.eq(d.update(black).change, Change.NONE, "due nemmeno")
+    c.eq(d.update(black).change, Change.VANISHED, "al terzo la sparizione e' confermata")
+
+    # E la prova che il difetto non torni: il testo resta, cambia il contorno.
+    # Deve **non** succedere niente, per quanti lampi passino.
+    lampo = RoiDiff(vanish_frames=3)
+    barra = np.zeros((60, 200, 3), np.uint8)
+    barra[20:40, 20:180] = 255
+    lampo.update(barra)
+    for k in range(6):
+        sfondo = barra.copy()
+        # Sfondo che si accende e si spegne: il testo c'e' sempre, ma il suo
+        # contrasto locale crolla, ed e' esattamente cio' che accade dietro un
+        # sottotitolo quando esplode qualcosa.
+        sfondo[:, :] = np.maximum(sfondo, 200 if k % 2 == 0 else 0)
+        c.ok(
+            lampo.update(sfondo).change is not Change.VANISHED,
+            f"lampo {k}: il contorno che cambia non fa sparire il sottotitolo",
+        )
 
     fresh = RoiDiff()
     c.eq(
@@ -584,8 +609,13 @@ def test_reader(c) -> None:
         "i frame fermi risultano fermati dal cancello",
     )
 
+    # Tre frame vuoti: la sparizione si conferma prima di essere creduta. I due
+    # frame in piu' sono il prezzo dichiarato di non chiudere una battuta che e'
+    # ancora a schermo e ha solo perso contrasto per un istante.
+    c.eq(len(reader.run(vuoto).closed), 0, "il primo frame vuoto non chiude niente")
+    c.eq(len(reader.run(vuoto).closed), 0, "il secondo nemmeno")
     out = reader.run(vuoto)
-    c.eq(len(out.closed), 1, "quando sparisce, la battuta si chiude")
+    c.eq(len(out.closed), 1, "quando sparisce davvero, la battuta si chiude")
 
     # Le righe colorate non arrivano mai al riconoscitore.
     ocr2 = EchoOcr(["dialogo"])
@@ -653,9 +683,17 @@ def test_reader(c) -> None:
     reader5.run(testo_frame)
     orologio.t = 1.033
     reader5.run(testo_frame)
+    # Tre frame vuoti: la sparizione si conferma prima di essere creduta, e
+    # allora chiude senza aspettare `hold_frames`. I due frame che servono a
+    # confermarla sono il prezzo dichiarato di non chiudere una battuta ancora
+    # a schermo.
+    orologio.t = 2.933
+    reader5.run(vuoto)
+    orologio.t = 2.967
+    reader5.run(vuoto)
     orologio.t = 3.0
     out = reader5.run(vuoto)
-    c.eq(len(out.closed), 1, "la sparizione chiude subito, senza aspettare hold_frames")
+    c.eq(len(out.closed), 1, "la sparizione confermata chiude senza aspettare hold_frames")
     c.close(out.closed[0].duration, 2.0, "la durata e' quella vera", tol=1e-6)
 
     # ...e hold_frames continua a proteggere dallo sfarfallio dell'OCR, che e'

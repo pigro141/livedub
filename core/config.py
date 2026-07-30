@@ -55,6 +55,30 @@ class VisionConfig:
     # testo" chiude una battuta ancora a schermo e la fa riaprire, mentre un
     # falso "c'e' testo" ritarda solo la chiusura di `hold_frames`.
     ink_min_columns: float = 0.20
+    # **Quanti frame consecutivi senza inchiostro prima di credere a una
+    # sparizione.** Uno non basta, e il difetto che questo numero cura era il
+    # peggiore visto dal vivo: la stessa battuta letta due o tre volte di
+    # seguito, con testo *identico*, e ogni copia una voce in piu' accodata.
+    #
+    # Il meccanismo: l'inchiostro si misura col contrasto locale dei glifi, cioe'
+    # quanto le lettere staccano da cio' che hanno intorno. Quando dietro il
+    # sottotitolo passa una scena chiara — un'esplosione, il cielo, dei fari —
+    # le lettere staccano meno, l'inchiostro scende sotto soglia per un frame, e
+    # il diff dichiara `VANISHED`. Il sottotitolo pero' e' ancora li': cambia il
+    # contorno, non il testo. Quella dichiarazione arriva al tracker come
+    # `certain=True`, che chiude **d'autorita'** saltando tenuta e somiglianza,
+    # e la lettura successiva riapre lo stesso testo come battuta nuova.
+    #
+    # Sul banco non si vedeva perche' il file e' 1080p pulito e il contrasto non
+    # crolla mai; dal vivo si cattura Chrome riscalato, il testo stacca meno in
+    # partenza (`contrast_min` 68,8 nel profilo live contro 28,9 in quello del
+    # file) e basta molto meno a farlo scendere.
+    #
+    # E' la stessa forma di `min_speech_ms` nel VAD e di `stable_reads`
+    # nell'OCR: una transizione si dichiara quando persiste, non quando la si
+    # intravede. Il prezzo e' un `t_off` in ritardo di `vanish_frames / fps`
+    # (100 ms a 30 fps), che allunga di altrettanto la durata misurata.
+    vanish_frames: int = 3
     sat_max: int = 60  # saturazione oltre la quale un pixel non e' un glifo di dialogo
     # Quanta parte dell'inchiostro di una riga puo' essere satura prima che la
     # riga smetta di essere dialogo.

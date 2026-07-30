@@ -87,6 +87,7 @@ class RoiDiff:
         contrast_min: float = 30.0,
         contrast_kernel: int = 63,
         ink_min_columns: float = 0.20,
+        vanish_frames: int = 3,
     ) -> None:
         if stride < 1:
             raise ValueError(f"stride non valido: {stride}")
@@ -99,12 +100,18 @@ class RoiDiff:
         # una finestra sedici volte piu' larga di quella voluta.
         self.contrast_kernel = max(3, (int(contrast_kernel) // self.stride) | 1)
         self.ink_min_columns = float(ink_min_columns)
+        self.vanish_frames = max(1, int(vanish_frames))
         self._previous: np.ndarray | None = None
         self._had_ink = False
+        self._senza_inchiostro = 0
+        self._sparizione_da_dire = False  # frame consecutivi senza testo
+        self._sparizione_da_dire = False  # c'era testo: la sparizione andra' detta
 
     def reset(self) -> None:
         self._previous = None
         self._had_ink = False
+        self._senza_inchiostro = 0
+        self._sparizione_da_dire = False
 
     def update(self, roi: np.ndarray) -> DiffResult:
         sample = self._sample(roi)
@@ -131,13 +138,43 @@ class RoiDiff:
         had_ink = self._had_ink
         self._previous = sample
         self._had_ink = has_ink
+        # Il conteggio si aggiorna a ogni frame, anche quando il diff non vede
+        # cambiamenti: una sparizione vera resta tale mentre lo schermo e' fermo,
+        # e legarla al solo frame che cambia la renderebbe impossibile da
+        # confermare proprio nelle scene tranquille.
+        self._senza_inchiostro = 0 if has_ink else self._senza_inchiostro + 1
+        if has_ink:
+            self._sparizione_da_dire = True
+
+        # **La conferma va decisa prima del cortocircuito su `ratio`.** Un
+        # sottotitolo che sparisce lascia lo schermo *fermo*: dal secondo frame
+        # vuoto in poi non cambia piu' niente, il diff uscirebbe subito con
+        # `NONE`, e la sparizione non verrebbe confermata mai. Sarebbe il difetto
+        # opposto a quello che si stava curando — battute che non si chiudono
+        # piu' — e sarebbe passato inosservato perche' nei test lo schermo si
+        # muove sempre.
+        if (
+            not has_ink
+            and self._sparizione_da_dire
+            and self._senza_inchiostro >= self.vanish_frames
+        ):
+            self._sparizione_da_dire = False
+            return DiffResult(Change.VANISHED, ratio, ink)
 
         if ratio <= self.threshold:
             return DiffResult(Change.NONE, ratio, ink)
         if has_ink and not had_ink:
             change = Change.APPEARED
         elif had_ink and not has_ink:
-            change = Change.VANISHED
+            # Qui ci si arriva solo se la sparizione **non** e' ancora
+            # confermata (il ramo sopra l'avrebbe gia' detta): si tace.
+            # **Un frame solo non e' una sparizione.** Finche' non e' confermata
+            # si tace: dire `NONE` lascia la battuta aperta, dire `VANISHED` la
+            # chiude d'autorita' e la fa riaprire identica un attimo dopo. Fra i
+            # due errori possibili, tenere aperta una battuta gia' sparita costa
+            # `vanish_frames / fps` di durata in piu'; chiuderne una ancora a
+            # schermo costa una voce doppia, che si sente.
+            change = Change.NONE
         elif has_ink:
             change = Change.REPLACED
         else:

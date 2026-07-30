@@ -23,8 +23,10 @@ secondo c'e' `live_latency_ms`, e per il numero vero c'e' `tools/live.py`.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import wave
+from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
@@ -158,6 +160,22 @@ def main(argv: list[str] | None = None) -> int:
     out = Path(args.out)
     path = scrivi_wav(out / "dub.wav", mix, sr)
 
+    # **La stessa forma di una sessione dal vivo**, cosi' `tools.reopen` legge
+    # anche le prove sul banco. Non e' comodita': una prova che si guarda con uno
+    # strumento diverso da quello del vivo si finisce per confrontarla con misure
+    # calcolate in un altro modo, e la differenza fra le due passa per un
+    # risultato. Qui `t_wav` e' il secondo dentro `dub.wav`, che parte da zero
+    # come il mixer.
+    eventi = out / "events.jsonl"
+    with eventi.open("w", encoding="utf-8") as f:
+        for riga in pipeline.spoken:
+            record = asdict(riga)
+            record["t_wav"] = round(riga.t_scheduled, 3)
+            record["latency_ms"] = round(riga.latency_ms, 1)
+            record["live_latency_ms"] = round(riga.live_latency_ms, 1)
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    cfg.save(out / "config.json")
+
     # **La verifica che questo file non sia l'originale travestito.** Nata da un
     # difetto vero: la catena riportava 46 battute doppiate e produceva un WAV
     # bit per bit identico all'ingresso. Nessun contatore lo diceva — le battute
@@ -188,6 +206,7 @@ def main(argv: list[str] | None = None) -> int:
     if t_emb.count:
         print(f"\nimpronta: {t_emb.count} calcoli, {t_emb.mean:.0f} ms l'uno")
     print(f"\n-> {path}  ({len(mix)/sr:.0f}s)")
+    print(f"-> {eventi}   (si rilegge con: python -m tools.reopen {out})")
     if args.mp4:
         video = monta(args.video, path, out / "dub.mp4", t0_video, len(mix) / sr, args.mp4_width)
         if video is not None:

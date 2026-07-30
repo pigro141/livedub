@@ -60,6 +60,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--end", type=float, default=None)
     ap.add_argument("--out", default="runs/dub", help="cartella di uscita")
     ap.add_argument("--tone", action="store_true", help="voci finte: prova la catena senza TTS")
+    ap.add_argument(
+        "--mp4",
+        action="store_true",
+        help="scrivi anche il video con la traccia doppiata, per vedere il sincro",
+    )
+    ap.add_argument("--mp4-width", type=int, default=1280)
     args = ap.parse_args(argv)
 
     cfg = (
@@ -104,8 +110,16 @@ def main(argv: list[str] | None = None) -> int:
     # che sembra funzionare e non si sente. Portare tutti i tempi a un'origine
     # comune e' l'unico modo di non doverli riconciliare.
     origine = args.start
+    # L'istante del primo frame **davvero emesso**: il seek su H.264 atterra sul
+    # keyframe piu' vicino, e il montaggio deve partire da li' o introdurrebbe uno
+    # sfasamento suo, che si scambierebbe per uno sfasamento della catena.
+    t0_video = args.start
+    primo = True
     try:
         for packet in source.packets():
+            if primo:
+                t0_video = packet.t
+                primo = False
             clock.set(packet.t - origine)
             # **L'audio prima del video, come nel banco.** Il blocco audio di un
             # pacchetto comincia all'istante del suo frame: se il dominio video
@@ -159,7 +173,51 @@ def main(argv: list[str] | None = None) -> int:
     if t_emb.count:
         print(f"\nimpronta: {t_emb.count} calcoli, {t_emb.mean:.0f} ms l'uno")
     print(f"\n-> {path}  ({len(mix)/sr:.0f}s)")
+    if args.mp4:
+        video = monta(args.video, path, out / "dub.mp4", t0_video, len(mix) / sr, args.mp4_width)
+        if video is not None:
+            print(f"-> {video}")
     return 0
+
+
+def monta(
+    sorgente: str, wav: Path, destinazione: Path, start: float, durata: float, larghezza: int
+) -> Path | None:
+    """Il video del gioco con la traccia doppiata al posto dell'originale.
+
+    Esiste perche' un errore di sincronizzazione **non si sente**, si vede: la
+    voce italiana in ritardo di due decimi somiglia molto a una voce italiana
+    puntuale, finche' non si guarda il sottotitolo comparire.
+
+    `start` e' l'istante del **primo frame che la pipeline ha davvero emesso**,
+    non quello chiesto sulla riga di comando. Il seek su H.264 atterra sul
+    keyframe piu' vicino, e usare il valore chiesto introdurrebbe uno
+    sfasamento tutto del montaggio — che si scambierebbe per uno sfasamento
+    della catena, cioe' si andrebbe a cercare un difetto dove non c'e'.
+    """
+    from tools.sources import ffmpeg_exe
+
+    exe = ffmpeg_exe()
+    if exe is None:
+        print("ffmpeg non disponibile: niente mp4", file=sys.stderr)
+        return None
+    import subprocess
+
+    cmd = [
+        exe, "-hide_banner", "-loglevel", "error", "-y",
+        "-accurate_seek", "-ss", f"{start:.6f}", "-i", str(sorgente),
+        "-i", str(wav),
+        "-map", "0:v:0", "-map", "1:a:0", "-t", f"{durata:.3f}",
+        "-vf", f"scale={larghezza}:-2", "-r", "30",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
+        str(destinazione),
+    ]
+    destinazione.parent.mkdir(parents=True, exist_ok=True)
+    if subprocess.run(cmd).returncode != 0:
+        print("ffmpeg ha fallito il montaggio", file=sys.stderr)
+        return None
+    return destinazione
 
 
 if __name__ == "__main__":

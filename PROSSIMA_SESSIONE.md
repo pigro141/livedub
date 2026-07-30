@@ -14,90 +14,115 @@ il README per intero**, costa e non serve.
 qualunque domanda su architettura, dipendenze, "dove sta X", "cosa rompo se tocco
 Y", o su un difetto già trovato, interroga il grafo invece di partire a grep.
 
-Nodi utili da cui partire: `sparizione-su-un-frame`, `cancello-anti-ripetizione`,
-`due-porte-del-tracker`, `attesa-500ms`, `genere-deciso-troppo-presto`,
-`identita-frammentate`, `oneocr-processo-separato`, `anti-alias-identita`,
-`domanda-sbagliata-embedding`.
-
 **Attenzione**: `graphify.exe` è bloccato da un criterio di controllo
-applicazioni su questa macchina (`ApplicationFailedException` da PowerShell,
-`Permission denied` da bash). Se serve, o lo sblocchi tu, o si legge
-`graph.json` direttamente con tre righe di Python.
+applicazioni su questa macchina. Se serve, si legge `graph.json` direttamente con
+tre righe di Python. Il grafo è fermo al 28 luglio: le tre sessioni successive
+non ci sono dentro.
+
+## Il banco di chi parla, che adesso c'è
+
+È lo strumento con cui è stato fatto tutto il lavoro sulle voci, e va usato
+**prima** di cambiare qualunque soglia del riconoscimento.
+
+```powershell
+# una volta per registrazione: costa una passata di OCR (~3 minuti)
+.\.venv\Scripts\python.exe -m tools.dub testGameplayFattoDaMe.mp4 --profile gtav `
+    --start 1240 --end 1340 --set vision.ocr_backend=oneocr `
+    --dump-speaker runs\banco\speaker.jsonl
+
+# tutte le altre: 50 millisecondi l'una
+.\.venv\Scripts\python.exe -m tools.recluster runs\banco\speaker.jsonl --profile gtav
+.\.venv\Scripts\python.exe -m tools.recluster runs\banco\speaker.jsonl --profile gtav `
+    --sweep speaker.merge_similarity 0.50:0.95:0.025
+.\.venv\Scripts\python.exe -m tools.recluster runs\banco\speaker.jsonl --profile gtav --shuffle
+.\.venv\Scripts\python.exe -m tools.recluster runs\banco\speaker.jsonl --profile gtav `
+    --wav testGameplayFattoDaMe.mp4 --offset 1240     # un WAV per identità, da ascoltare
+```
+
+`--shuffle` è **il numero che decide**: le stesse impronte permutate fra le
+battute, dove nessuna identità esiste più. Se una soglia fonde là quanto qui, non
+sta fondendo identità.
+
+`voce_per` in `speak/pool.py` contiene la politica di assegnazione, e sta lì e
+non nella pipeline proprio perché il banco deve rigiocare **quella vera**. Se la
+sposti, il banco comincia a misurare un doppiaggio che non esiste.
 
 ## Stato: cosa funziona
 
-La catena gira dal vivo, si ascolta, e i due difetti che rovinavano le prove sono
-chiusi. Ultima prova dal vivo, 78 battute in 164 s di dialogo:
+Scena del concessionario, 44 battute in 100 s, tre personaggi reali (confermati
+all'ascolto: S9 e S11 sono la stessa persona, e sono tutti e tre uomini).
 
-| | |
-|---|---|
-| OCR | **OneOCR**, testo italiano leggibile per intero |
-| doppioni | **spariti** (uno solo residuo, sotto la soglia di somiglianza) |
-| latenza sottotitolo→voce | p50 ~650 ms (500 sono attesa voluta, vedi sotto) |
-| sfori | rari; a volte l'italiano finisce **prima** dell'inglese |
+| | prima | adesso |
+|---|---|---|
+| identità con una voce | 4 | **3**, quanti sono |
+| uomini con voce femminile | 1 (quello con più battute) | **0** |
+| battute che cambiano voce | — | **0** |
+| battute dette in attesa di sapere | — | 4 |
+| latenza sottotitolo→voce (Piper) | ~570 ms | invariata |
 
-Due garanzie indipendenti contro i doppioni, entrambe misurate:
+Tre cose nuove, tutte misurate sul banco:
 
-1. `vision.vanish_frames` — il diff non può più dichiarare sparito un
-   sottotitolo su un frame solo. Causa vera: l'inchiostro si misura col
-   contrasto locale dei glifi, e una scena chiara dietro il testo lo fa crollare
-   per un frame; il tracker chiudeva d'autorità e la lettura dopo riapriva lo
-   **stesso identico testo**;
-2. `cfg.repeat` — cancello finale: normalizza a sole lettere, confronta con le
-   battute dette negli ultimi 6 s, sopra 0,90 non pronuncia. Forma presa da
-   RSTGameTranslation (`C:\Users\filde\Documents\!code\RSTGameTranslation`, open
-   source, gira su questa macchina con lo stesso OneOCR e non ha doppioni).
+1. **le identità si fondono** (`speaker.merge_similarity = 0.70`). La soglia
+   viene dalla colonna del permutato: sotto 0,625 il rumore fonde quanto
+   l'identità — sedici identità diventano dieci, e sono dieci gruppi a caso —
+   sopra 0,775 non fonde più niente. Dentro la finestra c'è **una** fusione,
+   sempre la stessa. Vince chi ha più battute, non chi è comparso prima;
+2. **il genere si decide quando si sa**: servono quattro misure, la mediana ha
+   sostituito la media mobile, e finché non si sa si parla con una voce **fuori
+   dal pool** che nessuno terrà;
+3. **SuperTonic non si interrompe più**: la velocità che gli arrivava era 2,08 e
+   lui accetta 2,0 — sollevando `ValueError`, cioè uccidendo la sessione alla
+   battuta 10 di 44.
 
-**I 500 ms di attesa servono solo a riconoscere chi parla.** Alla comparsa del
-sottotitolo quel personaggio non ha ancora emesso un suono. Misurato: senza
-attesa un personaggio su tre riceve la voce giusta **zero volte**; con 500 ms
-l'accordo col giudizio dell'orecchio passa da 65,9% a 91,5%. Togliendo il
-riconoscimento si torna a 263 ms.
+## Le due cose che il banco ha scoperto e che cambiano il piano
 
-## Il lavoro di questa sessione: separare le voci come attori
+**L'intonazione presa sui ritagli del gioco non misura la voce.** Sui quindici
+ritagli di Lamar ci sono 64 finestre sonore fra 90 e 130 Hz — lui — e 673 sopra i
+190, che sono la scena. E non sono finestre incerte: tenendo solo quelle con
+autocorrelazione sopra 0,6 la stima **peggiora**, da 221 a 230 Hz. Nessuna media
+di quel numero può tornare giusta. Il rimedio sfrutta la forma della
+contaminazione — il fondo aggiunge periodicità alte, non ne aggiunge di basse —
+quindi `stima_f0` prende il quindicesimo percentile delle finestre invece della
+mediana. **Il prezzo è dichiarato: questa taratura sa dire "uomo" molto meglio di
+"donna", e su una registrazione con voci femminili va rifatta** (soglie in
+`listen/speaker.py`, ripiego in `speaker.gender_fallback`).
 
-Il riconoscimento **funziona in laboratorio e si sfalda dal vivo**. Sulla
-registrazione, raggruppando le battute di una scena, i gruppi risultano
-all'ascolto una persona ciascuno e si ritrovano identici a sei minuti di
-distanza — confermato dall'utente. Dal vivo, sulla **stessa scena**, il report
-finale dice:
+**Le undici identità con una battuta sola non sono il difetto che sembravano.**
+Non ricevono mai una voce — non sono confermate, quindi `scegli` non le propone
+mai — quindi non si sentono: sporcano il report e basta. E la fusione dei
+centroidi non può recuperarle: la loro somiglianza con le identità grandi sta fra
+0,17 e 0,58, dove il permutato fonde quanto il vero, e il secondo candidato è
+spesso a un centesimo dal primo (S13: 0,516 contro 0,507). Nascono quasi tutte
+nei primi trenta secondi, quando la banca è povera. Se un giorno danno fastidio,
+la domanda da farsi è **cosa contiene quel ritaglio**, non quale soglia usare.
 
-    16 identità per 3 personaggi reali (Franklin, Lamar, Simeon)
-    Simeon sparso fra S3, S6, S8   Franklin fra S0 e S4
-    11 identità con una battuta sola
-    5 voci assegnate
+## Cosa resta aperto, in ordine
 
-Tre difetti distinti, in ordine di quanto si sentono:
-
-**1. Le identità non si fondono mai.** Se il tracker spezza un personaggio in
-due, restano due per sempre. I centroidi però si arricchiscono battuta dopo
-battuta, e due frammenti della stessa persona diventano sempre più simili: a quel
-punto si possono unire, **tenendo la voce del più anziano** (una voce che cambia
-a metà scena è il difetto peggiore di tutti). È il lavoro con più margine.
-
-**2. Il genere è deciso prima di conoscerlo.** `Personaggio.gender` viene
-dall'intonazione, ma la voce si assegna alla **prima apparizione**, quando l'f0 è
-stimata su uno o due ritagli rumorosi. Prova: nel report finale S3 ha
-`f0 155 Hz -> m` e ha ricevuto `paola+2`, femminile. L'f0 si stabilizza dopo, ma
-la voce è già data e non si tocca più. Da fare: mediana su N misure invece della
-media mobile, e **rinviare l'assegnazione** finché il genere non è confidente,
-usando intanto una voce neutra. Occhio: in scena rumorosa (spari, sirene) l'f0
-aggancia il rumore e dichiara "femminile" per uomini — misurato, 187-273 Hz su
-personaggi maschili.
-
-**3. Le voci si somigliano.** Le tre maschili sono `riccardo` a 0 e ±2,5
-semitoni: anche assegnate bene, l'orecchio fatica. **SuperTonic ha cinque voci
-maschili native** (`speak/backends/supertonic.py`), i modelli (~398 MB) non sono
-ancora scaricati. È il rimedio più diretto alla percezione di "voci a caso".
-
-E la partenza lenta: finché nessuno ha parlato due volte non c'è nessun
-confermato, quindi le prime battute vanno tutte sulla prima voce. Nella prova
-sono i primi ~30 s.
+1. **SuperTonic è tagliuzzato, e la colpa non è sua.** Misurato in isolamento,
+   senza gioco e senza scheduler: al suo passo naturale fa 16,0 caratteri al
+   secondo, come Piper. La catena lo guida a **26,4** — 1,36 chiesti al modello
+   più 1,25 di WSOLA — e a quel ritmo nessuna voce articola. La prova sta in
+   `dub.rate_x1000`, che con SuperTonic vale **1250 a ogni percentile**: tutte e
+   quarantaquattro le battute compresse al tetto, mentre con Piper la mediana è
+   1023. Togliere i 500 ms di attesa non lo cura (provato: la latenza peggiora,
+   p50 789 ms e p95 3025, perché la coda si accumula — `dub.overflow` 30). Il
+   lavoro sta nello **scheduler e nel modello di durata**, non nel TTS: perché la
+   finestra di ogni battuta risulti sempre troppo stretta di un fattore 1,25.
+   Finché non è sciolto il default resta `piper`.
+2. **La partenza lenta.** Le prime 13 battute su 44 vanno tutte a `S0` perché
+   finché nessuno ha parlato due volte non esiste un confermato. Trenta secondi
+   di scena con una voce sola. Il rimedio ovvio — abbassare la conferma a una
+   battuta — è precisamente il difetto che la conferma è stata scritta per
+   impedire, e costava tredici voci in cento secondi. Da provare invece: la voce
+   neutra anche qui, così i primi trenta secondi dichiarano "non lo so ancora"
+   invece di mentire.
+3. Le voci femminili: la taratura del genere non è calibrata su una donna,
+   perché in questa registrazione non ce n'è. Serve una scena che ne contenga.
 
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                 # 742 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest                 # 796 verifiche
 .\.venv\Scripts\python.exe -m tools.ui --profile live --loopback voicemeeter --set vision.ocr_backend=oneocr
 .\.venv\Scripts\python.exe -m tools.dub testGameplayFattoDaMe.mp4 --profile gtav --start 1240 --end 1340 --mp4 --set vision.ocr_backend=oneocr
 .\.venv\Scripts\python.exe -m tools.bench_speaker --clean
@@ -119,44 +144,38 @@ Le prove dal vivo si fanno sul **video di GTA V in Chrome a schermo intero**,
 audio su VoiceMeeter, uscita sulle cuffie. Chiedi all'utente di far ripartire il
 video prima di lanciare.
 
-## Cosa fare, in ordine
-
-1. **Fondere le identità.** Punto 1 qui sopra. È il margine grosso.
-2. **Genere robusto e assegnazione rinviata.** Punto 2.
-3. **SuperTonic**, cinque voci maschili native invece di tre pitch-shift.
-4. La partenza lenta, se dopo 1–3 si sente ancora.
-
 Non toccare i 500 ms di attesa senza rimisurare: c'è una tabella in
-`SpeakerConfig.decide_after_ms` che dice cosa si perde a ogni valore.
+`SpeakerConfig.decide_after_ms` che dice cosa si perde a ogni valore. È già stato
+provato a toglierli per curare SuperTonic, e non è quella la cura.
 
 ## Le lezioni di metodo, che valgono più del codice
 
-**Il caso nullo migliore condivide tutto tranne la risposta.** Un embedding sul
-gioco dava EER 27% e sembrava un riconoscitore debole; lo stesso protocollo sui
-**lati** del segnale stereo — dove il dialogo per costruzione non c'è — dava
-25,0% dove il centro dava 25,0. Non era debole: non stava riconoscendo niente.
+**Il caso nullo migliore condivide tutto tranne la risposta.** Le impronte
+permutate fra le battute lasciano identiche la scena, i tempi e l'alternanza, e
+tolgono solo *chi è chi*. Sono loro che hanno fissato la soglia della fusione: a
+0,50 il conteggio delle identità scendeva da sedici a undici e sembrava un
+trionfo, ma il permutato scendeva a undici anche lui.
 
-**Una misura può essere incapace di esprimere la risposta giusta, non solo
-quella sbagliata.** La prima curva confrontava due ritagli *brevi* fra loro e
-costruiva i negativi da due momenti qualunque: in un dialogo i personaggi si
-alternano, quindi metà erano la stessa persona. Nessun riconoscitore poteva
-prendere più di quel voto. Riformulata come la pone il tracker — ritaglio breve
-contro **centroide** — la risposta è 100% a 0,75 s.
+**Una misura può essere incapace di esprimere la risposta giusta.** L'intonazione
+sul mix del gioco è il caso più netto: le finestre *più sicure* sono quelle
+sbagliate, quindi filtrare per confidenza peggiora la risposta. Quando succede,
+la via d'uscita non è una statistica più robusta ma la **forma** dell'errore —
+qui il fatto che contamini in una direzione sola.
 
-**Guardare l'ingresso prima di accusare il modello, sempre.** OneOCR sembrava
-inservibile (7 battute contro 46): riceveva un ritaglio preparato per un
-riconoscitore *senza* rilevatore. Col ritaglio intero torna a 45.
+**Guardare ogni lettura, non solo quelle che arrivano in fondo.** «Lamar prende
+paola» non si spiegava dal report finale, dove la sua f0 è 166 Hz, maschile. Si
+spiegava stampando la storia della decisione: alla seconda misura era 218 e il
+sesso era già dichiarato, con la voce data e non più toccabile.
 
-**Verificare in isolamento prima di installare.** `winocr` nel venv di
-produzione ha rotto `onnxruntime` — niente ECAPA, niente Piper, niente
-RapidOCR. Si guarda `pip install --dry-run --report` **prima**.
+**Verificare in isolamento prima di accusare il modello.** SuperTonic sembrava
+inservibile. Sintetizzate le stesse battute senza gioco e senza scheduler, il suo
+passo naturale è quello giusto: a tagliuzzare è la catena che gli chiede 26
+caratteri al secondo.
 
-**E la più importante, dimostrata quattro volte oggi: l'orecchio dell'utente
-trova ciò che la suite non può.** L'anti-alias che non filtrava, la misura che
-confondeva "stessa voce" con "stesso momento", il doppiaggio programmato in un
-futuro irraggiungibile, e i doppioni da sparizione — nessuno trovato dalle
-verifiche. Quando l'utente dice "non funziona" e i numeri dicono di sì, **sono i
-numeri a essere sotto esame**.
+**E la più importante: l'orecchio dell'utente trova ciò che la suite non può.**
+Anche in questa sessione: la suite era verde su 796 verifiche e SuperTonic era
+inascoltabile. Quando l'utente dice "non funziona" e i numeri dicono di sì,
+**sono i numeri a essere sotto esame**.
 
 ---
 

@@ -442,6 +442,47 @@ class TtsConfig:
 
 
 @dataclass
+class RepeatConfig:
+    """L'ultimo cancello: la stessa frase non si dice due volte di fila.
+
+    **Non e' un rimedio elegante, ed e' voluto.** I doppioni nascono a monte,
+    quando il lettore chiude una battuta ancora a schermo e la riapre; quel
+    difetto e' stato trovato e corretto (`vision.vanish_frames`), ma i percorsi
+    che portano allo stesso sintomo sono piu' d'uno — la sostituzione, la
+    somiglianza sotto budget, una lettura che migliora a meta' — e ognuno ha la
+    sua diagnosi. Questo cancello non li diagnostica: li **taglia tutti**, nel
+    solo punto in cui il difetto smette di essere un evento nel log e diventa una
+    voce che si sente.
+
+    Sta in fondo alla catena di proposito. Piu' in su interferirebbe con la
+    durata misurata dei sottotitoli, che serve alla calibrazione del tempo: una
+    battuta riletta e' comunque un'osservazione buona di *quanto* e' rimasta a
+    schermo, e va conservata. Qui invece si decide solo se **pronunciarla**, e
+    quella e' una domanda diversa.
+
+    Le battute soppresse si contano (`dub.repeated`): un cancello silenzioso che
+    per un difetto di soglia si mangiasse dialogo vero sarebbe peggio del
+    problema, e il contatore e' l'unica cosa che lo rende visibile.
+    """
+
+    enabled: bool = True
+    # Entro quanti secondi due letture quasi uguali sono la stessa battuta.
+    # Sopra questo tempo si pronuncia: un personaggio che ripete davvero la
+    # stessa frase esiste ("Via! Via! Via!"), e zittirlo sarebbe un difetto.
+    window_s: float = 6.0
+    # Quanto devono somigliarsi, confrontate sulle sole lettere e cifre.
+    #
+    # La forma di questo cancello viene da un'implementazione che il problema non
+    # ce l'ha: RSTGameTranslation fa OCR dell'area, concatena il testo, lo
+    # normalizza (minuscole, via punteggiatura e spazi), lo confronta con
+    # l'ultimo e se somiglia sopra `textsimilar_threshold` **esce senza
+    # tradurre**. Quel programma non ha nessun concetto di battuta "aperta" e
+    # "chiusa" — ha solo il testo di adesso contro quello di prima — ed e' per
+    # questo che non produce doppioni. La sua soglia predefinita e' 0,9.
+    similarity: float = 0.90  # la soglia di RSTGameTranslation, che il difetto non ce l'ha
+
+
+@dataclass
 class TimingConfig:
     """Aggancio al parlato originale.
 
@@ -560,6 +601,7 @@ class Config:
     audio: AudioConfig = field(default_factory=AudioConfig)
     vad: VadConfig = field(default_factory=VadConfig)
     speaker: SpeakerConfig = field(default_factory=SpeakerConfig)
+    repeat: RepeatConfig = field(default_factory=RepeatConfig)
     emotion: EmotionConfig = field(default_factory=EmotionConfig)
     tts: TtsConfig = field(default_factory=TtsConfig)
     timing: TimingConfig = field(default_factory=TimingConfig)

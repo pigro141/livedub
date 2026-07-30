@@ -21,8 +21,11 @@ in contemporanea, che e' il caso in cui l'errore darebbe piu' fastidio.
 
 from __future__ import annotations
 
+import re
 import time
+import unicodedata
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 
 import numpy as np
 
@@ -41,6 +44,18 @@ from speak.base import TtsBackend
 from speak.pool import VoicePool, build_pool
 from vision.ocr import OcrBackend, make_ocr
 from vision.reader import SubtitleReader
+
+
+def _lettere(testo: str) -> str:
+    """Solo lettere e cifre, minuscole, accenti sciolti.
+
+    Fra due letture della stessa battuta cio' che cambia di piu' e' la
+    punteggiatura che l'OCR inventa sui bordi dei glifi: `'Via! Via!'` e
+    `'Via, Via.'` sono la stessa frase, e un confronto letterale direbbe di no.
+    Stessa normalizzazione di `NormalizeTextForHash` in RSTGameTranslation.
+    """
+    piatto = unicodedata.normalize("NFKD", testo.lower())
+    return re.sub(r"[^a-z0-9]", "", piatto)
 
 
 @dataclass
@@ -180,6 +195,7 @@ class DubPipeline:
         self._t_embed = self.metrics.timer("speaker.embed")
         self._n_speakers = self.metrics.counter("speaker.new")
         self._n_no_clip = self.metrics.counter("speaker.no_clip")
+        self._n_repeated = self.metrics.counter("dub.repeated")
         self._n_lines = self.metrics.counter("dub.lines")
         self._n_empty = self.metrics.counter("dub.empty")
 
@@ -256,7 +272,7 @@ class DubPipeline:
             scadenza = self.clock.now() - self.cfg.speaker.decide_after_ms / 1000.0
             pronte = [e for e in self._da_dire if e.t_on <= scadenza]
             self._da_dire = [e for e in self._da_dire if e.t_on > scadenza]
-        return [self._speak(ev) for ev in pronte]
+        return [self._speak(ev) for ev in pronte if not self._gia_detta(ev)]
 
     def _speak(self, event: SubtitleEvent) -> SpokenLine:
         """Da battuta letta a audio programmato."""
@@ -485,6 +501,30 @@ class DubPipeline:
         self._t_live.add(line.live_latency_ms)
         self.spoken.append(line)
         return line
+
+    def _gia_detta(self, event: SubtitleEvent) -> bool:
+        """Questa frase e' gia' stata pronunciata un attimo fa?
+
+        E' l'ultimo cancello, e l'unico che vale per **tutti** i modi in cui una
+        battuta puo' essere riaperta: la sparizione creduta troppo in fretta, la
+        sostituzione, una rilettura che migliora a meta'. Ognuno ha la sua cura a
+        monte; questo li taglia tutti nel punto in cui il difetto smette di
+        essere una riga di log e diventa una voce che si sente.
+        """
+        cfg = self.cfg.repeat
+        if not cfg.enabled:
+            return False
+        chiave = _lettere(event.text)
+        if not chiave:
+            return False
+        for riga in reversed(self.spoken):
+            if event.t_on - riga.t_subtitle > cfg.window_s:
+                break  # `spoken` e' in ordine di tempo: piu' indietro e' solo piu' vecchio
+            altra = _lettere(riga.text)
+            if altra and SequenceMatcher(None, chiave, altra).ratio() >= cfg.similarity:
+                self._n_repeated.inc()
+                return True
+        return False
 
     def _speaker_for(self, event: SubtitleEvent) -> str:
         """Chi parla, con quel poco che si e' riusciti a sentire finora.

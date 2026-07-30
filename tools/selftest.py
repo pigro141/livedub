@@ -1801,6 +1801,71 @@ def test_chi_parla(c: Check) -> None:
     c.ok(riga.duration > 0, "e la battuta viene detta lo stesso")
 
 
+def test_non_ripetere(c: Check) -> None:
+    """La stessa frase non si pronuncia due volte di fila.
+
+    E' il difetto che dal vivo si sentiva di piu': la stessa battuta detta due o
+    tre volte, con testo **identico**, ognuna una voce accodata che spingeva la
+    latenza a due secondi. A monte le cause sono piu' d'una e ognuna ha la sua
+    cura; qui si verifica la garanzia, cioe' che comunque sia arrivata fin qui,
+    una frase gia' detta non si ridice.
+
+    La prova che conta e' la terza: **una ripetizione lontana nel tempo deve
+    passare**. Un cancello che zittisse ogni ripetizione sarebbe indistinguibile
+    da uno giusto finche' un personaggio non dice due volte la stessa cosa, e a
+    quel punto avrebbe mangiato dialogo vero senza lasciare traccia.
+    """
+    c.group("non_ripetere")
+
+    from core.config import Config
+    from core.pipeline import DubPipeline, _lettere
+    from speak.base import ToneTts
+
+    c.eq(_lettere("Via! Via!"), _lettere("Via, Via."), "la punteggiatura inventata non conta")
+    c.eq(_lettere("PERCHE'"), "perche", "maiuscole e accenti si sciolgono")
+    c.eq(_lettere("... !?"), "", "un testo senza lettere si riduce a niente")
+
+    cfg = Config()
+    cfg.vision.ocr_backend = "none"
+    cfg.speaker.backend = "none"  # niente attesa: qui si misura solo il cancello
+    orologio = VirtualClock()
+    p = DubPipeline(cfg, ToneTts(), clock=orologio, samplerate=48000)
+    p.start_live(warmup=False)
+
+    def dici(testo: str, t: float):
+        orologio.set(t)
+        ev = SubtitleEvent(text=testo, cls=LineClass.WHITE, t_on=t)
+        if p._gia_detta(ev):
+            return None
+        return p._speak(ev)
+
+    c.ok(dici("Sali in macchina, muoviti", 0.0) is not None, "la prima volta si dice")
+    c.ok(dici("Sali in macchina, muoviti", 0.5) is None, "identica subito dopo: zitta")
+    c.ok(dici("Sali in macchina. muoviti!", 1.0) is None, "e anche con la punteggiatura diversa")
+    c.ok(dici("Sali in macchlna, muovitl", 1.5) is None, "e con qualche lettera sbagliata dall'OCR")
+    c.eq(p.metrics.counter("dub.repeated").value, 3, "le soppressioni si contano")
+
+    # Una frase diversa passa: il cancello non deve zittire il dialogo.
+    c.ok(dici("Dove credi di andare?", 2.0) is not None, "una frase diversa passa")
+
+    # **E la ripetizione vera, lontana nel tempo, passa.** Fuori dalla finestra
+    # non e' una rilettura, e' un personaggio che lo ripete davvero.
+    c.ok(dici("Sali in macchina, muoviti", 9.0) is not None, "la stessa frase dopo la finestra si dice")
+
+    # Spegnendolo si torna al comportamento di prima, che e' l'unico modo di
+    # distinguere un difetto suo da un difetto a monte.
+    muto = Config()
+    muto.vision.ocr_backend = "none"
+    muto.speaker.backend = "none"
+    muto.repeat.enabled = False
+    q = DubPipeline(muto, ToneTts(), clock=VirtualClock(), samplerate=48000)
+    q.start_live(warmup=False)
+    e = SubtitleEvent(text="ciao", cls=LineClass.WHITE, t_on=0.0)
+    q._speak(e)
+    c.ok(not q._gia_detta(e), "spento, non sopprime niente")
+
+
+
 GROUPS = {
     "clock": test_clock,
     "session": test_session,
@@ -1819,6 +1884,7 @@ GROUPS = {
     "lingua": test_lingua,
     "lessico": test_lessico,
     "una_voce": test_una_voce_alla_volta,
+    "non_ripetere": test_non_ripetere,
     "chi_parla": test_chi_parla,
     "stringi": test_stringi_non_accodare,
     "fretta": test_fretta,

@@ -36,7 +36,7 @@ import numpy as np
 
 from core.types import VoiceSpec
 from mix.stretch import pitch_shift, resample
-from speak.base import Speech
+from speak.base import Speech, taglia_silenzio
 
 # Frequenza nativa del vocoder.
 NATIVE_RATE = 44100
@@ -148,19 +148,19 @@ class SupertonicTts:
         **Il passo e' lineare nella velocita' chiesta**, e non era ovvio: il
         `length_scale` di Piper non lo e' affatto, tanto che la pipeline si porta
         un anello di correzione apposta. Misurato sulle stesse dodici battute
-        vere, 320 caratteri:
+        vere, 320 caratteri, **al netto del silenzio** (si veda
+        `speak.base.taglia_silenzio`: prima era il 39% dell'uscita, e contarlo
+        faceva sembrare questo motore un terzo piu' lento di quello che e'):
 
-            speed 1,05   ->   9,1 car/s     (8,67 per unita')
-            speed 1,50   ->  12,9 car/s     (8,60)
-            speed 1,75   ->  15,0 car/s     (8,57)
-            speed 2,00   ->  17,1 car/s     (8,55)
+            speed 1,05   ->  14,3 car/s     (13,6 per unita')
 
-        Quindi il passo si dichiara come prodotto invece che come costante: chi
-        cambia `tts.speed` non deve anche ricordarsi di cambiare la stima delle
-        durate, che e' il genere di accoppiamento che si dimentica sempre.
-        A 1,50 fa 12,9 contro i 13,7 di Piper: il ritmo e' pari, come dichiarato.
+        Il passo si dichiara come prodotto invece che come costante: chi cambia
+        `tts.speed` non deve anche ricordarsi di cambiare la stima delle durate,
+        che e' il genere di accoppiamento che si dimentica sempre. A 1,05 fa 14,3
+        contro i 14,8 di Piper — **il ritmo e' pari**, e senza chiedere a nessuno
+        dei due di correre.
         """
-        return 8.6 * self.speed
+        return 13.6 * self.speed
 
     # -- caricamento -------------------------------------------------------
 
@@ -215,6 +215,12 @@ class SupertonicTts:
         total_ms = (time.perf_counter() - t0) * 1000.0
 
         audio = np.asarray(wav, dtype=np.float32).reshape(-1)
+        # **Prima di ogni altra cosa, via l'imbottitura.** Il 39% di cio' che
+        # esce e' silenzio, e ogni stadio a valle lo tratterebbe come parlato:
+        # lo scheduler ci calcolerebbe sopra le finestre, WSOLA lo comprimerebbe,
+        # e il correttore della velocita' chiederebbe al modello di dirlo piu' in
+        # fretta. Si taglia qui, dove si sa ancora che cos'e'.
+        audio = taglia_silenzio(audio, NATIVE_RATE)
         if audio.size and voice.semitones:
             audio = pitch_shift(audio, voice.semitones, samplerate=NATIVE_RATE)
         if NATIVE_RATE != self.samplerate:

@@ -442,7 +442,7 @@ def test_tts_fake(c) -> None:
     from speak.backends.piper import PiperTts as _Piper
     from speak.backends.supertonic import SupertonicTts as _Super
 
-    for motore, atteso in ((_Piper, 13.7), (_Tone, 14.0)):
+    for motore, atteso in ((_Piper, 14.8), (_Tone, 14.0)):
         c.ok(
             10.0 <= motore.chars_per_second <= 20.0,
             f"{motore.name if hasattr(motore,'name') else motore.__name__}: "
@@ -452,8 +452,9 @@ def test_tts_fake(c) -> None:
     # SuperTonic lo dichiara **in funzione della velocita'**, perche' misurato e'
     # lineare: chi cambia `tts.speed` non deve anche ricordarsi di aggiornare la
     # stima delle durate.
-    c.close(_Super(speed=1.50).chars_per_second, 12.9, "supertonic a 1,50 fa 12,9 car/s", tol=0.1)
-    c.close(_Super().chars_per_second, 9.0, "al suo ritmo integro ne fa 9,0", tol=0.2)
+    c.close(_Super().chars_per_second, 14.3, "supertonic al suo ritmo integro fa 14,3 car/s", tol=0.2)
+    c.ok(abs(_Super().chars_per_second - _Piper.chars_per_second) < 1.0,
+         "che e' il passo di Piper: al netto del silenzio i due vanno uguale")
     c.ok(
         _Super(speed=1.75).chars_per_second > _Super(speed=1.05).chars_per_second,
         "piu' velocita' vuol dire piu' caratteri al secondo",

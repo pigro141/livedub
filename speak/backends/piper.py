@@ -30,7 +30,7 @@ import numpy as np
 
 from core.types import VoiceSpec
 from mix.stretch import pitch_shift, resample
-from speak.base import Speech
+from speak.base import Speech, taglia_silenzio
 
 # Dove stanno i modelli e come si chiamano dentro il repo di Rhasspy.
 MODELS_DIR = Path(__file__).resolve().parents[2] / "models" / "piper"
@@ -69,11 +69,12 @@ class PiperTts:
 
     name = "piper"
     # Lettere e cifre al secondo alla velocita' nominale, misurato su dodici
-    # battute vere della registrazione con `riccardo`: 320 caratteri in 23,3 s.
+    # battute vere della registrazione con `riccardo`: 320 caratteri in 21,6 s
+    # **una volta tolto il silenzio in coda**, che erano 3,1 secondi su 23,6.
     # **Nell'unita' di `spoken_length()`**, che e' quella di chi lo usa: contando
-    # anche spazi e punteggiatura la stessa passata darebbe 17,0, ed e' da quella
+    # anche spazi e punteggiatura la stessa passata darebbe 18,3, ed e' da quella
     # confusione che veniva il 17,4 di config.
-    chars_per_second = 13.7
+    chars_per_second = 14.8
 
     def __init__(self, samplerate: int = 22050, download: bool = True) -> None:
         self.samplerate = samplerate
@@ -127,6 +128,12 @@ class PiperTts:
             native_rate = chunk.sample_rate
 
         audio = np.concatenate(chunks) if chunks else np.zeros(0, np.float32)
+        # Anche Piper imbottisce, molto meno — 3,1 secondi su 23,6, quasi tutti
+        # in coda — ma e' silenzio che poi la catena comprime come se fosse
+        # parlato. Si toglie qui per la stessa ragione: lo stacco fra le battute
+        # lo mette `tts.gap_seconds`, che sa anche togliersi di mezzo quando si
+        # e' in ritardo.
+        audio = taglia_silenzio(audio, native_rate)
         if audio.size and voice.semitones:
             audio = pitch_shift(audio, voice.semitones, samplerate=native_rate)
         if native_rate != self.samplerate:

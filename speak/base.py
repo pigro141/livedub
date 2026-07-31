@@ -44,6 +44,44 @@ class Speech:
         return (self.total_ms / 1000.0) / d if d > 0 else 0.0
 
 
+def taglia_silenzio(
+    audio: "np.ndarray", samplerate: int, soglia: float = 0.02, margine: float = 0.03
+) -> "np.ndarray":
+    """Toglie il silenzio in testa e in coda a quello che il sintetizzatore da'.
+
+    **Non e' cosmetica, ed e' costata mezza notte di conclusioni sbagliate.**
+    SuperTonic imbottisce: su dodici battute vere, 6,0 secondi di silenzio in
+    testa e 7,6 in coda su 35,2 totali, cioe' il **39% dell'uscita**. La catena
+    quella roba non la sa distinguere dal parlato — misura una durata e la
+    confronta con la finestra del sottotitolo — quindi concludeva che la battuta
+    non ci stava e chiedeva al modello di andare piu' svelto. Il modello, per
+    andare piu' svelto, saltava sillabe. Si accelerava del silenzio, pagandolo
+    in parole.
+
+    Al netto dell'imbottitura i due motori vanno quasi uguale: 14,8 caratteri al
+    secondo SuperTonic contro 15,6 di Piper. Tutto il divario di ritmo che
+    sembrava esserci era questo.
+
+    Il margine lasciato e' piccolo apposta: lo stacco fra una battuta e l'altra
+    lo mette gia' `tts.gap_seconds`, che esiste proprio per quello e sa anche
+    togliersi di mezzo quando si e' in ritardo. Due respiri sovrapposti sono un
+    respiro che non finisce piu'.
+    """
+    import numpy as np
+
+    a = np.asarray(audio, dtype=np.float32).reshape(-1)
+    if a.size == 0:
+        return a
+    picco = float(np.abs(a).max())
+    if picco <= 0.0:
+        return a[:0]
+    forte = np.flatnonzero(np.abs(a) > soglia * picco)
+    if forte.size == 0:
+        return a[:0]
+    m = int(margine * samplerate)
+    return a[max(0, int(forte[0]) - m) : min(a.size, int(forte[-1]) + m + 1)]
+
+
 class TtsBackend(Protocol):
     name: str
     samplerate: int

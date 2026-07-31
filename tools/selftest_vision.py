@@ -614,6 +614,8 @@ def test_tracker(c) -> None:
 def test_reader(c) -> None:
     c.group("reader")
 
+    from core.clock import VirtualClock
+
     cfg = VisionConfig()
     cfg.stable_reads = 2
     cfg.hold_frames = 0
@@ -621,18 +623,32 @@ def test_reader(c) -> None:
 
     testi = ["Sali in macchina, muoviti!"]
     ocr = EchoOcr(testi)
-    reader = SubtitleReader(cfg, ocr)
+    # **Un orologio governato dalla prova, perche' il lettore ha un tetto alla
+    # frequenza di lettura** (`max_ocr_hz`). Senza, due `run` consecutive
+    # cadono nello stesso istante e la seconda viene fermata dal tetto — la
+    # conferma non arriva e la prova accusa il tracker per un difetto della
+    # prova stessa.
+    orologio = VirtualClock()
+    reader = SubtitleReader(cfg, ocr, clock=orologio)
+    passo = [0.0]
+
+    def avanza(dt: float = 0.2) -> None:
+        passo[0] += dt
+        orologio.set(passo[0])
 
     vuoto = empty_frame()
     con_testo = frame_with_roi([("Sali in macchina, muoviti!", WHITE)], roi=ROI)
 
+    avanza()
     reader.run(vuoto)
     c.eq(ocr.calls, 0, "senza testo l'OCR non viene mai chiamato")
 
+    avanza()
     out1 = reader.run(con_testo)
     c.eq(len(out1.opened), 0, "la prima lettura non conferma ancora")
     c.eq(ocr.calls, 1, "la comparsa fa scattare una lettura")
 
+    avanza()
     out2 = reader.run(con_testo)
     c.eq(len(out2.opened), 1, "la seconda lettura conferma la battuta")
     c.eq(out2.opened[0].text, testi[0], "il testo e' quello letto")
@@ -640,6 +656,7 @@ def test_reader(c) -> None:
 
     prima = ocr.calls
     for _ in range(30):
+        avanza()
         reader.run(con_testo)
     c.eq(ocr.calls, prima, "un sottotitolo fermo non viene riletto nemmeno una volta")
     c.ok(
@@ -650,10 +667,47 @@ def test_reader(c) -> None:
     # Tre frame vuoti: la sparizione si conferma prima di essere creduta. I due
     # frame in piu' sono il prezzo dichiarato di non chiudere una battuta che e'
     # ancora a schermo e ha solo perso contrasto per un istante.
+    avanza()
     c.eq(len(reader.run(vuoto).closed), 0, "il primo frame vuoto non chiude niente")
+    avanza()
     c.eq(len(reader.run(vuoto).closed), 0, "il secondo nemmeno")
+    avanza()
     out = reader.run(vuoto)
     c.eq(len(out.closed), 1, "quando sparisce davvero, la battuta si chiude")
+
+    # **Il tetto alla frequenza di lettura**, su una ROI che cambia a ogni frame
+    # — cioe' il caso vero, dove dietro i sottotitoli c'e' il gioco che si
+    # muove e il cancello del diff non ferma quasi niente. Senza tetto l'OCR
+    # gira a 25 Hz: misurato sul banco, 52 secondi di lavoro per 60 di scena,
+    # contro 1,5 secondi di sintesi. La cecita' del thread video viene di li'.
+    cfg_hz = VisionConfig()
+    cfg_hz.stable_reads = 1
+    cfg_hz.roi = ROI
+    cfg_hz.max_ocr_hz = 10.0
+    o2 = VirtualClock()
+    ocr_hz = EchoOcr(["Sali in macchina, muoviti!"])
+    r_hz = SubtitleReader(cfg_hz, ocr_hz, clock=o2)
+    # trenta frame in un secondo, ognuno diverso dal precedente
+    for i in range(30):
+        o2.set(i / 30.0)
+        r_hz.run(frame_with_roi([("Sali in macchina, muoviti!", WHITE)], roi=ROI, noise=0.1, seed=i))
+    c.ok(ocr_hz.calls <= 11, f"a 10 Hz un secondo di frame costa al massimo 11 letture (ne ha fatte {ocr_hz.calls})")
+    c.ok(ocr_hz.calls >= 9, f"e non meno di nove: il tetto limita, non spegne (ne ha fatte {ocr_hz.calls})")
+
+    # Senza tetto la stessa sequenza paga ogni frame: e' la controprova, e senza
+    # di lei la verifica sopra non distingue un tetto che funziona da una ROI
+    # che non cambia mai.
+    cfg_no = VisionConfig()
+    cfg_no.stable_reads = 1
+    cfg_no.roi = ROI
+    cfg_no.max_ocr_hz = 0.0
+    o3 = VirtualClock()
+    ocr_no = EchoOcr(["Sali in macchina, muoviti!"])
+    r_no = SubtitleReader(cfg_no, ocr_no, clock=o3)
+    for i in range(30):
+        o3.set(i / 30.0)
+        r_no.run(frame_with_roi([("Sali in macchina, muoviti!", WHITE)], roi=ROI, noise=0.1, seed=i))
+    c.ok(ocr_no.calls > 20, f"senza tetto le letture sono una per frame (ne ha fatte {ocr_no.calls})")
 
     # Le righe colorate non arrivano mai al riconoscitore.
     ocr2 = EchoOcr(["dialogo"])

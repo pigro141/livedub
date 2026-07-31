@@ -214,7 +214,37 @@ class VisionConfig:
     # legge peggio.
     ocr_backend: str = "ppocr"  # ppocr | oneocr | none
     ocr_device: str = "cuda"  # cuda | cpu
-    max_ocr_hz: float = 12.0
+    # **Quante volte al secondo si puo' pagare il riconoscimento.** Zero lo
+    # spegne.
+    #
+    # Questo valore e' stato dichiarato per mesi e **non lo leggeva nessuno**.
+    # Il cancello del diff avrebbe dovuto bastare — si legge solo quando la ROI
+    # cambia — ma la ROI e' una striscia in mezzo allo schermo e dietro i
+    # sottotitoli c'e' il gioco che si muove. Misurato su sessanta secondi di
+    # scena, 1801 frame: il diff ne ferma 300 e l'OCR gira sugli altri, cioe' a
+    # 25 Hz, a 34 ms l'uno. **Cinquantadue secondi di lavoro per sessanta di
+    # scena** — contro 1,5 secondi di sintesi con Piper e una dozzina con
+    # SuperTonic. La cecita' del thread video, che avevo attribuito alla
+    # sintesi, veniva quasi tutta da qui.
+    #
+    #     tetto    letture OCR   sottotitoli aperti   battute dette   latenza p50
+    #     nessuno      1521              33                31            533 ms
+    #      18 Hz        809              33                31            533 ms
+    #      15 Hz        626              32                30            533 ms
+    #      12 Hz        560              32                30            533 ms
+    #
+    # A 18 Hz l'uscita e' **identica**: stesse trentuno battute, 190 coppie
+    # d'accordo su 190 nel confronto delle voci, latenza uguale — e la meta' del
+    # lavoro. Sotto si comincia a perdere qualche battuta corta dentro le
+    # raffiche di dialogo (`'Non mi accontento.'`, 0,7 s in mezzo alla tirata di
+    # Lamar), che e' poco ma e' piu' di niente.
+    #
+    # Il tetto **non vale mentre una candidata aspetta la conferma**: quelle
+    # letture stanno sul percorso della latenza e sono al massimo
+    # `stable_reads` per battuta. Colpisce solo le riletture di un sottotitolo
+    # gia' a schermo e fermo, che servono a tenerlo vivo e a migliorarne il
+    # testo e possono aspettare un diciottesimo di secondo.
+    max_ocr_hz: float = 18.0
 
 
 @dataclass

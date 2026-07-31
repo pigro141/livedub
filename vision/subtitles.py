@@ -203,6 +203,16 @@ class SubtitleTracker:
     def active(self) -> list[SubtitleEvent]:
         return [tr.event for tr in self._active.values()]
 
+    @property
+    def in_attesa(self) -> bool:
+        """C'e' una candidata che aspetta di essere confermata?
+
+        La chiede il lettore per sapere se puo' permettersi di saltare questa
+        lettura: rileggere un sottotitolo gia' confermato e fermo si puo'
+        rimandare, confermarne uno nuovo no — quella e' la latenza che si sente.
+        """
+        return bool(self._pending)
+
     def reset(self) -> None:
         self._active.clear()
         self._pending.clear()

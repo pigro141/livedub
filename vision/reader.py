@@ -73,6 +73,7 @@ class SubtitleReader(Stage):
         )
         self.tracker = SubtitleTracker(cfg)
         self._recheck = 0
+        self._ultima_lettura = float("-inf")  # per `max_ocr_hz`
 
         m = self.metrics
         self._t_diff = m.timer("vision.diff")
@@ -123,6 +124,39 @@ class SubtitleReader(Stage):
         if self._recheck <= 0:
             self._n_gated.inc()
             return TrackerOutput()
+
+        # **Il tetto alla frequenza di lettura, che era dichiarato e non
+        # collegato.** `max_ocr_hz` stava in config e non la leggeva nessuno.
+        #
+        # Il cancello sopra dovrebbe bastare — si legge solo quando la ROI
+        # cambia — ma la ROI e' una striscia in mezzo allo schermo e dietro i
+        # sottotitoli c'e' il gioco che si muove: misurato su sessanta secondi
+        # di scena, 1801 frame, il diff ne ferma 300 e l'OCR gira sugli altri,
+        # cioe' a 25 Hz. A 34 ms l'uno fanno **52 secondi di lavoro per 60 di
+        # scena**, contro 1,5 secondi di sintesi con Piper e una dozzina con
+        # SuperTonic. Il thread video non e' cieco per colpa della sintesi: e'
+        # cieco perche' rilegge lo stesso sottotitolo venticinque volte al
+        # secondo.
+        #
+        # **Ma il tetto non vale mentre una candidata aspetta la conferma**, e
+        # questa e' la meta' che conta. Le letture non sono tutte uguali: quelle
+        # che confermano una battuta nuova sono al massimo `stable_reads` e
+        # stanno sul percorso della latenza — rimandarle si sente. Quelle che
+        # rileggono per la ventesima volta un sottotitolo gia' a schermo e fermo
+        # servono solo a tenerlo vivo e a migliorarne il testo, e possono
+        # aspettare un ottavo di secondo. Il tetto colpisce le seconde.
+        #
+        # La sparizione non passa di qui — il diff la vede e la porta con
+        # `certain`, prima di questo cancello — quindi non ritarda nessuna
+        # chiusura.
+        limite = float(getattr(self.cfg, "max_ocr_hz", 0.0) or 0.0)
+        if (
+            limite > 0.0
+            and not self.tracker.in_attesa
+            and (now - self._ultima_lettura) < (1.0 / limite)
+        ):
+            self._n_gated.inc()
+            return TrackerOutput()
         self._recheck -= 1
 
         t0 = time.perf_counter()
@@ -139,6 +173,11 @@ class SubtitleReader(Stage):
             text, conf = self.ocr.read(band.crop)
             self._t_ocr.add((time.perf_counter() - t0) * 1000.0)
             self._n_ocr.inc()
+            # Il tetto si consuma quando il riconoscimento e' stato **pagato**,
+            # non quando si e' guardato il frame. Uno schermo senza dialogo non
+            # costa niente e non deve rubare il turno alla battuta che comparira'
+            # subito dopo.
+            self._ultima_lettura = now
             # Prima si toglie cio' che non e' italiano, poi si conta. Il
             # riconoscitore e' addestrato su cinese e inglese e sullo scenario
             # restituisce glifi CJK, che di caratteri alfanumerici contano come

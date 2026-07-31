@@ -307,6 +307,16 @@ class DubPipeline:
         # Misurato: con attesa zero uno dei tre personaggi della scena riceveva
         # la voce giusta **zero volte su ventidue**. Si veda
         # `SpeakerConfig.decide_after_ms`, dove sta la tabella.
+        # **La lettura che migliora mentre la battuta aspetta il suo turno.**
+        # Fra la conferma e la voce passa mezzo secondo (`decide_after_ms`), ed
+        # e' esattamente il tempo in cui l'OCR finisce di leggere un sottotitolo
+        # comparso in dissolvenza. Senza queste due righe si diceva il frammento
+        # confermato per primo mentre il lettore aveva gia' la frase intera: non
+        # un doppione — quello lo chiude il cancello — ma **la versione peggiore
+        # di una battuta detta una volta sola**, che nessun contatore mostrava.
+        if out.updated and self._da_dire:
+            sostituisci = {id(vecchio): nuovo for vecchio, nuovo in out.updated}
+            self._da_dire = [sostituisci.get(id(ev), ev) for ev in self._da_dire]
         self._da_dire.extend(ev for ev in out.opened if ev.text.strip())
         if self.tracker is None:
             pronte, self._da_dire = self._da_dire, []

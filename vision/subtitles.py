@@ -170,10 +170,17 @@ class TrackerOutput:
 
     opened: list[SubtitleEvent] = field(default_factory=list)
     closed: list[SubtitleEvent] = field(default_factory=list)
+    # **Le battute il cui testo e' migliorato mentre erano a schermo**, come
+    # coppie (com'era, com'e'). Servono a chi tiene in mano l'evento di prima:
+    # `SubtitleEvent` e' congelato, quindi migliorare il testo crea un oggetto
+    # nuovo e quello vecchio resta buono solo per chi non lo sa. La pipeline lo
+    # tiene in coda per mezzo secondo prima di parlare — tempo in cui la lettura
+    # migliora quasi sempre — e senza questa lista direbbe il frammento.
+    updated: list[tuple[SubtitleEvent, SubtitleEvent]] = field(default_factory=list)
 
     @property
     def any(self) -> bool:
-        return bool(self.opened or self.closed)
+        return bool(self.opened or self.closed or self.updated)
 
 
 class SubtitleTracker:
@@ -306,7 +313,9 @@ class SubtitleTracker:
                 keeper = self._active[orphans[0]]
                 if self._continua(normalize(keeper.event.text), pending.norm):
                     if len(pending.text) > len(keeper.event.text):
+                        vecchio = keeper.event
                         keeper.event = replace(keeper.event, text=pending.text, lines=pending.lines)
+                        out.updated.append((vecchio, keeper.event))
                     keeper.last_seen = t
                     keeper.missing = 0
                     matched_active.add(orphans[0])

@@ -1894,6 +1894,44 @@ def test_chi_parla(c: Check) -> None:
     )
     c.eq(len(q.on_frame(None)), 1, "ma la valvola c'e': dopo `max_wait_ms` si parla comunque")
 
+    # 2-quater. **La lettura migliora mentre la battuta aspetta il suo turno.**
+    #    Fra la conferma e la voce passa mezzo secondo, ed e' esattamente il
+    #    tempo in cui l'OCR finisce di leggere un sottotitolo comparso in
+    #    dissolvenza. `SubtitleEvent` e' congelato: migliorare il testo crea un
+    #    oggetto nuovo, e chi teneva in mano il vecchio direbbe il frammento.
+    #    Non e' un doppione — quello lo chiude il cancello — e' la versione
+    #    peggiore di una battuta detta una volta sola, che nessun contatore
+    #    mostra. **Il banco non lo riproduce**: con l'orologio virtuale non si
+    #    salta un frame, la conferma arriva gia' sul testo intero e la situazione
+    #    non si presenta. Qui si costruisce a mano.
+    from vision.subtitles import TrackerOutput as _TO
+
+    class _LettoreFinto:
+        """Restituisce gli esiti indicati, uno per passata, poi il vuoto."""
+
+        def __init__(self, esiti):
+            self._esiti = list(esiti)
+
+        def run(self, frame):
+            return self._esiti.pop(0) if self._esiti else _TO()
+
+    r = DubPipeline(cfg, ToneTts(), clock=orologio, samplerate=sr)
+    r.start_live(warmup=False)
+    frammento = _SE(text="Non me ne frega un cazzo. C'e un", cls=_LC.WHITE, t_on=20.0)
+    intero = _SE(
+        text="Non me ne frega un cazzo. C'e un motivo se Simeon paga uno dall'aria cattiva",
+        cls=_LC.WHITE,
+        t_on=20.0,
+    )
+    orologio.set(20.0)
+    r.reader = _LettoreFinto([_TO(opened=[frammento]), _TO(updated=[(frammento, intero)])])
+    c.eq(len(r.on_frame(None)), 0, "appena confermata la battuta aspetta, non parla")
+    c.eq(r._da_dire[0].text, frammento.text, "e in coda c'e' il frammento, che e' cio' che si sa")
+    orologio.set(20.0 + (cfg.speaker.decide_after_ms + cfg.speaker.max_wait_ms) / 1000.0 + 0.05)
+    dette = r.on_frame(None)
+    c.eq(len(dette), 1, "alla scadenza si parla")
+    c.eq(dette[0].text, intero.text, "e si dice la lettura intera, non il frammento in coda")
+
     # 3. **Il colore della riga non decide piu' chi parla.** Prima il grigio
     #    apriva `S-grey` e si portava via una voce del pool; misurato, le righe
     #    grigie sono code del rumore dell'OCR. La prova guarda proprio questo,

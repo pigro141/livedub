@@ -154,12 +154,14 @@ def rigioca(records: list[dict], cfg: Config, *, mescola: int | None = None) -> 
         emb = np.asarray(grezza, dtype=np.float32) if grezza else None
         t = float(r["t_on"])
         if r["kind"] == "scegli":
-            sid = tracker.scegli(emb, t=t).speaker_id
+            d = tracker.scegli(emb, t=t)
+            sid = d.speaker_id
             p = tracker.get(sid)
             voce = voce_per(
                 pool, sid, p, t, neutra=neutra,
                 defer_max=cfg.speaker.gender_defer_max_lines,
                 ripiego=cfg.speaker.gender_fallback,
+                anonima=d.anonima,
             )
             dette.append(Detta(t_on=t, text=r.get("text", ""), sid=sid, voice_id=voce.voice_id))
         else:

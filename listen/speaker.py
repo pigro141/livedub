@@ -55,9 +55,12 @@ import numpy as np
 
 from core.config import SpeakerConfig
 
-# Il pavimento della scelta veloce. Non e' una soglia di identita': serve solo a
-# distinguere "il migliore e' plausibile" da "qui non c'e' voce", perche' un
-# ritaglio di silenzio o di motore da' somiglianze intorno a zero con tutti.
+# Il pavimento della scelta veloce, **spostato in config e misurato**: si veda
+# `SpeakerConfig.name_min_score`, dove sta la tabella dell'accordo fra la porta
+# veloce e la porta lenta per fascia di somiglianza. Questo valore resta come
+# riferimento storico di cosa significhi "qui non c'e' proprio voce" — un
+# ritaglio di silenzio o di motore da' somiglianze intorno a zero con tutti — ma
+# la decisione non lo usa piu'.
 PLAUSIBILE_SOPRA = 0.15
 
 # **Le soglie del genere, e la misura che le ha spostate.** Erano 165 e 185, e
@@ -181,6 +184,10 @@ class Decisione:
     is_new: bool = False
     provisional: bool = False  # deciso con poco parlato: si potra' solo imparare, non disdire
     merged: tuple[str, str] | None = None  # (assorbito, vincitore), se questa battuta li ha uniti
+    # Nessuno somiglia abbastanza da meritare un nome. Non e' un fallimento: e'
+    # la risposta giusta nei primi secondi, quando la banca e' vuota o ha dentro
+    # un solo personaggio e chiunque parli riceverebbe il suo nome.
+    anonima: bool = False
 
 
 class SpeakerTracker:
@@ -240,34 +247,48 @@ class SpeakerTracker:
     # -- la porta veloce ---------------------------------------------------
 
     def scegli(self, embedding: np.ndarray | None, t: float = 0.0) -> Decisione:
-        """Chi e', fra quelli che conosco? Non ne inventa di nuovi.
+        """Chi e', fra quelli che conosco? Non ne inventa di nuovi, e sa tacere.
 
-        Senza impronta — non c'era abbastanza parlato, o l'analisi non e' pronta
-        — si risponde **l'ultimo che ha parlato**, non un personaggio nuovo. In
-        un dialogo e' sbagliato circa una volta su due; inventare un personaggio
-        e' sbagliato sempre, e per giunta consuma una voce del pool.
+        **Prima rispondeva sempre qualcuno**: il migliore fra i confermati, o in
+        mancanza di meglio l'ultimo che aveva parlato. Il ragionamento era che
+        inventare un personaggio e' sbagliato sempre mentre tirare a indovinare
+        lo e' una volta su due, ed era giusto finche' le opzioni erano due. Con
+        la voce neutra ce n'e' una terza, che non inventa e non mente — e la
+        misura dice quando usarla: sotto `name_min_score` la porta veloce prende
+        due battute su tredici, sopra venticinque su ventinove.
+
+        Quelle tredici sono i primi trenta secondi di una scena, quando un solo
+        personaggio e' confermato e chiunque parli riceve il suo nome e la sua
+        voce. Il riconoscimento parte da vuoto e si costruisce ascoltando: e'
+        giusto che nei primi secondi dichiari di non sapere, invece di dare a
+        tutti la voce del primo che ha parlato.
         """
         # Solo i confermati danno una voce. Gli altri restano in banca — servono
         # a `impara`, che li puo' confermare — ma non entrano in una decisione
         # che si sente: un personaggio nato dalla battuta precedente non ha
         # ancora dimostrato di esistere.
         noti = [p for p in self.attivi if p.confermato]
+        anonima = Decisione(
+            self.risolvi(self._ultimo) or "S?", 0.0, provisional=True, anonima=True
+        )
         if embedding is None or not noti or float(np.linalg.norm(embedding)) < 1e-9:
-            # Nessuno da scegliere: si risponde un'identita' provvisoria **senza
-            # aprire un posto in banca**. Aprirlo qui vorrebbe dire iscrivere un
-            # personaggio la cui impronta non si conosce, e un centroide vuoto
-            # non somiglia a niente per sempre: quel personaggio non si
-            # ritroverebbe mai piu', e la sua voce resterebbe bruciata.
-            return Decisione(self.risolvi(self._ultimo) or "S0", 0.0, provisional=True)
+            # Senza impronta, o senza nessuno fra cui scegliere, non c'e' niente
+            # da riconoscere. **Non si apre un posto in banca**: iscrivere qui un
+            # personaggio significherebbe dargli un centroide vuoto, che non
+            # somigliera' mai piu' a niente — quel personaggio non si
+            # ritroverebbe e la sua voce resterebbe bruciata.
+            return anonima
 
         punteggi = np.array([float(np.dot(embedding, p.centroide)) for p in noti])
         k = int(np.argmax(punteggi))
         migliore = float(punteggi[k])
-        if migliore < PLAUSIBILE_SOPRA and self._ultimo is not None:
-            # Nessuno somiglia: quasi sempre vuol dire che il ritaglio non
-            # contiene voce. Si resta su chi parlava, che e' l'ipotesi meno
-            # dannosa, e la battuta intera dira' com'e' andata davvero.
-            return Decisione(self.risolvi(self._ultimo), migliore, provisional=True)
+        if migliore < self.cfg.name_min_score:
+            # Nessuno somiglia abbastanza. Puo' voler dire che il ritaglio non
+            # contiene voce, o che a parlare e' qualcuno che la banca non ha
+            # ancora imparato: da qui non si distinguono, e per fortuna la
+            # risposta e' la stessa. `_ultimo` non si tocca — non si e' sentito
+            # nessuno di cui tenere memoria.
+            return Decisione(anonima.speaker_id, migliore, provisional=True, anonima=True)
         self._ultimo = noti[k].speaker_id
         return Decisione(noti[k].speaker_id, migliore, provisional=True)
 

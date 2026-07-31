@@ -173,6 +173,7 @@ def voce_per(
     neutra: VoiceSpec,
     defer_max: int = 3,
     ripiego: str = "m",
+    anonima: bool = False,
 ) -> VoiceSpec:
     """La voce di questa battuta, rinviando l'assegnazione se il sesso non si sa.
 
@@ -201,6 +202,12 @@ def voce_per(
     politica: una taratura provata su una politica diversa da quella che gira
     misurerebbe un doppiaggio che non esiste.
     """
+    if anonima:
+        # Il tracker non ha fatto un nome. Dare comunque una voce del pool
+        # significherebbe assegnarla a un'identita' che non si e' riconosciuta —
+        # e quella voce resterebbe presa. La neutra dice la stessa cosa senza
+        # consumare niente e senza mentire su chi sta parlando.
+        return neutra
     if personaggio is None or pool.known(speaker_id):
         genere = getattr(personaggio, "gender", "?") if personaggio is not None else "?"
         return pool.voice_for(speaker_id, t, gender=genere)

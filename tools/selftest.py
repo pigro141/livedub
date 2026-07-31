@@ -1791,9 +1791,10 @@ def test_chi_parla(c: Check) -> None:
     #    perche' il difetto vecchio non darebbe errore: darebbe una voce diversa.
     bianca = SubtitleEvent(text="Sali in macchina", cls=LineClass.WHITE, t_on=0.2)
     grigia = SubtitleEvent(text="Sali in macchina", cls=LineClass.GREY, t_on=0.2)
-    c.eq(p._speaker_for(bianca), p._speaker_for(grigia),
+    c.eq(p._speaker_for(bianca).speaker_id, p._speaker_for(grigia).speaker_id,
          "stesso audio, colore diverso: stesso personaggio")
-    c.ok(not p._speaker_for(grigia).startswith("S-grey"), "e `S-grey` non esiste piu'")
+    c.ok(not p._speaker_for(grigia).speaker_id.startswith("S-grey"),
+         "e `S-grey` non esiste piu'")
 
     # 4. La porta veloce non iscrive nessuno: e' la regola che tiene ferma la
     #    voce. Venti battute su audio ambiguo devono lasciare la banca com'era.

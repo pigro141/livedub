@@ -746,19 +746,37 @@ def test_speaker(c) -> None:
         c.ok(d.provisional, f"scelta {k}: si dichiara provvisoria") if k == 0 else None
     c.eq(len(t), prima, "venti scelte veloci non creano nemmeno un personaggio")
 
-    # 3. Senza impronta si resta su chi parlava, non si inventa.
+    # 3. Senza impronta non si inventa nessuno **e non si fa un nome**: la
+    #    risposta e' anonima, cioe' la voce neutra. Prima si rispondeva l'ultimo
+    #    che aveva parlato, che in un dialogo e' sbagliato una volta su due;
+    #    misurato sulla scena vera, in quella fascia la porta veloce prendeva 2
+    #    battute su 13.
     prima = len(t)
     d = t.scegli(None, t=30.0)
     c.eq(len(t), prima, "impronta assente: nessun personaggio nuovo")
-    c.ok(d.speaker_id in {p.speaker_id for p in t.people}, "e si risponde uno gia' noto")
+    c.ok(d.anonima, "e non si fa un nome: la battuta e' anonima")
     d = t.scegli(np.zeros(192, np.float32), t=31.0)
     c.eq(len(t), prima, "impronta nulla: idem")
+    c.ok(d.anonima, "e anche questa e' anonima")
 
     # 4. Un ritaglio senza voce da' somiglianze intorno a zero con tutti: la
     #    scelta veloce non deve prenderlo per un personaggio a caso.
     quasi = voce(99)
     d = t.scegli(quasi * 0.0 + 1e-6, t=32.0)
     c.ok(d.confidence < PLAUSIBILE_SOPRA + 1e-6, "impronta senza voce: fiducia bassa")
+    c.ok(d.anonima, "e sotto la soglia del nome non si nomina nessuno")
+
+    # **La soglia del nome, con la risposta nota.** Sopra si nomina, sotto no, e
+    # il valore viene dalla tabella in `SpeakerConfig.name_min_score`.
+    banca = SpeakerTracker(cfg)
+    for _ in range(2):
+        banca.impara(voce(41), t=0.0)
+    forte = banca.scegli(voce(41), t=1.0)
+    c.ok(not forte.anonima, "un'impronta che somiglia molto riceve un nome")
+    c.ok(forte.confidence >= cfg.name_min_score, "e il punteggio sta sopra la soglia")
+    debole = banca.scegli(voce(41, rumore=6.0), t=2.0)
+    if debole.confidence < cfg.name_min_score:
+        c.ok(debole.anonima, "una che somiglia poco resta anonima")
 
     # 5. Il tetto: oltre `max_speakers` ci si attacca al migliore invece di
     #    lasciare un personaggio senza voce.
@@ -773,8 +791,8 @@ def test_speaker(c) -> None:
     vuoto = SpeakerTracker(cfg)
     d = vuoto.scegli(voce(7), t=0.0)
     c.eq(len(vuoto), 0, "a banca vuota la porta veloce non iscrive nessuno")
-    c.eq(d.speaker_id, "S0", "ma risponde un'identita' provvisoria utilizzabile")
-    c.ok(d.provisional, "dichiarandola provvisoria")
+    c.ok(d.anonima, "e a banca vuota non fa nemmeno un nome")
+    c.ok(d.provisional, "dichiarando la scelta provvisoria")
     c.eq(vuoto.impara(voce(7), t=0.1).speaker_id, "S0", "e la porta lenta la conferma")
     c.eq(len(vuoto), 1, "iscrivendola davvero")
     vuoto.reset()

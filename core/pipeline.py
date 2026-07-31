@@ -36,7 +36,7 @@ from core.metrics import MetricsRegistry
 from core.types import Emotion, LineClass, SubtitleEvent, Utterance
 from core.ring import Overrun, RingBuffer
 from fuse.timing import DurationModel, spoken_length
-from listen.speaker import SpeakerTracker, stima_f0
+from listen.speaker import Decisione, SpeakerTracker, stima_f0
 from listen.vad import make_vad
 from mix.center import split
 from mix.mixer import Mixer
@@ -296,13 +296,14 @@ class DubPipeline:
 
     def _speak(self, event: SubtitleEvent) -> SpokenLine:
         """Da battuta letta a audio programmato."""
-        speaker_id = self._speaker_for(event)
+        decisione = self._speaker_for(event)
+        speaker_id = decisione.speaker_id
         # Il sesso della voce arriva dall'intonazione misurata sulle battute
         # intere di questo personaggio. Senza, il pool alterna maschile e
         # femminile — giusto quando non si sa niente, sbagliato appena si sa — e
         # in una scena di tre uomini uno di loro parla con la voce di una donna.
         p = self.tracker.get(speaker_id) if self.tracker is not None else None
-        voice = self._voce_per(speaker_id, p, event.t_on)
+        voice = self._voce_per(speaker_id, p, event.t_on, anonima=decisione.anonima)
 
         # **Chiedere al sintetizzatore di parlare svelto, invece di schiacciarlo
         # dopo.** Sono due cose diverse e all'ascolto non si somigliano affatto:
@@ -585,7 +586,7 @@ class DubPipeline:
                 return True
         return False
 
-    def _voce_per(self, speaker_id: str, p, t: float):
+    def _voce_per(self, speaker_id: str, p, t: float, *, anonima: bool = False):
         """La voce di questa battuta. La politica sta in `speak/pool.py`, perche'
         il banco deve poter rigiocare esattamente questa."""
         voce = voce_per(
@@ -596,12 +597,13 @@ class DubPipeline:
             neutra=self._neutra,
             defer_max=self.cfg.speaker.gender_defer_max_lines,
             ripiego=self.cfg.speaker.gender_fallback,
+            anonima=anonima,
         )
         if voce is self._neutra:
             self._n_neutra.inc()
         return voce
 
-    def _speaker_for(self, event: SubtitleEvent) -> str:
+    def _speaker_for(self, event: SubtitleEvent) -> "Decisione":
         """Chi parla, con quel poco che si e' riusciti a sentire finora.
 
         Il colore della riga **non** entra piu' in questa decisione. Assumeva
@@ -618,7 +620,7 @@ class DubPipeline:
         finita.
         """
         if self.tracker is None:
-            return "S-grey" if event.cls is LineClass.GREY else "S-white"
+            return Decisione("S-grey" if event.cls is LineClass.GREY else "S-white", 0.0)
         # Si guarda **indietro** dalla comparsa del sottotitolo, non avanti: la
         # battuta corrente, in questo istante, non ha ancora un solo campione di
         # audio. Vale 76,5% invece dell'89% che si avrebbe aspettando 150 ms —
@@ -630,9 +632,9 @@ class DubPipeline:
         emb = self._embed(
             self._clip(event.t_on - self.cfg.speaker.lead_ms / 1000.0, self.clock.now())
         )
-        sid = self.tracker.scegli(emb, t=event.t_on).speaker_id
-        self._registra("scegli", event, emb, deciso=sid)
-        return sid
+        d = self.tracker.scegli(emb, t=event.t_on)
+        self._registra("scegli", event, emb, deciso=d.speaker_id, anonima=d.anonima)
+        return d
 
     def _learn(self, event: SubtitleEvent) -> None:
         """La battuta e' sparita dallo schermo: adesso il suo audio c'e' tutto.

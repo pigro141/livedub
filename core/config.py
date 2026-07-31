@@ -338,6 +338,36 @@ class SpeakerConfig:
     # Senza, un personaggio che il tracker spezza in due resta spezzato per
     # sempre: misurato dal vivo, sedici identita' per tre personaggi reali,
     # Simeon sparso fra S3/S6/S8 e undici identita' con una battuta sola.
+    # **Sotto questa somiglianza non si fa un nome.**
+    #
+    # La porta veloce sceglieva sempre qualcuno: il migliore fra i confermati, o
+    # in mancanza di meglio l'ultimo che aveva parlato. Il ragionamento era che
+    # inventare un personaggio e' sempre sbagliato mentre tirare a indovinare lo
+    # e' una volta su due — ed era vero finche' le opzioni erano due. Adesso ce
+    # n'e' una terza, la voce neutra, che non inventa e non mente.
+    #
+    # Quanto valga quella scelta e' misurato, confrontando la porta veloce con la
+    # porta lenta — che vede il ritaglio intero, quindi e' il giudice migliore
+    # disponibile — sulle 43 battute della scena del concessionario:
+    #
+    #     somiglianza   battute   la porta veloce indovina
+    #      0,00-0,15       9              22%
+    #      0,15-0,30       4               0%
+    #      0,30-0,45       6              83%
+    #      0,45-0,60      15              80%
+    #      0,60-1,00       8             100%
+    #
+    # Il gradino e' netto e sta a 0,30: sotto, la porta veloce prende 2 battute
+    # su 13; sopra, 25 su 29. Quelle 13 sono i primi trenta secondi della scena,
+    # quando un solo personaggio e' confermato e quindi *tutti* ricevono il suo
+    # nome e la sua voce — che e' esattamente la partenza lenta che si sente.
+    #
+    # **Attenzione a come e' costruita questa misura**: la porta lenta non e' la
+    # verita', e' solo un giudice migliore. Nella fascia bassa i due non vanno
+    # d'accordo, e questo da solo non direbbe quale dei due sbaglia — a dirlo e'
+    # l'orecchio, che su quella scena sente tre persone diverse dove la porta
+    # veloce ne nomina una sola.
+    name_min_score: float = 0.30
     merge: bool = True
     # La soglia della fusione **non e' `similarity` e sta piu' in alto**: li' si
     # confronta un ritaglio con un centroide, qui due centroidi fra loro, e due

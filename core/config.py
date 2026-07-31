@@ -404,9 +404,23 @@ class SpeakerConfig:
     #
     # Il tetto pero' serve: senza, in una scena rumorosa dove l'intonazione non
     # si stabilizza mai, tutti resterebbero sulla neutra — cioe' tutti con la
-    # stessa voce, il difetto da cui si e' partiti. A tre battute si assegna
-    # comunque, con la parte verso cui la misura pende.
-    gender_defer_max_lines: int = 3
+    # stessa voce, il difetto da cui si e' partiti.
+    #
+    # **Era tre, ed e' una battuta, perche' il rinvio aspettava una cosa che non
+    # arriva.** Misurato su due passate della stessa scena, una sul banco e una
+    # dal vivo: il genere e' ancora "non so" in **32 battute su 40** al momento
+    # di parlare, e si risolve in una su sette. Il rinvio quindi non rinviava una
+    # decisione difficile: rimandava una decisione che sarebbe stata presa col
+    # ripiego comunque, e nel frattempo costava **sei battute** dette con la voce
+    # d'attesa — le stesse sei in tutte e due le passate, fra cui tre di Simeon di
+    # fila. Tre battute consecutive di un personaggio gia' riconosciuto dette da
+    # una voce che non e' la sua si sentono come un errore di riconoscimento, e
+    # infatti sono state segnalate come tale.
+    #
+    # A una battuta il rinvio conserva il suo unico merito vero — la primissima
+    # battuta di qualcuno di cui non si e' ancora sentito niente non gli assegna
+    # una voce per sempre — e perde il resto.
+    gender_defer_max_lines: int = 1
     # Con che sesso si assegna la voce quando il tetto scade e non si sa ancora.
     # Maschile perche' l'intonazione presa sul mix del gioco e' spostata verso
     # l'alto: questa taratura sa dire "uomo" molto meglio di "donna", e un

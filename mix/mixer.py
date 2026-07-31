@@ -81,6 +81,11 @@ class Mixer:
         self._n_clipped = self.metrics.counter("mix.limited")
         self._n_late = self.metrics.counter("mix.late")
         self._n_hurried = self.metrics.counter("mix.hurried")
+        # **Di quanto il muro e' avanti al contatore dei campioni**, a ogni
+        # blocco. Se resta a zero i due vanno insieme; se cresce, il mixer stava
+        # suonando in una linea temporale sua — e questa e' la misura che
+        # mancava, quella che rendeva invisibile un ritardo che si sentiva.
+        self._t_deriva = self.metrics.timer("mix.deriva")
 
     # -- programmazione ----------------------------------------------------
 
@@ -239,11 +244,40 @@ class Mixer:
 
     # -- elaborazione ------------------------------------------------------
 
-    def process(self, game: np.ndarray | None, n: int | None = None) -> np.ndarray:
+    def process(
+        self, game: np.ndarray | None, n: int | None = None, t: float | None = None
+    ) -> np.ndarray:
         """Elabora un blocco e restituisce lo stereo da mandare in uscita.
 
         `game` puo' essere None (nessun passthrough): in quel caso esce la sola
         voce italiana, e serve a `n` per sapere quanto lungo dev'essere il blocco.
+
+        **`t` e' che ora e' davvero**, e senza di lei questo mixer non ha un
+        orologio: ha un contatore di campioni. `self._t` avanzava di `n /
+        samplerate` a ogni blocco, cioe' misurava *quanto audio e' passato*, non
+        *quanto tempo e' passato*. Sono la stessa cosa solo se i campioni
+        arrivano tutti.
+
+        Dal vivo non arrivano. Misurato su una sessione di diciannove minuti:
+        l'orologio della sessione arriva a 1155,7 s mentre l'audio processato e'
+        1150,4 — **cinque secondi e tre che il mixer non ha mai contato**, e il
+        divario cresce.
+
+        Le conseguenze sono due, e la seconda e' peggiore della prima. Una
+        battuta viene programmata a `t_start`, che si calcola dall'orologio della
+        sessione; il mixer la suona quando il *contatore* arriva a quel numero,
+        cioe' D secondi di tempo vero piu' tardi. **E nel registro non si vede**:
+        il log scrive `t_start`, che e' l'istante in cui la battuta era pronta —
+        il riconoscimento e la scelta della voce — non l'istante in cui si e'
+        sentita. E' esattamente il difetto dell'anello di ieri, in un altro
+        posto: una quantita' che si comporta da orologio senza esserlo.
+
+        `max` e non assegnazione secca: il tempo non torna indietro. Se il
+        dispositivo consegna audio piu' in fretta del muro il contatore resta
+        avanti, ed e' il verso innocuo — le battute partono appena possono. Nel
+        verso opposto si recupera il divario in una volta, e cio' che era
+        programmato nell'intervallo saltato parte subito, che e' cio' che si
+        vuole.
         """
         if game is not None:
             game = np.asarray(game, dtype=np.float32)
@@ -256,6 +290,10 @@ class Mixer:
             raise ValueError("senza audio di gioco serve la lunghezza del blocco")
 
         t0 = self._t
+        if t is not None and t > t0:
+            # Il muro e' avanti al contatore: si recupera, e si conta di quanto.
+            self._t_deriva.add((t - t0) * 1000.0)
+            t0 = t
         t1 = t0 + n / self.samplerate
 
         dub = np.zeros(n, dtype=np.float32)

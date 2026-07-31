@@ -548,6 +548,34 @@ def test_mixer(c) -> None:
     c.close(mx.now, 0.01, "il tempo avanza della durata del blocco")
     c.ok(np.allclose(out, blocco, atol=1e-4), "senza battute l'audio del gioco passa immutato")
 
+    # **Il mixer non ha un orologio se non glielo si da'.** `_t` avanzava di
+    # `n / samplerate` a ogni blocco, cioe' misurava quanto audio e' passato e
+    # non quanto tempo. Sono la stessa cosa solo se i campioni arrivano tutti.
+    # Dal vivo non arrivano: misurato su una sessione di diciannove minuti,
+    # l'orologio arriva a 1155,7 s e l'audio processato a 1150,4 — cinque
+    # secondi che il mixer non ha mai contato, e il divario cresce.
+    #
+    # Qui il difetto si costruisce: il dispositivo consegna nove millisecondi di
+    # audio ogni dieci di tempo vero, che e' una perdita del 10% (dal vivo era
+    # lo 0,5%, ma la forma e' la stessa e in cento blocchi si vede).
+    lento = Mixer(samplerate=sr, duck_db=-12.0, attack_ms=20, release_ms=100)
+    corto = np.zeros((432, 2), dtype=np.float32)  # 9 ms invece di 10
+    for k in range(100):
+        lento.process(corto, t=(k + 1) * 0.010)
+    c.close(lento.now, 1.0, "col tempo passato, il mixer sta sul tempo vero", tol=0.02)
+
+    senza = Mixer(samplerate=sr, duck_db=-12.0, attack_ms=20, release_ms=100)
+    for _ in range(100):
+        senza.process(corto)
+    c.close(senza.now, 0.9, "senza, conta i campioni e resta indietro di un decimo", tol=0.02)
+
+    # E la conseguenza che si sentiva: una battuta programmata all'istante vero
+    # parte all'istante vero, invece di aspettare che il contatore la raggiunga.
+    lento.schedule(np.full(int(0.02 * sr), 0.3, np.float32), t_start=1.005, speaker_id="S0")
+    uscita = lento.process(corto, t=1.010)
+    c.ok(float(np.abs(uscita).max()) > 0.05, "la battuta parte quando dice l'orologio")
+    c.ok(lento.metrics.timer("mix.deriva").count > 0, "e il recupero si conta, invece di sparire")
+
     # Una battuta programmata deve comparire in uscita e abbassare il centro.
     voce = np.full(int(0.05 * sr), 0.3, dtype=np.float32)
     mx.schedule(voce, t_start=mx.now, speaker_id="S0", text="prova")

@@ -2018,8 +2018,18 @@ def test_non_ripetere(c: Check) -> None:
     c.ok(dici("Dove credi di andare?", 2.0) is not None, "una frase diversa passa")
 
     # **E la ripetizione vera, lontana nel tempo, passa.** Fuori dalla finestra
-    # non e' una rilettura, e' un personaggio che lo ripete davvero.
-    c.ok(dici("Sali in macchina, muoviti", 9.0) is not None, "la stessa frase dopo la finestra si dice")
+    # non e' una rilettura, e' un personaggio che lo ripete davvero. L'istante si
+    # ricava dalla finestra invece di essere scritto a mano: allargandola da 6 a
+    # 20 secondi questa verifica e' diventata rossa, e aveva ragione lei — ma un
+    # numero fisso qui misura la configurazione di ieri, non la regola.
+    oltre = cfg.repeat.window_s + 3.0
+    c.ok(dici("Sali in macchina, muoviti", oltre) is not None,
+         "la stessa frase dopo la finestra si dice")
+    # E dentro la finestra, alla stessa distanza a cui in una scena vera un
+    # obiettivo di missione viene riletto, no.
+    c.ok(dici("Cerca Lamar.", oltre + 1.0) is not None, "un obiettivo si dice la prima volta")
+    c.ok(dici("Cerca Lamar.", oltre + 7.8) is None,
+         "e riletto sette secondi dopo — fuori dalla vecchia finestra da sei — non si ridice")
 
     # **Il frammento seguito dal testo intero**, che e' la forma prevalente e
     # quella che il rapporto non vede: `'Sta storia r'` contro `'Sta storia non
@@ -2034,21 +2044,21 @@ def test_non_ripetere(c: Check) -> None:
         ev = SubtitleEvent(text=testo, cls=LineClass.WHITE, t_on=t)
         return None if r._gia_detta(ev) else r._speak(ev)
 
-    c.ok(dici2("'Sta storia r", 20.0) is not None, "il frammento, primo ad arrivare, si dice")
-    c.ok(dici2("'Sta storia non mi piace per niente", 21.0) is None,
+    c.ok(dici2("'Sta storia r", 60.0) is not None, "il frammento, primo ad arrivare, si dice")
+    c.ok(dici2("'Sta storia non mi piace per niente", 61.0) is None,
          "e il testo intero che lo contiene non si ridice")
-    c.ok(dici2("Negro, non me ne frega un cazzo. C'e un motivo se Simeon paga", 24.0) is not None,
+    c.ok(dici2("Negro, non me ne frega un cazzo. C'e un motivo se Simeon paga", 64.0) is not None,
          "una battuta nuova passa")
-    c.ok(dici2("un cazzo. C'e un motivo se Simeon paga", 25.0) is None,
+    c.ok(dici2("un cazzo. C'e un motivo se Simeon paga", 65.0) is None,
          "e la sua coda riletta no")
 
     # **La guardia opposta, e serve piu' dell'altra**: due battute corte in cui
     # una sta dentro l'altra per caso non devono sparire. Sotto
     # `containment_min_chars` il contenimento non si applica affatto.
-    c.ok(dici2("Segui.", 30.0) is not None, "una battuta corta si dice")
-    c.ok(dici2("Se qui", 31.0) is not None, "e un'altra corta che le somiglia pure")
-    c.ok(dici2("Vai a prendere la macchina di Simeon", 33.0) is not None, "battuta lunga nuova")
-    c.ok(dici2("Dove credi di andare, amico?", 34.0) is not None,
+    c.ok(dici2("Segui.", 70.0) is not None, "una battuta corta si dice")
+    c.ok(dici2("Se qui", 71.0) is not None, "e un'altra corta che le somiglia pure")
+    c.ok(dici2("Vai a prendere la macchina di Simeon", 73.0) is not None, "battuta lunga nuova")
+    c.ok(dici2("Dove credi di andare, amico?", 74.0) is not None,
          "e una lunga diversa non viene mangiata dal contenimento")
 
     # Spegnendolo si torna al comportamento di prima, che e' l'unico modo di

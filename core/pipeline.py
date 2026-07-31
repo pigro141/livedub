@@ -649,6 +649,11 @@ class DubPipeline:
                 "identita_vive": len(self.tracker) if self.tracker is not None else 0,
                 # il segnale su cui si e' deciso
                 "ritardo_anello": None if udito is None else round(self.clock.now() - udito, 3),
+                # **Quanto il mixer e' indietro rispetto all'orologio.** Positivo
+                # vuol dire che la voce si sentira' piu' tardi di quanto dice
+                # `latenza_ms`: quel numero e' l'istante in cui la battuta era
+                # pronta, non quello in cui e' uscita. Era la misura mancante.
+                "divario_mixer": round(self.clock.now() - self.mixer.now, 3),
                 # la voce e il tempo
                 "voce": voice.voice_id,
                 "nativo_chiesto": round(float(richiesta), 3),
@@ -1064,7 +1069,10 @@ class DubPipeline:
                     self._onsets.append(aperto.t0)
                 if len(self._onsets) > 512:
                     del self._onsets[:256]
-        return self.mixer.process(game, n)
+        # **Che ora e' lo dice l'orologio, non il conteggio dei campioni.** Senza
+        # questo argomento il mixer suona in una linea temporale che scivola via
+        # da quella in cui le battute sono programmate — si veda `Mixer.process`.
+        return self.mixer.process(game, n, t=self.clock.now())
 
     # -- chiusura ----------------------------------------------------------
 

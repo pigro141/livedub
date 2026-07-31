@@ -715,7 +715,23 @@ class RepeatConfig:
     # Entro quanti secondi due letture quasi uguali sono la stessa battuta.
     # Sopra questo tempo si pronuncia: un personaggio che ripete davvero la
     # stessa frase esiste ("Via! Via! Via!"), e zittirlo sarebbe un difetto.
-    window_s: float = 6.0
+    # **Sei secondi non bastavano per gli obiettivi di missione.** Misurato su
+    # una sessione di diciannove minuti, 385 battute, cercando le coppie di testo
+    # quasi identico per distanza nel tempo:
+    #
+    #     finestra   coppie prese   quali
+    #        6 s          0         —
+    #       10 s          2         'Cerca Lamar.', 'Vai da'
+    #       20 s          2         le stesse
+    #       30 s          2         le stesse
+    #       45 s          3         + 'Capisci cosa intendo?'
+    #
+    # Le prime due sono testi di obiettivo che restano a schermo a lungo e che
+    # l'OCR rilegge dopo qualche secondo; la terza, a **35,5 s** di distanza, e'
+    # Lamar che ripete davvero la stessa frase, e zittirla sarebbe un difetto.
+    # Fra 6,8 e 35,5 c'e' molto spazio: venti secondi prendono i doppioni e
+    # lasciano quindici secondi di margine alla ripetizione vera.
+    window_s: float = 20.0
     # Quanto devono somigliarsi, confrontate sulle sole lettere e cifre.
     #
     # La forma di questo cancello viene da un'implementazione che il problema non

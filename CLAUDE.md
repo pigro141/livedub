@@ -189,6 +189,27 @@ che conta **solo lettere e cifre**: un quarto di errore su ogni durata prevista,
 per anni, senza che nessun numero fosse sbagliato — sbagliato era che i due si
 incontrassero.
 
+**La stessa unita' sbagliata, tre volte.** Dopo `chars_per_second`, la soglia
+della fusione: `merge_similarity` era misurata **fra due centroidi maturi** e
+veniva applicata anche a un'identita' da una battuta sola — dove un "centroide"
+e' un ritaglio, cioe' l'altra distribuzione. Con 0,70 quel confronto non passava
+mai, quindi la cura scritta per la frammentazione non partiva **proprio nel caso
+per cui esiste**. Prima di riusare una soglia altrove, chiedersi su quale
+distribuzione e' stata misurata.
+
+**Una taratura si giudica sul minimo fra le passate, non sul massimo.** Tre
+passate della stessa scena davano 30, 22 e 15 battute giuste con lo stesso
+codice: a 0,54 sono d'accordo, a 0,55 si separano. Il valore in config stava
+sull'orlo di un precipizio, e la passata fortunata sembrava la prova che
+funzionasse. Una soglia va cercata **in mezzo a un altopiano**; se il vicino di
+un centesimo da' un risultato molto diverso, il numero non e' tarato, e' vinto.
+
+**Un parametro dichiarato in config puo' non essere letto da nessuno.**
+`max_ocr_hz` esisteva da mesi, e l'OCR girava a 25 Hz consumando 52 secondi di
+lavoro per 60 di scena — piu' di tutto il resto della catena messo insieme.
+Nessun numero lo diceva, perche' nessuno aveva mai sommato i timer per stadio.
+Prima di spostare un costo su un thread, sommare i costi.
+
 **Due errori che si compensano sono piu' pericolosi di un errore solo.** La stima
 delle durate era corta di un quarto e l'anello di correzione la compensava
 alzando il guadagno: il risultato finale era ragionevole. Correggendo *solo* la

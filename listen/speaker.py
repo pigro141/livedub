@@ -69,15 +69,35 @@ PLAUSIBILE_SOPRA = 0.15
 # confermata all'ascolto — uno riceveva `paola` e un altro finiva nella fascia
 # morta.
 #
-# La causa non e' la soglia ed e' stata guardata: nei ritagli c'e' una
-# periodicita' forte intorno ai 230 Hz che non e' la voce, e le finestre piu'
-# *sicure* sono proprio quelle sbagliate (limitandosi a quelle con
-# autocorrelazione sopra 0,6 la stima peggiora, da 221 a 230 Hz). Nessuna media
-# di quel numero puo' tornare giusta, perche' il numero non descrive la voce.
+# **La prima spiegazione era sbagliata, ed e' istruttivo dire quale.** Nei
+# ritagli di quel personaggio le finestre sonore stanno per meta' sopra i 190 Hz,
+# e le piu' *sicure* sono proprio quelle: sembrava fondo che si sovrapponeva alla
+# voce. Il rimedio "prendi la parte bassa della distribuzione" funzionava, quindi
+# la spiegazione e' rimasta in piedi senza essere verificata.
 #
-# Il rimedio sta nella forma della contaminazione: **e' a senso unico**. Il
-# fondo aggiunge periodicita' alte, non ne aggiunge di basse. Quindi non la
-# mediana delle finestre ma il loro quindicesimo percentile — si veda
+# Poi e' stata verificata, e dice un'altra cosa. Se i 230 Hz fossero fondo,
+# starebbero anche — anzi soprattutto — nelle finestre **deboli**, dove il
+# parlato non li copre. Misurato sulle 1517 finestre sonore di quel personaggio,
+# divise per energia:
+#
+#     quarto piu' debole   intonazione mediana 151 Hz   sopra 190 Hz  34%
+#     secondo quarto                           180 Hz                 46%
+#     terzo quarto                              198 Hz                 53%
+#     quarto piu' forte                        217 Hz                 69%
+#
+# La correlazione fra energia della finestra e intonazione e' **+0,40**, e la
+# confidenza dell'autocorrelazione sale insieme (da 0,58 a 0,80). E' il contrario
+# di cio' che farebbe una musica di fondo: e' un uomo che **alza la voce**, e
+# alzandola sale di intonazione. In quella scena il personaggio urla.
+#
+# Quindi il percentile basso non toglie una contaminazione: prende il **fondo
+# tonale del parlatore**, cioe' come suona quando non sta gridando — che e' un
+# tratto molto piu' stabile della media, per chiunque abbia una scena concitata.
+# Il rimedio resta lo stesso; la ragione per cui funziona e' un'altra, e sapere
+# quale cambia cosa ha senso provare dopo (non serve pulire il segnale per
+# questo).
+#
+# Non la mediana delle finestre ma il loro quindicesimo percentile — si veda
 # `stima_f0` — e le soglie ricalibrate su quella statistica:
 #
 #     misura (p15 per ritaglio, mediana sui ritagli)   attuale   prima
@@ -449,21 +469,28 @@ def stima_f0(
     **Non la mediana delle finestre ma il loro quindicesimo percentile, e il
     motivo e' una misura.** Nei ritagli del gioco le finestre sonore di un uomo
     si distribuiscono su tutta la banda: sui quindici ritagli di Lamar, 64
-    finestre fra 90 e 130 Hz — la sua voce — e 673 sopra i 190, che sono il
-    fondo della scena. La mediana cade in mezzo al fondo e risponde 221 Hz per
-    un uomo; e non e' un problema di finestre incerte, perche' tenendo solo
-    quelle con autocorrelazione sopra 0,6 la risposta peggiora a 230.
+    finestre fra 90 e 130 Hz e 673 sopra i 190. La mediana cade in mezzo alle
+    seconde e risponde 221 Hz per un uomo.
 
-    Quello che si puo' sfruttare e' la **forma** della contaminazione: il fondo
-    aggiunge periodicita' alte e non ne aggiunge di basse. Un percentile basso
-    guarda quindi la parte della distribuzione che il fondo non puo' aver
-    creato. Sui quattro personaggi maschili di riferimento la risposta passa da
+    Quelle finestre alte **sono la sua voce**, non fondo che ci si sovrappone:
+    l'intonazione sale insieme all'energia della finestra (correlazione +0,40, e
+    la tabella per quartili sta in cima a questo modulo), che e' la firma di
+    qualcuno che alza la voce, non di una musica sotto. Un percentile basso
+    quindi non ripulisce niente: prende il **fondo tonale del parlatore**, come
+    suona quando non sta gridando. Ed e' proprio per questo che identifica meglio
+    la persona — quanto uno gridi dipende dalla scena, la sua voce di base no.
+
+    Sui quattro personaggi maschili di riferimento la risposta passa da
     153/134/181/218 Hz a 124/118/140/174, e su `paola` pulita resta 185.
 
     Il prezzo, dichiarato: la stima **scende anche sulle voci femminili**, e il
     margine sul lato femminile e' di dieci hertz. Questa misura sa dire "uomo"
     molto meglio di quanto sappia dire "donna".
     """
+    # Nota per chi tocchera' `quantile`: un valore piu' basso rende la stima piu'
+    # robusta a chi grida e piu' fragile al primo colpo di tosse, perche' guarda
+    # sempre meno finestre. Quindici e' un compromesso misurato, non un default
+    # ereditato.
     x = np.asarray(x, dtype=np.float32).reshape(-1)
     n = int(0.04 * samplerate)
     hop = max(1, n // 2)

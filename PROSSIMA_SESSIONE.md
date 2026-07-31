@@ -96,31 +96,48 @@ lì l'orecchio — che ha già imparato le voci — può sentire la neutra come 
 quarto personaggio. Va giudicato all'ascolto; si spegne con `--set
 speaker.name_min_score=0`.
 
-## La prova che non ha provato niente, e va rifatta meglio
+## La prova del soffitto, e come si e' rovesciata
 
-Il soffitto del segnale: l'idea era separare il parlato dal fondo e vedere se il
-riconoscimento migliora. Fatto con `HDEMUCS_HIGH_MUSDB_PLUS` dal venv `.venv-f5`
-di `gta-redub-live` (`torchaudio.load` lì dentro non funziona — torchcodec non
-carica la sua DLL — si legge il WAV col modulo standard e si aggira).
+L'idea era: il parlato stacca dal fondo di pochi decibel, quindi separare la voce
+dal fondo dovrebbe alzare il soffitto del riconoscimento. Provata due volte, e
+tutte e due le volte la risposta e' stata «il trattamento non e' stato
+applicato»:
 
-**Il separatore non ha separato niente**, e i numeri lo dicono senza appello:
-correlazione 0,983 fra il centro originale e lo stem «vocals», rms al 96%, e
-nelle pause del dialogo il «separato» è più **forte** dell'originale. L'istogramma
-dell'intonazione è identico: mediana 191 contro 192 Hz, quota di finestre sopra
-190 Hz 50% contro 51%.
+- **HDEMUCS** (`.venv-f5` di `gta-redub-live`; li' `torchaudio.load` non
+  funziona, torchcodec non carica la DLL, si legge il WAV col modulo standard e
+  si aggira): correlazione **0,983** fra il centro originale e lo stem «vocals»,
+  rms al 96%, e nelle pause del dialogo il separato e' piu' **forte**
+  dell'originale. E' addestrato su musica: su dialogo con effetti mette tutto
+  dentro «vocals»;
+- **sottrazione spettrale** scritta a mano (niente da installare; la STFT e'
+  stata verificata contro la propria inversa **prima**, scarto 6e-08):
+  correlazione 0,986. Toglie solo rumore stazionario, e qui non ce n'e' molto.
 
-Quindi il raggruppamento non migliora — 16 identità in entrambi i casi — ma
-**questo non dice niente sull'ipotesi**: il trattamento non è stato applicato.
-HDEMUCS è addestrato su musica (MUSDB), e su dialogo con effetti mette tutto
-dentro «vocals». Serve un modello di *speech enhancement*, non un separatore
-musicale: DTLN, RNNoise, o la variante `dns48` di Demucs. Sono anche i soli
-candidati sensati per il vivo, perché girano in tempo reale.
+Poi la misura che ha rovesciato la domanda. Se i 190-300 Hz nei ritagli di Lamar
+fossero fondo, starebbero **soprattutto nelle finestre deboli**, dove il parlato
+non li copre. Misurato sulle sue 1517 finestre sonore, divise per energia:
 
-Il controllo che rende leggibile questa prova è `runs/banco_orig.jsonl`: le
+    quarto piu' debole   intonazione mediana 151 Hz   sopra 190 Hz  34%
+    secondo quarto                           180 Hz                 46%
+    terzo quarto                             198 Hz                 53%
+    quarto piu' forte                        217 Hz                 69%
+
+Correlazione fra energia e intonazione **+0,40**, con la confidenza
+dell'autocorrelazione che sale insieme (0,58 -> 0,80). E' il contrario del fondo:
+**e' un uomo che alza la voce**, e alzandola sale di intonazione. In quella scena
+urla.
+
+Quindi il percentile basso non ripulisce niente: prende il **fondo tonale del
+parlatore**, come suona quando non grida — che e' anche il motivo per cui
+identifica meglio la persona, perche' quanto uno gridi dipende dalla scena e la
+sua voce di base no. La spiegazione sbagliata era rimasta in piedi perche' il
+rimedio funzionava: **un rimedio che funziona non conferma la diagnosi.**
+
+Il controllo che rende leggibili queste prove e' `runs/banco_orig.jsonl`: le
 stesse impronte ricalcolate sull'audio **originale** con lo stesso script. Non
-riproduce esattamente il dump della pipeline (16 identità invece di 15, perché il
-ritaglio parte da `t_on` e non dall'onset del VAD), ed è proprio per questo che
-serve: l'unica differenza attribuibile è quella fra `banco_orig` e `banco_voci`.
+riproduce esattamente il dump della pipeline (16 identita' invece di 15, perche'
+il ritaglio parte da `t_on` e non dall'onset del VAD), ed e' proprio per questo
+che serve: l'unica differenza attribuibile e' quella fra i due trattamenti.
 
 ## Cosa resta aperto, in ordine
 
@@ -131,9 +148,12 @@ serve: l'unica differenza attribuibile è quella fra `banco_orig` e `banco_voci`
    SuperTonic si sentono contro i 589 di Piper?
 2. **Una prova dal vivo**, che è un'altra cosa dal banco: `tools/ui.py`, video di
    GTA V in Chrome a schermo intero, VoiceMeeter, cuffie.
-3. **La pulizia del segnale fatta con lo strumento giusto** (vedi sopra). È
-   quello che alzerebbe insieme il riconoscimento, il genere e forse l'attesa di
-   mezzo secondo.
+3. **La pulizia del segnale non e' piu' la prima candidata.** L'unica prova che
+   la sosteneva era l'intonazione di Lamar, ed era la sua voce. Resta possibile
+   che aiuti l'impronta di speaker — quella e' un'altra domanda, e per porla
+   serve un modello di *speech enhancement* (DTLN, RNNoise, la variante `dns48`
+   di Demucs), non un separatore musicale. Ma prima conviene chiedersi se il
+   riconoscimento sbagli ancora abbastanza da giustificarlo.
 4. **La scena fitta.** La deriva della coda è stata misurata su una scena dove
    l'italiano occupa il 65% del tempo. Su una più fitta va riguardata: è la
    prima cosa da rimisurare se il doppiaggio comincia a slittare.
@@ -179,6 +199,14 @@ il conteggio delle identità da solo avrebbe scelto 0,50.
 risultato.** La prova del separatore vocale dava un risultato pulito e falso: il
 raggruppamento non migliorava perché l'audio non era cambiato. Bastavano una
 correlazione e un istogramma per accorgersene, ed erano tre righe.
+
+**Un rimedio che funziona non conferma la diagnosi.** Il percentile basso sulla
+f0 curava il difetto, quindi la spiegazione che lo accompagnava — «c'è del fondo
+tonale che contamina la stima» — è rimasta in piedi senza essere verificata. Era
+sbagliata: quelle frequenze sono la voce di un uomo che urla, e si vede perché
+salgono con l'energia della finestra invece di stare nelle pause. La conseguenza
+non è cosmetica: sulla diagnosi sbagliata avevo scritto in cima alle cose da
+fare «pulire il segnale», che è una sessione di lavoro.
 
 **Un'unità di misura è un operatore come un altro.** «17,4 caratteri al secondo»
 era vero, ma di un'altra definizione di carattere rispetto a quella usata per

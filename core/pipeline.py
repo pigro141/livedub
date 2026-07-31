@@ -666,11 +666,19 @@ class DubPipeline:
         # tempo del media, e il mixer ha un orologio suo che parte da zero. Dal
         # vivo i due coincidono, sul banco no — ed e' la seconda volta in questo
         # file che i due tempi si scambiano di posto senza dare errore.
-        emb = self._embed(
-            self._clip(event.t_on - self.cfg.speaker.lead_ms / 1000.0, self.clock.now())
-        )
+        clip = self._clip(event.t_on - self.cfg.speaker.lead_ms / 1000.0, self.clock.now())
+        emb = self._embed(clip)
         d = self.tracker.scegli(emb, t=event.t_on)
-        self._registra("scegli", event, emb, deciso=d.speaker_id, anonima=d.anonima)
+        # **Quanto parlato c'era davvero dentro l'impronta.** E' il numero che e'
+        # mancato per due sessioni: la curva misurata dice che sotto 0,5 s la
+        # somiglianza col proprio centroide crolla, quindi un ritaglio corto e un
+        # riconoscitore che sbaglia si assomigliano tantissimo — dall'uscita.
+        udito = self.udito_fino_a
+        self._registra(
+            "scegli", event, emb, deciso=d.speaker_id, anonima=d.anonima,
+            durata=0.0 if clip is None else round(len(clip) / self.samplerate, 3),
+            ritardo_anello=None if udito is None else round(self.clock.now() - udito, 3),
+        )
         return d
 
     def _learn(self, event: SubtitleEvent) -> None:
@@ -696,7 +704,10 @@ class DubPipeline:
             return
         f0 = stima_f0(clip, self.samplerate) if clip is not None else 0.0
         d = self.tracker.impara(emb, t=event.t_on, f0=f0)
-        self._registra("impara", event, emb, f0=round(f0, 2), deciso=d.speaker_id)
+        self._registra(
+            "impara", event, emb, f0=round(f0, 2), deciso=d.speaker_id,
+            durata=round(len(clip) / self.samplerate, 3),
+        )
         if d.is_new:
             self._n_speakers.inc()
         if d.merged is not None:

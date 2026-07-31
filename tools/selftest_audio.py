@@ -879,11 +879,20 @@ def test_speaker(c) -> None:
             v[i] = x
         return (v / np.linalg.norm(v)).astype(np.float32)
 
-    def scena(soglia_fusione: float) -> SpeakerTracker:
-        """S0, un frammento S1 che gli somiglia poco, e una battuta che li avvicina."""
+    def scena(soglia_fusione: float, maturo: int = 1) -> SpeakerTracker:
+        """S0, un frammento S1 che gli somiglia poco, e una battuta che li avvicina.
+
+        `similarity` e `merge_maturo` si fissano qui invece di ereditarli: questi
+        vettori sono costruiti perche' la risposta sia scritta, e con i valori
+        di config la scena verificherebbe qualcos'altro a ogni ritaratura. Il
+        difetto e' gia' capitato — abbassando `similarity` a 0,48 il frammento
+        veniva assorbito da `impara` e la fusione non entrava nemmeno in gioco,
+        con tre verifiche rosse che accusavano la funzione sbagliata.
+        """
         cfg2 = SpeakerConfig()
         cfg2.similarity = 0.55
         cfg2.merge_similarity = soglia_fusione
+        cfg2.merge_maturo = maturo
         s = SpeakerTracker(cfg2)
         s.impara(asse(1.0, 0.0), t=0.0)  # S0
         s.impara(asse(0.5, 0.866), t=1.0)  # 0,50 con S0: sotto soglia, si apre S1
@@ -902,17 +911,38 @@ def test_speaker(c) -> None:
     c.eq(unita.get("S0").battute, 3, "le battute del frammento si sommano a quelle del vincitore")
     c.ok("fuso in S0" in unita.report(), "il report dice dove e' finito, invece di farlo sparire")
 
-    separate = scena(0.75)  # sopra la somiglianza raggiunta: non si deve fondere
-    c.eq(len(separate), 2, "sopra la soglia i due restano due")
-    c.eq(len(separate.fusioni), 0, "e non risulta nessuna fusione")
-
     spenta = SpeakerTracker(SpeakerConfig())
+    spenta.cfg.similarity = 0.55  # come `scena`: i vettori sono tarati su questo
     spenta.cfg.merge = False
     spenta.cfg.merge_similarity = 0.10  # fonderebbe qualunque cosa, se fosse accesa
+    spenta.cfg.merge_maturo = 1
     spenta.impara(asse(1.0, 0.0), t=0.0)
     spenta.impara(asse(0.5, 0.866), t=1.0)
     spenta.impara(asse(0.8, 0.6), t=2.0)
     c.eq(len(spenta), 2, "con `merge` spento non si fonde niente, qualunque sia la soglia")
+
+    # **La soglia dipende da chi si confronta.** E' la regola che ha fatto
+    # ripartire la fusione: con 0,70 applicata anche a un'identita' da una
+    # battuta sola, quelle non si riassorbivano mai — cioe' proprio le identita'
+    # per cui la fusione e' stata scritta. Le due verifiche vanno in coppia:
+    # la prima dice che la regola agisce, la seconda che non agisce sempre.
+    giovane = scena(0.75, maturo=3)  # S1 ha una battuta: vale `similarity` (0,55)
+    c.eq(len(giovane), 1, "un'identita' giovane si fonde con la soglia dei ritagli")
+    matura = scena(0.75, maturo=1)  # regola spenta: torna a valere `merge_similarity`
+    c.eq(len(matura), 2, "sopra la soglia i due restano due")
+    c.eq(len(matura.fusioni), 0, "e non risulta nessuna fusione")
+    # E il verso opposto: due maturi non si fondono con la soglia dei ritagli.
+    cfg3 = SpeakerConfig()
+    cfg3.similarity = 0.55
+    cfg3.merge_similarity = 0.95
+    cfg3.merge_maturo = 2
+    duri = SpeakerTracker(cfg3)
+    duri.impara(asse(1.0, 0.0), t=0.0)
+    duri.impara(asse(1.0, 0.02), t=0.1)  # S0 arriva a due battute
+    duri.impara(asse(0.5, 0.866), t=1.0)  # S1
+    duri.impara(asse(0.55, 0.835), t=1.1)  # S1 arriva a due battute
+    duri.impara(asse(0.9, 0.436), t=2.0)  # avvicina i centroidi, ma sono maturi
+    c.eq(len(duri), 2, "fra due maturi vale la soglia alta, e li tiene separati")
 
     # Gli id non si riusano dopo una fusione: due battute lontane non devono
     # potersi ritrovare con lo stesso nome.

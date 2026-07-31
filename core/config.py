@@ -290,7 +290,38 @@ class SpeakerConfig:
     """
 
     backend: str = "ecapa-onnx"  # ecapa-onnx | mfcc | none
-    similarity: float = 0.55  # soglia coseno per "e' la stessa voce", sui ritagli INTERI
+    # **0,55 stava sull'orlo di un precipizio, e per mezza giornata ha fatto
+    # sembrare rotto il riconoscimento a giorni alterni.** Tre passate della
+    # stessa scena, stesso codice, stessa configurazione, rigiocate con
+    # `tools/recluster.py` (38/38/34 battute etichettate all'ascolto):
+    #
+    #     soglia   battute con la voce giusta   con la voce sbagliata   mute
+    #      0,46          29 / 29 / 23                 4 / 4 / 3         5 / 5 / 8
+    #      0,48          29 / 29 / 23                 4 / 4 / 3         5 / 5 / 8
+    #      0,50          29 / 29 / 23                 4 / 4 / 3         5 / 5 / 8
+    #      0,52          29 / 29 / 23                 4 / 4 / 3         5 / 5 / 8
+    #      0,54          29 / 30 / 23                 3 / 2 / 3         6 / 6 / 8
+    #      0,55          30 / 22 / 15                 0 / 0 / 2         8 / 16 / 17
+    #      0,58          18 / 18 / 13                 1 / 1 / 1        19 / 19 / 20
+    #
+    # A 0,54 le tre passate sono d'accordo; a 0,55 si separano di quindici
+    # battute. Non e' rumore di misura: e' una **discontinuita'**, e la si e'
+    # ritrovata a mano. La seconda battuta di Simeon somiglia alla prima 0,5648
+    # in una passata e 0,5478 nell'altra — diciassette millesimi — e da quel
+    # confronto dipende se Simeon esiste come identita' per tutta la scena. Le
+    # sue sette battute successive prendono la voce giusta o restano mute.
+    #
+    # La ragione per cui il precipizio e' li' si legge nella distribuzione: su
+    # 227 coppie di ritagli **della stessa persona** la somiglianza mediana e'
+    # 0,489, con il novantesimo percentile a 0,641. Una soglia a 0,55 sta
+    # **sopra la mediana**, cioe' piu' spesso che no un ritaglio del personagio
+    # gia' noto non lo riconosce e ne apre uno nuovo.
+    #
+    # 0,48 sta in mezzo all'altopiano — sei centesimi dal precipizio in alto,
+    # quattro dal bordo in basso — e non e' un valore che vince: e' un valore
+    # che non dipende dalla passata. Il prezzo, dichiarato, e' qualche voce
+    # sbagliata in piu' (si veda `name_min_score`, che lo ricompra).
+    similarity: float = 0.48  # soglia coseno per "e' la stessa voce", sui ritagli INTERI
     # **Quanto audio guardare PRIMA della comparsa del sottotitolo.**
     # Al momento di decidere la battuta corrente non ha ancora audio: il testo
     # compare e si decide li'. Misurato su 82 battute etichettate all'ascolto,
@@ -367,8 +398,39 @@ class SpeakerConfig:
     # d'accordo, e questo da solo non direbbe quale dei due sbaglia — a dirlo e'
     # l'orecchio, che su quella scena sente tre persone diverse dove la porta
     # veloce ne nomina una sola.
-    name_min_score: float = 0.30
+    #
+    # **E' salita a 0,35 insieme all'abbassamento di `similarity`, e le due cose
+    # vanno lette insieme.** Con la soglia dell'identita' piu' bassa i centroidi
+    # sono meno puri, quindi la porta veloce trova un nome piu' spesso — anche
+    # quando non dovrebbe. Sulle tre passate, a `similarity` 0,48:
+    #
+    #     name_min   voce giusta      voce sbagliata      mute
+    #       0,30     29 / 29 / 23        4 / 4 / 3       5 / 5 / 8
+    #       0,33     29 / 29 / 23        2 / 1 / 3       7 / 8 / 8
+    #       0,35     28 / 29 / 23        1 / 1 / 2       9 / 8 / 9
+    #       0,40     27 / 28 / 21        1 / 1 / 2      10 / 9 / 11
+    #
+    # A 0,35 le voci sbagliate tornano al livello che aveva la vecchia
+    # configurazione (1/1/2 contro 0/0/2) al prezzo di una battuta giusta. E'
+    # lo scambio che l'orecchio chiede: una battuta muta e' un'assenza, una
+    # battuta con la voce di un altro e' un errore che si sente.
+    name_min_score: float = 0.35
     merge: bool = True
+    # **Da quante battute un centroide e' una media invece che un campione.**
+    # Sotto questo numero, confrontare due "centroidi" e' in realta' confrontare
+    # due ritagli, e quel confronto appartiene all'altra distribuzione — quella
+    # con mediana 0,489, non quella per cui `merge_similarity` e' stata
+    # misurata. Con 0,70 applicata anche li', un'identita' da una battuta sola
+    # non si riassorbiva **mai**: la cura scritta per la frammentazione non
+    # partiva proprio nel caso per cui esiste (misurato: 0 fusioni su tre
+    # passate, sedici identita' per tre personaggi).
+    #
+    # Con la soglia scelta in base alla maturita' dei due — `similarity` se uno
+    # dei due e' giovane, `merge_similarity` se sono maturi entrambi — le
+    # fusioni diventano 2/2/3 e le identita' scendono da 13/13/11 a 11/11/9,
+    # senza una sola battuta tradita. E' la stessa forma dell'errore dei
+    # caratteri al secondo: un numero misurato in un'unita' e usato in un'altra.
+    merge_maturo: int = 3
     # La soglia della fusione **non e' `similarity` e sta piu' in alto**: li' si
     # confronta un ritaglio con un centroide, qui due centroidi fra loro, e due
     # medie si somigliano piu' di quanto un campione somigli alla propria media.

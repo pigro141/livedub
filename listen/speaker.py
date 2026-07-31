@@ -391,10 +391,20 @@ class SpeakerTracker:
         di piu'. Prima o poi si somigliano abbastanza da poterlo dire, ed e'
         allora — non prima — che si possono unire.
 
-        **La soglia e' un'altra da quella di `similarity`, ed e' piu' alta.**
-        Li' si confronta un ritaglio con un centroide, qui due centroidi fra
-        loro: due medie si somigliano piu' di quanto un campione somigli alla
-        propria media, e usare lo stesso numero fonderebbe due persone diverse.
+        **La soglia dipende da chi si sta confrontando, e non e' un
+        raffinamento: senza, questa funzione non serviva a niente.** Fra due
+        centroidi maturi vale `merge_similarity`, misurata proprio li'. Ma un
+        personaggio con **una battuta sola** non ha un centroide: ha un
+        ritaglio, e un ritaglio contro un centroide e' l'altra distribuzione —
+        quella con mediana 0,489, per cui la soglia giusta e' `similarity`.
+        Applicare 0,70 anche a quel confronto significa non fondere mai
+        un'identita' solitaria, cioe' esattamente quelle per cui la fusione e'
+        stata scritta: misurato su tre passate della stessa scena, **zero
+        fusioni e sedici identita' per tre personaggi reali**. Con la soglia
+        scelta per maturita' le fusioni diventano 2, 2 e 3.
+
+        E' la stessa forma dell'errore dei caratteri al secondo: un numero
+        misurato in un'unita' e speso in un'altra.
 
         **Chi vince tiene la voce: quello con piu' battute**, a parita' il piu'
         vecchio di comparsa. Non il primo comparso, che era la formulazione
@@ -412,7 +422,7 @@ class SpeakerTracker:
         punteggi = np.array([float(np.dot(centro, q.centroide)) for q in altri])
         k = int(np.argmax(punteggi))
         somiglianza = float(punteggi[k])
-        if somiglianza < self.cfg.merge_similarity:
+        if somiglianza < self._soglia_fusione(p, altri[k]):
             return None
         q = altri[k]
         vincitore, perdente = (p, q) if self._anziano(p, q) else (q, p)
@@ -428,6 +438,16 @@ class SpeakerTracker:
         if self._ultimo == perdente.speaker_id:
             self._ultimo = vincitore.speaker_id
         return (perdente.speaker_id, vincitore.speaker_id)
+
+    def _soglia_fusione(self, a: Personaggio, b: Personaggio) -> float:
+        """Quale delle due soglie vale per **questa** coppia.
+
+        La domanda non e' "quanto devono somigliarsi", e' "che cosa sto
+        confrontando": due medie, o una media e un campione.
+        """
+        if min(a.battute, b.battute) < self.cfg.merge_maturo:
+            return self.cfg.similarity
+        return self.cfg.merge_similarity
 
     @staticmethod
     def _anziano(a: Personaggio, b: Personaggio) -> bool:

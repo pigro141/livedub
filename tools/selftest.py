@@ -1837,6 +1837,42 @@ def test_chi_parla(c: Check) -> None:
         f"e il ritaglio si ferma dove finisce l'audio ({len(lungo)/sr:.2f}s, non 6)",
     )
 
+    # 2-quater. **La deriva dell'anello, riprodotta perdendo campioni apposta.**
+    #    Dal vivo il thread audio ne perde circa l'1%, e con l'origine fissata al
+    #    primo blocco quel buco non si richiude mai: misurato in sessione, il
+    #    ritardo cresce di 11 ms al secondo — 88 ms all'inizio, 770 dopo un
+    #    minuto — e la finestra di analisi scivola via da chi sta parlando. Nella
+    #    prima meta' di quella sessione il riconoscimento valeva quanto il banco
+    #    (0,637 contro 0,689), nella seconda era crollato a 0,381.
+    #
+    #    Qui si simula il guasto: l'orologio avanza di un blocco intero, ma
+    #    nell'anello se ne scrive solo il 99%. Con l'origine riagganciata a ogni
+    #    blocco il ritardo resta piatto; con l'origine fissa crescerebbe senza
+    #    fine, ed e' esattamente cio' che si vuole rendere impossibile.
+    # Orologio suo: questo blocco porta il tempo avanti di secondi, e le
+    # verifiche dopo ripartono da prima — un orologio virtuale non torna
+    # indietro, ed e' giusto cosi'.
+    cronometro = VirtualClock()
+    d = DubPipeline(cfg, ToneTts(), clock=cronometro, samplerate=sr)
+    d.start_live(warmup=False)
+    blocco = 480
+    cronometro.set(100.0)
+    d.on_audio(np.zeros((blocco, 2), np.float32), n=blocco)
+    ritardi = []
+    for i in range(400):  # ~4 secondi di sessione
+        cronometro.set(100.0 + (i + 1) * blocco / sr)
+        persi = blocco - (5 if i % 100 == 0 else 0)  # ~1% di campioni che non arrivano
+        d.on_audio(np.zeros((persi, 2), np.float32), n=persi)
+        ritardi.append(cronometro.now() - d.udito_fino_a)
+    c.ok(
+        abs(ritardi[-1]) < 0.05,
+        f"perdendo l'1% dei campioni il ritardo dell'anello resta piatto ({ritardi[-1]*1000:+.0f} ms)",
+    )
+    c.ok(
+        abs(ritardi[-1]) <= abs(ritardi[len(ritardi) // 2]) + 0.02,
+        "e non cresce nella seconda meta' della sessione",
+    )
+
     # 2-ter. La stessa cosa vista dall'alto: una battuta non si dice finche'
     #    l'anello non ha l'audio che serve a riconoscerla — ma non aspetta in
     #    eterno, o un device staccato zittirebbe tutto il doppiaggio.

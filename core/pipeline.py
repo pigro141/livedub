@@ -873,6 +873,33 @@ class DubPipeline:
                 self._ring_t0 = self.clock.now()
             mono = mono.astype(np.float32)
             self._voices.write(mono)
+            # **L'origine dell'anello si riaggancia a ogni blocco, e non e' un
+            # dettaglio: e' cio' che impedisce a un buco di diventare eterno.**
+            #
+            # La posizione di un campione la dava il conteggio: `t0 + n/sr`. Il
+            # conteggio pero' e' fedele solo se i campioni arrivano tutti — e dal
+            # vivo non arrivano. Misurato in sessione: **l'anello perde l'1,1% e
+            # il ritardo cresce di 11 ms al secondo**, da 88 ms all'inizio a 770
+            # dopo un minuto. Le conseguenze si vedono tutte nella stessa
+            # sessione: nella prima meta' il ritaglio veloce somiglia al proprio
+            # ritaglio intero 0,637 — quanto il banco, 0,689 — e nella seconda
+            # crolla a 0,381, mentre la somiglianza con la battuta *precedente*
+            # sale a 0,328. Cioe' la finestra scivola via da chi sta parlando.
+            #
+            # Riancorando, un blocco perso costa un salto di pochi millisecondi
+            # una volta sola, invece di spostare per sempre tutto quello che
+            # viene dopo. Il lisciamento serve perche' l'istante di arrivo di un
+            # blocco trema di qualche millisecondo, e inseguire il tremore
+            # sarebbe un altro modo di sbagliare: la costante di tempo e' circa
+            # un secondo, che spegne il tremore e lascia passare una deriva di
+            # undici millisecondi al secondo.
+            #
+            # Sul banco non cambia niente **per costruzione**: li' i campioni ci
+            # sono tutti, quindi `now - written/sr` vale sempre `t0` e l'ancora
+            # non si muove. Lo dice `speaker.ring_lag`, che resta 0,00 ms.
+            ancora = self.clock.now() - self._voices.written / float(self.samplerate)
+            passo = min(1.0, len(mono) / float(self.samplerate))  # ~1 s di costante
+            self._ring_t0 += passo * (ancora - self._ring_t0)
             if self._vad is not None:
                 for seg in self._vad.push(mono, t=self.clock.now()):
                     self._onsets.append(seg.t0)

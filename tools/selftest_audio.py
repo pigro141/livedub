@@ -427,6 +427,7 @@ def test_tts_fake(c) -> None:
     # per verificarlo, solo il conto.
     from speak.backends.supertonic import (
         DEFAULT_SPEED,
+        VELOCITA_INTEGRA,
         VELOCITA_MAX,
         VELOCITA_MIN,
         velocita_effettiva,
@@ -452,20 +453,24 @@ def test_tts_fake(c) -> None:
     # lineare: chi cambia `tts.speed` non deve anche ricordarsi di aggiornare la
     # stima delle durate.
     c.close(_Super(speed=1.50).chars_per_second, 12.9, "supertonic a 1,50 fa 12,9 car/s", tol=0.1)
-    c.close(_Super(speed=2.00).chars_per_second, 17.2, "e a 2,00 ne fa 17,2", tol=0.2)
+    c.close(_Super().chars_per_second, 9.0, "al suo ritmo integro ne fa 9,0", tol=0.2)
     c.ok(
         _Super(speed=1.75).chars_per_second > _Super(speed=1.05).chars_per_second,
         "piu' velocita' vuol dire piu' caratteri al secondo",
     )
 
-    c.close(velocita_effettiva(DEFAULT_SPEED, 1.0, 1.0), 1.50, "senza fretta si chiede il ritmo di base")
-    c.eq(velocita_effettiva(DEFAULT_SPEED, 1.45, 1.0), VELOCITA_MAX,
-         "con la fretta massima si chiede il massimo accettato, non 2,08")
+    c.close(velocita_effettiva(DEFAULT_SPEED, 1.0, 1.0), DEFAULT_SPEED,
+            "senza fretta si chiede il ritmo di base")
+    c.eq(velocita_effettiva(DEFAULT_SPEED, 1.45, 1.0), VELOCITA_INTEGRA,
+         "con la fretta massima ci si ferma dove il modello dice ancora tutto")
+    c.ok(VELOCITA_INTEGRA < VELOCITA_MAX,
+         "e quel tetto sta **sotto** quello che il modello accetterebbe")
     c.eq(velocita_effettiva(DEFAULT_SPEED, 0.1, 0.5), VELOCITA_MIN, "e sotto non si scende")
-    for r in (0.5, 0.8, 1.0, 1.2, 1.45):
+    for r in (0.5, 0.8, 1.0, 1.2, 1.45, 3.0):
         for car in (0.96, 1.0, 1.05):
             v = velocita_effettiva(DEFAULT_SPEED, r, car)
-            c.ok(VELOCITA_MIN <= v <= VELOCITA_MAX, f"rate {r} carattere {car}: {v:.2f} e' accettabile")
+            c.ok(VELOCITA_MIN <= v <= VELOCITA_INTEGRA,
+                 f"rate {r} carattere {car}: {v:.2f} resta dove le sillabe ci sono tutte")
 
     lungo = tts.synthesize("a" * 100, voce)
     corto = tts.synthesize("a" * 20, voce)

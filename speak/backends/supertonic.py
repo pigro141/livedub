@@ -55,8 +55,37 @@ VOICES = {
     "supertonic-F5": ("F5", "f"),
 }
 
-# Ritmo pareggiato a Piper: si veda il docstring del modulo.
-DEFAULT_SPEED = 1.50
+# **1,05 e non 1,50, e la calibrazione precedente era vera e inservibile.**
+#
+# «A speed 1,50 SuperTonic pareggia il ritmo di Piper, 17,1 caratteri al secondo
+# contro 17,4» era misurato bene. Misurava pero' la **durata**, e un modello che
+# salta pezzi di frase diventa piu' corto esattamente come uno che parla svelto:
+# la prova non poteva esprimere il modo in cui questo fallisce.
+#
+# Contando invece i nuclei sillabici — i picchi dell'inviluppo di energia — sulle
+# stesse dodici battute vere:
+#
+#     velocita'   nuclei   quanti ne restano
+#       1,00        93          100%
+#       1,05        88           95%
+#       1,15        71           76%
+#       1,50        63           68%
+#       2,00        47           60%
+#
+# Il controllo che rende leggibile la tabella e' **Piper sulle stesse battute
+# nello stesso intervallo**: 58, 60, 56, 59 nuclei da rate 1,00 a 1,60, cioe'
+# costanti mentre l'audio si accorcia di sei secondi. Piper accorcia
+# articolando; SuperTonic accorcia **buttando via**. (Il conteggio assoluto non
+# si confronta fra i due motori — dipende dalla dinamica della voce — ma
+# l'andamento dentro ciascuno si'.)
+#
+# Piu' passi di diffusione non aiutano (a 8 e 16 il conto e' uguale o peggiore,
+# e costano il doppio e il triplo), e il difetto c'e' su tutte le voci provate.
+#
+# Sopra questa soglia quindi non si va, e la fretta che serve alla catena la fa
+# WSOLA — che sara' anche rozzo, ma quello che comprime lo tiene: a parita' di
+# durata finale, `1,00 + WSOLA` conserva 82 nuclei contro i 76 di `1,50`.
+DEFAULT_SPEED = 1.05
 
 # **Quanto il modello accetta, e cosa succede se glielo si chiede lo stesso.**
 # Fuori da questi due numeri SuperTonic non rallenta e non tronca: solleva
@@ -68,16 +97,29 @@ DEFAULT_SPEED = 1.50
 # alla battuta 10 di 44.
 VELOCITA_MIN, VELOCITA_MAX = 0.7, 2.0
 
+# **E questo e' il tetto che conta**, piu' basso di quello che il modello
+# accetta: sopra, il modello continua a rispondere e comincia a saltare sillabe.
+# Il pacchetto lo dice a suo modo nel messaggio d'errore — «use values closer to
+# 1.05 for more natural speech» — ma non lo impone, e "meno naturale" suona
+# innocuo mentre quello che succede e' che spariscono parole.
+VELOCITA_INTEGRA = 1.10
+
 
 def velocita_effettiva(base: float, rate: float, carattere: float) -> float:
-    """La velocita' da chiedere al modello, dentro cio' che accetta.
+    """La velocita' da chiedere al modello, dentro cio' che sa fare **intero**.
+
+    Il tetto non e' quello che il modello accetta (2,0) ma quello oltre il quale
+    comincia a perdere sillabe (`VELOCITA_INTEGRA`): il primo lo protegge da un
+    errore, il secondo protegge chi ascolta da una frase mangiata. Fra i due c'e'
+    tutta la differenza fra "il modello ha risposto" e "il modello ha detto la
+    battuta".
 
     Il residuo non si perde: chi chiama misura la durata che esce e la porta a
-    quella voluta con WSOLA. Tagliare qui costa quindi un po' di compressione in
-    piu' — che si sente poco — invece di una sessione interrotta, che si sente
-    tutta.
+    quella voluta con WSOLA, che comprime rozzamente ma non butta via niente. A
+    parita' di durata finale conserva piu' contenuto che chiedere la stessa
+    fretta al modello — misurato, 82 nuclei sillabici contro 76.
     """
-    return min(VELOCITA_MAX, max(VELOCITA_MIN, base * rate * carattere))
+    return min(VELOCITA_INTEGRA, max(VELOCITA_MIN, base * rate * carattere))
 
 
 class SupertonicTts:

@@ -69,6 +69,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--mp4-width", type=int, default=1280)
     ap.add_argument(
+        "--mp4-nudo",
+        action="store_true",
+        help="niente banda coi sottotitoli letti: solo gioco e voce",
+    )
+    ap.add_argument(
         "--dump-speaker",
         default=None,
         metavar="PERCORSO",
@@ -214,14 +219,93 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n-> {path}  ({len(mix)/sr:.0f}s)")
     print(f"-> {eventi}   (si rilegge con: python -m tools.reopen {out})")
     if args.mp4:
-        video = monta(args.video, path, out / "dub.mp4", t0_video, len(mix) / sr, args.mp4_width)
+        ass = scrivi_sottotitoli(pipeline.spoken, out / "letto.ass", args.mp4_width)
+        video = monta(
+            args.video,
+            path,
+            out / "dub.mp4",
+            t0_video,
+            len(mix) / sr,
+            args.mp4_width,
+            sottotitoli=None if args.mp4_nudo else ass,
+        )
         if video is not None:
             print(f"-> {video}")
     return 0
 
 
+def _ass_tempo(s: float) -> str:
+    s = max(0.0, s)
+    ore, resto = divmod(s, 3600)
+    minuti, secondi = divmod(resto, 60)
+    return f"{int(ore)}:{int(minuti):02d}:{secondi:05.2f}"
+
+
+def scrivi_sottotitoli(righe: list, destinazione: Path, larghezza: int) -> Path:
+    """I sottotitoli **letti dall'OCR**, in una banda nera sopra il gioco.
+
+    Non sono i sottotitoli del gioco: sono cio' che la catena ha letto e mandato
+    al sintetizzatore. E' l'unico modo di rispondere alla domanda che viene
+    sempre per prima quando una battuta suona sbagliata — *ha sbagliato a
+    leggere, o ha sbagliato a dire?* — e per rispondere non serve fermare niente,
+    basta guardare il video.
+
+    Accanto al testo va il nome della voce: cosi' si vede anche a chi la catena
+    ha attribuito la battuta, nello stesso istante in cui la si sente.
+    """
+    testa = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: {larghezza}
+PlayResY: {int(larghezza * 9 / 16)}
+WrapStyle: 2
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, BackColour, Bold, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: ocr,Consolas,{max(14, larghezza // 44)},&H00FFFFFF,&HFF000000,0,4,3,0,8,20,20,8,1
+
+[Events]
+Format: Layer, Start, End, Style, Text
+"""
+    eventi = []
+    for r in righe:
+        inizio = r.t_scheduled
+        fine = inizio + max(r.duration, 0.8)
+        testo = r.text.replace("\\", "").replace("{", "(").replace("}", ")").replace("\n", " ")
+        eventi.append(
+            f"Dialogue: 0,{_ass_tempo(inizio)},{_ass_tempo(fine)},ocr,,"
+            f"[{r.voice_id}] {testo}"
+        )
+    destinazione.write_text(testa + "\n".join(eventi) + "\n", encoding="utf-8")
+    return destinazione
+
+
+def _filtro_video(larghezza: int, sottotitoli: Path | None) -> str:
+    """Scala, e se ci sono i sottotitoli aggiunge la fascia nera in alto.
+
+    La fascia si ottiene allargando il fotogramma verso l'alto (`pad`) invece di
+    coprire il gioco: il testo letto e il gioco vanno guardati insieme, e uno
+    sopra l'altro renderebbe illeggibile proprio la parte inquadrata dalla ROI.
+    """
+    base = f"scale={larghezza}:-2"
+    if sottotitoli is None:
+        return base
+    alta = max(64, larghezza // 12)
+    # ffmpeg vuole il percorso con le barre in avanti e i due punti protetti.
+    via = str(sottotitoli.resolve()).replace("\\", "/").replace(":", "\:")
+    return (
+        f"{base},pad=iw:ih+{alta}:0:{alta}:black,"
+        f"subtitles='{via}':force_style='MarginV=10'"
+    )
+
+
 def monta(
-    sorgente: str, wav: Path, destinazione: Path, start: float, durata: float, larghezza: int
+    sorgente: str,
+    wav: Path,
+    destinazione: Path,
+    start: float,
+    durata: float,
+    larghezza: int,
+    sottotitoli: Path | None = None,
 ) -> Path | None:
     """Il video del gioco con la traccia doppiata al posto dell'originale.
 
@@ -248,7 +332,7 @@ def monta(
         "-accurate_seek", "-ss", f"{start:.6f}", "-i", str(sorgente),
         "-i", str(wav),
         "-map", "0:v:0", "-map", "1:a:0", "-t", f"{durata:.3f}",
-        "-vf", f"scale={larghezza}:-2", "-r", "30",
+        "-vf", _filtro_video(larghezza, sottotitoli), "-r", "30",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
         str(destinazione),

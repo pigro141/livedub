@@ -157,6 +157,13 @@ class DubPipeline:
             samplerate=samplerate,
         )
         self._ring_t0: float | None = None  # tempo del primo campione scritto
+        # (quanti campioni c'erano, che ora era) a ogni blocco: la linea
+        # temporale dell'anello. Ne bastano quante ne copre la memoria.
+        from collections import deque as _deque
+
+        self._marche: "_deque[tuple[int, float]]" = _deque(
+            maxlen=max(64, int(cfg.audio.ring_seconds * 200))
+        )
         # **L'attacco della voce, non la comparsa del testo.** Nell'esperimento
         # che ha prodotto i gruppi confermati all'ascolto il ritaglio partiva
         # dall'onset del VAD piu' vicino al sottotitolo; nella pipeline partiva
@@ -810,6 +817,30 @@ class DubPipeline:
                 migliore, distanza = t, d
         return migliore
 
+    def _frame_per_tempo(self, t: float) -> int:
+        """Il campione che corrisponde all'istante `t`, secondo le marche.
+
+        Fra due marche si interpola, perche' dentro un blocco i campioni sono
+        regolari; fuori si estrapola alla frequenza nominale, che e' l'unica cosa
+        ragionevole da fare quando quell'audio non e' mai passato di qui.
+        """
+        if not self._marche:
+            return 0
+        n0, t0 = self._marche[0]
+        if t <= t0:
+            return int(round(n0 + (t - t0) * self.samplerate))
+        precedente = self._marche[0]
+        for marca in self._marche:
+            if marca[1] >= t:
+                (na, ta), (nb, tb) = precedente, marca
+                if tb <= ta:
+                    return nb
+                quota = (t - ta) / (tb - ta)
+                return int(round(na + quota * (nb - na)))
+            precedente = marca
+        n1, t1 = self._marche[-1]
+        return int(round(n1 + (t - t1) * self.samplerate))
+
     @property
     def udito_fino_a(self) -> float | None:
         """Fino a che istante l'anello contiene davvero audio. `None` se e' vuoto.
@@ -828,9 +859,9 @@ class DubPipeline:
         latenza, ma perche' l'impronta veniva calcolata su un ritaglio di
         centocinquanta millisecondi credendolo di settecento.
         """
-        if self._ring_t0 is None:
+        if not self._marche:
             return None
-        return self._ring_t0 + self._voices.written / float(self.samplerate)
+        return self._marche[-1][1]
 
     def _clip(self, t_on: float, fino_a: float) -> np.ndarray | None:
         """L'audio del centro fra due istanti, o `None` se non c'e' abbastanza.
@@ -850,14 +881,24 @@ class DubPipeline:
             return None
         udito = self.udito_fino_a
         if udito is not None:
-            self._t_ring_lag.add(max(0.0, (self.clock.now() - udito)) * 1000.0)
+            # **Quanti campioni non sono mai arrivati**, in millisecondi di
+            # audio. E' il numero che conta e che la versione precedente non
+            # poteva esprimere: li' si misurava la distanza fra l'orologio e una
+            # quantita' definita *come* l'orologio, quindi valeva zero anche in
+            # una passata dove un terzo dei frame veniva saltato. Qui invece
+            # cresce quando il thread audio resta indietro, che e' l'unico modo
+            # in cui l'anello puo' mentire sul tempo.
+            atteso = self.clock.now() - (self._ring_t0 or self.clock.now())
+            self._t_ring_lag.add(
+                max(0.0, atteso - self._voices.written / float(self.samplerate)) * 1000.0
+            )
             fino_a = min(fino_a, udito)
         durata = fino_a - t_on
         if durata < 0.20:  # meno di questo non contiene una sillaba intera
             self._n_no_clip.inc()
             return None
         durata = min(durata, 2.0)
-        inizio = self._voices.time_to_frame(t_on, self._ring_t0)
+        inizio = self._frame_per_tempo(t_on)
         try:
             clip = self._voices.read_from(inizio, int(durata * self.samplerate))
         except (Overrun, ValueError):
@@ -924,8 +965,35 @@ class DubPipeline:
                 self._ring_t0 = self.clock.now()
             mono = mono.astype(np.float32)
             self._voices.write(mono)
-            # **L'origine dell'anello si riaggancia a ogni blocco, e non e' un
-            # dettaglio: e' cio' che impedisce a un buco di diventare eterno.**
+            # **Ogni blocco lascia una marca: quanti campioni c'erano e che ora
+            # era.** E' la linea temporale dell'anello, e sostituisce un'origine
+            # unica per una ragione che ha gia' rotto due volte il riconoscimento.
+            #
+            # *Prima versione*: origine fissata al primo blocco, posizione data
+            # dal conteggio. Fedele solo se i campioni arrivano tutti — e dal
+            # vivo il thread audio ne perde l'1,1%, quindi il ritardo cresceva di
+            # 11 ms al secondo e a fine sessione la finestra di analisi era
+            # altrove.
+            #
+            # *Seconda versione*: origine fatta scorrere a ogni blocco perche'
+            # "l'ultimo campione sia adesso". Toglieva la deriva, ma **rietichetta
+            # tutto l'audio** ogni volta che l'orologio corre avanti: un
+            # sottotitolo timbrato a `t_on` veniva poi cercato in una linea
+            # temporale che nel frattempo si era spostata. Con un terzo dei frame
+            # saltati — cioe' quando la macchina fatica, cioe' proprio quando
+            # serve — il ritaglio finiva sull'audio sbagliato. E la misura non
+            # poteva accorgersene: `ritardo_anello` valeva zero **per
+            # costruzione**, perche' era la differenza fra l'orologio e una
+            # quantita' definita come l'orologio.
+            #
+            # Con le marche l'audio scritto all'istante T resta etichettato T per
+            # sempre. Una perdita sposta le cose di quanto e' stata la perdita,
+            # localmente, e non rietichetta niente di gia' scritto. E il ritardo
+            # torna una misura che puo' dire di no: e' la distanza fra adesso e
+            # l'ultima marca.
+            #
+            # Bastano le marche che coprono la memoria dell'anello: piu' indietro
+            # l'audio non c'e' comunque piu'.
             #
             # La posizione di un campione la dava il conteggio: `t0 + n/sr`. Il
             # conteggio pero' e' fedele solo se i campioni arrivano tutti — e dal
@@ -948,9 +1016,7 @@ class DubPipeline:
             # Sul banco non cambia niente **per costruzione**: li' i campioni ci
             # sono tutti, quindi `now - written/sr` vale sempre `t0` e l'ancora
             # non si muove. Lo dice `speaker.ring_lag`, che resta 0,00 ms.
-            ancora = self.clock.now() - self._voices.written / float(self.samplerate)
-            passo = min(1.0, len(mono) / float(self.samplerate))  # ~1 s di costante
-            self._ring_t0 += passo * (ancora - self._ring_t0)
+            self._marche.append((self._voices.written, self.clock.now()))
             if self._vad is not None:
                 for seg in self._vad.push(mono, t=self.clock.now()):
                     self._onsets.append(seg.t0)

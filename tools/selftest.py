@@ -1791,8 +1791,13 @@ def test_chi_parla(c: Check) -> None:
         t = np.arange(n, dtype=np.float32) / sr
         voce = sum((0.3 / k) * np.sin(2 * np.pi * f0 * k * t) for k in (1, 2, 3)).astype(np.float32)
         blocco = np.stack([voce, voce], axis=1)  # centrato: sta nel mid
+        # L'orologio avanza mentre l'audio entra, come dal vivo e come sul
+        # banco: ogni blocco lascia una marca, e marche tutte allo stesso istante
+        # sarebbero una linea temporale schiacciata in un punto.
         for i in range(0, n, 480):
-            p.on_audio(blocco[i : i + 480], n=len(blocco[i : i + 480]))
+            pezzo = blocco[i : i + 480]
+            orologio.set(orologio.now() + len(pezzo) / sr)
+            p.on_audio(pezzo, n=len(pezzo))
 
     # 1. L'anello si riempie da `on_audio`. Senza, l'identita' sarebbe decisa su
     #    audio che non esiste e ogni battuta sarebbe la stessa persona.
@@ -1820,7 +1825,7 @@ def test_chi_parla(c: Check) -> None:
     #    undici volte su quarantadue era vuoto del tutto.
     udito = p.udito_fino_a
     c.ok(udito is not None, "si sa fino a dove l'anello ha sentito")
-    c.close(udito - p._ring_t0, p._voices.written / sr, "e quel confine sono i campioni entrati", tol=1e-6)
+    c.close(udito, orologio.now(), "e il confine e' l'istante dell'ultimo blocco entrato", tol=1e-6)
     orologio.set(udito + 5.0)  # il muro corre avanti, l'anello resta indietro
     c.eq(
         p._clip(udito - 0.05, orologio.now()),

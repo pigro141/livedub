@@ -169,6 +169,14 @@ def main(argv: list[str] | None = None) -> int:
     # il thread audio dal vivo non salta niente: e' proprio da quell'asimmetria
     # che nasce il ritardo dell'anello.
     #
+    # **Un limite dichiarato di questo modello**: qui l'audio si versa al ritmo
+    # dei pacchetti mentre l'orologio corre avanti, quindi l'anello resta
+    # indietro di tutto l'arretrato. Dal vivo non succede — il thread audio
+    # cattura in tempo reale, indipendente dal video — e infatti li' le decisioni
+    # senza impronta sono 1 su 44 mentre qui diventano 12 su 43. Sul *tempo*
+    # questo modello e' fedele; sul **riconoscimento e' pessimista**, e va letto
+    # sapendolo.
+    #
     # Resta deterministico e ripetibile — il costo si misura, non si simula — a
     # differenza di far girare la catena a tempo vero, che dipenderebbe da cosa
     # sta facendo la macchina in quel momento.

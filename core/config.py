@@ -483,7 +483,27 @@ class TtsConfig:
     # rallenta: il lavoro passa a WSOLA, che comprime schiacciando invece di
     # articolare ed e' quello che mangia le fini delle parole. Si guadagnano
     # cinque centesimi di calma e si perde l'ultima sillaba di ogni frase.
-    native_rate_max: float = 1.20
+    #
+    # **Alzato a 1,55, e il numero non e' nuovo: e' quello che il progetto stava
+    # gia' ascoltando senza saperlo.** Finche' `chars_per_second` era 17,4 —
+    # contato in un'unita' diversa da quella in cui veniva usato — la stima delle
+    # durate era corta di un quarto, e l'anello di correzione lo leggeva come "il
+    # sintetizzatore e' pigro" e alzava il guadagno. Il risultato misurato su
+    # quella configurazione, cioe' su tutte le prove d'ascolto fatte finora, e'
+    # `dub.native_x1000` con **mediana 1558**: Piper articolava gia' il 56% piu'
+    # svelto, e nessuno se n'e' lamentato.
+    #
+    # Corretta l'unita', l'accelerazione consegnata e' crollata a 1,16 e WSOLA e'
+    # andato al tetto sul 68% delle battute — che e' esattamente la leva
+    # sbagliata. Il tetto quindi non era prudenza: era il tappo che teneva fermo
+    # un valore che nella pratica veniva scavalcato dall'altra parte.
+    #
+    #     tetto   accelerazione consegnata p50   battute con WSOLA al tetto
+    #     1,20              1,04                          80%
+    #     1,35              1,16                          68%
+    #     1,50              1,18                          70%
+    #     1,55              (si veda la prova sotto)
+    native_rate_max: float = 1.55
     # Caratteri al secondo alla velocita' nominale, per stimare quanto durera'
     # la battuta **prima** di sintetizzarla.
     #

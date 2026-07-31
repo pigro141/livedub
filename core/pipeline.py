@@ -321,8 +321,24 @@ class DubPipeline:
         n = spoken_length(event.text)
         stima = n / max(1e-6, self._cps)
         if self.cfg.tts.native_rate_max > 1.0:
+            # **Si mira all'istante in cui la voce partira' davvero, non a
+            # adesso.** I due `plan` di questa funzione usavano due `elapsed`
+            # diversi: qui il tempo passato *finora*, piu' sotto quello fino
+            # all'attacco vero — che comprende la sintesi appena fatta e la coda.
+            # Il secondo budget e' quindi sempre piu' stretto del primo, e la
+            # battuta veniva accelerata per stare in una finestra piu' larga di
+            # quella in cui poi doveva stare davvero. Il residuo cadeva su WSOLA,
+            # cioe' sulla leva che schiaccia invece di articolare: misurato, la
+            # compressione mediana restava a 1,098 con un quarto delle battute al
+            # tetto anche quando la voce nativa stava facendo il suo lavoro.
+            #
+            # La sintesi non e' ancora avvenuta, quindi il suo costo si stima
+            # dalla media di quelle passate — e la coda invece e' un fatto, sta
+            # gia' scritta in `_free_at`.
+            costo_sintesi = self._t_synth.mean / 1000.0 if self._t_synth.count else 0.0
+            inizio_atteso = max(self.clock.now() + costo_sintesi, self._free_at)
             budget = self.timing.plan(
-                event.text, stima, elapsed=max(0.0, self.clock.now() - event.t_on)
+                event.text, stima, elapsed=max(0.0, inizio_atteso - event.t_on)
             ).budget
             if budget <= 0.05:
                 # Finestra gia' finita: si e' comunque in ritardo, e allora tanto
@@ -368,7 +384,23 @@ class DubPipeline:
             # Senza questo anello il tetto sulla velocita' e' un desiderio.
             ottenuto = stima / max(1e-6, len(audio) / self.samplerate)
             if ottenuto > 0.5:
-                divario = richiesta / max(ottenuto, 1e-6)
+                # **Il divario si misura contro il bersaglio, non contro la
+                # richiesta.** Era `richiesta / ottenuto`, e quel rapporto ha un
+                # punto fisso perverso: si azzera quando `ottenuto` raggiunge la
+                # *richiesta*, che a sua volta e' `bersaglio * guadagno`. Cioe'
+                # l'anello si dava da solo il bersaglio, e ogni volta che la
+                # voce restava indietro alzava sia il guadagno sia il traguardo
+                # da raggiungere. Misurato: con `nativo` a 1,20 la voce
+                # consegnava **1,70**, e con il tetto a 1,20 consegnava 1,47 —
+                # numeri che la configurazione non aveva mai chiesto. Non e' un
+                # correttore che gira in un verso solo, e' un correttore che
+                # insegue la propria uscita.
+                #
+                # Contro `nativo` il punto fisso e' quello dichiarato: si
+                # consegna l'accelerazione che serve a far stare la battuta nella
+                # sua finestra, e nulla di piu'. Quel "nulla di piu'" e' tutto il
+                # punto — l'accelerazione non chiesta e' voce che corre.
+                divario = nativo / max(ottenuto, 1e-6)
                 # **Il limite basso era 1,0, e rendeva il tetto un desiderio.**
                 # L'anello poteva solo chiedere *piu'* del bersaglio, mai meno:
                 # nato per correggere Piper che consegna meno di quanto promette,
@@ -378,8 +410,15 @@ class DubPipeline:
                 # dava errore — dava una voce che corre mentre la configurazione
                 # dice che non deve. Un correttore che sa girare in un verso solo
                 # non e' un correttore, e' un acceleratore.
+                # **Il passo dell'anello e' mezzo e non tre decimi, e si vede
+                # nei percentili.** Con 0,3 l'accelerazione consegnata su una
+                # scena da 44 battute stava a 1,16 di mediana e 1,43 al p95:
+                # convergeva, ma solo verso la fine, e la prima meta' della scena
+                # pagava la lentezza dell'anello invece che quella della voce.
+                # Una scena dura un minuto: chi impara in cinquanta battute
+                # impara dopo.
                 self._native_gain = float(
-                    np.clip(self._native_gain * (1.0 + 0.3 * (divario - 1.0)), 0.55, 2.5)
+                    np.clip(self._native_gain * (1.0 + 0.5 * (divario - 1.0)), 0.55, 3.0)
                 )
             self._t_nativo.add(ottenuto * 1000.0)
 

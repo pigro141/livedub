@@ -258,7 +258,15 @@ class DubPipeline:
             # capita nel momento peggiore: la seconda voce entra quando due
             # personaggi si parlano sopra, che e' quando una battuta persa si
             # nota di piu'.
-            for voce in self.pool.voices:
+            #
+            # **E la neutra insieme alle altre, che e' quella che parla per
+            # prima.** Non sta nel pool — apposta, perche' nessuno se la tenga —
+            # e proprio per questo il ciclo qui sopra la saltava. Ma da quando le
+            # decisioni sotto soglia sono anonime, la voce d'apertura di ogni
+            # sessione **e' lei**: quindici battute su diciotto nei primi trenta
+            # secondi. Scaldare tutto il pool tranne l'unica voce che parlera'
+            # per prima e' il difetto di sempre, spostato di un posto ancora.
+            for voce in [*self.pool.voices, self._neutra]:
                 try:
                     self.tts.synthesize("via", voce)
                 except Exception:

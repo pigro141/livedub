@@ -1352,6 +1352,30 @@ def test_velocita_totale(c: Check) -> None:
         pp._native_gain > 1.02,
         f"il guadagno impara che il sintetizzatore e' pigro ({pp._native_gain:.3f})",
     )
+
+    # **Il riscaldamento tocca anche la voce neutra.** Non e' nel pool — apposta
+    # — ma da quando le decisioni sotto soglia sono anonime e' la voce che parla
+    # per prima, quindici battute su diciotto nei primi trenta secondi. Scaldare
+    # tutto tranne quella sposterebbe di un posto il difetto che il riscaldamento
+    # esiste per chiudere: la prima battuta che costa 1,8 s di sintesi.
+    scaldato = TtsCheVaVeloce()
+    sc = DubPipeline(Config(), scaldato, clock=VirtualClock(), samplerate=22050)
+    scaldato.chiesti.clear()
+    voci_prima = set()
+
+    class Spia(TtsCheVaVeloce):
+        def synthesize(self, text, voice, rate: float = 1.0):
+            voci_prima.add(voice.voice_id)
+            return super().synthesize(text, voice, rate)
+
+    spia = Spia()
+    sp = DubPipeline(Config(), spia, clock=VirtualClock(), samplerate=22050)
+    sp.start_live(warmup=True)
+    c.ok("neutra" in voci_prima, "la voce neutra viene scaldata come le altre")
+    c.ok(
+        voci_prima >= {v.voice_id for v in sp.pool.voices},
+        "e il pool intero pure, non solo la prima voce",
+    )
     c.ok(
         pigro.chiesti[-1] > pigro.chiesti[0],
         f"e gli si chiede via via di piu' ({pigro.chiesti[0]:.3f} -> {pigro.chiesti[-1]:.3f})",

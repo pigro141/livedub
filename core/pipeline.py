@@ -597,6 +597,57 @@ class DubPipeline:
         self._t_latency.add(line.latency_ms)
         self._t_live.add(line.live_latency_ms)
         self.spoken.append(line)
+        # **La traccia: una riga per battuta con tutto quello che le e'
+        # successo, dal frame all'altoparlante.**
+        #
+        # Serve a una cosa sola e vale la pena dirla, perche' decide anche la
+        # forma: confrontare **la stessa battuta** fra banco e vivo stadio per
+        # stadio. Finora ogni difetto del vivo e' stato trovato cosi' — il
+        # ritaglio troncato, la deriva dell'anello — ma ogni volta mancava un
+        # numero e ci voleva un'altra sessione per averlo. Qui ci sono tutti in
+        # una volta.
+        #
+        # **Per battuta e non per frame, ed e' una scelta di merito, non di
+        # comodo.** Il dominio audio gira ogni dieci millisecondi: scrivere una
+        # riga li' dentro vorrebbe dire perdere campioni, cioe' ricreare
+        # esattamente il difetto che ha rovinato tre sessioni. Una misura che
+        # disturba cio' che misura non e' una misura. Qui si scrive quando la
+        # battuta e' gia' decisa: una riga ogni due secondi, che non si sente.
+        udito = self.udito_fino_a
+        self._registra_riga(
+            {
+                "kind": "detta",
+                "t_on": round(event.t_on, 3),
+                "t_off": None if event.t_off is None else round(event.t_off, 3),
+                "text": event.text,
+                "cls": event.cls.value,
+                # chi parla
+                "speaker": speaker_id,
+                "anonima": bool(decisione.anonima),
+                "punteggio": round(float(decisione.confidence), 3),
+                "genere": getattr(p, "gender", "?") if p is not None else "?",
+                "f0": round(getattr(p, "f0", 0.0), 1) if p is not None else 0.0,
+                "battute_note": getattr(p, "battute", 0) if p is not None else 0,
+                "identita_vive": len(self.tracker) if self.tracker is not None else 0,
+                # il segnale su cui si e' deciso
+                "ritardo_anello": None if udito is None else round(self.clock.now() - udito, 3),
+                # la voce e il tempo
+                "voce": voice.voice_id,
+                "nativo_chiesto": round(float(richiesta), 3),
+                "nativo_ottenuto": round(float(stima / max(1e-6, len(audio) / self.samplerate)), 3)
+                if audio.size
+                else 0.0,
+                "wsola": round(float(rate), 3),
+                "synth_ms": round(synth_ms, 1),
+                "coda_ms": round((t_start - now) * 1000.0, 1),
+                "latenza_ms": round(line.latency_ms, 1),
+                "durata": round(line.duration, 3),
+                "durata_naturale": round(stima, 3),
+                "finestra_prevista": round(self.timing.predict(event.text), 3),
+                "cps": round(self._cps, 2),
+                "guadagno_nativo": round(self._native_gain, 3),
+            }
+        )
         return line
 
     def _gia_detta(self, event: SubtitleEvent) -> bool:

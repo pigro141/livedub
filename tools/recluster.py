@@ -65,8 +65,22 @@ from speak.pool import VoicePool, build_pool, voce_neutra, voce_per  # noqa: E40
 
 
 def load(path: str | Path) -> list[dict]:
+    """Le righe del registro che parlano di una battuta.
+
+    Il registro contiene anche note di servizio — quale impronta sta girando, per
+    esempio — che non hanno un istante e non vanno rigiocate. Filtrarle qui e non
+    a valle evita che ogni lettore debba ricordarsene.
+    """
     righe = Path(path).read_text(encoding="utf-8").splitlines()
-    return [json.loads(r) for r in righe if r.strip()]
+    tutti = [json.loads(r) for r in righe if r.strip()]
+    return [r for r in tutti if r.get("kind") in ("scegli", "impara")]
+
+
+def note(path: str | Path) -> list[dict]:
+    """Le note di servizio del registro: cio' che `load` lascia fuori."""
+    righe = Path(path).read_text(encoding="utf-8").splitlines()
+    tutti = [json.loads(r) for r in righe if r.strip()]
+    return [r for r in tutti if r.get("kind") not in ("scegli", "impara")]
 
 
 @dataclass
@@ -326,6 +340,8 @@ def main(argv: list[str] | None = None) -> int:
     if not records:
         print(f"nessuna impronta in {args.registro}", file=sys.stderr)
         return 2
+    for nota in note(args.registro):
+        print(f"  nota: {nota}")
     n_scelte = sum(1 for r in records if r["kind"] == "scegli")
     n_imparate = sum(1 for r in records if r["kind"] == "impara")
     span = max(float(r["t_on"]) for r in records) - min(float(r["t_on"]) for r in records)

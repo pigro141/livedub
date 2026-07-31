@@ -120,6 +120,12 @@ def main(argv: list[str] | None = None) -> int:
     pipeline = DubPipeline(cfg, tts, clock=clock, samplerate=sr)
     uscita: list[np.ndarray] = []
     registro = None
+    if not args.dump_speaker:
+        # La traccia costa una riga a battuta e risponde alla domanda che viene
+        # sempre — "in che punto banco e vivo divergono?" — quindi si scrive
+        # sempre, accanto agli altri file della prova.
+        Path(args.out).mkdir(parents=True, exist_ok=True)
+        args.dump_speaker = str(Path(args.out) / "speaker.jsonl")
     if args.dump_speaker:
         percorso = Path(args.dump_speaker)
         percorso.parent.mkdir(parents=True, exist_ok=True)

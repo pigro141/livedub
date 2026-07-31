@@ -559,6 +559,33 @@ class TimingConfig:
     # invece di schiacciare.
     rate_max: float = 1.25
     lead_ms: int = 0  # anticipo/ritardo fisso sull'attacco
+    # **Il ritardo che si accetta invece di recuperarlo, in millisecondi.**
+    #
+    # Il budget di una battuta era `finestra prevista - tempo gia' passato dalla
+    # comparsa del sottotitolo`, e in quel "tempo gia' passato" c'e' anche cio'
+    # che si paga **su ogni battuta allo stesso modo**: mezzo secondo di attesa
+    # per sapere chi parla, piu' la sintesi. Un ritardo uguale per tutti non e'
+    # un debito: sposta il doppiaggio all'indietro di un blocco e lascia intatto
+    # il ritmo della conversazione. Sottrarlo dal budget significa invece
+    # chiedere a ogni battuta di recuperare da sola un ritardo che tornera'
+    # identico alla battuta dopo — e si recupera nell'unico modo disponibile,
+    # comprimendo.
+    #
+    # Misurato sulle 44 battute della scena del concessionario, prima di
+    # cambiare niente: la durata naturale dell'italiano e' 0,83 volte la
+    # finestra del sottotitolo (mediana), quindi ci sta. Ma togliendo dalla
+    # finestra i 500 ms di attesa, le battute che non ci stanno piu' passano da
+    # 11 su 44 a **29 su 44**, e la compressione richiesta al p90 da 1,17 a
+    # 2,42. E' li' che nasce `dub.rate_x1000` inchiodato a 1250 su **tutti** i
+    # percentili.
+    #
+    # **250 ms e' misurato**, ed e' il ginocchio: porta la compressione mediana
+    # da 1,146 a 1,000 e costa undici millisecondi di latenza percepita. Oltre si
+    # paga latenza senza comprare quasi niente, perche' il ritardo scusato entra
+    # anche nell'arretrato della coda. Il rischio era la deriva e non c'e': le
+    # ultime dieci battute della scena sono in ritardo **meno** delle prime
+    # dieci. La tabella intera sta nel docstring del modulo `fuse/timing.py`.
+    accepted_delay_ms: int = 250
     # **Spento perche' misurato, non perche' non sia scritto.** Il piano dava per
     # buono che il sottotitolo compaia quando il gioco decide e la voce cominci
     # quando il personaggio apre la bocca, e che i due istanti non coincidano:

@@ -1301,10 +1301,11 @@ def test_velocita_totale(c: Check) -> None:
 
     # Una battuta lunga in una finestra stretta: entrambe le leve devono
     # tirare, e insieme non devono superare il tetto. `elapsed` e' realistico
-    # (300 ms di riconoscimento), non mezzo minuto: con la finestra gia' finita
-    # si finirebbe in un altro ramo e la verifica misurerebbe quello.
+    # (300 ms di arretrato **oltre** il ritardo costante, che ormai si scusa),
+    # non mezzo minuto: con la finestra gia' finita si finirebbe in un altro
+    # ramo e la verifica misurerebbe quello.
     lunga = "Questa e' una battuta molto lunga che non ci sta nella sua finestra"
-    clock.set(0.3)
+    clock.set(0.3 + cfg.timing.accepted_delay_ms / 1000.0)
     riga = p._speak(SubtitleEvent(text=lunga, cls=LineClass.WHITE, t_on=0.0))
 
     c.ok(tts.chiesti and tts.chiesti[-1] > 1.0, f"al sintetizzatore si chiede fretta ({tts.chiesti[-1]:.3f})")
@@ -1336,7 +1337,7 @@ def test_velocita_totale(c: Check) -> None:
     pc.set(0.0)
     pp.start_live(warmup=False)
     for i in range(8):
-        pc.set(0.3 + i * 6.0)
+        pc.set(0.3 + cfg.timing.accepted_delay_ms / 1000.0 + i * 6.0)
         pp._speak(SubtitleEvent(text=lunga, cls=LineClass.WHITE, t_on=i * 6.0))
     # La soglia e' bassa perche' in questa scena la finestra e' larga e la
     # fretta chiesta e' appena sopra 1: il divario da correggere e' piccolo e la
@@ -1585,10 +1586,26 @@ def test_duration_model(c: Check) -> None:
     # un dettaglio, quindi ha una verifica sua.
     c.ok(p.overflow > 0 and p.rate > 0, "sforando, la battuta resta dicibile")
 
-    # Il tempo gia' consumato riduce il budget, non la durata prevista.
+    # Il tempo gia' consumato riduce il budget, non la durata prevista — ma solo
+    # per la parte che **non** e' il ritardo costante. Mezzo secondo di attesa
+    # per sapere chi parla torna identico a ogni battuta: e' uno spostamento del
+    # doppiaggio, non un debito di questa riga, e chiederle di recuperarlo
+    # significa comprimerla per niente. Misurato: sulle 44 battute della scena la
+    # compressione mediana passava da 1,000 a 1,146 solo per questo.
+    scusa = cfg.accepted_delay_ms / 1000.0
+    c.ok(scusa > 0, "di suo un pezzo del ritardo si accetta invece di rincorrerlo")
     p = m.plan("a" * 50, spoken=1.0, elapsed=0.5)
-    c.close(p.budget, 1.5, "il budget e' quello che resta")
+    c.close(p.budget, 2.0 - (0.5 - scusa), "il budget e' quello che resta, scusato il ritardo costante")
     c.close(p.predicted, 2.0, "la durata prevista non cambia")
+    p = m.plan("a" * 50, spoken=1.0, elapsed=scusa)
+    c.close(p.budget, 2.0, "un ritardo tutto dentro la scusa non toglie niente")
+    p = m.plan("a" * 50, spoken=1.0, elapsed=scusa + 0.4)
+    c.close(p.budget, 1.6, "e oltre la scusa si recupera come prima")
+    from dataclasses import replace as _replace
+
+    fermo = DurationModel(_replace(cfg, accepted_delay_ms=0))
+    c.close(fermo.plan("a" * 50, spoken=1.0, elapsed=0.5).budget, 1.5,
+            "con la scusa a zero si torna al comportamento di prima")
 
     # Apprendimento: la verita' e' un'altra retta, e il modello ci si avvicina.
     learner = DurationModel(TimingConfig())

@@ -26,6 +26,39 @@ lunghezza del testo ne e' solo un indizio. Da qui due conseguenze di progetto:
 - `never_drop` non e' negoziabile. Quando la correzione non basta si **sfora**:
   una battuta detta in ritardo e' un difetto, una battuta non detta e' un buco.
 
+## Il ritardo costante non e' un debito, e la tabella che lo dice
+
+Il budget di una battuta era `finestra prevista - tempo gia' passato`, e dentro
+quel tempo passato c'era anche cio' che si paga **su ogni battuta allo stesso
+modo**: mezzo secondo di attesa per sapere chi parla, piu' la sintesi. Chiedere a
+ogni riga di recuperarlo da sola significa comprimerle tutte per un ritardo che
+tornera' identico alla riga dopo — e infatti `dub.rate_x1000` risultava inchiodato
+al tetto su **tutti** i percentili con SuperTonic, e a 1,146 di mediana con Piper.
+
+Misurato sulle 44 battute della scena del concessionario, stessa registrazione,
+stesse voci assegnate in tutte e quattro le passate (il percorso di chi parla non
+c'entra ed e' rimasto identico: e' il controllo che rende confrontabili le righe):
+
+    accettato   compressione p50   battute al tetto   latenza p50   p95    sfori
+       0 ms          1,146               25%            576 ms    1174 ms    16
+     250 ms          1,000               14%            587 ms    1272 ms     6
+     500 ms          1,000               18%            592 ms    1371 ms     9
+     750 ms          1,000               11%            592 ms    1370 ms     7
+
+**250 ms e' il ginocchio**: porta la battuta mediana a non essere compressa
+affatto, e costa undici millisecondi di latenza percepita. Oltre, si continua a
+pagare latenza senza comprare quasi niente — e il motivo e' che il ritardo
+scusato entra anche nell'arretrato della coda: piu' si scusa, piu' le battute
+durano, piu' la coda cresce, e le battute ancora al tetto sono proprio quelle
+prese dentro una raffica, dove a dominare non e' piu' l'attesa ma l'arretrato
+vero.
+
+**La deriva, che era il rischio, non c'e'**: le ultime dieci battute sono in
+ritardo *meno* delle prime dieci (-185 ms a 250 ms di scusa). Il parlato italiano
+occupa il 65% della scena, quindi la coda ha dove smaltire — ma su una scena
+molto piu' fitta questo numero va riguardato, ed e' la prima cosa da rimisurare
+se il doppiaggio comincia a slittare.
+
 ## L'aggiornamento in linea, e perche' e' prudente
 
 I coefficienti si aggiornano mentre la sessione gira, con somme pesate che
@@ -105,11 +138,21 @@ class DurationModel:
 
         `spoken` e' quanto durerebbe la battuta alla velocita' nominale della
         voce; `elapsed` e' quanto tempo della finestra e' gia' andato — l'attesa
-        dell'embedding, il ritardo del riconoscimento — e va sottratto, perche'
-        il budget e' quello che resta, non quello che c'era.
+        dell'embedding, il ritardo del riconoscimento, la coda — e va sottratto,
+        perche' il budget e' quello che resta, non quello che c'era.
+
+        **Ma non tutto quel tempo e' perduto allo stesso modo.** La parte che
+        torna identica a ogni battuta — mezzo secondo di attesa per sapere chi
+        parla, piu' la sintesi — non e' un debito di *questa* battuta: e' uno
+        spostamento del doppiaggio nel suo complesso, e chiedere a ogni riga di
+        recuperarlo da sola vuol dire comprimerle tutte per un ritardo che
+        tornera' comunque. `accepted_delay_ms` e' quanto di quel tempo si accetta
+        senza rincorrerlo; quello che resta — l'arretrato della coda, che varia
+        da battuta a battuta — si recupera come prima.
         """
         predicted = self.predict(text)
-        budget = max(0.0, predicted - max(0.0, elapsed))
+        scusato = max(0.0, self.cfg.accepted_delay_ms / 1000.0)
+        budget = max(0.0, predicted - max(0.0, elapsed - scusato))
         if spoken <= 0.0 or budget <= 0.0:
             return Plan(budget=budget, rate=1.0, overflow=max(0.0, spoken - budget), predicted=predicted)
 

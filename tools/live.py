@@ -183,7 +183,19 @@ def main(argv: list[str] | None = None) -> int:
                 if ora < prossimo:
                     time.sleep(min(0.002, prossimo - ora))
                     continue
-                prossimo += periodo
+                # **Se si e' rimasti indietro, si riparte da adesso invece di
+                # rincorrere.** Con `prossimo += periodo` e basta, dopo una
+                # sintesi da trecento millisecondi il programma restava indietro
+                # di nove passi e il ciclo li smaltiva a raffica: nove catture e
+                # nove OCR back-to-back, che a quel punto costano piu' del
+                # ritardo che stavano recuperando. Il debito non si estingueva
+                # mai, si spostava in avanti.
+                #
+                # Un frame vecchio non vale niente: serve a vedere se **adesso**
+                # c'e' un sottotitolo. Quindi si perdona il ritardo e si riparte
+                # dal presente — che e' anche cio' che rende il ritmo del ciclo
+                # una misura leggibile invece di una media fra raffiche e pause.
+                prossimo = max(prossimo + periodo, ora)
                 g = schermo.grab()
                 if not g.ok:
                     continue

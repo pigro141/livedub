@@ -215,6 +215,12 @@ class DubPipeline:
         self._n_merged = self.metrics.counter("speaker.merged")
         self._n_neutra = self.metrics.counter("speaker.voce_neutra")
         self._n_no_clip = self.metrics.counter("speaker.no_clip")
+        # Quanto l'anello e' indietro rispetto all'orologio: zero sul banco per
+        # costruzione, dal vivo e' la distanza fra "adesso" e "cio' che si e'
+        # sentito". E' il numero che mancava per capire perche' il vivo
+        # riconoscesse peggio del banco, e adesso si legge in ogni sessione.
+        self._t_ring_lag = self.metrics.timer("speaker.ring_lag")
+        self._t_scarto_onset = self.metrics.timer("speaker.onset_offset")
         self._n_repeated = self.metrics.counter("dub.repeated")
         self._n_lines = self.metrics.counter("dub.lines")
         self._n_empty = self.metrics.counter("dub.empty")
@@ -297,9 +303,32 @@ class DubPipeline:
         if self.tracker is None:
             pronte, self._da_dire = self._da_dire, []
         else:
-            scadenza = self.clock.now() - self.cfg.speaker.decide_after_ms / 1000.0
-            pronte = [e for e in self._da_dire if e.t_on <= scadenza]
-            self._da_dire = [e for e in self._da_dire if e.t_on > scadenza]
+            # **Si aspetta l'audio, non l'orologio.** L'attesa esiste per un
+            # motivo solo: avere mezzo secondo del parlato di questo personaggio
+            # da dare all'impronta. Misurarla sul muro presuppone che il muro e
+            # l'anello vadano insieme — vero sul banco, dove l'audio di un
+            # pacchetto entra prima del suo frame, falso dal vivo, dove il thread
+            # audio scrive al ritmo del device. Li' l'attesa scadeva mentre
+            # l'audio non c'era ancora, e la decisione si prendeva su un ritaglio
+            # troncato.
+            #
+            # La valvola c'e' ed e' `max_wait_ms`: se l'audio non arriva, dopo
+            # quel tanto si parla lo stesso. Una battuta detta male e' un
+            # difetto, una battuta non detta e' un buco — e un anello fermo
+            # (device staccato, sessione finita male) non deve poter zittire
+            # tutto il doppiaggio.
+            attesa = self.cfg.speaker.decide_after_ms / 1000.0
+            limite = attesa + self.cfg.speaker.max_wait_ms / 1000.0
+            udito = self.udito_fino_a
+            ora = self.clock.now()
+
+            def pronta(e: SubtitleEvent) -> bool:
+                if udito is not None and udito - e.t_on >= attesa:
+                    return True
+                return ora - e.t_on >= limite
+
+            pronte = [e for e in self._da_dire if pronta(e)]
+            self._da_dire = [e for e in self._da_dire if not pronta(e)]
         return [self._speak(ev) for ev in pronte if not self._gia_detta(ev)]
 
     def _speak(self, event: SubtitleEvent) -> SpokenLine:
@@ -654,6 +683,13 @@ class DubPipeline:
         if self.tracker is None or event.t_off is None:
             return
         inizio = self._onset_vicino(event.t_on)
+        # **Di quanto l'attacco del parlato cade dopo la comparsa del testo.**
+        # Su registrazione i due istanti coincidono — misurato, mediana -33 e
+        # -20 ms — quindi dal vivo questo numero **non e' una proprieta' del
+        # gioco: e' il ritardo del percorso audio**, il buffer del device piu'
+        # quello di VoiceMeeter. E' l'ultima differenza fra banco e vivo rimasta
+        # non misurata, e da qui in poi ogni sessione la porta scritta.
+        self._t_scarto_onset.add((inizio - event.t_on) * 1000.0)
         clip = self._clip(inizio, min(event.t_off, inizio + 2.0))
         emb = self._embed(clip)
         if emb is None:
@@ -712,17 +748,51 @@ class DubPipeline:
                 migliore, distanza = t, d
         return migliore
 
+    @property
+    def udito_fino_a(self) -> float | None:
+        """Fino a che istante l'anello contiene davvero audio. `None` se e' vuoto.
+
+        **L'anello ha un orologio suo, e non e' quello del muro.** La sua
+        posizione la decidono i campioni entrati, non il tempo passato: e' `t0`
+        piu' il conteggio diviso la frequenza. Sul banco le due cose coincidono
+        per costruzione — `tools/dub.py` versa l'audio di un pacchetto prima di
+        passarne il frame — ma dal vivo i due domini sono due thread e il
+        secondo scrive al ritmo del device, con il suo buffer. L'orologio a muro
+        e' sempre un po' avanti a cio' che si e' sentito.
+
+        Chiedere audio oltre questo istante non da' errore: `RingBuffer.read_from`
+        **tronca** e restituisce cio' che c'e', anche pochi millisecondi. Ed e'
+        cosi' che il riconoscimento dal vivo e' andato a fondo — non per la
+        latenza, ma perche' l'impronta veniva calcolata su un ritaglio di
+        centocinquanta millisecondi credendolo di settecento.
+        """
+        if self._ring_t0 is None:
+            return None
+        return self._ring_t0 + self._voices.written / float(self.samplerate)
+
     def _clip(self, t_on: float, fino_a: float) -> np.ndarray | None:
         """L'audio del centro fra due istanti, o `None` se non c'e' abbastanza.
 
         Il centro e non il mixdown: il dialogo sta li', ed e' la stessa
         estrazione che usa il duck. Misurare un segnale diverso da quello che la
         pipeline tratta darebbe un'identita' che vale per un altro audio.
+
+        **Si chiede solo cio' che l'anello ha davvero**, e si controlla quanto e'
+        tornato invece di quanto si era chiesto: erano due controlli mancanti che
+        insieme facevano passare per buona un'impronta calcolata su un ritaglio
+        troncato. Misurato dal vivo, il ritaglio veloce somigliava al proprio
+        ritaglio intero 0,45 contro lo 0,69 del banco, e undici volte su
+        quarantadue era vuoto del tutto.
         """
         if self._ring_t0 is None:
             return None
+        udito = self.udito_fino_a
+        if udito is not None:
+            self._t_ring_lag.add(max(0.0, (self.clock.now() - udito)) * 1000.0)
+            fino_a = min(fino_a, udito)
         durata = fino_a - t_on
         if durata < 0.20:  # meno di questo non contiene una sillaba intera
+            self._n_no_clip.inc()
             return None
         durata = min(durata, 2.0)
         inizio = self._voices.time_to_frame(t_on, self._ring_t0)
@@ -735,6 +805,15 @@ class DubPipeline:
             # inanalizzabile — ma **restituire audio sbagliato lo sarebbe**, e
             # sarebbe invisibile: darebbe l'impronta di un altro momento, cioe'
             # un personaggio verosimile e sbagliato.
+            self._n_no_clip.inc()
+            return None
+        # E qui la seconda guardia: `read_from` tronca in silenzio quando il
+        # produttore non e' arrivato. Un ritaglio corto non e' un ritaglio
+        # scadente, e' **un altro esperimento** — la curva misurata dice che a
+        # 0,30 s la somiglianza col proprio centroide sta sotto 0,40 tre volte su
+        # quattro, e con la soglia dei nomi a 0,30 quel ritaglio non nomina
+        # nessuno. Meglio dichiararlo assente che farlo passare per buono.
+        if clip.size < int(0.20 * self.samplerate):
             self._n_no_clip.inc()
             return None
         return clip.reshape(-1) if clip.size else None

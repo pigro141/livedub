@@ -1809,6 +1809,50 @@ def test_chi_parla(c: Check) -> None:
     c.ok(p._clip(ora - 0.05, ora) is None, "un ritaglio troppo corto non si azzarda")
     c.ok(p._clip(-9999.0, -9998.0) is None, "e uno fuori dall'anello risponde None, non spazzatura")
 
+    # 2-bis. **Il difetto che il banco non poteva vedere, riprodotto a mano.**
+    #    Sul banco l'audio di un pacchetto entra prima del suo frame, quindi
+    #    l'anello e' sempre pieno fino ad "adesso" e questo caso non capita mai.
+    #    Dal vivo i due domini sono due thread e l'orologio corre avanti a cio'
+    #    che si e' sentito: chiedendo audio oltre la fine, `read_from` **tronca in
+    #    silenzio** e l'impronta finiva calcolata su centocinquanta millisecondi
+    #    creduti settecento. Misurato in una sessione vera: il ritaglio veloce
+    #    somigliava al proprio ritaglio intero 0,45 contro lo 0,69 del banco, e
+    #    undici volte su quarantadue era vuoto del tutto.
+    udito = p.udito_fino_a
+    c.ok(udito is not None, "si sa fino a dove l'anello ha sentito")
+    c.close(udito - p._ring_t0, p._voices.written / sr, "e quel confine sono i campioni entrati", tol=1e-6)
+    orologio.set(udito + 5.0)  # il muro corre avanti, l'anello resta indietro
+    c.eq(
+        p._clip(udito - 0.05, orologio.now()),
+        None,
+        "chiedendo audio non ancora catturato non si riceve un ritaglio troncato",
+    )
+    c.ok(
+        p._clip(udito - 1.0, orologio.now()) is not None,
+        "ma cio' che e' gia' stato sentito si legge lo stesso",
+    )
+    lungo = p._clip(udito - 1.0, orologio.now())
+    c.ok(
+        len(lungo) <= int(1.0 * sr) + 1,
+        f"e il ritaglio si ferma dove finisce l'audio ({len(lungo)/sr:.2f}s, non 6)",
+    )
+
+    # 2-ter. La stessa cosa vista dall'alto: una battuta non si dice finche'
+    #    l'anello non ha l'audio che serve a riconoscerla — ma non aspetta in
+    #    eterno, o un device staccato zittirebbe tutto il doppiaggio.
+    from core.types import LineClass as _LC, SubtitleEvent as _SE
+
+    q = DubPipeline(cfg, ToneTts(), clock=orologio, samplerate=sr)
+    q.start_live(warmup=False)
+    orologio.set(10.0)
+    q._da_dire.append(_SE(text="Sali in macchina", cls=_LC.WHITE, t_on=10.0))
+    orologio.set(10.0 + cfg.speaker.decide_after_ms / 1000.0 + 0.05)
+    c.eq(len(q.on_frame(None)), 0, "l'attesa scaduta sul muro non basta: l'anello e' vuoto")
+    orologio.set(
+        10.0 + (cfg.speaker.decide_after_ms + cfg.speaker.max_wait_ms) / 1000.0 + 0.05
+    )
+    c.eq(len(q.on_frame(None)), 1, "ma la valvola c'e': dopo `max_wait_ms` si parla comunque")
+
     # 3. **Il colore della riga non decide piu' chi parla.** Prima il grigio
     #    apriva `S-grey` e si portava via una voce del pool; misurato, le righe
     #    grigie sono code del rumore dell'OCR. La prova guarda proprio questo,

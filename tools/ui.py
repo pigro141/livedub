@@ -220,6 +220,17 @@ class App:
             tts = costruisci_tts(self.cfg.tts.backend, self.cfg)
             self.pipeline = DubPipeline(self.cfg, tts, samplerate=sr)
             self.sessione = None if self.args.no_save else Session(samplerate=sr)
+            # **Il registro delle impronte anche dal vivo.** Senza, di una
+            # sessione dal vivo si sa cosa e' stato detto ma non cosa il
+            # riconoscitore ha visto — e quando dal vivo va peggio che sul banco
+            # non c'e' modo di sapere se cambia il segnale, il ritaglio o il
+            # modello. Costa due decimi di megabyte e si rigioca con
+            # `tools.recluster`.
+            if self.sessione is not None:
+                self._registro = (self.sessione.dir / "speaker.jsonl").open(
+                    "w", encoding="utf-8"
+                )
+                self.pipeline.speaker_log = self._registro
             self.coda.put(("nota", f"catturo: {entrata}"))
             self.coda.put(("nota", f"suono su: {uscita}"))
             self.coda.put(("nota", f"{self._testo_roi()}   attesa voce "
@@ -300,11 +311,15 @@ class App:
             self.coda.put(("nota", self.pipeline.pool.report()))
         if self.sessione is not None:
             try:
+                if getattr(self, "_registro", None) is not None:
+                    self._registro.close()
+                    self._registro = None
                 self.coda.put(("nota", f"sessione salvata in {self.sessione.close(self.cfg)}"))
             except Exception as exc:
                 self.coda.put(("nota", f"! salvataggio fallito: {exc}"))
         self.pipeline = None
         self.sessione = None
+        self._registro = None
         self.coda.put(("stato", "fermo"))
         self._fine_thread()
 

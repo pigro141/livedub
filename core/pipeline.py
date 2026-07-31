@@ -670,6 +670,12 @@ class DubPipeline:
             self.pool.merge(*d.merged)
             self._n_merged.inc()
 
+    def _registra_riga(self, record: dict) -> None:
+        if self.speaker_log is None:
+            return
+        self.speaker_log.write(json.dumps(record, ensure_ascii=False) + "\n")
+        self.speaker_log.flush()
+
     def _registra(self, kind: str, event: SubtitleEvent, emb, **extra) -> None:
         """Una riga del registro delle impronte. Non fa niente se e' spento.
 
@@ -741,6 +747,11 @@ class DubPipeline:
             from listen.embed import make_embedder
 
             self._embedder = make_embedder(self.cfg.speaker)
+            # **Quale impronta sta girando davvero**, non quella chiesta.
+            # `make_embedder` ripiega su `mfcc` se il modello non c'e', e lo
+            # dichiara su stderr — che dal vivo, dentro una finestra, non lo
+            # legge nessuno. Nel registro invece resta.
+            self._registra_riga({"kind": "impronta", "backend": self._embedder.name})
         # Il costo si misura a muro con `perf_counter` e non con l'orologio del
         # media: sul banco il secondo non avanza mentre il modello lavora, e
         # l'impronta risulterebbe gratis proprio dove si vuole sapere se lo e'.

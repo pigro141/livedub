@@ -453,6 +453,16 @@ def test_tts_fake(c) -> None:
     # lineare: chi cambia `tts.speed` non deve anche ricordarsi di aggiornare la
     # stima delle durate.
     c.close(_Super().chars_per_second, 14.3, "supertonic al suo ritmo integro fa 14,3 car/s", tol=0.2)
+    # **La verifica che sarebbe servita ieri.** Il ritmo di SuperTonic vive in
+    # due posti: il default del backend e `tts.speed`, ed e' il secondo che
+    # arriva al modello — `dub.py` e `live.py` lo passano esplicitamente.
+    # Abbassando solo il primo, le prove sono continuate alla velocita' vecchia
+    # mentre i commenti dicevano un'altra cosa, e il difetto e' arrivato alla
+    # prova dal vivo con una spiegazione rassicurante attaccata sopra.
+    from core.config import Config as _Config
+
+    c.close(_Config().tts.speed, DEFAULT_SPEED,
+            "config e backend dichiarano la stessa velocita' di SuperTonic", tol=1e-9)
     c.ok(abs(_Super().chars_per_second - _Piper.chars_per_second) < 1.0,
          "che e' il passo di Piper: al netto del silenzio i due vanno uguale")
     c.ok(

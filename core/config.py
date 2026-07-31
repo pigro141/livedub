@@ -449,12 +449,23 @@ class TtsConfig:
     # fanno sembrare che parli sempre la stessa persona.
     gap_seconds: float = 0.12
     # Solo per SuperTonic. `steps` sono i passi di diffusione: quattro bastano,
-    # otto costano il doppio. `speed` non e' un gusto ma una misura — a 1,50 il
-    # ritmo pareggia quello di Piper (17,1 caratteri al secondo contro 17,4),
-    # che all'ascolto era gia' giusto. A 1,05, il default del pacchetto, la
-    # stessa frase durava il 47% in piu'.
+    # otto costano il doppio e non migliorano niente di misurabile.
     steps: int = 4
-    speed: float = 1.50
+    # **`speed` va tenuto uguale a `supertonic.DEFAULT_SPEED`, e c'e' una
+    # verifica che lo controlla.** Il valore e' 1,05 perche' sopra quella soglia
+    # il modello smette di articolare e comincia a saltare sillabe (la tabella e'
+    # nel modulo del backend). Il vecchio 1,50 veniva da una calibrazione che
+    # misurava la durata: un modello che salta pezzi di frase si accorcia
+    # esattamente come uno che parla svelto.
+    #
+    # **Qui sta la lezione, che e' costata una prova dal vivo.** Questo numero
+    # vive in due posti — il default del backend e questo campo — e chi
+    # costruisce il motore passa *questo*. Abbassato solo l'altro, le prove sono
+    # continuate a 1,50 mentre i commenti dicevano 1,05, e il difetto e' andato
+    # in produzione con una spiegazione rassicurante attaccata sopra. Due
+    # sorgenti per lo stesso numero non sono un doppione: sono la garanzia che
+    # prima o poi divergano, e che a divergere sia quella che nessuno legge.
+    speed: float = 1.05
     # **Quanto in fretta si chiede al sintetizzatore di parlare**, prima di
     # sintetizzare, quando la finestra della battuta e' stretta.
     #

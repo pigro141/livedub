@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 import wave
 from dataclasses import asdict
 from pathlib import Path
@@ -68,6 +69,11 @@ def main(argv: list[str] | None = None) -> int:
         help="scrivi anche il video con la traccia doppiata, per vedere il sincro",
     )
     ap.add_argument("--mp4-width", type=int, default=1280)
+    ap.add_argument(
+        "--tempo-reale",
+        action="store_true",
+        help="conta il costo del lavoro nel tempo del media, e salta i frame arretrati come dal vivo",
+    )
     ap.add_argument(
         "--mp4-nudo",
         action="store_true",
@@ -146,12 +152,35 @@ def main(argv: list[str] | None = None) -> int:
     # sfasamento suo, che si scambierebbe per uno sfasamento della catena.
     t0_video = args.start
     primo = True
+    # **Il costo del lavoro, contato dentro il tempo del media.**
+    #
+    # Con l'orologio virtuale la sintesi e' gratis: mentre SuperTonic lavora per
+    # trecento millisecondi veri il tempo del banco sta fermo, e la battuta
+    # risulta programmata come se fosse nata istantanea. E' il motivo per cui il
+    # banco dava 567 ms di latenza dove il vivo, sulla stessa scena e con le
+    # stesse voci, ne dava 951: **la differenza era tutta e sola la sintesi**,
+    # 363 ms, piu' la coda che ne consegue.
+    #
+    # Non e' una sfumatura: e' che il banco prometteva un doppiaggio
+    # irraggiungibile, e un file approvato all'ascolto mandava a cercare dal vivo
+    # un difetto che non c'era. Qui il tempo speso a lavorare si somma al tempo
+    # del media, e i frame arretrati si **saltano** invece di essere lavorati in
+    # ritardo — come fa il ciclo dal vivo. L'audio invece si versa sempre, perche'
+    # il thread audio dal vivo non salta niente: e' proprio da quell'asimmetria
+    # che nasce il ritardo dell'anello.
+    #
+    # Resta deterministico e ripetibile — il costo si misura, non si simula — a
+    # differenza di far girare la catena a tempo vero, che dipenderebbe da cosa
+    # sta facendo la macchina in quel momento.
+    lavoro = 0.0
+    saltati = 0
     try:
         for packet in source.packets():
             if primo:
                 t0_video = packet.t
                 primo = False
-            clock.set(packet.t - origine)
+            t_ciclo = time.perf_counter()
+            clock.set(packet.t - origine + lavoro)
             # **L'audio prima del video, come nel banco.** Il blocco audio di un
             # pacchetto comincia all'istante del suo frame: se il dominio video
             # annunciasse la battuta prima che quell'audio sia entrato
@@ -160,12 +189,22 @@ def main(argv: list[str] | None = None) -> int:
             # proprio dove ce n'e' poco.
             if packet.audio is not None:
                 uscita.append(pipeline.on_audio(packet.audio, n=len(packet.audio)))
-            if packet.frame is not None:
+            # Un frame arretrato non serve a vedere se **adesso** c'e' un
+            # sottotitolo: si salta, come dal vivo.
+            arretrato = args.tempo_reale and lavoro > 1.5 / max(1e-6, cfg.capture.fps)
+            if packet.frame is not None and not arretrato:
                 for riga in pipeline.on_frame(packet.frame):
                     print(
                         f"  t={riga.t_subtitle + origine:7.1f}s  {riga.speaker_id:>4} -> "
                         f"{riga.voice_id:<14} {riga.duration:4.2f}s  {riga.text[:46]!r}"
                     )
+            elif packet.frame is not None:
+                saltati += 1
+            if args.tempo_reale:
+                speso = time.perf_counter() - t_ciclo
+                # Il tempo del pacchetto avanza da solo: si accumula solo cio'
+                # che si e' speso **oltre** il suo ritmo, cioe' il vero arretrato.
+                lavoro = max(0.0, lavoro + speso - 1.0 / max(1e-6, cfg.capture.fps))
     finally:
         set_clock(precedente)
     pipeline.finish()
@@ -224,6 +263,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nimpronta: {t_emb.count} calcoli, {t_emb.mean:.0f} ms l'uno")
     print(f"\n-> {path}  ({len(mix)/sr:.0f}s)")
     print(f"-> {eventi}   (si rilegge con: python -m tools.reopen {out})")
+    if args.tempo_reale:
+        print(f"\ntempo reale: {saltati} frame saltati perche' arretrati")
     if args.mp4:
         ass = scrivi_sottotitoli(pipeline.spoken, out / "letto.ass", args.mp4_width)
         video = monta(

@@ -190,7 +190,12 @@ class DubPipeline:
         # "compressione 1,2" vorrebbe dire "un quinto piu' veloce di quanto
         # credevo io", che non e' una proprieta' della battuta ma della mia
         # assunzione.
-        self._cps = float(cfg.tts.chars_per_second)
+        # **Il passo lo dichiara il motore, non la sessione.** Quello di config
+        # e' il punto di partenza per un backend che non lo sappia dire; usarlo
+        # comunque significherebbe stimare le durate di SuperTonic col ritmo di
+        # Piper, e quel numero decide quanta fretta chiedere prima di
+        # sintetizzare.
+        self._cps = float(getattr(tts, "chars_per_second", cfg.tts.chars_per_second))
         self._cps_n = 0
         # Quanto chiedere in piu' al sintetizzatore per ottenere la velocita'
         # voluta. Parte da 1 e si impara: `length_scale` non e' proporzionale,

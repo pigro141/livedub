@@ -96,7 +96,13 @@ def main(argv: list[str] | None = None) -> int:
     elif cfg.tts.backend == "supertonic":
         from speak.backends.supertonic import SupertonicTts
 
-        tts = SupertonicTts(samplerate=cfg.tts.samplerate)
+        # `steps` e `speed` vanno passati: senza, `--set tts.speed=...` non
+        # arrivava al modello e il banco misurava una configurazione diversa da
+        # quella che diceva di misurare — mentre `tools/live.py` li passa da
+        # sempre, quindi banco e vivo giravano con due velocita' diverse.
+        tts = SupertonicTts(
+            samplerate=cfg.tts.samplerate, steps=cfg.tts.steps, speed=cfg.tts.speed
+        )
     else:
         from speak.backends.piper import PiperTts
 

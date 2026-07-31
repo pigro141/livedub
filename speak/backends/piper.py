@@ -68,6 +68,12 @@ class PiperTts:
     """Sintesi Piper con pool di voci caricate su richiesta."""
 
     name = "piper"
+    # Lettere e cifre al secondo alla velocita' nominale, misurato su dodici
+    # battute vere della registrazione con `riccardo`: 320 caratteri in 23,3 s.
+    # **Nell'unita' di `spoken_length()`**, che e' quella di chi lo usa: contando
+    # anche spazi e punteggiatura la stessa passata darebbe 17,0, ed e' da quella
+    # confusione che veniva il 17,4 di config.
+    chars_per_second = 13.7
 
     def __init__(self, samplerate: int = 22050, download: bool = True) -> None:
         self.samplerate = samplerate

@@ -1273,6 +1273,10 @@ def test_velocita_totale(c: Check) -> None:
 
         name = "prova"
         samplerate = 22050
+        # Il motore dichiara il proprio passo, come ogni backend vero: la catena
+        # lo legge da qui e non dalla config, altrimenti stimerebbe le durate di
+        # questo con il ritmo di un altro.
+        chars_per_second = 17.4
 
         def __init__(self) -> None:
             self.chiesti: list[float] = []

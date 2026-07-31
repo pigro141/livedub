@@ -485,10 +485,23 @@ class TtsConfig:
     # cinque centesimi di calma e si perde l'ultima sillaba di ogni frase.
     native_rate_max: float = 1.20
     # Caratteri al secondo alla velocita' nominale, per stimare quanto durera'
-    # la battuta **prima** di sintetizzarla. Misurato su Piper: 17,4 car/s.
-    # Serve solo a scegliere la velocita' da chiedere: sbagliarlo costa un
-    # residuo piu' grande per WSOLA, non una battuta sbagliata.
-    chars_per_second: float = 17.4
+    # la battuta **prima** di sintetizzarla.
+    #
+    # **Era 17,4, e i caratteri erano quelli sbagliati.** Quel numero e' stato
+    # misurato contando *tutti* i caratteri; qui viene diviso per
+    # `spoken_length()`, che conta **solo lettere e cifre** — e in italiano sono
+    # l'81% del testo. La stessa passata di Piper vale 17,0 car/s contando tutto
+    # e 13,7 contando come conta chi lo usa. Ogni durata prevista risultava
+    # quindi corta di un quarto, la catena chiedeva meno fretta di quella che
+    # serviva, e il residuo lo raccoglieva WSOLA — cioe' proprio la leva che
+    # mangia le parole. E' lo stesso errore di forma che il progetto ha gia'
+    # preso due volte: **selezionare con un operatore e misurare con un altro.**
+    #
+    # Questo resta il punto di partenza dichiarato: il valore vero lo porta il
+    # backend (`TtsBackend.chars_per_second`), perche' il passo e' una proprieta'
+    # del motore e non della sessione, e la pipeline lo impara comunque dalle
+    # battute a cui non ha chiesto fretta.
+    chars_per_second: float = 13.7
 
 
 @dataclass

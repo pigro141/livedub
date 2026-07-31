@@ -47,6 +47,13 @@ class Speech:
 class TtsBackend(Protocol):
     name: str
     samplerate: int
+    # **Quanto parla in fretta questo motore, nella stessa unita' di
+    # `spoken_length()`** — lettere e cifre al secondo, non caratteri qualunque.
+    # Il passo e' una proprieta' del motore e non della sessione: dichiararlo qui
+    # evita che la catena stimi le durate di un backend con il ritmo di un altro,
+    # che e' esattamente cio' che faceva (17,4 di Piper applicati a SuperTonic, e
+    # per giunta contati in un'altra unita').
+    chars_per_second: float
 
     def synthesize(self, text: str, voice: VoiceSpec, rate: float = 1.0) -> Speech:
         ...

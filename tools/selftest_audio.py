@@ -432,6 +432,32 @@ def test_tts_fake(c) -> None:
         velocita_effettiva,
     )
 
+    # **Ogni motore dichiara il proprio passo, e nell'unita' giusta.** Il valore
+    # di config era 17,4 misurato contando tutti i caratteri, ma viene diviso per
+    # `spoken_length()`, che conta solo lettere e cifre: un quarto di errore su
+    # ogni durata prevista, per tutti e due i backend. La verifica che lo
+    # impedisce e' che il numero dichiarato stia dove sta la misura.
+    from speak.base import ToneTts as _Tone
+    from speak.backends.piper import PiperTts as _Piper
+    from speak.backends.supertonic import SupertonicTts as _Super
+
+    for motore, atteso in ((_Piper, 13.7), (_Tone, 14.0)):
+        c.ok(
+            10.0 <= motore.chars_per_second <= 20.0,
+            f"{motore.name if hasattr(motore,'name') else motore.__name__}: "
+            f"passo dichiarato plausibile ({motore.chars_per_second})",
+        )
+        c.close(motore.chars_per_second, atteso, f"e vale la misura ({atteso})", tol=0.1)
+    # SuperTonic lo dichiara **in funzione della velocita'**, perche' misurato e'
+    # lineare: chi cambia `tts.speed` non deve anche ricordarsi di aggiornare la
+    # stima delle durate.
+    c.close(_Super(speed=1.50).chars_per_second, 12.9, "supertonic a 1,50 fa 12,9 car/s", tol=0.1)
+    c.close(_Super(speed=2.00).chars_per_second, 17.2, "e a 2,00 ne fa 17,2", tol=0.2)
+    c.ok(
+        _Super(speed=1.75).chars_per_second > _Super(speed=1.05).chars_per_second,
+        "piu' velocita' vuol dire piu' caratteri al secondo",
+    )
+
     c.close(velocita_effettiva(DEFAULT_SPEED, 1.0, 1.0), 1.50, "senza fretta si chiede il ritmo di base")
     c.eq(velocita_effettiva(DEFAULT_SPEED, 1.45, 1.0), VELOCITA_MAX,
          "con la fretta massima si chiede il massimo accettato, non 2,08")

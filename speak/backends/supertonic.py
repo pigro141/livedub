@@ -99,6 +99,27 @@ class SupertonicTts:
         self._tts = None
         self._styles: dict[str, object] = {}
 
+    @property
+    def chars_per_second(self) -> float:
+        """Lettere e cifre al secondo, nell'unita' di `spoken_length()`.
+
+        **Il passo e' lineare nella velocita' chiesta**, e non era ovvio: il
+        `length_scale` di Piper non lo e' affatto, tanto che la pipeline si porta
+        un anello di correzione apposta. Misurato sulle stesse dodici battute
+        vere, 320 caratteri:
+
+            speed 1,05   ->   9,1 car/s     (8,67 per unita')
+            speed 1,50   ->  12,9 car/s     (8,60)
+            speed 1,75   ->  15,0 car/s     (8,57)
+            speed 2,00   ->  17,1 car/s     (8,55)
+
+        Quindi il passo si dichiara come prodotto invece che come costante: chi
+        cambia `tts.speed` non deve anche ricordarsi di cambiare la stima delle
+        durate, che e' il genere di accoppiamento che si dimentica sempre.
+        A 1,50 fa 12,9 contro i 13,7 di Piper: il ritmo e' pari, come dichiarato.
+        """
+        return 8.6 * self.speed
+
     # -- caricamento -------------------------------------------------------
 
     def _engine(self):

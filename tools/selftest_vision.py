@@ -495,6 +495,44 @@ def test_tracker(c) -> None:
     c.eq(len(tr_cont.active), 1, "e prende il posto della precedente")
     c.eq(tr_cont.active[0].text, "Mi prendi per il culo, vero?", "quella giusta resta a schermo")
 
+    # **La seconda forma della rilettura: un pezzo, poi il testo intero.**
+    # L'OCR legge il sottotitolo mentre compare e ne prende meta'. Il rapporto
+    # fra il frammento e la frase intera e' basso per costruzione — meta' del
+    # lungo non ha corrispondenza — quindi la continuazione non scattava e la
+    # battuta veniva **riaperta**: due eventi, due sintesi, e la stessa frase
+    # detta due volte. Dal vivo una battuta letta cosi' tre volte ha messo 6,6
+    # secondi di parlato in coda.
+    tr_pezzo = SubtitleTracker(cont)
+    tr_pezzo.feed([w("Non me ne frega un cazzo. C'e un", 0.0)], 0.0)
+    tr_pezzo.feed([w("Non me ne frega un cazzo. C'e un", 0.1)], 0.1)
+    intero = "Non me ne frega un cazzo. C'e un motivo se Simeon paga uno dall'aria cattiva"
+    tr_pezzo.feed([w(intero, 0.2)], 0.2)
+    out = tr_pezzo.feed([w(intero, 0.3)], 0.3)
+    c.eq(len(out.opened), 0, "il testo intero non riapre la battuta di cui e' la continuazione")
+    c.eq(len(tr_pezzo.active), 1, "resta una battuta sola")
+    c.eq(tr_pezzo.active[0].text, intero, "e si tiene la lettura piu' ricca")
+    c.close(tr_pezzo.active[0].t_on, 0.0, "col t_on della prima lettura, non del completamento")
+
+    # E il contrario: la coda riletta da sola. `contenimento` guarda il piu'
+    # corto dentro il piu' lungo, quindi vale in tutti e due i versi.
+    tr_coda = SubtitleTracker(cont)
+    lunga = "Tu fai qualche lavoro per un idiota, poi il rapporto diventa complicato."
+    tr_coda.feed([w(lunga, 0.0)], 0.0)
+    tr_coda.feed([w(lunga, 0.1)], 0.1)
+    tr_coda.feed([w("rapporto diventa complicato.", 0.2)], 0.2)
+    out = tr_coda.feed([w("rapporto diventa complicato.", 0.3)], 0.3)
+    c.eq(len(out.opened), 0, "nemmeno la sola coda riletta apre una battuta nuova")
+
+    # **La guardia che rende utili le due sopra**: sotto `continue_min_chars` il
+    # contenimento non si applica, altrimenti due battute corte e diverse
+    # verrebbero fuse. Senza questa, "Segui." mangerebbe "Se qui".
+    tr_corta = SubtitleTracker(cont)
+    tr_corta.feed([w("Segui.", 0.0)], 0.0)
+    tr_corta.feed([w("Segui.", 0.1)], 0.1)
+    tr_corta.feed([w("Fermo!", 0.2)], 0.2)
+    out = tr_corta.feed([w("Fermo!", 0.3)], 0.3)
+    c.eq(len(out.opened), 1, "due battute corte e diverse restano due")
+
     # Una banda di texture che si infila sopra la riga vera ne sposterebbe la
     # posizione. Con l'abbinamento per somiglianza non cambia niente: e' il bug
     # che sul video vero produceva 55 aperture in 50 secondi invece di ~20.

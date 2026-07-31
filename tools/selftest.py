@@ -1983,6 +1983,36 @@ def test_non_ripetere(c: Check) -> None:
     # non e' una rilettura, e' un personaggio che lo ripete davvero.
     c.ok(dici("Sali in macchina, muoviti", 9.0) is not None, "la stessa frase dopo la finestra si dice")
 
+    # **Il frammento seguito dal testo intero**, che e' la forma prevalente e
+    # quella che il rapporto non vede: `'Sta storia r'` contro `'Sta storia non
+    # mi piace per niente'` fa 0,45 di rapporto, cioe' passa, ed e' la stessa
+    # battuta letta mentre compariva. Presi dal log dal vivo, dove tre letture
+    # della stessa frase hanno messo 6,6 secondi di parlato in coda.
+    r = DubPipeline(cfg, ToneTts(), clock=orologio, samplerate=48000)
+    r.start_live(warmup=False)
+
+    def dici2(testo: str, t: float):
+        orologio.set(t)
+        ev = SubtitleEvent(text=testo, cls=LineClass.WHITE, t_on=t)
+        return None if r._gia_detta(ev) else r._speak(ev)
+
+    c.ok(dici2("'Sta storia r", 20.0) is not None, "il frammento, primo ad arrivare, si dice")
+    c.ok(dici2("'Sta storia non mi piace per niente", 21.0) is None,
+         "e il testo intero che lo contiene non si ridice")
+    c.ok(dici2("Negro, non me ne frega un cazzo. C'e un motivo se Simeon paga", 24.0) is not None,
+         "una battuta nuova passa")
+    c.ok(dici2("un cazzo. C'e un motivo se Simeon paga", 25.0) is None,
+         "e la sua coda riletta no")
+
+    # **La guardia opposta, e serve piu' dell'altra**: due battute corte in cui
+    # una sta dentro l'altra per caso non devono sparire. Sotto
+    # `containment_min_chars` il contenimento non si applica affatto.
+    c.ok(dici2("Segui.", 30.0) is not None, "una battuta corta si dice")
+    c.ok(dici2("Se qui", 31.0) is not None, "e un'altra corta che le somiglia pure")
+    c.ok(dici2("Vai a prendere la macchina di Simeon", 33.0) is not None, "battuta lunga nuova")
+    c.ok(dici2("Dove credi di andare, amico?", 34.0) is not None,
+         "e una lunga diversa non viene mangiata dal contenimento")
+
     # Spegnendolo si torna al comportamento di prima, che e' l'unico modo di
     # distinguere un difetto suo da un difetto a monte.
     muto = Config()

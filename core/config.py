@@ -184,6 +184,22 @@ class VisionConfig:
     # righe che finiscono con la stessa parola sono un caso reale, quindi la
     # soglia sta sopra quella fascia e si tiene l'83% del guadagno.
     continue_similarity: float = 0.75
+    # **E la seconda domanda: la lettura nuova e' un pezzo di quella orfana?**
+    # `continue_similarity` copre le riletture che si somigliano; non copre
+    # quelle in cui l'OCR ha preso la battuta a meta' — un frammento contro il
+    # testo intero fa un rapporto basso perche' meta' del lungo non ha
+    # corrispondenza, e la battuta viene riaperta. Misurato sulle riletture di
+    # una sessione dal vivo, 13 coppie marcate a mano contro 217 battute
+    # distinte: il rapporto a 0,90 non ne prende **nessuna**, il contenimento a
+    # 0,80 ne prende 8 senza sbagliarne una.
+    #
+    # Le due soglie non sono confrontabili e non vanno mosse insieme: sopra la
+    # prima due letture si somigliano, sopra la seconda una **contiene** l'altra.
+    continue_containment: float = 0.80
+    # Sotto questa lunghezza il contenimento non si applica: su `'Segui.'` e
+    # `'Se qui'` — sei caratteri, due battute vere e diverse — qualunque misura
+    # di contenimento risponde quello che le si chiede.
+    continue_min_chars: int = 8
     # `oneocr` e' il riconoscitore dello Strumento di cattura di Windows 11 e
     # legge meglio: misurato sullo stesso tratto di GTA V, 45 battute contro 46
     # ma con testo piu' pulito (`'I ma se ne avessi uno'` -> `'ma se ne avessi
@@ -680,6 +696,26 @@ class RepeatConfig:
     # "chiusa" — ha solo il testo di adesso contro quello di prima — ed e' per
     # questo che non produce doppioni. La sua soglia predefinita e' 0,9.
     similarity: float = 0.90  # la soglia di RSTGameTranslation, che il difetto non ce l'ha
+    # **E la domanda che il rapporto non sa porre: una e' un pezzo dell'altra?**
+    # RSTGameTranslation non ha questo problema perche' non ha il concetto di
+    # battuta aperta: confronta il testo di adesso con quello di prima, e un
+    # frammento seguito dal testo intero per lui e' un aggiornamento, non due
+    # battute. Qui invece sono due eventi, e il rapporto fra un frammento e il
+    # testo intero e' basso per costruzione — meta' del lungo non ha
+    # corrispondenza. Misurato su una sessione dal vivo, 13 riletture marcate a
+    # mano contro 217 battute distinte:
+    #
+    #     rapporto >= 0,90        0 riletture su 13,  0 battute vere zittite
+    #     rapporto >= 0,80        2 riletture su 13,  1 battuta vera zittita
+    #     contenimento >= 0,80    8 riletture su 13,  0 battute vere zittite
+    #
+    # Quelle 13 valevano 15,2 secondi di parlato ridetto su 140, ed erano la
+    # causa dell'accumulo di coda: la stessa battuta di Lamar letta tre volte
+    # portava l'arretrato a 4,6 secondi.
+    containment: float = 0.80
+    # Sotto questa lunghezza il contenimento non si applica. Le battute molto
+    # corte sono contenute l'una nell'altra per caso.
+    containment_min_chars: int = 8
 
 
 @dataclass

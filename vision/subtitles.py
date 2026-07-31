@@ -81,6 +81,44 @@ def similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 
+def contenimento(a: str, b: str, min_blocco: int = 3) -> float:
+    """Quanto del piu' corto e' gia' dentro il piu' lungo, 0..1.
+
+    **E' una domanda diversa da `similarity`, e la differenza e' tutto il
+    capitolo dei doppioni.** Il rapporto tratta i due testi da pari: un
+    frammento contro la battuta intera fa un rapporto basso, perche' meta' della
+    seconda non ha corrispondenza — eppure sono la stessa battuta, letta due
+    volte. Misurato sulle riletture di una sessione dal vivo (13 coppie marcate
+    a mano contro 217 battute distinte):
+
+        confronto                prende      ne sbaglia
+        rapporto >= 0,90          0 / 13          0
+        rapporto >= 0,80          2 / 13          1
+        contenimento >= 0,80      8 / 13          0
+
+    Il cancello che c'era non ne prendeva **nessuna**.
+
+    **I blocchi sotto tre caratteri non contano, e quella riga e' la differenza
+    fra una misura e un rumore.** Sommandoli tutti, `'rapporto diventa
+    complicato'` risultava contenuto al 100% dentro `'E cosi' che funziona, non
+    lo sai?'` — due frasi tenute insieme da una dozzina di lettere sparse. Con
+    il minimo a tre quella coppia fa 0,00 e le riletture vere restano a 0,90 e
+    1,00. (Poi si e' scoperto che quelle due erano davvero la stessa battuta, la
+    seconda essendone la coda; ma la controprova valeva lo stesso, ed e' l'unico
+    motivo per cui il numero e' credibile.)
+
+    Le cinque riletture che sfuggono sono tutte OCR cosi' storpiato da non avere
+    piu' tre lettere di fila in comune (`'4hoot di Zapho:'` contro `'n Aoenh di
+    Zapho!'`). Quelle non le prende nessun confronto fra testi.
+    """
+    if not a or not b:
+        return 0.0
+    corto, lungo = (a, b) if len(a) <= len(b) else (b, a)
+    m = SequenceMatcher(None, corto, lungo)
+    combacia = sum(bl.size for bl in m.get_matching_blocks() if bl.size >= min_blocco)
+    return combacia / len(corto)
+
+
 def wrong_chars(a: str, b: str) -> float:
     """Quanti caratteri separano due letture normalizzate.
 
@@ -266,7 +304,7 @@ class SubtitleTracker:
                 # l'orfana resta aperta col suo `t_on`, e prende la lettura piu'
                 # ricca fra le due.
                 keeper = self._active[orphans[0]]
-                if similarity(normalize(keeper.event.text), pending.norm) >= self.cfg.continue_similarity:
+                if self._continua(normalize(keeper.event.text), pending.norm):
                     if len(pending.text) > len(keeper.event.text):
                         keeper.event = replace(keeper.event, text=pending.text, lines=pending.lines)
                     keeper.last_seen = t
@@ -287,6 +325,33 @@ class SubtitleTracker:
 
         self._expire(matched_active, matched_pending, t, out, force=certain)
         return out
+
+    def _continua(self, vecchia: str, nuova: str) -> bool:
+        """La lettura nuova e' la stessa battuta di quella orfana, o un'altra?
+
+        Due domande, non una, perche' le riletture arrivano in due forme.
+
+        *Si somigliano* — l'OCR ha sbagliato qualche lettera qua e la'. E' il
+        caso che `continue_similarity` gia' copriva.
+
+        *Una e' dentro l'altra* — l'OCR ha letto la battuta mentre compariva e
+        ne ha preso un pezzo, oppure ne ha ripreso solo la coda. Qui il rapporto
+        crolla (0,63 su una coppia che e' la stessa frase) perche' meta' del
+        testo lungo non ha corrispondenza, e la battuta veniva **riaperta**: un
+        secondo evento, una seconda sintesi, e la stessa frase detta due volte.
+        Misurato dal vivo, una battuta di Lamar letta **tre volte** ha messo in
+        coda 6,6 secondi di parlato in piu' e ci sono voluti 22 secondi per
+        smaltirli.
+
+        La lunghezza minima serve a non far sparire le battute vere corte:
+        `'Segui.'` e `'Se qui'` sono sei caratteri, e su testi cosi' brevi
+        qualunque misura di contenimento dice quello che le si chiede.
+        """
+        if similarity(vecchia, nuova) >= self.cfg.continue_similarity:
+            return True
+        if min(len(vecchia), len(nuova)) < self.cfg.continue_min_chars:
+            return False
+        return contenimento(vecchia, nuova) >= self.cfg.continue_containment
 
     def _budget(self, a: str, b: str) -> float:
         """Quanti caratteri di scarto si accettano fra due letture.

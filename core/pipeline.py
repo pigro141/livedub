@@ -45,6 +45,7 @@ from speak.base import TtsBackend
 from speak.pool import VoicePool, build_pool, voce_neutra, voce_per
 from vision.ocr import OcrBackend, make_ocr
 from vision.reader import SubtitleReader
+from vision.subtitles import contenimento
 
 
 def _lettere(testo: str) -> str:
@@ -665,6 +666,22 @@ class DubPipeline:
         sostituzione, una rilettura che migliora a meta'. Ognuno ha la sua cura a
         monte; questo li taglia tutti nel punto in cui il difetto smette di
         essere una riga di log e diventa una voce che si sente.
+
+        **Due domande, non una.** Il rapporto prende le riletture che si
+        somigliano; il contenimento prende quelle in cui una e' un pezzo
+        dell'altra, che sono la forma prevalente e che il rapporto non vede —
+        misurato su una sessione dal vivo, il cancello a solo rapporto ne
+        prendeva zero su tredici. Quelle tredici valevano 15,2 secondi di
+        parlato ridetto su 140, e sono la causa dell'accumulo di coda: dopo una
+        battuta letta tre volte l'arretrato arrivava a 4,6 secondi e ci metteva
+        ventidue secondi a rientrare.
+
+        **Il prezzo, dichiarato**: quando la rilettura e' la versione *buona* di
+        un frammento gia' detto — l'OCR ha preso mezza frase, poi tutta — qui si
+        perde il resto della frase. La cura vera sta a monte, in
+        `SubtitleTracker`, dove la battuta non viene riaperta affatto e il testo
+        si aggiorna sul posto; questo cancello vede solo cio' che e' sfuggito, e
+        li' dire meno e' meglio che dire due volte.
         """
         cfg = self.cfg.repeat
         if not cfg.enabled:
@@ -676,7 +693,15 @@ class DubPipeline:
             if event.t_on - riga.t_subtitle > cfg.window_s:
                 break  # `spoken` e' in ordine di tempo: piu' indietro e' solo piu' vecchio
             altra = _lettere(riga.text)
-            if altra and SequenceMatcher(None, chiave, altra).ratio() >= cfg.similarity:
+            if not altra:
+                continue
+            if SequenceMatcher(None, chiave, altra).ratio() >= cfg.similarity:
+                self._n_repeated.inc()
+                return True
+            if (
+                min(len(chiave), len(altra)) >= cfg.containment_min_chars
+                and contenimento(chiave, altra) >= cfg.containment
+            ):
                 self._n_repeated.inc()
                 return True
         return False

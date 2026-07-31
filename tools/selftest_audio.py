@@ -347,6 +347,35 @@ def test_pool_genere(c) -> None:
     donna = p.voice_for("S3", gender="f")
     c.eq(donna.gender, "f", "una donna riceve una voce femminile")
 
+    # **Il quarto uomo, quando di maschili non ne restano.** E' il caso che dal
+    # vivo ha prodotto `'Oggi non c'e nulla, solo una moto.'` detta da una voce
+    # femminile: tre personaggi avevano preso le tre voci maschili del pool, un
+    # frammento del quarto ha chiesto maschile, non ne ha trovate di libere e si
+    # e' portato a casa la prima libera qualunque. `gender_fallback` era
+    # rispettato nella richiesta e non nella consegna.
+    #
+    # Meglio due uomini con la stessa voce che un uomo con la voce di una donna:
+    # e' la scala che questo modulo dichiara, e adesso la applica.
+    quarto = p.voice_for("S4", gender="m")
+    c.eq(quarto.gender, "m", "finite le voci maschili libere, si ricicla un maschile")
+    c.ok(quarto.voice_id in {v.voice_id for v in dati},
+         "cioe' una gia' data, non una femminile libera")
+    c.ok(p.collisions >= 1, "e il riuso si conta, invece di passare in silenzio")
+
+    # La controprova, senza la quale la verifica sopra non distingue "ricicla nel
+    # sesso giusto" da "ricicla e basta": se il pool ha ancora un maschile libero,
+    # non si ricicla niente.
+    p2 = VoicePool(voci)
+    a = p2.voice_for("A", gender="m")
+    b = p2.voice_for("B", gender="m")
+    c.ok(a.voice_id != b.voice_id, "con voci libere del sesso giusto non si ricicla")
+
+    # E se il pool non ha proprio voci di quel sesso, si prende cio' che c'e':
+    # meglio una voce sbagliata che un personaggio muto.
+    solo_f = VoicePool([v for v in voci if v.gender == "f"])
+    c.eq(solo_f.voice_for("S0", gender="m").gender, "f",
+         "un pool senza maschili da' comunque una voce")
+
     # Senza informazione si torna all'ordine del pool, che alterna: quando non si
     # sa, alternare e' la scelta giusta perche' massimizza il contrasto.
     q = VoicePool(voci)

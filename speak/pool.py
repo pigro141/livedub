@@ -268,10 +268,27 @@ class VoicePool:
         e' una scelta discutibile; un uomo che diventa donna a frase alterne e'
         un errore che chiude l'ascolto.
 
-        Quindi: prima una voce libera dello stesso sesso, poi una libera
-        qualunque, poi si ricicla. Con `?` — intonazione dentro la fascia in cui
-        un uomo chiaro e una donna scura non si distinguono — si torna
-        all'ordine del pool, che e' la scelta giusta quando davvero non si sa.
+        Quindi: prima una voce libera dello stesso sesso, poi **una gia' presa
+        dello stesso sesso**, e solo se il pool non ne ha proprio di quel sesso
+        si ripiega sull'ordine. Con `?` — intonazione dentro la fascia in cui un
+        uomo chiaro e una donna scura non si distinguono — si torna all'ordine
+        del pool, che e' la scelta giusta quando davvero non si sa.
+
+        **L'ordine di quelle due preferenze era invertito, e si e' sentito.**
+        Prima si prendeva una voce *libera qualunque* prima di riciclarne una del
+        sesso giusto. Dal vivo, scena con tre uomini e pool da sei (tre maschili
+        e tre femminili, che si alternano): i tre personaggi prendono M1, M2 e
+        M3, poi un frammento di Simeon chiede una voce maschile, non ne trova di
+        libere e si porta a casa **F1**. `speaker.gender_fallback` diceva `m` e
+        veniva rispettato — nella richiesta, non nella consegna.
+        `'Oggi non c'e nulla, solo una moto.'` detta da una donna, in mezzo a
+        battute dello stesso personaggio dette da un uomo.
+
+        Riciclare vuol dire due personaggi con la stessa voce, ed e' un prezzo
+        vero. Ma e' il prezzo che questo modulo ha gia' dichiarato di voler
+        pagare due paragrafi piu' su: un uomo con la voce di un altro uomo e' una
+        scelta discutibile, un uomo che diventa donna e' un errore che chiude
+        l'ascolto.
         """
         speaker_id = self.risolvi(speaker_id)
         existing = self._by_speaker.get(speaker_id)
@@ -284,6 +301,17 @@ class VoicePool:
         scelta = None
         if gender in ("m", "f"):
             scelta = next((v for v in libere if v.gender == gender), None)
+            if scelta is None:
+                # **Si ricicla dentro il sesso giusto invece di uscirne.** Fra le
+                # gia' prese si sceglie quella del personaggio che ha parlato
+                # meno: la collisione cade su chi l'orecchio ha sentito meno, e
+                # due personaggi affermati non diventano lo stesso.
+                candidate = [v for v in self.voices if v.gender == gender]
+                if candidate:
+                    battute = {a.voice.voice_id: a.lines for a in self._by_speaker.values()}
+                    scelta = min(candidate, key=lambda v: (battute.get(v.voice_id, 0),
+                                                           self.voices.index(v)))
+                    self.collisions += 1
         if scelta is None:
             scelta = libere[0] if libere else None
         if scelta is not None:

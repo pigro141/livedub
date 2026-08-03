@@ -1,0 +1,52 @@
+# Le dipendenze di livedub. Non esistevano: il venv e' gitignorato, quindi da un
+# clone pulito l'ambiente non era ricostruibile e le scelte fatte qui sotto erano
+# invisibili a chi leggeva il repo.
+#
+#   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+#
+# Le versioni sono quelle verificate sulla macchina di sviluppo (Windows 11,
+# Python 3.11.9, i9-11900K + RTX 4060), non minimi teorici.
+
+# --- runtime ONNX: la riga che non e' intercambiabile ------------------------
+# **`onnxruntime-gpu` e NON `onnxruntime`**, ed e' una scelta di architettura, non
+# un dettaglio di installazione. Kokoro su CPU costa 725 ms a battuta contro i 207
+# su CUDA: senza GPU quel motore non e' vivibile. E' un superset — ECAPA
+# (`listen/embed.py`) e rapidocr continuano a girare su CPU esattamente come
+# prima, verificato con la suite verde e con il passo di Piper invariato — ma i
+# due pacchetti **non convivono**: installare `onnxruntime` accanto a questo
+# rompe la risoluzione delle DLL. Se si toglie la GPU, si torna a `onnxruntime` e
+# si mette `tts.backend=piper`.
+#
+# Gli extra [cuda,cudnn] tirano i pacchetti pip nvidia-*: senza, ORT non trova le
+# DLL e **ripiega sulla CPU in silenzio**, che e' il modo in cui 708 ms stavano
+# per essere riportati come "il numero della GPU".
+onnxruntime-gpu[cuda,cudnn]==1.28.0
+
+# --- sintesi -----------------------------------------------------------------
+piper-tts==1.6.0            # tier A, default, CPU
+supertonic==1.3.1           # dieci voci native, CPU
+kokoro-onnx==0.5.0          # richiede la GPU; tira espeakng-loader + phonemizer-fork
+                            # per il g2p italiano (verificato su Windows: i binari
+                            # espeak-ng arrivano col wheel, niente da installare a mano)
+
+# --- visione e riconoscimento ------------------------------------------------
+rapidocr-onnxruntime==1.4.4
+opencv-python==5.0.0.93
+pillow==12.3.0
+mss==10.2.0
+# `oneocr` non e' un pacchetto pip: le DLL si copiano da Windows con
+# `tools/fetch_oneocr.py`, e girano in un processo figlio perche' portano la
+# **propria** onnxruntime.dll e pretendono un'altra versione di API.
+
+# --- audio -------------------------------------------------------------------
+soundfile==0.14.0
+# **PyAudioWPatch e non `sounddevice`**: la cattura serve il *loopback* WASAPI —
+# sentire quello che il gioco sta suonando — e quello e' precisamente cio' che il
+# patch aggiunge a PyAudio. E' anche il motivo per cui questo progetto e' legato a
+# Windows (`capture/audio.py`).
+PyAudioWPatch==0.2.12.8
+numpy==2.4.6
+
+# --- modelli e video ---------------------------------------------------------
+huggingface_hub==1.25.1     # scarica Piper, ECAPA e Kokoro dentro models/
+imageio-ffmpeg==0.6.0       # il montaggio degli MP4 di prova (tools/dub.py --mp4)

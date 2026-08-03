@@ -38,7 +38,11 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 .\.venv\Scripts\python.exe -m tools.ui --profile live --loopback voicemeeter --set vision.ocr_backend=oneocr
 ```
 
-- venv: `.venv` (Python 3.11.9), **sempre invocato per esteso**.
+- venv: `.venv` (Python 3.11.9), **sempre invocato per esteso**. Si ricostruisce
+  con `pip install -r requirements.txt`, e quel file va letto prima di toccare
+  l'ambiente: monta **`onnxruntime-gpu` e non `onnxruntime`**, che e' una scelta
+  di architettura (senza GPU, Kokoro non e' vivibile) e i due pacchetti **non
+  convivono**. Non c'e' `pyproject.toml` e non c'e' linter.
 - **Non c'e' pytest.** La suite e' `tools/selftest.py` (piu' `selftest_audio.py` e
   `selftest_vision.py`); un gruppo si esegue anche da codice:
   `from tools.selftest import test_ring, Check; c=Check(); test_ring(c); c.report()`.
@@ -108,6 +112,22 @@ motore sbagliato, con i log verdi.
 | **supertonic** | 210 ms | 752 ms | 14,3 | 1,10 | CPU |
 | **kokoro** | 299 ms | 932 ms | 12,9 | **1,30** | **CUDA** |
 
+**Ma il riferimento vero e' il vivo, ed e' gia' in `runs/`.** Una quarantina di
+sessioni, rilette con `tools/reopen runs\<timestamp>` — quel comando legge le
+sessioni dal vivo, non solo le prove di banco, e nessuno se lo ricorda mai:
+
+| dal vivo | sintesi p50 | attesa in coda | **totale p50** | compressione |
+|---|---|---|---|---|
+| piper | ~50 ms | ~620 ms | **~670 ms** | 1,00–1,05 |
+| supertonic | 315–586 ms | 900–1245 ms | **1280–1873 ms** | 1,250 (**al tetto**) |
+| kokoro | 257 ms | 887 ms | **1150 ms** | 1,226 |
+
+Due cose che solo questa tabella dice. SuperTonic sta **incollato al tetto di
+compressione** in quattordici sessioni su sedici, cioe' WSOLA lavora sempre al
+massimo; Kokoro no, e infatti articola. E la sintesi dal vivo di Kokoro costa
+**meno** che sul banco (257 contro 299), il che da solo basta a diffidare di
+qualunque preventivo fatto senza il gioco acceso.
+
 **Kokoro ha senso solo su GPU, e questo riapre un vincolo dichiarato.** Su CPU
 costa 725 ms a battuta contro i 207 su CUDA — non vivibile. Quindi `.venv` monta
 `onnxruntime-gpu` (superset: ECAPA e rapidocr restano su CPU), e la sintesi
@@ -119,6 +139,16 @@ non letto da nessuno, come `max_ocr_hz` prima di lui.
 Kokoro ha **due sole voci italiane**, come Piper: oltre il secondo personaggio si
 torna comunque a spostare i semitoni. E il quantizzato (92 MB) e' **quattro volte
 piu' lento** del fp32 su CPU, non piu' veloce.
+
+**Con un motore veloce, il collo di bottiglia si e' spostato.** I 1150 ms di
+Kokoro dal vivo si scompongono in **500 ms di `speaker.decide_after_ms`** (l'attesa
+per sapere chi parla), ~390 ms di coda e 257 ms di sintesi: il riconoscimento
+costa **il doppio della sintesi**. Con SuperTonic a 586 ms non era vero, ed e' il
+motivo per cui la tabella che sconsiglia di abbassare quei 500 ms — misurata su
+SuperTonic e sul banco — non risponde piu' alla domanda di adesso. Chi vuole
+guadagnare latenza guardi **li'**, non il sintetizzatore. Il prezzo dichiarato di
+abbassarli e' che si sbagli piu' spesso a dire chi parla, e quello lo giudica
+l'orecchio.
 
 ## Banco e vivo: la cosa che costa di piu' capire
 
@@ -142,9 +172,17 @@ puo' esprimere**, e che sono stati trovati tutti dal vivo:
   *consecutivi*: da li' battute non lette e doppioni da frammento.
 
 `--tempo-reale` somma il costo del lavoro al tempo del media e salta i frame
-arretrati. Sul **tempo** e' fedele (predice il vivo: 842 ms contro 951); sul
-**riconoscimento e' pessimista**, perche' li' l'audio si versa al ritmo dei
-pacchetti mentre dal vivo il thread audio e' indipendente.
+arretrati. **Serve a confrontare, non a preventivare**, e la differenza e'
+misurata: sul tempo **assoluto** sovrastima di circa il doppio (Piper 1372 ms
+contro i ~670 veri, Kokoro 1949 contro 1150), perche' li' decodifica, OCR e
+sintesi si contendono lo stesso processo mentre dal vivo l'OCR sta in un processo
+figlio e il thread audio e' indipendente. Il **divario fra due motori** invece lo
+predice bene: +577 ms previsti fra Kokoro e Piper, +480 misurati. Anche sul
+riconoscimento e' pessimista, per la stessa ragione.
+
+*(Una versione precedente di questa riga diceva che sul tempo era fedele, «842 ms
+contro 951». Quel confronto e' stato rifatto oggi su tutti e due i motori e non
+regge: chi ci si e' fidato ha preventivato Kokoro al doppio del suo costo vero.)*
 
 **Gli strumenti per confrontarli.** Ogni prova — banco e vivo — scrive
 `speaker.jsonl` con una riga per battuta e venticinque campi: chi parla, con che

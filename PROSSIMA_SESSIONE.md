@@ -311,6 +311,60 @@ cosa succede quando le righe si uniscono. Il codice e' stato tolto. Se qualcuno
 ci riprova, il metro giusto e' il **testo delle battute doppiate**, non un
 punteggio sui ritagli.
 
+### 6. Chatterbox e Qwen3-TTS sul banco — uno misurato, l'altro bloccato
+
+**Sono gia' installati tutti e due**, nei venv delle cartelle sorelle, coi
+modelli gia' in cache (3,0 GB Chatterbox, 2,4 GB Qwen, 5,9 GB la variante ONNX).
+L'item costava una sessione e costa una prova. Si usano **senza installare
+niente**: leggere e far girare quei venv e' permesso, installarci dentro no.
+
+**Chatterbox multilingua** (`.venv-cbx`, torch 2.6+cu124, CUDA), misurato:
+
+| | |
+|---|---|
+| sintesi p50 | **3394 ms** (p95 4932) |
+| VRAM di picco | 3409 MB |
+| passo | 10,9 car/s |
+| italiano | c'e' (`'it': 'Italian'`, 23 lingue) |
+| emozioni | `exaggeration`, continuo 0..1 — **funziona** |
+| voci | clonazione zero-shot da un ritaglio, ~3,3-3,9 s |
+
+**Per il vivo e' fuori portata, e non di poco**: 3,4 s di sola sintesi contro una
+latenza totale che oggi sta fra 670 e 1873 ms. Ed e' autoregressivo — campiona
+token a ~30/s — quindi non c'e' nessun passo di diffusione da tagliare e il costo
+cresce con la lunghezza. Servirebbe un **x13**. Secondo campanello: parecchie
+battute escono a **esattamente 5,00 s** con l'avviso `forcing EOS token,
+long_tail`, cioe' il modello tira via invece di articolare.
+
+Ma **quello che da' in cambio e' esattamente cio' che manca qui**: emozione
+continua e **voci illimitate**. Il limite dichiarato di Kokoro e Piper — due voci
+italiane, oltre il secondo personaggio si spostano i semitoni — con la clonazione
+smette di esistere. Vale come motore **offline**, non dal vivo.
+
+**Qwen3-TTS: bloccato.** Il `transformers` di `.venv-qwen` non conosce
+l'architettura `qwen3_tts`, e aggiornarlo sarebbe installare dentro un venv delle
+cartelle sorelle. Serve un venv usa-e-getta proprio (torch+cu128, alcuni GB).
+Quello che si e' potuto leggere dall'API e' pero' il pezzo piu' interessante di
+tutta la ricognizione:
+
+- **`instruct`**: lo stile chiesto **in linguaggio naturale** («parla con
+  rabbia»), non con un tag. E' cio' che i tag di SuperTonic promettevano;
+- `generate_voice_clone` e `generate_voice_design`;
+- **`non_streaming_mode: bool = True`** — cioe' esiste uno **streaming**. Per
+  questa catena e' il parametro che conta piu' della velocita' grezza: con lo
+  streaming il numero sul percorso critico e' il **primo campione**, non la
+  sintesi intera. E' anche perche' i 3,4 s di Chatterbox sono tutti latenza:
+  li' lo streaming non c'e'.
+
+**E c'e' una variante ONNX gia' in cache** (`wavekat/Qwen3-TTS-1.7B-VoiceDesign-ONNX`,
+5,9 GB) con `fp32` **e `int4`**, `talker_prefill` e `talker_decode` separati e uno
+script `generate_onnx.py`. ONNX e' il runtime che questo progetto usa gia': se
+qualcosa di questa famiglia puo' entrare in `speak/backends/`, e' quello.
+
+**Una correzione a `CLAUDE.md`**: la tabella dei venv sorelle da' `.venv-qwen`
+per `torch 2.11.0+cpu`, «no torch CUDA». Oggi ha **2.11.0+cu128 con CUDA
+disponibile**. Il venv e' stato aggiornato dopo quella nota.
+
 ## Lo stato di `SviluppoProgetto.md`
 
 | item | stato |
@@ -326,7 +380,7 @@ punteggio sui ritagli.
 | parola colorata -> non leggere la frase | **gia' fatto**: `sat_ink_max` la prende. L'obiettivo `Raggiungi Vespucci Beach.` viene scartato perche' il ciano e' il 44% del suo inchiostro. Aggiunto `vision.lines.mixed_ink` per vedere il caso che sfuggirebbe (parola colorata **corta** in una frase lunga), che su questa scena non capita |
 | LLM leggero per gli artefatti OCR | **aperto**. Ma leggere prima il docstring di `vision/lexicon.py`: la correzione automatica e' gia' stata bocciata li', e un LLM sbaglia nello stesso modo, meglio e quindi piu' pericolosamente. Ha senso solo se **dichiara quando non e' sicuro** |
 | traduzione + riquadro grafico | **aperto**, ed e' il piu' grande |
-| Qwen TTS e Chatterbox sul banco | **aperto**. Da fare in un venv usa-e-getta: `.venv` monta `onnxruntime-gpu` e non va toccato |
+| Qwen TTS e Chatterbox sul banco | **Chatterbox misurato** (§6): 3394 ms a battuta, fuori portata dal vivo, ma da' emozione continua e voci illimitate — vale come motore offline. **Qwen bloccato** su un `transformers` vecchio in un venv che non si tocca; la sua variante **ONNX con int4 e streaming** e' la pista giusta per questa catena |
 | nome del parlante scritto dal gioco | **aperto**, e vale la latenza: toglierebbe i 500 ms di `decide_after_ms`, che oggi costano **il doppio della sintesi**. Non misurabile su questa registrazione — GTA V i nomi non li scrive |
 
 **Una cosa trovata di striscio e non in lista**: nella sessione dal vivo, **37

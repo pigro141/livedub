@@ -13,6 +13,19 @@ sopra il gioco abbassando l'originale.
 `README.md` ha l'architettura estesa e la grammatica dei sottotitoli. **Non
 leggerlo per intero**: costa e quasi mai serve.
 
+## La memoria di questo progetto e' il grafo
+
+In `graphify-out/graph.json` c'e' la mappa della codebase, gia' costruita. Per
+qualunque domanda architetturale — dove sta X, cosa rompo se tocco Y, chi chiama
+cosa — si interroga quello **prima** di partire a grep:
+
+```
+graphify query "<domanda>"
+```
+
+Costruirlo e' caro (estrazione su tutti i file), interrogarlo no. Si aggiorna con
+`/graphify . --update` dopo modifiche grosse, **non a ogni task**.
+
 ## Le due cartelle sorelle non si guardano
 
 `..\gta-redub-live` e `..\gta-redub-v2` sono **bozze fallite**, dichiarate tali
@@ -111,6 +124,16 @@ motore sbagliato, con i log verdi.
 | **piper** (default) | 45 ms | 589 ms | 14,8 | — | CPU |
 | **supertonic** | 210 ms | 752 ms | 14,3 | 1,10 | CPU |
 | **kokoro** | 299 ms | 932 ms | 12,9 | **1,30** | **CUDA** |
+| **qwen** | 3,1 s | non usabile | 10,6 | — | CUDA |
+
+**Il quarto motore esiste e non e' finito.** `speak/backends/qwen.py` funziona e
+le sue voci sono **descrizioni** («un uomo maturo, voce profonda e roca»), quindi
+li' il pool non e' piu' un vincolo del modello. Ma senza streaming costa 3,1 s a
+battuta. Misurato: il modello gira a **0,66x tempo reale** (55,3 ms di calcolo per
+83,3 ms di audio, 12 Hz), quindi **in streaming la latenza al primo campione
+sarebbe 320-430 ms** — vivibile. Serve toccare `mix/mixer.py` e `fuse/timing.py`,
+perche' oggi la catena deve conoscere la durata **prima** di programmare. Prezzo:
+4,2 GB di VRAM contro i 1128 MB di Kokoro.
 
 **Ma il riferimento vero e' il vivo, ed e' gia' in `runs/`.** Una quarantina di
 sessioni, rilette con `tools/reopen runs\<timestamp>` — quel comando legge le
@@ -359,6 +382,31 @@ sulle identita' — sembrava che il motore toccasse il riconoscimento, che sta a
 monte. Rigirando Piper **adesso**: 43 battute e lo stesso 95,6%, e Piper-oggi
 contro Kokoro-oggi al **100%**. Lo scarto stava fra le passate archiviate e HEAD,
 non fra i motori, ed era l'OCR (`Esteban Jimenez.` contro `Esteban Jimenez.7`).
+
+**Quando l'utente offre una prova dal vivo, quella e' la prova.** Il criterio
+della parola colorata era stato dichiarato «innocuo ma inutile» su un surrogato —
+le soglie del vivo applicate alla registrazione del banco. Li' non si vedeva
+niente, perche' gli obiettivi interi erano gia' scartati e passava solo una
+scritta a meta' dissolvenza, che nessun criterio sul colore puo' prendere. Dal
+vivo, due passate a confronto, il guadagno era **da un'altra parte**:
+`'Rec.Lavoriamo insieme...'` -> `'Lavoriamo insieme...'`,
+`"Si, era lui.Adam'a App"` -> `'Si, era lui.'`. Non righe **saltate**: righe
+**sporcate** da frammenti di HUD colorata, che venivano pronunciati. Nessun
+contatore lo mostrava, perche' la riga risultante conteneva parole italiane vere
+e passava ogni filtro. **Il surrogato non e' un ripiego accettabile: e' il modo
+in cui si archiviano conclusioni false con la suite verde.**
+
+**Togliere lo sporco dall'ingresso migliora anche cio' che non si stava
+correggendo.** Nella stessa prova, `'ma devo dare una : olta alla mia vita.'` e'
+diventata `'ma devo dare una svolta alla mia vita.'` — i pixel colorati non
+sporcavano solo la parola che occupavano, disturbavano il riconoscimento intorno.
+
+**`preload_dlls()` non e' del backend che lo chiama.** ORT non trova le DLL CUDA
+dei pacchetti pip `nvidia-*` finche' qualcuno non chiama `preload_dlls()`, e
+ripiega sulla CPU **senza dirlo**. Quella riga oggi vive solo dentro
+`speak/backends/kokoro.py`: misurando Qwen ci si e' ricascati entro un'ora
+dall'aver letto quel commento, riportando 4-7 s a battuta come «il numero della
+GPU». Va spostata dove la vede chiunque apra una sessione ONNX.
 
 **E la piu' importante: l'orecchio dell'utente trova cio' che la suite non puo'.**
 E' successo a ogni difetto serio di questo progetto, con la suite verde. Quando

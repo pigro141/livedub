@@ -2,15 +2,12 @@
 
 ## Dove siamo
 
-**Feature: 10 fatte su 14.** Le quattro aperte non sono un arretrato di lavoro —
-tre delle quattro aspettano qualcosa che non sta in questo repo:
+**Feature: 12 fatte su 14.** Le due aperte:
 
 | resta | cosa la sblocca |
 |---|---|
-| SuperTonic su PC vecchi | **l'altro PC.** Qui non è provabile |
-| nome del parlante scritto dal gioco | **materiale di un altro gioco.** GTA V i nomi non li scrive |
-| LLM per gli artefatti OCR | **una decisione**, e le prove fatte dicono di no |
-| traduzione con sostituzione grafica | **solo lavoro.** È la feature grossa che resta |
+| LLM per gli artefatti OCR | **l'impalcatura è fatta e misurata; manca scegliere il modello**, ed è una decisione sull'ambiente (disco, e contesa per la GPU) |
+| traduzione con sostituzione grafica | **solo lavoro.** È la feature grossa che resta, e va fatta insieme alla UI |
 
 **Step finali: 0 su 13**, ed è lì che sta ormai quasi tutto il lavoro rimasto.
 Nessuno di quei punti aspetta una misura: sono UI, impacchettamento e repo. In
@@ -134,9 +131,20 @@ che si sono chiuse con un "no".)*
     ~670 GB/s e 16 GB: **4070 Ti SUPER / 4080 / 3090 e oltre** (la 3090 usata è la via
     economica). Il motore resta **integrato ma spento di default**: chi ha la scheda lo
     accende con `--set tts.backend=qwen`.
-  * \[ ]  adattamento speaker per tutti i giochi (nome del parlante scritto a schermo)
-    → vale la latenza: toglierebbe i 500 ms di `decide_after_ms`, che oggi costano **il
-    doppio della sintesi**. Non misurabile su questa registrazione: GTA V i nomi non li scrive.
+  * \[x]  adattamento speaker per tutti i giochi (nome del parlante scritto a schermo)
+    → **fatto** (`vision/label.py`, sezione `label` di config, spento di default). Quando
+    il gioco dichiara chi parla, cadono **tutti e due** i costi: l'attesa di
+    `speaker.decide_after_ms` (500 ms, oggi il doppio della sintesi) e il calcolo
+    dell'impronta. Il nome viene **tolto** da ciò che si pronuncia.
+    → **Modulare, come chiesto**: tre forme pronte (`nome:`, `[nome]`, `nome-`) più una
+    regex libera; in alternativa **un colore per personaggio**, con soglia oltre la quale
+    non si decide. Per il colore `vision/lines.py` adesso porta fuori il colore medio
+    dell'inchiostro: luminanza e saturazione da sole non bastavano.
+    → **L'elenco dei personaggi è la guardia forte** (`label.names`): con quello, un OCR
+    che legge `Si, era lui` come nome viene scartato invece di diventare un personaggio —
+    e ogni falso positivo brucia una voce del pool a chi parla davvero.
+    → **Provato solo su testo sintetico**: GTA V i nomi non li scrive. Il contatore
+    `vision.label.hit` dice se il formato dichiarato è quello giusto.
   * \[x]  adattamento per gtaV se il sottotitolo contiene una parola colorata
     → **fatto e acceso** (`vision.min_color_word_frac = 0.15`). Il difetto vero non era la
     frase saltata, era **la frase sporcata**: frammenti di HUD colorata incollati dentro il

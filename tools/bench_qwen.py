@@ -42,6 +42,7 @@ non puo' perdere.
 from __future__ import annotations
 
 import argparse
+import os
 import time
 
 import numpy as np
@@ -59,6 +60,9 @@ def _voce(base: str = VOCE) -> VoiceSpec:
         voice_id="banco", backend="qwen", base_voice=base,
         semitones=0.0, rate=1.0, gender="m",
     )
+
+
+FRETTA_EN = " Speak very fast and with urgency, dense syllables and no pauses."
 
 
 def _confronta(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
@@ -436,6 +440,211 @@ def prova_fretta(tts, ripetizioni: int = 3) -> None:
           " sotto ~13 il motore non ci sta.")
 
 
+def prova_voci(tts, ripetizioni: int = 2) -> None:
+    """La descrizione va scritta in inglese o in italiano?
+
+    **La domanda si può misurare, e su questo modello va misurata.** Le voci qui
+    sono descrizioni, e la descrizione dichiara anche il sesso: se il modello
+    legge male «una donna» produce una voce maschile, il pool assegna una voce
+    femminile a un personaggio e a schermo si sente un uomo. Non è un difetto
+    sottile — è il più udibile che ci sia — e nessun contatore lo prende, perché
+    la sintesi riesce benissimo.
+
+    Il sesso di una voce si misura: `stima_f0` risponde a questa domanda sola, ed
+    è la stessa funzione con cui la catena decide quale metà del pool guardare.
+    Soglia a 165 Hz, come nel resto del progetto.
+
+    **Cosa smentisce**: se in italiano le voci dichiarate «donna» escono sotto i
+    165 Hz e in inglese sopra, la descrizione va scritta in inglese. Se sbagliano
+    in tutte e due, il problema non è la lingua dell'istruzione.
+    """
+    from listen.speaker import stima_f0
+    from speak.backends.qwen import VOICES
+
+    print("== la descrizione: in italiano o in inglese? ==")
+    seme = tts.seed
+    tts.seed = None
+    tts.synthesize("Riscaldamento.", _voce())
+
+    # Le stesse otto voci, dette nei due modi. Il **testo** resta italiano in
+    # tutti e due i casi: qui si cambia solo la lingua dell'istruzione.
+    inglese = {
+        "qwen-uomo1": "An adult man, warm and confident voice, conversational tone.",
+        "qwen-uomo2": "A young man, clear and nervous voice.",
+        "qwen-uomo3": "A mature man, deep and raspy voice.",
+        "qwen-uomo4": "An elderly man, thin and slightly trembling voice.",
+        "qwen-donna1": "An adult woman, clear and friendly female voice.",
+        "qwen-donna2": "A young woman, bright female voice.",
+        "qwen-donna3": "A mature woman, low and calm female voice.",
+        "qwen-donna4": "A young woman, warm and slightly raspy female voice.",
+    }
+    frase = "Non ho mai avuto un figlio nero, ma se ne avessi uno vorrei che fosse come te."
+    originale = dict(VOICES)
+    esiti: dict[str, list[tuple[str, float, bool]]] = {"italiano": [], "inglese": []}
+
+    try:
+        for lingua in ("italiano", "inglese"):
+            print(f"\n  -- descrizione in {lingua} --")
+            print(f"  {'voce':>13} {'sesso':>6} {'f0':>7} {'passo':>8}  esito")
+            for nome, (desc_it, sesso) in originale.items():
+                desc = desc_it if lingua == "italiano" else inglese[nome] + FRETTA_EN
+                VOICES[nome] = (desc, sesso)
+                f0s, passi = [], []
+                for _ in range(ripetizioni):
+                    s = tts.synthesize(frase, _voce(nome))
+                    if s.audio.size:
+                        f0s.append(stima_f0(s.audio, s.samplerate))
+                        passi.append(spoken_length(frase) / s.duration)
+                if not f0s:
+                    continue
+                f0 = float(np.median(f0s))
+                giusto = (f0 >= 165.0) if sesso == "f" else (f0 < 165.0)
+                esiti[lingua].append((nome, f0, giusto))
+                print(f"  {nome:>13} {sesso:>6} {f0:>6.0f}Hz {np.median(passi):>7.1f}  "
+                      f"{'ok' if giusto else '<-- SBAGLIATO'}")
+    finally:
+        VOICES.clear()
+        VOICES.update(originale)
+        tts.seed = seme
+
+    print()
+    for lingua, v in esiti.items():
+        if v:
+            print(f"  {lingua:>9}: {sum(1 for _, _, g in v if g)}/{len(v)} voci col sesso giusto")
+
+
+def prova_hardware(tts, secondi_carico: float = 12.0) -> None:
+    """Esiste un hardware consumer che lo regge dal vivo?
+
+    La domanda non si risponde comprando schede: si risponde capendo **da cosa
+    dipende** il costo per frame, e poi guardando quel numero sui cataloghi.
+
+    ## Da cosa dipende: i byte, non i FLOP
+
+    Un decode autoregressivo a batch 1 non calcola quasi niente — rilegge i pesi.
+    Per ogni frame questo modello fa una passata di `talker_decode` (1435 MB di
+    pesi in int4) e **quindici** di `code_predictor` (322 MB), cioè **6,3 GB
+    letti per ogni 80 ms di audio**. Se il costo è dominato dalla banda di
+    memoria, allora si scala con la banda della scheda e basta, e la 4060 — 272
+    GB/s, bus a 128 bit — è il caso peggiore del suo listino, non il metro.
+
+    **Come si verifica invece di assumerlo**: si cronometrano separatamente le due
+    sessioni e si confronta la ripartizione del tempo con quella dei byte. Se il
+    tempo segue i byte (23% al decode, 77% al code predictor) è banda; se il
+    code predictor costa molto più della sua quota, sono le quindici chiamate in
+    sé, cioè overhead per invocazione — e quello **non** migliora con la banda,
+    migliora poco con qualunque scheda, e la risposta è no.
+
+    ## E cosa succede a GPU occupata
+
+    Dal vivo la scheda sta girando il gioco. Si rimisura il passo con un carico
+    CUDA che gira accanto: è un surrogato, ma è il verso giusto della domanda.
+    """
+    import threading
+
+    voce = _voce()
+    print("== da cosa dipende il costo per frame ==")
+    tts.synthesize("Riscaldamento.", voce)
+
+    # I due pesi che si rileggono a ogni frame, dal disco: sono loro il traffico.
+    radice = tts._radice
+    byte = {}
+    for nome in ("talker_decode", "code_predictor"):
+        p = os.path.join(radice, tts.variante, f"{nome}.onnx.data")
+        byte[nome] = os.path.getsize(p) if os.path.exists(p) else 0
+    per_frame = byte["talker_decode"] + 15 * byte["code_predictor"]
+    print(f"  pesi riletti per frame: {per_frame / 2**30:.2f} GB"
+          f"  (decode {byte['talker_decode'] / 2**20:.0f} MB"
+          f" + 15 x cp {byte['code_predictor'] / 2**20:.0f} MB)")
+
+    # Cronometro le due sessioni senza toccare il backend: si avvolge `run`.
+    tempi = {"talker_decode": 0.0, "code_predictor": 0.0}
+    originali = {}
+    for nome in tempi:
+        sess = tts._sessione(nome)
+        originali[nome] = sess.run
+
+        def fatto(nome=nome, vero=sess.run):
+            def run(*a, **k):
+                t0 = time.perf_counter()
+                try:
+                    return vero(*a, **k)
+                finally:
+                    tempi[nome] += time.perf_counter() - t0
+            return run
+
+        sess.run = fatto()
+
+    try:
+        np.random.seed(1234)
+        st = tts._stato(TESTO, tts._descrizione(voce))
+        t0 = time.perf_counter()
+        frames = list(tts._codici(st))
+        totale = (time.perf_counter() - t0) * 1000.0
+    finally:
+        for nome, vero in originali.items():
+            tts._sessione(nome).run = vero
+
+    T = max(1, len(frames))
+    somma = tempi["talker_decode"] + tempi["code_predictor"]
+    print(f"\n  {'stadio':>16} {'ms/frame':>10} {'quota tempo':>12} {'quota byte':>11}")
+    for nome, b in (("talker_decode", byte["talker_decode"]),
+                    ("code_predictor", 15 * byte["code_predictor"])):
+        q_t = tempi[nome] / somma if somma else 0.0
+        print(f"  {nome:>16} {tempi[nome] / T * 1000:>10.1f} {q_t:>11.0%} {b / per_frame:>10.0%}")
+    print(f"  {'altro (python)':>16} {(totale / T) - somma / T * 1000:>10.1f}")
+    print(f"  {'totale':>16} {totale / T:>10.1f} ms/frame, contro 80 ms di audio"
+          f"  -> {totale / T / 80:.2f}x")
+
+    scarto = abs(
+        tempi["code_predictor"] / somma - (15 * byte["code_predictor"]) / per_frame
+    ) if somma else 1.0
+    print("\n  verdetto: " + (
+        "il tempo segue i byte -> e' banda di memoria, e si scala con la banda "
+        "della scheda."
+        if scarto < 0.15 else
+        "il tempo NON segue i byte -> domina l'overhead per chiamata, che con una "
+        "scheda piu' veloce migliora poco."
+    ))
+
+    # -- e a GPU occupata? --------------------------------------------------
+    print("\n== e con la GPU occupata da qualcos'altro? ==")
+    ferma = threading.Event()
+
+    def carico() -> None:
+        """Tiene la GPU impegnata: il vocoder su un input grosso, in ciclo."""
+        codici = np.array(frames[: min(len(frames), 64)], dtype=np.int64).T[np.newaxis]
+        voc = tts._sessione("vocoder")
+        while not ferma.is_set():
+            voc.run(None, {"codes": codici})
+
+    t = threading.Thread(target=carico, daemon=True)
+    t.start()
+    try:
+        time.sleep(1.0)
+        np.random.seed(1234)
+        st = tts._stato(TESTO, tts._descrizione(voce))
+        t0 = time.perf_counter()
+        n = 0
+        for _ in tts._codici(st):
+            n += 1
+            if n >= 40:
+                break
+        sotto = (time.perf_counter() - t0) * 1000.0 / max(1, n)
+    finally:
+        ferma.set()
+        t.join(timeout=secondi_carico)
+
+    libero = totale / T
+    print(f"  a GPU libera   {libero:6.1f} ms/frame  ({libero / 80:.2f}x tempo reale)")
+    print(f"  a GPU occupata {sotto:6.1f} ms/frame  ({sotto / 80:.2f}x tempo reale)")
+    print("  " + (
+        "sotto il tempo reale anche cosi': il margine regge un vicino ingombrante."
+        if sotto < 80 else
+        "SOPRA il tempo reale: con la GPU condivisa lo streaming non sta dietro."
+    ))
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description="Banco di Qwen3-TTS: fedelta' e troncabilita'.")
     p.add_argument("--riferimento", action="store_true",
@@ -450,6 +659,10 @@ def main() -> None:
                    help="si puo' chiedere a parole di parlare piu' svelto?")
     p.add_argument("--ripetizioni", type=int, default=3,
                    help="quante volte ogni frase per condizione (il modello campiona)")
+    p.add_argument("--voci", action="store_true",
+                   help="la descrizione va scritta in inglese o in italiano?")
+    p.add_argument("--hardware", action="store_true",
+                   help="da cosa dipende il costo per frame, e cosa succede a GPU occupata")
     p.add_argument("--variante", default="int4")
     p.add_argument("--device", default="auto")
     p.add_argument("--seed", type=int, default=1234)
@@ -460,9 +673,10 @@ def main() -> None:
     tts = QwenTts(
         samplerate=24000, variante=args.variante, device=args.device, seed=args.seed
     )
-    if not (args.riferimento or args.vocoder or args.streaming or args.pezzi or args.fretta):
+    if not (args.riferimento or args.vocoder or args.streaming or args.pezzi
+            or args.fretta or args.voci or args.hardware):
         p.error("scegliere almeno una prova fra --riferimento --vocoder --streaming"
-                " --pezzi --fretta")
+                " --pezzi --fretta --voci --hardware")
     if args.riferimento:
         prova_riferimento(tts)
     if args.vocoder:
@@ -473,6 +687,10 @@ def main() -> None:
         prova_pezzi(tts)
     if args.fretta:
         prova_fretta(tts, ripetizioni=args.ripetizioni)
+    if args.voci:
+        prova_voci(tts, ripetizioni=max(2, args.ripetizioni - 1))
+    if args.hardware:
+        prova_hardware(tts)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,42 @@ sulla quarantina, voce roca e stanca» — e il pool smette di essere un vincolo
 L'italiano e' una lingua di prima classe (`codec_language_id['italian'] = 2070`),
 non un ripiego.
 
+## Che hardware serve, e perche' la risposta e' una sola parola: **banda**
+
+Un decode autoregressivo a batch 1 non calcola quasi niente, **rilegge i pesi**.
+Per ogni frame — 80 ms di audio — questo modello fa una passata di
+`talker_decode` (1435 MB in int4) e **quindici** di `code_predictor` (322 MB
+l'una): **6,12 GB letti per ogni 80 ms**.
+
+Che sia davvero cosi' non e' un'assunzione, e' misurato (`--hardware`): il tempo
+si ripartisce fra i due stadi come i byte (33/67 contro 23/77), cioe' il costo
+segue il traffico di memoria e non le chiamate. Su questa 4060 fanno 59,9 ms per
+frame, **0,75x tempo reale**, che sono 102 GB/s effettivi contro i 272 di picco
+della scheda — il 37%, che per l'inferenza a batch 1 e' la resa normale.
+
+**Da qui la regola pratica**: il passo scala con la banda della GPU, e la 4060 e'
+la scheda con **meno** banda del suo listino (bus a 128 bit). Sotto, la stima
+ottenuta scalando i 59,9 ms misurati — sono **estrapolazioni**, non misure, e
+vanno confermate su una macchina vera:
+
+    scheda            banda      ms/frame stimati   tempo reale
+    RTX 4060          272 GB/s      59,9 (misurato)     0,75x
+    RTX 4070 Ti S.    672 GB/s      ~24                 ~0,30x
+    RTX 4080          717 GB/s      ~23                 ~0,28x
+    RTX 3090 / 4090  936-1008       ~17                 ~0,21x
+
+**E il margine serve tutto, perche' dal vivo la GPU sta girando il gioco.**
+Misurato mettendo accanto un carico CUDA saturo: il passo va da 59,9 a **768 ms
+per frame**, 9,6x tempo reale. Quel carico e' piu' cattivo di un gioco — non
+lascia un buco — quindi e' un limite superiore al danno, non una previsione. Ma
+la direzione non e' in dubbio: con il 25% di margine di questa scheda, lo
+streaming non regge un vicino ingombrante.
+
+**Conclusione**: serve una scheda da ~670 GB/s in su e almeno 16 GB (il modello ne
+vuole 4,2, il gioco il resto). In pratica RTX 4070 Ti SUPER / 4080 / 3090 e oltre;
+la 3090 usata e' la via piu' economica. Sotto quella soglia il motore c'e' e
+funziona, ma dal vivo va lasciato spento.
+
 ## Perche' e' vivibile, e perche' non lo e' ancora
 
 Il modello e' autoregressivo a 12 Hz: genera un frame per passo, e ogni frame
@@ -114,26 +150,43 @@ PASSO = 8.6
 # **Il prezzo e' dichiarato e si sente**: tutti i personaggi hanno una punta di
 # concitazione che nel materiale originale non c'e'. E' il costo di stare dentro
 # la finestra, e va giudicato all'ascolto — non c'e' un numero che lo dica.
-FRETTA = " Parla rapidissimo e con urgenza, sillabe fitte e nessuna pausa."
+FRETTA = " Speak very fast and with urgency, dense syllables and no pauses."
 
-# Le voci, che qui sono **descrizioni**. Non c'e' un elenco di timbri da
-# rispettare: si scrivono, e il modello prova a costruirle. Sono in italiano
-# perche' il modello riceve l'istruzione come un messaggio d'utente qualunque.
+# **Le descrizioni si scrivono in inglese, e il testo da dire resta italiano.**
+#
+# Sono le due cose che il modello riceve, e vanno in due lingue diverse: il testo
+# e' parlato italiano (`codec_language_id['italian']`), l'istruzione e' un
+# messaggio d'utente che il modello capisce meglio in inglese. Non e' una
+# preferenza — e' misurato, contando il sesso che esce (`--voci`, f0 mediana su
+# due generazioni per voce, soglia 165 Hz come nel resto del progetto):
+#
+#     istruzione in italiano   5/8 voci col sesso giusto
+#     istruzione in inglese    7/8
+#
+# In italiano `qwen-donna1` usciva a 164 Hz e `qwen-donna2` a 159, cioe' due voci
+# maschili su personaggi femminili. **E' il difetto piu' udibile che ci sia, e
+# nessun contatore lo prende**: la sintesi riesce benissimo, il pool assegna la
+# voce che aveva promesso, e a schermo parla un uomo con il nome di una donna.
+#
+# **E il sesso va detto esplicitamente.** L'ultima che sbagliava anche in inglese
+# era `qwen-uomo2`: le descrizioni femminili dicevano «female voice» e quelle
+# maschili non dicevano niente, quindi al modello il sesso arrivava solo da «man»
+# — che evidentemente pesa meno. Adesso lo dicono tutte.
 VOICES: dict[str, tuple[str, str]] = {
-    "qwen-uomo1": ("Un uomo adulto, voce calda e sicura, tono colloquiale." + FRETTA, "m"),
-    "qwen-uomo2": ("Un uomo giovane, voce chiara e nervosa." + FRETTA, "m"),
+    "qwen-uomo1": ("An adult man, warm and confident male voice, conversational tone." + FRETTA, "m"),
+    "qwen-uomo2": ("A young man, clear and slightly nervous male voice, medium-low pitch." + FRETTA, "m"),
     # Niente "parla lentamente": era una descrizione che remava contro la
     # clausola, e fra le due vince quella che il modello capisce meglio.
-    "qwen-uomo3": ("Un uomo maturo, voce profonda e roca." + FRETTA, "m"),
-    "qwen-donna1": ("Una donna adulta, voce limpida e cordiale." + FRETTA, "f"),
-    "qwen-donna2": ("Una donna giovane, voce brillante." + FRETTA, "f"),
-    "qwen-donna3": ("Una donna matura, voce bassa." + FRETTA, "f"),
+    "qwen-uomo3": ("A mature man, deep and raspy male voice." + FRETTA, "m"),
+    "qwen-donna1": ("An adult woman, clear and friendly female voice." + FRETTA, "f"),
+    "qwen-donna2": ("A young woman, bright female voice." + FRETTA, "f"),
+    "qwen-donna3": ("A mature woman, low and calm female voice." + FRETTA, "f"),
     # **Sono otto e non sei di proposito**, come per Kokoro: con `pool_size = 6`
     # ne restano due libere, quindi `voce_neutra` prende la settima e non cade
     # nel ramo di ripiego — quello in cui la voce d'attesa somiglia a quella di
     # un personaggio. La verifica `pool` lo controlla, e l'ha gia' preso.
-    "qwen-uomo4": ("Un uomo anziano, voce sottile e un po' tremante." + FRETTA, "m"),
-    "qwen-donna4": ("Una donna giovane, voce calda e leggermente roca." + FRETTA, "f"),
+    "qwen-uomo4": ("An elderly man, thin and slightly trembling male voice." + FRETTA, "m"),
+    "qwen-donna4": ("A young woman, warm and slightly raspy female voice." + FRETTA, "f"),
 }
 
 

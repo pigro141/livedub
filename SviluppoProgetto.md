@@ -69,6 +69,15 @@
     invece di 6,7**. Ma il criterio dichiarato prima della prova era «sopra 13-14 car/s
     torna in gioco» e il motore sta a 10,8, e ci arriva solo con WSOLA ben oltre l'1,3
     dove le consonanti spariscono. **Il numero dice no; decide l'ascolto.**
+    → **Le descrizioni vanno scritte in inglese** (il testo da dire resta italiano):
+    misurato contando il sesso che esce, italiano 4-5/8 voci giuste, inglese **7/8**. In
+    italiano le voci femminili uscivano a 159-164 Hz, cioè maschili.
+    → **L'hardware che serve, misurato**: il costo è **banda di memoria** (6,12 GB riletti
+    per ogni 80 ms di audio; il tempo segue i byte, 33/67 contro 23/77). Sulla 4060 sono
+    0,75× tempo reale, cioè il 25% di margine — e **a GPU occupata va a 9,6×**. Serve
+    ~670 GB/s e 16 GB: **4070 Ti SUPER / 4080 / 3090 e oltre** (la 3090 usata è la via
+    economica). Il motore resta **integrato ma spento di default**: chi ha la scheda lo
+    accende con `--set tts.backend=qwen`.
   * \[ ]  adattamento speaker per tutti i giochi (nome del parlante scritto a schermo)
     → vale la latenza: toglierebbe i 500 ms di `decide_after_ms`, che oggi costano **il
     doppio della sintesi**. Non misurabile su questa registrazione: GTA V i nomi non li scrive.

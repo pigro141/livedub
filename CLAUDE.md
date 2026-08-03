@@ -176,6 +176,27 @@ Da notare per chi ci torna: «parla svelto» nella descrizione **non fa niente**
 *come* si parla — sillabe fitte, nessuna pausa, urgenza — cioe' qualcosa che si
 puo' recitare. Un aggettivo il modello lo legge come stile e lo butta via.
 
+**Le descrizioni si scrivono in inglese, e il testo da dire resta italiano.** Sono
+le due cose che il modello riceve e vanno in due lingue diverse. Misurato
+contando il sesso che esce (`--voci`, f0 mediana per voce, soglia 165 Hz):
+**italiano 4-5 voci giuste su 8, inglese 7 su 8**, su due passate. In italiano le
+voci femminili uscivano a 159-164 Hz, cioe' maschili — **il difetto piu' udibile
+che ci sia, e nessun contatore lo prende**: la sintesi riesce, il pool assegna la
+voce promessa, e a schermo parla un uomo col nome di una donna. Il sesso va anche
+detto esplicitamente («male voice», non solo «man»).
+
+**E l'hardware che serve si e' rivelato una domanda con una risposta netta:
+banda di memoria.** Il decode a batch 1 non calcola, rilegge i pesi — **6,12 GB
+per ogni 80 ms di audio** — e il tempo si ripartisce fra gli stadi come i byte
+(33/67 contro 23/77), che e' la verifica che non sia overhead per chiamata. Su
+questa 4060 sono 59,9 ms per frame, 0,75x tempo reale, il 37% della banda di
+picco. Quindi si scala con la banda, e la 4060 e' la scheda con **meno** banda del
+suo listino. Serve ~670 GB/s in su e 16 GB: 4070 Ti SUPER / 4080 / 3090 e oltre.
+**A GPU occupata da un carico saturo il passo va a 768 ms per frame, 9,6x**: e' un
+limite superiore al danno, non una previsione, ma con il 25% di margine di questa
+scheda lo streaming non regge il gioco acceso. La tabella sta in
+`speak/backends/qwen.py`.
+
 **Ma il riferimento vero e' il vivo, ed e' gia' in `runs/`.** Una quarantina di
 sessioni, rilette con `tools/reopen runs\<timestamp>` — quel comando legge le
 sessioni dal vivo, non solo le prove di banco, e nessuno se lo ricorda mai:

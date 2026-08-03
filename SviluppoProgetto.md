@@ -53,13 +53,25 @@ che si sono chiuse con un "no".)*
     → margine, normalizzazione, binarizzazione, ingrandimento, inversione: **tutte
     negative**, fanno leggere *di più* non *meglio*. Il miglioramento è poi arrivato
     dalla parola colorata (ultima voce).
-  * \[ ]  capire se il programma con Supertonic rallenta su pc vecchi
-    → **non provabile qui**, serve l'altro PC. Quasi certamente non è un bug: la sintesi
-    sta nel thread video, dove il costo si amplifica invece di sommarsi.
-    → **Adesso però si sa come chiederlo**, ed è la lezione della prova hardware di Qwen:
-    non «va più piano?» ma **da cosa dipende il costo**. Su quel motore la risposta era
-    banda di memoria, e da lì la soglia è uscita da sola. Per SuperTonic la stessa
-    domanda si fa con `tools/benchmark.py` sommando i costi per stadio.
+  * \[x]  capire se il programma con Supertonic rallenta su pc vecchi
+    → **sì, e parecchio — misurato qui**, senza l'altro PC. Un PC vecchio è due cose
+    insieme (meno core, core più lenti) e la prima si simula con l'affinità del
+    processo (`tools/bench_cpu.py`, un processo per punto perché ORT dimensiona i
+    thread alla creazione della sessione). Costo della sintesi per battuta:
+
+    | core fisici | supertonic | piper |
+    |---|---|---|
+    | 8 (questa macchina) | 493-573 ms | ~48 ms |
+    | 6 | 946 ms (1,65×) | 109 ms (2,25×) |
+    | 4 | **1315 ms (2,30×)** | 261 ms (5,40×) |
+    | 2 | 3627 ms (6,33×) | 491 ms (10,2×) |
+
+    → **Su un quattro core SuperTonic non è utilizzabile**: 1,3 s a battuta, e la sintesi
+    sta nel thread video dove il costo si amplifica invece di sommarsi. Piper a 261 ms
+    regge. **E il numero è un limite inferiore**: l'affinità simula il *numero* dei core,
+    non la loro lentezza, quindi un PC vero sta peggio.
+    → Il passo (`car/s`) resta 14,5 a ogni livello: cambia il costo, non l'uscita.
+    → **Consiglio operativo**: sotto i 6 core, `tts.backend=piper`.
   * \[x]  chiedere se sul testo viene fatto un controllo di grammatica
     → **sì**, filtro di lingua (`vision/lexicon.py`). **Correggere è stato provato e
     rifiutato di proposito**: 2 giuste su 8, e gli errori erano `rapinato` → `rovinato`.

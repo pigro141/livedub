@@ -133,6 +133,36 @@ def _grow(top: int, bottom: int, profile: np.ndarray, grow: float) -> tuple[int,
     return lo, hi
 
 
+def _estensione(colonne: np.ndarray) -> int:
+    """Da dove comincia a dove finisce l'inchiostro della riga, in pixel.
+
+    Non la somma delle colonne accese: l'**estensione**, dalla prima all'ultima.
+    Fra due parole c'e' uno spazio, e uno spazio fa parte della frase quanto le
+    lettere — contarne solo l'inchiostro darebbe una riga piu' corta di com'e' e
+    farebbe sembrare ogni parola piu' larga di quanto sia.
+    """
+    accese = np.flatnonzero(colonne)
+    return int(accese[-1] - accese[0] + 1) if accese.size else 0
+
+
+def _corsa_piu_lunga(colonne: np.ndarray) -> int:
+    """La corsa contigua piu' lunga di colonne accese, in pixel.
+
+    Serve a distinguere una **parola** colorata da pixel colorati sparsi. Lo
+    scenario che entra nella ROI lascia macchie e puntini; una parola lascia un
+    tratto continuo largo quanto lei. Contarli tutti insieme, come faceva la
+    quota, mette le due cose nello stesso numero.
+    """
+    if colonne.size == 0 or not colonne.any():
+        return 0
+    massimo = corrente = 0
+    for acceso in colonne:
+        corrente = corrente + 1 if acceso else 0
+        if corrente > massimo:
+            massimo = corrente
+    return massimo
+
+
 def text_mask(luma: np.ndarray, cfg: VisionConfig) -> np.ndarray:
     """Quali pixel sono testo.
 
@@ -200,9 +230,46 @@ def classify_lines(roi: np.ndarray, cfg: VisionConfig) -> list[LineBand]:
         n_hot, n_cool = int(hot.sum()), int(cool.sum())
         share = n_hot / max(1, n_hot + n_cool)
 
+        # **La domanda e' "c'e' una parola colorata?", non "che percentuale di
+        # questa riga e' satura".** Sono due cose diverse, e la seconda e'
+        # fragile per costruzione: il denominatore e' la maschera del testo,
+        # che dipende da `contrast_min`. Tarando l'OCR si spostava il filtro del
+        # colore senza che niente lo dicesse — e infatti con le soglie severe di
+        # una sessione dal vivo (contrasto 68,8 contro i 28,9 del profilo) del
+        # glifo colorato entrano meno pixel, la quota scende sotto la soglia, e
+        # una riga colorata smette di sembrare colorata.
+        #
+        # Una **parola** invece e' un tratto orizzontale continuo di inchiostro
+        # colorato, e la sua larghezza non dipende da quanti pixel la maschera
+        # lascia passare. Si guarda quindi la corsa piu' lunga di colonne che
+        # contengono saturo: se e' larga come una parola, la riga non e' dialogo.
+        #
+        # Il colore si cerca sulla **sola soglia assoluta di luminanza**, senza
+        # il contrasto locale: per dire "questo pixel e' colorato" non serve che
+        # stacchi dal fondo, e chiederlo e' proprio cio' che rendeva la misura
+        # dipendente dalla taratura dell'OCR. Il ritaglio per l'OCR continua a
+        # usare `band_mask`, che di quel rigore ha bisogno.
+        #
+        # **E la larghezza si misura in frazione della riga, non in pixel.** Un
+        # numero assoluto sarebbe legato alla risoluzione e a quanto largo e'
+        # stato disegnato il rettangolo — che l'utente disegna come vuole, ed e'
+        # il percorso di produzione dichiarato. Una parola invece occupa sempre
+        # la stessa **quota** della frase che la contiene, a qualunque
+        # ingrandimento.
+        band_ink = band_luma_img > cfg.grey_min_luma
+        colonne_ink = band_ink.any(axis=0)
+        colonne_calde = (band_ink & (band_sat_img > cfg.sat_max)).any(axis=0)
+        estensione = _estensione(colonne_ink)
+        corsa = _corsa_piu_lunga(colonne_calde)
+        parola_colorata = (
+            cfg.min_color_word_frac > 0.0
+            and estensione > 0
+            and corsa / estensione >= cfg.min_color_word_frac
+        )
+
         # Una riga di soli glifi colorati non lascia niente di acromatico: e' il
         # caso limite della stessa regola, non un caso a parte.
-        colored = n_cool < min_px or share > cfg.sat_ink_max
+        colored = n_cool < min_px or share > cfg.sat_ink_max or parola_colorata
         body_mask = band_mask if colored else cool
         if not body_mask.any():
             continue

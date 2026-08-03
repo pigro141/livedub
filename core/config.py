@@ -98,6 +98,64 @@ class VisionConfig:
     # maschera prima del riconoscimento: non sono testo, e nel ritaglio danno
     # solo fastidio.
     sat_ink_max: float = 0.25
+    # **Quanto dev'essere largo un tratto colorato continuo per essere una
+    # parola**, in frazione della larghezza della riga. E' l'altra meta' del
+    # filtro del colore, e risponde a una domanda che `sat_ink_max` non puo'
+    # porre.
+    #
+    # `sat_ink_max` e' una **quota**: pixel saturi diviso pixel di testo. Il
+    # denominatore e' la maschera dell'OCR, che dipende da `contrast_min` —
+    # quindi tarare il riconoscimento sposta il filtro del colore. Misurato: col
+    # profilo del banco (contrasto 28,9) l'obiettivo `Raggiungi Vespucci Beach.`
+    # e' scartato, il ciano e' il 44% del suo inchiostro; con le soglie di una
+    # sessione dal vivo (68,8, ROI disegnata a mano) la stessa riga passa per
+    # dialogo e viene doppiata.
+    #
+    # La larghezza no: una parola colorata e' larga quanto e', qualunque sia la
+    # soglia con cui si e' deciso quali pixel guardare.
+    #
+    # **E si misura in frazione, non in pixel.** Un numero assoluto sarebbe
+    # legato alla risoluzione e a quanto largo e' stato disegnato il rettangolo
+    # — che l'utente disegna come vuole, ed e' il percorso di produzione
+    # dichiarato in `CLAUDE.md`. Una parola invece occupa sempre la stessa quota
+    # della frase che la contiene: `Vespucci Beach` dentro `Raggiungi Vespucci
+    # Beach.` e' oltre meta' della riga, a qualunque ingrandimento.
+    #
+    # **Spento di default, e il perche' e' piu' istruttivo del criterio.**
+    #
+    # Il difetto da cui e' nato: in una sessione dal vivo venivano doppiati degli
+    # obiettivi di missione (`Raggiungi ...`), che sul banco sono sempre
+    # scartati. L'ipotesi era che le soglie severe del vivo (contrasto 68,8
+    # contro 28,9) spegnessero il filtro del colore. Rigirando il banco **con
+    # quelle soglie** l'obiettivo compariva davvero, il che sembrava confermare.
+    #
+    # Non conferma. L'unica riga che passa e' `'Raggiungi'` **da sola**: la
+    # scritta presa a meta' dissolvenza, quando la parte in ciano non e' ancora
+    # disegnata. In quel frame di colore non ce n'e', quindi **nessun criterio
+    # sul colore puo' prenderla** — e le righe con l'obiettivo intero non
+    # compaiono mai fra le battute doppiate, cioe' il filtro gia' funziona.
+    #
+    # Lo spazzamento, con le soglie del vivo (43 battute, 1 obiettivo a criterio
+    # spento):
+    #
+    #     0,06  ->  0 obiettivi, ma perde 'Ma domani' (dialogo vero)
+    #     0,10  ->  l'obiettivo resta, e perde un'altra riga
+    #     0,14 e oltre  ->  l'obiettivo resta, niente perso
+    #
+    # Non c'e' altopiano perche' non c'e' niente da prendere: a 0,06 "funziona"
+    # solo perche' becca del colore di scenario, ed e' per questo che si porta
+    # via una battuta vera.
+    #
+    # Col profilo del banco a 0,15 e 0,25 non cambia nulla (43 battute, nessuna
+    # persa), quindi **e' innocuo** — ma innocuo non e' utile.
+    #
+    # Resta acceso come opzione perche' il banco non puo' riprodurre il difetto
+    # vero: quelle misure sono le soglie del vivo applicate a un'altra
+    # registrazione, non la sessione dal vivo. Se dal vivo ricompaiono obiettivi
+    # **interi** (con la parte colorata leggibile), si prova con 0,15 e si
+    # confrontano i due `events.jsonl`. Se invece passano solo scritte a meta'
+    # dissolvenza, questo criterio non c'entra e la cura e' altrove.
+    min_color_word_frac: float = 0.0
     white_min_luma: int = 200  # bianco pieno
     grey_min_luma: int = 110  # sotto questa soglia non e' testo
     # Il testo di gioco e' bordato di nero: non e' luminoso in assoluto, e'

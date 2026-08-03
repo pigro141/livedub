@@ -76,9 +76,29 @@ che si sono chiuse con un "no".)*
     → **sì**, filtro di lingua (`vision/lexicon.py`). **Correggere è stato provato e
     rifiutato di proposito**: 2 giuste su 8, e gli errori erano `rapinato` → `rovinato`.
   * \[ ]  implementazione di un llm leggerissimo per rimuovere artefatti OCR
-    → leggere prima il docstring di `vision/lexicon.py`: un LLM sbaglia nello stesso modo
-    della correzione già bocciata, meglio e quindi più pericolosamente. Ha senso solo se
-    **dichiara quando non è sicuro**.
+    → **l'impalcatura è fatta e misurata; manca il modello, ed è una decisione tua.**
+    → **Prima misura, e cambia la domanda** (`tools/bench_correct.py --censimento`, su
+    4280 battute archiviate, 19146 parole): fuori dal lessico ce ne sono 1230 (6,4%), ma
+    **527 sono nomi propri** e altre sono onomatopee (`toc`, 118 volte), forme italiane
+    vere non elencate (`trascinarti`, `sposartelo`) e frammenti di HUD (`scorriqeaccount`).
+    Gli errori veri sono **circa una parola su settanta**. Quindi il guadagno massimo è
+    piccolo, e un correttore che sbaglia una volta su dieci è in perdita.
+    → **`vision/correct.py`**: il correttore propone, il `Revisore` decide. Guardie: una
+    parola italiana non si tocca **mai** (uccide `rapinato → rovinato` alla radice, per
+    costruzione e non per bravura del modello); i nomi propri nemmeno; la proposta deve
+    essere una parola del lessico e vicina; sotto la fiducia dichiarata ci si **astiene**,
+    e l'astensione si conta. Spento di default.
+    → **Si sceglie fra candidati, non si genera**: `candidati()` dà le parole italiane
+    vicine, così un modello non può inventare una non-parola e la fiducia esce dal
+    distacco fra i primi due invece di essere un numero inventato.
+    → **E qui si vede perché serve il contesto**: `farto` ha **sedici** candidati italiani
+    veri (`fatto`, `parto`, `farlo`, `furto`, `sarto`…) e la distanza di edit non può
+    sceglierne uno. `oulldozer` invece ne ha uno solo (`bulldozer`) e lì non serve nessun
+    modello. È l'argomento a favore dell'LLM, adesso misurato.
+    → **Cosa manca**: un modello locale che **ordini i candidati** dato il contesto. Non
+    l'ho scelto io perché è una decisione sull'ambiente — peso su disco, e soprattutto
+    **contesa per la GPU**, che abbiamo appena misurato essere la risorsa scarsa — e la
+    correzione sta sul thread video, dove il costo si amplifica invece di sommarsi.
   * \[ ]  implementazione di traduzione con sostituzione grafica
   * \[x]  installare qwen tts e Chatterbox, provare sul banco e stimare l'hardware
     → **fatti tutti e due**, erano già installati nei venv delle cartelle sorelle.

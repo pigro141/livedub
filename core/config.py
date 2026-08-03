@@ -1054,11 +1054,44 @@ class LabelConfig:
 
 
 @dataclass
+class CorrectConfig:
+    """Correggere gli artefatti dell'OCR (`vision/correct.py`).
+
+    **Spento, e il default non e' timidezza: e' una misura.** La correzione
+    automatica e' gia' stata provata e bocciata — due giuste su otto, con errori
+    del tipo `rapinato -> rovinato`. Qui si puo' riaccendere solo perche' adesso
+    ci sono le guardie e la fiducia dichiarata, non perche' si sia cambiata idea.
+
+    E il guadagno massimo e' piccolo, misurato su 4280 battute archiviate: gli
+    errori davvero correggibili sono **circa una parola su settanta**, perche' le
+    parole "non italiane" sono in maggioranza nomi propri (527 su 1230), forme
+    vere non elencate e frammenti di HUD. Un correttore che sbaglia una volta su
+    dieci fa piu' danno di quanto ripari.
+    """
+
+    backend: str = "nessuno"  # nessuno | llm
+    # Sotto questa fiducia non si corregge. Alta di proposito: la domanda non e'
+    # "e' probabile che sia questa" ma "sono disposto a farlo dire alla voce".
+    min_confidence: float = 0.90
+    max_distance: int = 2
+    # Quante battute precedenti si danno al correttore. E' l'idea che rende
+    # questo tentativo diverso da quello bocciato: senza contesto `farto` e'
+    # vicino a `fatto`, `parto` e `tarto` e si sceglie a caso fra le vere.
+    context_lines: int = 10
+    llm_model: str = ""
+    llm_device: str = "cpu"
+    # Oltre questo tempo si rinuncia e si lascia il testo com'e'. La correzione
+    # sta sul thread video, dove il costo **si amplifica invece di sommarsi**.
+    llm_max_ms: float = 80.0
+
+
+@dataclass
 class Config:
     profile: str = "gtav"
     capture: CaptureConfig = field(default_factory=CaptureConfig)
     vision: VisionConfig = field(default_factory=VisionConfig)
     label: LabelConfig = field(default_factory=LabelConfig)
+    correct: CorrectConfig = field(default_factory=CorrectConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
     vad: VadConfig = field(default_factory=VadConfig)
     speaker: SpeakerConfig = field(default_factory=SpeakerConfig)

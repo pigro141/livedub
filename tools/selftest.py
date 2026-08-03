@@ -1870,6 +1870,116 @@ def test_etichetta(c: Check) -> None:
     c.ok(muto.label is None, "spenta di default: nessun gioco e' uguale a un altro")
 
 
+def test_correzione(c: Check) -> None:
+    """Il correttore puo' agire solo dove non puo' fare danni.
+
+    Il modulo nasce da una bocciatura misurata — due giuste su otto, con
+    `rapinato -> rovinato` — quindi qui non si verifica che corregga: si verifica
+    che **non tocchi** ciò che non deve, e che si astenga quando non sa.
+    """
+    c.group("correzione")
+
+    from vision.correct import (
+        NessunCorrettore, Proposta, Revisore, candidati, distanza, make_correttore,
+    )
+
+    class _Finto:
+        """Un correttore che propone sempre, con la fiducia che gli si dice.
+
+        Serve a provare le guardie: se le guardie funzionano, nemmeno un
+        correttore completamente sconsiderato riesce a fare danni.
+        """
+
+        name = "finto"
+
+        def __init__(self, parola: str, fiducia: float = 1.0) -> None:
+            self.parola, self.fiducia = parola, fiducia
+            self.visto: list[tuple[str, int]] = []
+
+        def proponi(self, parola, contesto):
+            self.visto.append((parola, len(contesto)))
+            return Proposta(self.parola, self.fiducia)
+
+    class _Lex:
+        parole = {"fatto", "cane", "bulldozer", "rapinato", "rovinato", "casa", "andiamo"}
+
+        def nota(self, w):
+            return w.strip(".,;:!?'\"()").lower() in self.parole
+
+    lex = _Lex()
+
+    c.eq(distanza("farto", "fatto"), 1, "distanza di edit")
+    c.ok(distanza("abc", "xyz", 1) > 1, "e si ferma al tetto")
+
+    # -- una parola italiana non si tocca **mai** ---------------------------
+    # E' la guardia che uccide `rapinato -> rovinato` alla radice: non perche' il
+    # correttore sia bravo, ma perche' non gli viene proprio chiesto.
+    finto = _Finto("rovinato")
+    rev = Revisore(lex, finto, min_fiducia=0.5)
+    r = rev.rivedi("Mi hanno rapinato")
+    c.ok(not r.cambiato, f"una parola italiana resta com'e': {r.testo!r}")
+    c.ok(all(w != "rapinato" for w, _ in finto.visto),
+         "e al correttore non viene nemmeno proposta")
+
+    # -- un nome proprio non si tocca --------------------------------------
+    finto = _Finto("cane")
+    rev = Revisore(lex, finto, min_fiducia=0.5)
+    r = rev.rivedi("Si chiama Esteban oggi")
+    c.ok(not r.cambiato, f"maiuscola a meta' frase = nome proprio: {r.testo!r}")
+
+    r = Revisore(lex, _Finto("cane"), min_fiducia=0.5, nomi=("simeon",)).rivedi("simeon parla")
+    c.ok(not r.cambiato, "e un nome dichiarato nemmeno da minuscolo")
+
+    # -- sotto la fiducia non si corregge, e si dichiara --------------------
+    rev = Revisore(lex, _Finto("fatto", fiducia=0.5), min_fiducia=0.9)
+    r = rev.rivedi("Ho farto tutto")
+    c.ok(not r.cambiato, "sotto la soglia non si tocca")
+    c.ok("farto" in r.astenuto, "e l'astensione si dichiara invece di sparire")
+
+    # -- la proposta dev'essere italiana e vicina --------------------------
+    rev = Revisore(lex, _Finto("zzzz", fiducia=1.0), min_fiducia=0.9)
+    c.ok(not rev.rivedi("Ho farto tutto").cambiato,
+         "una proposta che non e' una parola viene scartata")
+
+    rev = Revisore(lex, _Finto("bulldozer", fiducia=1.0), min_fiducia=0.9)
+    c.ok(not rev.rivedi("Ho farto tutto").cambiato,
+         "e una troppo lontana pure: 'IIFIL' -> 'infila' non deve poter succedere")
+
+    # -- quando tutto torna, corregge --------------------------------------
+    rev = Revisore(lex, _Finto("fatto", fiducia=1.0), min_fiducia=0.9)
+    r = rev.rivedi("Ho farto tutto")
+    c.ok(r.cambiato and "fatto" in r.testo, f"con tutto a posto corregge: {r.testo!r}")
+    c.eq(r.cambi, [("farto", "fatto")], "e dice cosa ha cambiato")
+
+    # -- il contesto arriva davvero al correttore --------------------------
+    finto = _Finto("fatto", fiducia=1.0)
+    rev = Revisore(lex, finto, min_fiducia=0.9, contesto_battute=3)
+    for t in ("Prima riga", "Seconda riga", "Terza riga", "Quarta riga"):
+        rev.ricorda(t)
+    rev.rivedi("Ho farto tutto")
+    c.ok(finto.visto and finto.visto[-1][1] == 3,
+         f"il correttore riceve le ultime 3 battute (ne ha viste {finto.visto[-1][1]})")
+
+    # -- i candidati: si sceglie fra parole vere, non si inventa ------------
+    cs = candidati("farto", lex)
+    c.ok("fatto" in cs, f"il candidato giusto c'e': {cs}")
+    c.ok(all(lex.nota(w) for w in cs), "e sono tutte parole del lessico")
+    c.ok(candidati("oulldozer", lex) == ["bulldozer"],
+         "quando ce n'e' uno solo, non c'e' niente da scegliere")
+
+    # -- il default non corregge, e un nome sconosciuto solleva ------------
+    from core.config import CorrectConfig
+
+    c.ok(isinstance(make_correttore(CorrectConfig()), NessunCorrettore),
+         "di default non si corregge niente")
+    try:
+        make_correttore(CorrectConfig(backend="refuso"))
+        c.ok(False, "un backend sconosciuto deve sollevare")
+    except ValueError:
+        c.ok(True, "un backend sconosciuto solleva invece di ripiegare in silenzio")
+    c.ok(hasattr(NessunCorrettore(), "proponi"), "il correttore di default rispetta il protocollo")
+
+
 def test_stringi_non_accodare(c: Check) -> None:
     """La battuta si stringe per stare nella sua finestra, non si sposta avanti.
 
@@ -2454,6 +2564,7 @@ GROUPS = {
     "stringi": test_stringi_non_accodare,
     "streaming": test_streaming,
     "etichetta": test_etichetta,
+    "correzione": test_correzione,
     "fretta": test_fretta,
     "duck": test_duck_non_pompa,
     "velocita": test_velocita_totale,

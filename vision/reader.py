@@ -81,6 +81,22 @@ class SubtitleReader(Stage):
         self._t_ocr = m.timer("vision.ocr")
         self._n_ocr = m.counter("vision.ocr.lines")
         self._n_colored = m.counter("vision.lines.colored")
+        # **Le righe lette con dentro dell'inchiostro colorato.** Sotto
+        # `sat_ink_max` la riga resta dialogo e i pixel saturi vengono tolti dal
+        # ritaglio: se erano scenario e' giusto, se erano una parola l'OCR legge
+        # una frase **mutilata con l'aria di essere intera**, che e' il difetto
+        # peggiore perche' non si annuncia.
+        #
+        # Misurato sulla scena del concessionario: non capita mai. Le 21 righe
+        # sopra il 10% erano sei lampi di scenario da 1-3 frame piu' un obiettivo
+        # di missione (`Raggiungi Vespucci Beach.`), e quello la soglia lo prende
+        # gia' — il ciano e' il 44% del suo inchiostro. Il caso che sfuggirebbe e'
+        # una parola colorata **corta** dentro una frase lunga, che qui non c'e'.
+        #
+        # Il contatore esiste per quello: rendere visibile un caso che oggi non
+        # si puo' distinguere da "non succede". `sat_share` era gia' calcolato e
+        # non lo leggeva nessuno.
+        self._n_mixed = m.counter("vision.lines.mixed_ink")
         self._n_empty = m.counter("vision.ocr.empty")
         self._n_gergo = m.counter("vision.ocr.non_italiano")
         # Il lessico si carica una volta e si dichiara: se la cartella non c'e'
@@ -169,6 +185,12 @@ class SubtitleReader(Stage):
                 # Scartata dal colore, prima di pagare il riconoscimento.
                 self._n_colored.inc()
                 continue
+            # Dialogo, ma con dell'inchiostro colorato tolto dal ritaglio. Meta'
+            # della soglia e' abbastanza per non contare il pulviscolo: la
+            # mediana delle righe con un po' di saturo e' 0,010, e li' si tratta
+            # di scenario entrato nella ROI.
+            if band.sat_share >= self.cfg.sat_ink_max / 2.0:
+                self._n_mixed.inc()
             t0 = time.perf_counter()
             text, conf = self.ocr.read(band.crop)
             self._t_ocr.add((time.perf_counter() - t0) * 1000.0)

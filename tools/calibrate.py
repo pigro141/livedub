@@ -178,9 +178,26 @@ def find_roi(frames, ev: Evidence, verbose: bool):
     # riga di una battuta andata a capo sono molto piu' rare e nel profilo
     # medio non superano la soglia. Tagliarle sarebbe un errore silenzioso:
     # niente errore, solo meta' delle frasi lunghe.
+    # **E due anche sotto, che prima erano zero virgola due.** Il margine era
+    # asimmetrico e solo la meta' di sopra era spiegata. Sotto restavano cinque
+    # pixel su una riga da quindici: abbastanza per la banda misurata, non per le
+    # code di `g`, `q` e `p`, e non per le battute che il gioco disegna piu' in
+    # basso della media campionata — l'obiettivo di missione, per dirne una.
+    #
+    # Misurato sulla registrazione, ROI da 52 px contro 76: le bande che toccano
+    # il bordo basso passano dal **78,8% all'1,8%**, e due battute su
+    # quarantatre' smettono di raccogliere caratteri inventati in coda —
+    # `'Esteban Jimenez.7'` -> `'Esteban Jimenez.'` e `'Vespucci Beach.!'` ->
+    # `'Vespucci Beach.'`. Il primo e' l'artefatto che `CLAUDE.md` cita per nome
+    # come causa dello scarto fra le passate archiviate e HEAD.
+    #
+    # **Non e' un guadagno netto e va detto**: una terza battuta ci guadagna un
+    # `.1` che prima non aveva. Due corrette, una peggiorata, trentotto su
+    # quarantatre' identiche — piu' il giudizio dell'occhio sui ritagli
+    # affiancati, che e' quello che ha deciso.
     line_h = max(1, bottom - top + 1)
     y0 = max(0, strip0 + top - 2 * line_h)
-    y1 = min(h_full, strip0 + bottom + int(line_h * 0.2) + 2)
+    y1 = min(h_full, strip0 + bottom + 2 * line_h)
     ev.row_band = (round((strip0 + top) / h_full, 4), round((strip0 + bottom) / h_full, 4))
 
     # Colonne: il blocco di sottotitolo e' centrato, la minimappa e il nome del

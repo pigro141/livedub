@@ -196,6 +196,87 @@ separata — quindi sta a monte del TTS ed e' anteriore a questa sessione. Le
 tabelle qui sopra sono tutte rimisurate oggi e fra loro si confrontano; **quelle
 piu' in alto in questo file no.**
 
+## La sessione del 3 agosto 2026: quattro esperimenti, quattro no
+
+Nessuno di questi ha prodotto codice. Sono qui perche' **ripeterli costa piu' che
+leggerli**, e tre dei quattro erano item scritti in `SviluppoProgetto.md`.
+
+### 1. La sintesi fuori dal thread video — provata dal vivo, non paga
+
+L'idea era buona e il banco la confermava: `on_frame` sta fermo mentre il motore
+sintetizza, i frame arretrati si saltano, e il lettore di sottotitoli e'
+costruito su frame *consecutivi*. Scritta (un lavoratore solo con coda FIFO,
+perche' le battute vanno dette in ordine), suite verde, misurata:
+
+| `--tempo-reale` | sincrona | asincrona |
+|---|---|---|
+| piper | 1422 ms | **810** (-43%) |
+| kokoro | 2098 ms | **1613** (-23%) |
+| supertonic | 2414 ms | **1669** (-31%), frame saltati 1056 -> 554 |
+
+**Dal vivo, stessa scena, SuperTonic: 1300 -> 1410 ms.** Niente, anzi un filo
+peggio su ogni colonna. Il codice e' stato rimosso; il perche' sta in `CLAUDE.md`
+sotto `--tempo-reale`, ed e' la lezione riutilizzabile: quella modalita' addebita
+all'orologio del media il tempo speso in `on_frame`, quindi premia due volte
+qualunque cambiamento che sposti lavoro fuori di li'.
+
+Il segnale c'era prima della prova e non e' stato ascoltato abbastanza: **Piper
+guadagnava di piu' di tutti** avendo 51 ms di sintesi da nascondere contro i 398
+di SuperTonic.
+
+### 2. I tag di espressione di SuperTonic — non recitano
+
+Il README promette dieci tag inline (`<laugh>`, `<breath>`, `<sigh>`); la lista
+completa non e' pubblicata da nessuna parte e la issue #155 del repo la chiede
+senza risposta. Verificato qui:
+
+- i tag **arrivano** al modello (le parentesi sopravvivono a `_preprocess_text`,
+  e SuperTonic 3 e' a livello di carattere: `<laugh>` e' una sequenza imparata
+  come `<it>...</it>` per la lingua);
+- ma **non producono niente**. Su 22 candidati, nessuno si stacca dalla retta che
+  prevede la durata dalla sola **ortografia** — `<laugh>` dovrebbe cadere lontano
+  da quella retta e ci sta sopra. All'ascolto: «un mezzo sospiro», e 2 impulsi
+  contro i 10 della parola «laugh» letta.
+
+**Su Piper e Kokoro sono peggio che inutili: vengono pronunciati.** Il
+fonemizzatore di Kokoro rende `<sigh>` come `sˈiɡ` — un personaggio direbbe
+«sig» in mezzo all'italiano.
+
+### 3. L'ottimizzazione di SuperTonic — nessun margine
+
+Il profilo per stadio (avvolgendo il `run` delle quattro sessioni ONNX):
+`vector_est` e' l'**82%** del costo e cresce linearmente coi passi; vocoder,
+codificatore del testo e predittore di durata insieme fanno meno di 100 ms e non
+si muovono. Quindi c'e' un bersaglio solo, e tutte le sue leve sono chiuse:
+
+| leva | esito |
+|---|---|
+| passi di diffusione | **al pavimento**: 2 e 3 giudicati «tagliuzzato, non si capisce niente» |
+| thread ORT (`intra`/`inter`) | **rumore**: il -22% era una passata fortunata, la ripetizione da' 451-497 dove aveva dato 398 |
+| quantizzazione int8 | **+352%** (629 -> 2845 ms), trattamento verificato applicato |
+
+SuperTonic **resta valido**, ma per un'altra ragione che l'utente ha dichiarato e
+che non era scritta: e' l'unico dei tre a girare su CPU, quindi e' il livello
+«senza GPU» — Raspberry, portatili, chi non vuole contendere la VRAM al gioco.
+Verificato che sia davvero CPU: `DEFAULT_ONNX_PROVIDERS = ["CPUExecutionProvider"]`
+e' cablato nel pacchetto, quindi i suoi numeri sono onesti anche in questo venv
+che monta `onnxruntime-gpu`.
+
+### 4. La virgola sulle frasi spezzate — non fa quello per cui e' stata scritta
+
+Misurato sulle passate archiviate: **il 12% delle battute e' meta' frase** (45 su
+385, tre passate concordi). Ma non e' un difetto dell'OCR — e' GTA V che le mostra
+come due sottotitoli successivi perche' l'attore fa una pausa, e **la divisione va
+tenuta**: ricucirle costerebbe **1852 ms** di attesa mediana, piu' di tutta la
+latenza attuale.
+
+L'ipotesi era che la prima meta' venisse detta con l'intonazione di una frase
+finita. Falsa per Kokoro (che il punto non lo aggiunge; SuperTonic si', con
+`_add_period_if_needed`). All'ascolto la virgola cambia i **tempi**, non
+l'intonazione — e infatti allunga il parlato di 0,23 s riempiendo la pausa. Un
+rimedio che produce un'altra percezione da quella per cui e' stato scritto non e'
+confermato.
+
 ## Cosa resta aperto, in ordine
 
 0. **L'ascolto di Kokoro, e poi il vivo.** `runs\finale_kokoro\dub.mp4` è la

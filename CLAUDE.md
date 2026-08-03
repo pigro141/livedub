@@ -174,15 +174,32 @@ puo' esprimere**, e che sono stati trovati tutti dal vivo:
 `--tempo-reale` somma il costo del lavoro al tempo del media e salta i frame
 arretrati. **Serve a confrontare, non a preventivare**, e la differenza e'
 misurata: sul tempo **assoluto** sovrastima di circa il doppio (Piper 1372 ms
-contro i ~670 veri, Kokoro 1949 contro 1150), perche' li' decodifica, OCR e
-sintesi si contendono lo stesso processo mentre dal vivo l'OCR sta in un processo
-figlio e il thread audio e' indipendente. Il **divario fra due motori** invece lo
-predice bene: +577 ms previsti fra Kokoro e Piper, +480 misurati. Anche sul
-riconoscimento e' pessimista, per la stessa ragione.
+contro i ~670 veri, Kokoro 1949 contro 1150, SuperTonic 2414 contro 1300). Il
+motivo e' che li' decodifica, OCR e sintesi si contendono lo stesso processo
+mentre dal vivo l'OCR sta in un processo figlio e il thread audio e'
+indipendente. Il **divario fra due motori** invece lo predice bene: +577 ms
+previsti fra Kokoro e Piper, +480 misurati. Anche sul riconoscimento e'
+pessimista, per la stessa ragione.
 
 *(Una versione precedente di questa riga diceva che sul tempo era fedele, «842 ms
-contro 951». Quel confronto e' stato rifatto oggi su tutti e due i motori e non
+contro 951». Quel confronto e' stato rifatto su tutti e due i motori e non
 regge: chi ci si e' fidato ha preventivato Kokoro al doppio del suo costo vero.)*
+
+**Ma «predice bene i divari» vale per i motori, non per le architetture, e la
+differenza e' esattamente il meccanismo della modalita'.** `--tempo-reale`
+addebita all'orologio del media il tempo speso dentro `on_frame`. Un cambiamento
+che *sposta lavoro fuori da `on_frame`* si vede quindi premiato due volte: una
+perche' il thread video torna libero, e una perche' quel costo smette di essere
+addebitato — e la seconda meta' dal vivo non esiste. Misurato spostando la
+sintesi in un thread suo: il banco prometteva **-745 ms** su SuperTonic e -612 su
+Piper; dal vivo, stessa scena, **1300 -> 1410 ms**, cioe' niente. Prima di
+credere a un divario misurato qui, chiedersi se il trattamento tocca proprio la
+quantita' che la modalita' manipola.
+
+Il controllo che lo aveva gia' detto, e che non era stato ascoltato: **Piper
+guadagnava il 43%** con 51 ms di sintesi da nascondere, piu' di SuperTonic che ne
+ha 398. Un rimedio che giova di piu' a chi ha meno da guadagnare non sta agendo
+per il motivo che gli si attribuisce.
 
 **Gli strumenti per confrontarli.** Ogni prova — banco e vivo — scrive
 `speaker.jsonl` con una riga per battuta e venticinque campi: chi parla, con che
@@ -321,6 +338,20 @@ sintesi sta nel thread video, i frame arretrati si saltano (883 contro 649), e i
 lettore di sottotitoli e' costruito su frame *consecutivi*. Preventivare un
 motore piu' lento sommando il suo costo alla latenza sottostima di piu' del
 doppio.
+
+**Dire prima della prova quale numero la smentirebbe.** Il banco prometteva -745
+ms spostando la sintesi fuori dal thread video, e prima della prova dal vivo era
+scritto che «se resta a 1300 il guadagno era un artefatto». E' rimasto a 1300 —
+anzi 1410. Con la previsione scritta prima non c'e' stato niente da discutere;
+scritta dopo, quegli stessi numeri si sarebbero potuti raccontare come «il vivo e'
+rumoroso». Una previsione dichiarata prima e' l'unica che puo' perdere.
+
+**La quantizzazione dinamica di questi TTS e' una pessimizzazione, e ora sono
+due.** Kokoro int8 era quattro volte piu' lento del fp32; lo stimatore di
+diffusione di SuperTonic quantizzato (256 MB -> 65) e' passato da 629 a 2845 ms,
+**+352%**, con il trattamento verificato applicato e la durata dell'audio
+identica al campione. Due modelli diversi, stessa ORT, stesso segno: non e' un
+caso del singolo modello.
 
 **Prima di attribuire una differenza al pezzo nuovo, rigirare il vecchio.** La
 passata Kokoro dava 43 battute invece delle 44 archiviate e il 95,6% di accordo

@@ -277,6 +277,62 @@ l'intonazione — e infatti allunga il parlato di 0,23 s riempiendo la pausa. Un
 rimedio che produce un'altra percezione da quella per cui e' stato scritto non e'
 confermato.
 
+### 5. Il contrasto del ritaglio per l'OCR — la misura isolata mentiva
+
+Il ritaglio che va all'OCR e' `luma * maschera`, incollato al testo: niente
+margine, niente normalizzazione, niente ingrandimento. Provate tutte, misurate su
+250 ritagli veri col lessico italiano come metro (quante parole lette sono parole
+vere — non serve la trascrizione a mano, e i difetti veri di questo OCR sono
+non-parole: `Baggiungi`, `Simeolu`, `Jimenez.7`):
+
+    leva                parole   italiane   letture vuote
+    niente (oggi)         1235       1096        46
+    margine 8 px          1424       1209        14
+    ingrandisci x2        1371       1200        15
+
+Sembrava vinta: +113 parole italiane, letture vuote a un terzo, e la leva piu'
+semplice faceva quanto qualunque combinazione.
+
+**Sulla catena intera si rovescia.** `vision.ocr.non_italiano` da 16 a **46**,
+nessun sottotitolo guadagnato (45 -> 44), e fra le battute doppiate compare
+questa:
+
+    'LII, HIQ II UZIV IIG IIG pICSU Ia IHIVWTIUI CIa IIIVG IIV CI vayvS: vUI
+     tatuaggio in faccia e tutto il resto?'
+
+Spazzatura **saldata davanti a una frase vera**, che sarebbe finita in bocca al
+sintetizzatore. Il margine fa leggere anche le righe che prima tacevano, ma
+quelle sono scenario: da sole verrebbero buttate dal filtro della lingua, unite a
+una battuta vera lo passano.
+
+**La lezione e' sulla misura, non sulla leva.** Contare le parole italiane su
+ritagli isolati misura «legge di piu'», non «legge meglio», e non puo' vedere
+cosa succede quando le righe si uniscono. Il codice e' stato tolto. Se qualcuno
+ci riprova, il metro giusto e' il **testo delle battute doppiate**, non un
+punteggio sui ritagli.
+
+## Lo stato di `SviluppoProgetto.md`
+
+| item | stato |
+|---|---|
+| voci femminili agli speaker | **risposto**: si', con ripiego maschile dichiarato (`speaker.gender_fallback`). Il lavoro vero resta: la taratura del genere non e' mai stata provata su una donna, perche' nella registrazione non ce n'e' una |
+| speed regolato dal vivo | **gia' implementato**, e fa tutte e tre le cose chieste: una voce alla volta, stringe in volo il residuo quando arriva il sottotitolo dopo (`hurry_on_next`), e il ritardo accumulato entra nel budget della battuta successiva |
+| tag di espressione | **chiuso**, negativo (§2) |
+| ottimizzazione di SuperTonic | **chiuso**, nessun margine (§3) |
+| frasi lunghe su due righe | **chiuso**: il 12% e' meta' frase, ma la divisione va tenuta e la virgola non cura (§4) |
+| contrasto per l'OCR | **chiuso**, negativo (§5) |
+| SuperTonic su PC vecchi | **non provabile qui**: serve l'altro PC |
+| controllo di grammatica sul testo | **risposto**: c'e' un filtro di lingua (`vision/lexicon.py`), e correggere e' stato provato e **rifiutato di proposito** — 2 giuste su 8, e gli errori erano `rapinato` -> `rovinato` |
+| parola colorata -> non leggere la frase | **gia' fatto**: `sat_ink_max` la prende. L'obiettivo `Raggiungi Vespucci Beach.` viene scartato perche' il ciano e' il 44% del suo inchiostro. Aggiunto `vision.lines.mixed_ink` per vedere il caso che sfuggirebbe (parola colorata **corta** in una frase lunga), che su questa scena non capita |
+| LLM leggero per gli artefatti OCR | **aperto**. Ma leggere prima il docstring di `vision/lexicon.py`: la correzione automatica e' gia' stata bocciata li', e un LLM sbaglia nello stesso modo, meglio e quindi piu' pericolosamente. Ha senso solo se **dichiara quando non e' sicuro** |
+| traduzione + riquadro grafico | **aperto**, ed e' il piu' grande |
+| Qwen TTS e Chatterbox sul banco | **aperto**. Da fare in un venv usa-e-getta: `.venv` monta `onnxruntime-gpu` e non va toccato |
+| nome del parlante scritto dal gioco | **aperto**, e vale la latenza: toglierebbe i 500 ms di `decide_after_ms`, che oggi costano **il doppio della sintesi**. Non misurabile su questa registrazione — GTA V i nomi non li scrive |
+
+**Una cosa trovata di striscio e non in lista**: nella sessione dal vivo, **37
+battute su 108** sono state dette con la voce neutra, cioe' un terzo della scena
+detto da «non so ancora chi sia». E' tanto e nessuno lo stava guardando.
+
 ## Cosa resta aperto, in ordine
 
 0. **L'ascolto di Kokoro, e poi il vivo.** `runs\finale_kokoro\dub.mp4` è la

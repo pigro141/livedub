@@ -97,6 +97,14 @@ class SubtitleReader(Stage):
         # si puo' distinguere da "non succede". `sat_share` era gia' calcolato e
         # non lo leggeva nessuno.
         self._n_mixed = m.counter("vision.lines.mixed_ink")
+        # Quante righe sono state scartate perche' contenevano una **parola**
+        # colorata (e non per la quota `sat_ink_max`). Misurato dal vivo, il
+        # guadagno non e' dove lo cercavo: non sono gli obiettivi di missione,
+        # sono i frammenti di HUD colorata che venivano **incollati** a una
+        # battuta vera e pronunciati — `'Rec.Lavoriamo insieme...'`,
+        # `"Sì, era lui.Adam'a App"`. Senza questo contatore, "non e' scattato" e
+        # "e' spento" sono lo stesso silenzio.
+        self._n_color_word = m.counter("vision.lines.color_word")
         self._n_empty = m.counter("vision.ocr.empty")
         self._n_gergo = m.counter("vision.ocr.non_italiano")
         # Il lessico si carica una volta e si dichiara: se la cartella non c'e'
@@ -184,6 +192,8 @@ class SubtitleReader(Stage):
             if not band.cls.is_dialogue:
                 # Scartata dal colore, prima di pagare il riconoscimento.
                 self._n_colored.inc()
+                if band.color_word:
+                    self._n_color_word.inc()
                 continue
             # Dialogo, ma con dell'inchiostro colorato tolto dal ritaglio. Meta'
             # della soglia e' abbastanza per non contare il pulviscolo: la

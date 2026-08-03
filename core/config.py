@@ -121,41 +121,43 @@ class VisionConfig:
     # della frase che la contiene: `Vespucci Beach` dentro `Raggiungi Vespucci
     # Beach.` e' oltre meta' della riga, a qualunque ingrandimento.
     #
-    # **Spento di default, e il perche' e' piu' istruttivo del criterio.**
+    # **Il valore viene dal vivo, e il banco non poteva trovarlo.**
     #
-    # Il difetto da cui e' nato: in una sessione dal vivo venivano doppiati degli
-    # obiettivi di missione (`Raggiungi ...`), che sul banco sono sempre
-    # scartati. L'ipotesi era che le soglie severe del vivo (contrasto 68,8
-    # contro 28,9) spegnessero il filtro del colore. Rigirando il banco **con
-    # quelle soglie** l'obiettivo compariva davvero, il che sembrava confermare.
+    # Sul banco questo criterio sembrava inutile: gli obiettivi di missione
+    # interi sono gia' scartati da `sat_ink_max`, e l'unica riga che passava era
+    # `'Raggiungi'` **da sola** — la scritta a meta' dissolvenza, dove il ciano
+    # non e' ancora disegnato e quindi nessun criterio sul colore puo' prenderla.
+    # Lo spazzamento non trovava altopiano: a 0,06 "funzionava" solo beccando
+    # colore di scenario, e perdeva `'Ma domani'`, che e' dialogo vero.
     #
-    # Non conferma. L'unica riga che passa e' `'Raggiungi'` **da sola**: la
-    # scritta presa a meta' dissolvenza, quando la parte in ciano non e' ancora
-    # disegnata. In quel frame di colore non ce n'e', quindi **nessun criterio
-    # sul colore puo' prenderla** — e le righe con l'obiettivo intero non
-    # compaiono mai fra le battute doppiate, cioe' il filtro gia' funziona.
+    # **Due sessioni dal vivo hanno detto un'altra cosa**, e il guadagno non e'
+    # dove lo si cercava. Stessa scena, 155 s, criterio spento contro 0,15 —
+    # accoppiando le battute per testo:
     #
-    # Lo spazzamento, con le soglie del vivo (43 battute, 1 obiettivo a criterio
-    # spento):
+    #     spento                                    ->  0,15
+    #     'Rec.Lavoriamo insieme gia da...'         ->  'Lavoriamo insieme gia da...'
+    #     'Senti, amico ...Rei'                     ->  'Senti, amico'
+    #     '...sono onorato di annunciartiRer'       ->  '...sono onorato di annunciarti'
+    #     "Si, era lui.Adam'a App"                  ->  'Si, era lui.'
+    #     'ma devo dare una : olta alla mia vita.'  ->  'ma devo dare una svolta alla mia vita.'
     #
-    #     0,06  ->  0 obiettivi, ma perde 'Ma domani' (dialogo vero)
-    #     0,10  ->  l'obiettivo resta, e perde un'altra riga
-    #     0,14 e oltre  ->  l'obiettivo resta, niente perso
+    # Non sono righe **saltate**: sono righe **sporcate**. Frammenti di HUD
+    # colorata (nomi di app, radio, testo di missione) finivano dentro il
+    # sottotitolo e venivano pronunciati. E l'ultima riga dice di piu': togliendo
+    # i pixel colorati dal ritaglio **l'OCR legge meglio anche il resto**.
     #
-    # Non c'e' altopiano perche' non c'e' niente da prendere: a 0,06 "funziona"
-    # solo perche' becca del colore di scenario, ed e' per questo che si porta
-    # via una battuta vera.
+    # 69 battute contro 66, voci neutre 14 contro 18. Col profilo del banco a
+    # 0,15 e 0,25 non cambia nulla (43 battute, nessuna persa), quindi non fa
+    # danno dove non serve.
     #
-    # Col profilo del banco a 0,15 e 0,25 non cambia nulla (43 battute, nessuna
-    # persa), quindi **e' innocuo** — ma innocuo non e' utile.
+    # **Il limite della prova, dichiarato**: due passate dal vivo su scene non
+    # identiche (73% dei testi in comune). Non e' un caso nullo — ma le
+    # differenze non sono sparse, sono tutte della stessa forma, cioe' spazzatura
+    # colorata tolta. `vision.lines.color_word` conta quante volte scatta, cosi'
+    # la prossima sessione lo dice invece di lasciarlo dedurre.
     #
-    # Resta acceso come opzione perche' il banco non puo' riprodurre il difetto
-    # vero: quelle misure sono le soglie del vivo applicate a un'altra
-    # registrazione, non la sessione dal vivo. Se dal vivo ricompaiono obiettivi
-    # **interi** (con la parte colorata leggibile), si prova con 0,15 e si
-    # confrontano i due `events.jsonl`. Se invece passano solo scritte a meta'
-    # dissolvenza, questo criterio non c'entra e la cura e' altrove.
-    min_color_word_frac: float = 0.0
+    # A zero il criterio e' spento e resta la sola quota `sat_ink_max`.
+    min_color_word_frac: float = 0.15
     white_min_luma: int = 200  # bianco pieno
     grey_min_luma: int = 110  # sotto questa soglia non e' testo
     # Il testo di gioco e' bordato di nero: non e' luminoso in assoluto, e'

@@ -42,6 +42,12 @@ class LineBand:
     x0: int = 0
     x1: int = 0  # escluso
     sat_share: float = 0.0  # quota dell'inchiostro che e' satura: 0 = riga pulita
+    # La riga e' stata scartata perche' conteneva una **parola** colorata, non
+    # per la quota. E' un campo e non un booleano interno perche' senza di lui
+    # non c'e' modo di distinguere "il criterio non e' scattato" da "il criterio
+    # e' spento" — e questo progetto ha gia' pagato due volte per un trattamento
+    # creduto applicato e mai applicato.
+    color_word: bool = False
 
     @property
     def height(self) -> int:
@@ -298,6 +304,7 @@ def classify_lines(roi: np.ndarray, cfg: VisionConfig) -> list[LineBand]:
                 x0=x0,
                 x1=x1,
                 sat_share=share,
+                color_word=parola_colorata,
             )
         )
     return out

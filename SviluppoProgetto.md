@@ -61,8 +61,14 @@
     di Piper** — 8,4 car/s contro 18,3. Non ci sta nemmeno comprimendo al tetto (WSOLA
     inchiodato a 1,250, latenza p50 3,6-6,7 s contro 533 ms). Lo streaming ha risolto la
     latenza al primo campione; **non può risolvere una voce che parla la metà**.
-    Qwen non ha controllo di velocità (`rate` gli arriva e lo ignora), quindi la leva non
-    c'è. È la misura che decide se questo motore ha un futuro qui, ed è nuova.
+    Qwen non ha controllo di velocità (`rate` gli arriva e lo ignora).
+    → **Le due leve provate tutte e due.** La fretta chiesta *a parole* nella descrizione
+    della voce funziona ma poco (8,4 → 9,6 car/s nella catena vera; «parla svelto» non fa
+    niente, serve una descrizione concreta — sillabe fitte, nessuna pausa). Alzando anche
+    `timing.rate_max` a 1,45 la scena rientra: **86% invece del 125%, latenza p50 2,2 s
+    invece di 6,7**. Ma il criterio dichiarato prima della prova era «sopra 13-14 car/s
+    torna in gioco» e il motore sta a 10,8, e ci arriva solo con WSOLA ben oltre l'1,3
+    dove le consonanti spariscono. **Il numero dice no; decide l'ascolto.**
   * \[ ]  adattamento speaker per tutti i giochi (nome del parlante scritto a schermo)
     → vale la latenza: toglierebbe i 500 ms di `decide_after_ms`, che oggi costano **il
     doppio della sintesi**. Non misurabile su questa registrazione: GTA V i nomi non li scrive.

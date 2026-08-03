@@ -47,6 +47,7 @@ import time
 import numpy as np
 
 from core.types import VoiceSpec
+from fuse.timing import spoken_length
 from speak.backends.qwen import NATIVE_RATE
 
 TESTO ="Lavoriamo insieme gia' da qualche mese, giusto? Devo dare una svolta alla mia vita."
@@ -339,6 +340,102 @@ def prova_pezzi(tts) -> bool:
     return ok
 
 
+def prova_fretta(tts, ripetizioni: int = 3) -> None:
+    """Si può chiedere a parole di parlare più in fretta?
+
+    **È l'unica leva che questo motore potrebbe avere.** Qwen non ha un parametro
+    di velocità: `rate` gli arriva e lo ignora. Ma la voce non si sceglie da un
+    elenco, si **descrive** — e una descrizione è testo libero, quindi «parla
+    svelto» ci sta dentro come ci sta «voce roca». Se funziona, il motore torna in
+    gioco; se non funziona, è chiuso, perché a valle resta solo WSOLA che è già al
+    tetto.
+
+    ## Come si misura una quantità che è una variabile casuale
+
+    Il passo di questo modello varia da 7 a 15 car/s **fra battute diverse**, che
+    è più del guadagno che si sta cercando. Confrontare due condizioni su frasi
+    diverse non direbbe niente: si misurerebbe quale frase è capitata dove.
+
+    Quindi **le stesse frasi in tutte le condizioni**, e il confronto si fa per
+    frase — è la stessa forma del caso nullo che condivide tutto tranne la
+    risposta. Le ripetizioni servono all'altra metà della varianza, quella della
+    stessa frase con sé stessa (il modello campiona), e si guarda la mediana.
+
+    **Cosa smentisce**: se il passo delle condizioni «svelte» resta dentro la
+    banda delle ripetizioni della condizione base, l'istruzione non è una leva —
+    il modello la legge come stile e non come tempo, esattamente come i tag
+    `<laugh>` che arrivavano al modello e non facevano niente. Scritto prima
+    della prova.
+    """
+    print("== si può chiedere a parole di andare più svelti? ==")
+    # **Il seme va tolto, o le ripetizioni non ripetono niente.** Il banco lo fissa
+    # (serve alle prove di fedeltà, dove due percorsi devono fare le stesse
+    # estrazioni), ma qui la varianza del campionamento **è** la quantità da
+    # misurare: con il seme fisso le tre passate darebbero tre volte lo stesso
+    # numero e la banda risulterebbe larga zero, cioè qualunque differenza
+    # sembrerebbe significativa.
+    seme = tts.seed
+    tts.seed = None
+    tts.synthesize("Riscaldamento.", _voce())
+
+    frasi = [
+        "Oggi recuperiamo veicoli acquistati da idioti a tassi d'interesse alti.",
+        "Non ho mai avuto un figlio nero, ma se ne avessi uno vorrei che fosse come te.",
+        "Quando c'è una cosa da vincere, cazzo, io la voglio vincere.",
+    ]
+    condizioni = {
+        "base": "Un uomo adulto, voce calda e sicura, tono colloquiale.",
+        "svelto": "Un uomo adulto, voce calda e sicura, parla svelto.",
+        "molto svelto": (
+            "Un uomo adulto, voce calda e sicura, parla molto in fretta, "
+            "ritmo incalzante, senza pause."
+        ),
+        "concitato": (
+            "Un uomo adulto che parla rapidissimo e con urgenza, come se avesse "
+            "poco tempo, sillabe fitte e nessuna pausa."
+        ),
+    }
+
+    from speak.backends.qwen import VOICES
+
+    originale = dict(VOICES)
+    risultati: dict[str, list[float]] = {k: [] for k in condizioni}
+    try:
+        for nome, descrizione in condizioni.items():
+            VOICES["qwen-uomo1"] = (descrizione, "m")
+            for frase in frasi:
+                n = spoken_length(frase)
+                passi = []
+                for _ in range(ripetizioni):
+                    d = tts.synthesize(frase, _voce()).duration
+                    if d > 0.2:
+                        passi.append(n / d)
+                if passi:
+                    risultati[nome].append(float(np.median(passi)))
+                    print(f"  {nome:>13}  {np.median(passi):5.2f} car/s"
+                          f"   (ripetizioni: {', '.join(f'{p:.1f}' for p in passi)})"
+                          f"   {frase[:34]!r}")
+            print()
+    finally:
+        VOICES.clear()
+        VOICES.update(originale)
+        tts.seed = seme
+
+    base = risultati["base"]
+    print(f"  {'condizione':>13} {'passo p50':>10} {'contro base':>12}")
+    for nome, v in risultati.items():
+        if not v:
+            continue
+        p50 = float(np.median(v))
+        # Il guadagno si calcola **per frase** e poi si mediana, non fra le
+        # mediane: le frasi non hanno lo stesso passo e mescolarle rimette dentro
+        # proprio la varianza che l'appaiamento serviva a togliere.
+        guad = float(np.median([a / b for a, b in zip(v, base)])) if len(v) == len(base) else 1.0
+        print(f"  {nome:>13} {p50:>10.2f} {guad:>11.2f}x")
+    print("\n  per riferimento: piper fa 18,3 car/s sulla stessa scena;"
+          " sotto ~13 il motore non ci sta.")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description="Banco di Qwen3-TTS: fedelta' e troncabilita'.")
     p.add_argument("--riferimento", action="store_true",
@@ -349,6 +446,10 @@ def main() -> None:
                    help="passo a modello caldo, costo della rivocodifica, latenza prevista")
     p.add_argument("--pezzi", action="store_true",
                    help="i blocchi di stream() concatenati fanno la battuta intera?")
+    p.add_argument("--fretta", action="store_true",
+                   help="si puo' chiedere a parole di parlare piu' svelto?")
+    p.add_argument("--ripetizioni", type=int, default=3,
+                   help="quante volte ogni frase per condizione (il modello campiona)")
     p.add_argument("--variante", default="int4")
     p.add_argument("--device", default="auto")
     p.add_argument("--seed", type=int, default=1234)
@@ -359,8 +460,9 @@ def main() -> None:
     tts = QwenTts(
         samplerate=24000, variante=args.variante, device=args.device, seed=args.seed
     )
-    if not (args.riferimento or args.vocoder or args.streaming or args.pezzi):
-        p.error("scegliere almeno una prova fra --riferimento --vocoder --streaming --pezzi")
+    if not (args.riferimento or args.vocoder or args.streaming or args.pezzi or args.fretta):
+        p.error("scegliere almeno una prova fra --riferimento --vocoder --streaming"
+                " --pezzi --fretta")
     if args.riferimento:
         prova_riferimento(tts)
     if args.vocoder:
@@ -369,6 +471,8 @@ def main() -> None:
         prova_streaming(tts)
     if args.pezzi:
         prova_pezzi(tts)
+    if args.fretta:
+        prova_fretta(tts, ripetizioni=args.ripetizioni)
 
 
 if __name__ == "__main__":

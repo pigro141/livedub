@@ -152,6 +152,30 @@ Lo streaming quindi non e' stato sprecato — e' il pezzo che serviva e funziona
 autoregressivo lo eredita — ma **non ha reso vivibile Qwen**, e chi legge solo i
 257 ms conclude il contrario.
 
+**Le due leve sono state provate tutte e due, e insieme non bastano.** La prima e'
+che la voce e' una *descrizione*, quindi la fretta si puo' chiedere a parole
+(`FRETTA` in `speak/backends/qwen.py`); la seconda e' alzare il tetto di WSOLA.
+Sulla stessa scena:
+
+| | passo | parlato consegnato | WSOLA p50 | latenza p50 |
+|---|---|---|---|---|
+| qwen, com'era | 8,4 car/s | 62 s (125%) | 1,250 | 3,6-6,7 s |
+| + fretta a parole | 9,6 car/s | 54 s (110%) | 1,250 | 3,5 s |
+| + `rate_max=1,45` | 10,8 car/s | 42 s (86%) | **1,450** | 2,2 s |
+| *piper* | *18,3 car/s* | *33 s (66%)* | *1,024* | *533 ms* |
+
+Adesso **gira** — la coda rientra, 86% della scena — ma il criterio dichiarato
+prima della prova era «sopra 13-14 car/s il motore torna in gioco», e il motore
+sta a 10,8. Ci arriva solo con WSOLA a 1,45, cioe' ben oltre l'1,3 dove le
+consonanti spariscono, e quella e' compressione che si sente. **Il numero ha
+detto di no; se poi l'orecchio dice di si', comanda l'orecchio** — ma la
+differenza fra le due risposte va tenuta scritta, non fusa.
+
+Da notare per chi ci torna: «parla svelto» nella descrizione **non fa niente**
+(0,93x), come i tag `<laugh>`. A muovere il tempo e' una descrizione concreta di
+*come* si parla — sillabe fitte, nessuna pausa, urgenza — cioe' qualcosa che si
+puo' recitare. Un aggettivo il modello lo legge come stile e lo butta via.
+
 **Ma il riferimento vero e' il vivo, ed e' gia' in `runs/`.** Una quarantina di
 sessioni, rilette con `tools/reopen runs\<timestamp>` — quel comando legge le
 sessioni dal vivo, non solo le prove di banco, e nessuno se lo ricorda mai:

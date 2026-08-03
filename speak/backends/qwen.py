@@ -93,22 +93,47 @@ NATIVE_RATE = 24000
 # veda la tabella in `stream()`.
 PASSO = 8.6
 
+# **La fretta si chiede a parole, ed e' l'unica leva che questo motore ha.**
+# Qwen non ha un parametro di velocita': `rate` gli arriva e lo ignora. Ma la voce
+# e' una **descrizione**, cioe' testo libero, quindi il tempo ci sta dentro come
+# ci sta il timbro.
+#
+# Misurato (`tools/bench_qwen.py --fretta`, tre frasi x tre ripetizioni per
+# condizione, confronto appaiato per frase):
+#
+#     base            11,8 car/s   1,00x
+#     "parla svelto"  11,0 car/s   0,93x   <- niente
+#     "molto svelto"  10,5 car/s   1,04x   <- niente
+#     questa clausola 13,5 car/s   1,30x
+#
+# **Un aggettivo non basta e una scena sì**: «svelto» il modello lo legge come
+# stile e lo butta via, come faceva con i tag `<laugh>`. A muovere il tempo e'
+# una descrizione concreta di *come* si parla — sillabe fitte, nessuna pausa,
+# urgenza — cioe' una cosa che si può recitare.
+#
+# **Il prezzo e' dichiarato e si sente**: tutti i personaggi hanno una punta di
+# concitazione che nel materiale originale non c'e'. E' il costo di stare dentro
+# la finestra, e va giudicato all'ascolto — non c'e' un numero che lo dica.
+FRETTA = " Parla rapidissimo e con urgenza, sillabe fitte e nessuna pausa."
+
 # Le voci, che qui sono **descrizioni**. Non c'e' un elenco di timbri da
 # rispettare: si scrivono, e il modello prova a costruirle. Sono in italiano
 # perche' il modello riceve l'istruzione come un messaggio d'utente qualunque.
 VOICES: dict[str, tuple[str, str]] = {
-    "qwen-uomo1": ("Un uomo adulto, voce calda e sicura, tono colloquiale.", "m"),
-    "qwen-uomo2": ("Un uomo giovane, voce chiara e svelta, un po' nervosa.", "m"),
-    "qwen-uomo3": ("Un uomo maturo, voce profonda e roca, parla lentamente.", "m"),
-    "qwen-donna1": ("Una donna adulta, voce limpida e cordiale, tono colloquiale.", "f"),
-    "qwen-donna2": ("Una donna giovane, voce brillante e svelta.", "f"),
-    "qwen-donna3": ("Una donna matura, voce bassa e pacata.", "f"),
+    "qwen-uomo1": ("Un uomo adulto, voce calda e sicura, tono colloquiale." + FRETTA, "m"),
+    "qwen-uomo2": ("Un uomo giovane, voce chiara e nervosa." + FRETTA, "m"),
+    # Niente "parla lentamente": era una descrizione che remava contro la
+    # clausola, e fra le due vince quella che il modello capisce meglio.
+    "qwen-uomo3": ("Un uomo maturo, voce profonda e roca." + FRETTA, "m"),
+    "qwen-donna1": ("Una donna adulta, voce limpida e cordiale." + FRETTA, "f"),
+    "qwen-donna2": ("Una donna giovane, voce brillante." + FRETTA, "f"),
+    "qwen-donna3": ("Una donna matura, voce bassa." + FRETTA, "f"),
     # **Sono otto e non sei di proposito**, come per Kokoro: con `pool_size = 6`
     # ne restano due libere, quindi `voce_neutra` prende la settima e non cade
     # nel ramo di ripiego — quello in cui la voce d'attesa somiglia a quella di
     # un personaggio. La verifica `pool` lo controlla, e l'ha gia' preso.
-    "qwen-uomo4": ("Un uomo anziano, voce sottile e un po' tremante.", "m"),
-    "qwen-donna4": ("Una donna giovane, voce calda e leggermente roca.", "f"),
+    "qwen-uomo4": ("Un uomo anziano, voce sottile e un po' tremante." + FRETTA, "m"),
+    "qwen-donna4": ("Una donna giovane, voce calda e leggermente roca." + FRETTA, "f"),
 }
 
 

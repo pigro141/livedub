@@ -482,12 +482,13 @@ def controllo_pulito(
     embedder, backend: str, durate: tuple[float, ...], variants: bool, rng
 ) -> None:
     """La stessa curva su voci di identita' nota."""
+    from dataclasses import replace
+
     from core.config import Config as _C
-    from speak.backends.piper import PiperTts
-    from speak.backends.supertonic import SupertonicTts
+    from speak.base import make_tts
 
     voci = voci_note(backend, variants)
-    tts = SupertonicTts() if backend == "supertonic" else PiperTts(samplerate=22050)
+    tts = make_tts(replace(_C().tts, backend=backend, samplerate=22050))
     print(f"\n== controllo a risposta nota: {len(voci)} voci {backend}, {len(FRASI)} frasi ==")
     if len(voci) <= 2:
         print("   ATTENZIONE: due voci sole, un uomo e una donna. E' un pavimento:")
@@ -574,13 +575,15 @@ def controllo_sul_fondo(
     peggiori di quelli veri, il fondo e' scagionato e il colpevole va cercato
     altrove.
     """
-    from speak.backends.piper import PiperTts
-    from speak.backends.supertonic import SupertonicTts
+    from dataclasses import replace
+
+    from core.config import Config as _C
+    from speak.base import make_tts
 
     if mat.track is None or not silenzio:
         return
     voci = voci_note(backend, variants=False)
-    tts = SupertonicTts() if backend == "supertonic" else PiperTts(samplerate=22050)
+    tts = make_tts(replace(_C().tts, backend=backend, samplerate=22050))
 
     pulite: dict[str, list[np.ndarray]] = {}
     for v in voci:
@@ -811,7 +814,7 @@ def main(argv: list[str] | None = None) -> int:
         help="salta l'OCR: solo la curva, ma su tratti molto piu' lunghi",
     )
     ap.add_argument("--no-clean", action="store_true", help="salta il controllo a risposta nota")
-    ap.add_argument("--tts", default="piper", choices=("piper", "supertonic"))
+    ap.add_argument("--tts", default="piper", choices=("piper", "supertonic", "kokoro"))
     ap.add_argument("--variants", action="store_true", help="aggiungi le varianti di intonazione")
     ap.add_argument("--durations", default=None, help="es. 0.3,1.0,3.0")
     ap.add_argument("--anchor", type=float, default=1.0, help="durata del ritaglio per il grigio")

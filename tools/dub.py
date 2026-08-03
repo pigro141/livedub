@@ -100,26 +100,17 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     sr = source.samplerate
 
-    if args.tone:
-        from speak.base import ToneTts
+    # `steps`, `speed` e compagni li passa `make_tts` leggendo la sezione intera:
+    # quando la costruzione stava qui, `--set tts.speed=...` non arrivava al
+    # modello e il banco misurava una configurazione diversa da quella che
+    # diceva di misurare, mentre `tools/live.py` la passava da sempre.
+    from dataclasses import replace
 
-        tts = ToneTts()
-    elif cfg.tts.backend == "supertonic":
-        from speak.backends.supertonic import SupertonicTts
+    from speak.base import make_tts
 
-        # `steps` e `speed` vanno passati: senza, `--set tts.speed=...` non
-        # arrivava al modello e il banco misurava una configurazione diversa da
-        # quella che diceva di misurare — mentre `tools/live.py` li passa da
-        # sempre, quindi banco e vivo giravano con due velocita' diverse.
-        tts = SupertonicTts(
-            samplerate=cfg.tts.samplerate, steps=cfg.tts.steps, speed=cfg.tts.speed
-        )
-    else:
-        from speak.backends.piper import PiperTts
-
-        tts = PiperTts(samplerate=cfg.tts.samplerate)
-        print("carico le voci...")
-        tts.preload(list(cfg.tts.voices))
+    sezione = replace(cfg.tts, backend="tone") if args.tone else cfg.tts
+    print("carico le voci...")
+    tts = make_tts(sezione)
 
     clock = VirtualClock()
     precedente = set_clock(clock)

@@ -559,13 +559,25 @@ class TtsConfig:
     """Sintesi. `tone` e' un backend finto che produce un bip: serve al banco di
     prova per misurare la catena senza scaricare nulla."""
 
-    backend: str = "piper"  # piper | supertonic | tone
+    backend: str = "piper"  # piper | supertonic | kokoro | tone | silent
     # Vuoto = le native del backend scelto. Dichiararle serve solo a
     # restringere: la lista di Piper non ha senso per SuperTonic e viceversa.
     voices: tuple[str, ...] = ()
     pool_size: int = 6  # voci distinte ottenute variando pitch e velocita'
     samplerate: int = 22050
-    device: str = "cpu"
+    # cpu | cuda | auto. **Lo legge solo Kokoro**, ed e' l'unico che ne ha
+    # bisogno: Piper e SuperTonic girano su CPU per scelta, perche' cosi' non
+    # competono con il gioco per la GPU.
+    #
+    # Questo campo e' rimasto **dichiarato e non letto da nessuno** per mesi,
+    # come `max_ocr_hz` prima di lui. Un parametro in config che nessuno legge
+    # non e' inerte: e' una promessa che la configurazione fa e che il codice
+    # non mantiene, e chi la legge conclude di aver gia' provato una cosa che
+    # non ha mai provato.
+    #
+    # `auto` prende CUDA se c'e' e **dichiara su stderr** quando ripiega: su CPU
+    # Kokoro costa 725 ms a battuta invece di 207, e la differenza si sente.
+    device: str = "auto"
     # Respiro fra una battuta e la successiva. Non e' estetica: due battute
     # attaccate senza stacco si sentono come una frase sola, e in un dialogo
     # fanno sembrare che parli sempre la stessa persona.
@@ -588,6 +600,17 @@ class TtsConfig:
     # sorgenti per lo stesso numero non sono un doppione: sono la garanzia che
     # prima o poi divergano, e che a divergere sia quella che nessuno legge.
     speed: float = 1.05
+    # Solo per Kokoro, e separati da `speed` di proposito: **un numero solo per
+    # tutti i motori e' gia' costato due sessioni**. Valgono le stesse due regole
+    # del campo qui sopra — `kokoro_speed` sta agganciato a
+    # `kokoro.DEFAULT_SPEED` e c'e' una verifica che li tiene allineati, e
+    # `kokoro_weights` deve stare in `kokoro.PESI`.
+    #
+    # I pesi sono in config e non solo nel modulo perche' `tools/dub.py` scrive
+    # `config.json` in ogni cartella di `runs/`: quale set ha prodotto quel WAV
+    # dev'essere leggibile dalla prova, non ricostruibile a memoria.
+    kokoro_speed: float = 1.0
+    kokoro_weights: str = "fp32"  # fp32 | fp16 | int8 | q8f16
     # **Quanto in fretta si chiede al sintetizzatore di parlare**, prima di
     # sintetizzare, quando la finestra della battuta e' stretta.
     #

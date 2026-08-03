@@ -139,7 +139,75 @@ riproduce esattamente il dump della pipeline (16 identita' invece di 15, perche'
 il ritaglio parte da `t_on` e non dall'onset del VAD), ed e' proprio per questo
 che serve: l'unica differenza attribuibile e' quella fra i due trattamenti.
 
+## Kokoro-82M, il terzo motore (sessione del 3 agosto 2026)
+
+Aggiunto e misurato, **default ancora `piper`**. Si prova con
+`--set tts.backend=kokoro`.
+
+### I numeri, tutti misurati sulla stessa scena e nella stessa sessione
+
+| banco (orologio virtuale) | sintesi p50 | p95 | latenza viva p50 | fretta p50 |
+|---|---|---|---|---|
+| piper | 45 ms | 80 | **589 ms** | 1,00 |
+| supertonic | 210 ms | 284 | **752 ms** | 1,06 |
+| kokoro (CUDA) | 299 ms | 601 | **932 ms** | 1,19 |
+
+| `--tempo-reale` | latenza viva p50 | sintesi p50 | frame saltati | battute |
+|---|---|---|---|---|
+| piper | 1372 ms | 52 ms | 649 | 43 |
+| kokoro | **1949 ms** | 281 ms | 883 | 42 |
+
+**La riga che decide il vivo e' la seconda.** 229 ms di sintesi in piu' diventano
+577 ms di latenza: il costo si amplifica invece di sommarsi, perche' la sintesi
+sta nel thread video. **La prova dal vivo non e' ancora stata fatta.**
+
+Altro di misurato: su CPU Kokoro costa **725 ms** (non vivibile, per questo il
+`.venv` monta ora `onnxruntime-gpu`); il quantizzato da 92 MB e' **quattro volte
+piu' lento** del fp32; il passo e' **12,9 car/s** in unita' `spoken_length` — piu'
+adagio di Piper, per questo la catena gli chiede fretta piu' spesso; il tetto
+d'integrita' e' **1,30** contro l'1,10 di SuperTonic, quindi assorbe piu' fretta
+articolando; e' **deterministico** campione per campione, l'unico dei tre.
+
+### Le voci italiane sono due, e questo non lo risolve nessun motore
+
+`if_sara` e `im_nicola`. Il pool si riallarga per pitch-shift esattamente come
+con Piper: nella scena i tre uomini sono `nicola`, `nicola-2_5`, `nicola+2_5`.
+Quindi il salto di qualita' vale sul **primo** personaggio, non sul terzo, ed e'
+li' che va giudicato all'ascolto.
+
+### Cosa e' cambiato nel codice, oltre al backend
+
+- **`speak.base.make_tts`**: la costruzione del TTS era ripetuta in sei file e
+  ognuno passava parametri diversi. Adesso ce n'e' uno solo, prende la sezione
+  intera, e un nome sconosciuto **solleva**. Verificato neutro rigirando Piper
+  con e senza le modifiche: identita' identiche al 100%.
+- `preload` di Kokoro **sintetizza una volta a vuoto**: senza, la prima battuta
+  costava 745 ms invece di 275, perche' su CUDA la prima inferenza compila i
+  kernel. Cadeva sulla prima battuta di una partita, la sola che non si recupera.
+- `tts.device` (`cpu | cuda | auto`) da oggi **e' letto**, e solo da Kokoro.
+
+### Una cosa trovata per caso, e non e' mia
+
+**HEAD non riproduce piu' le passate archiviate.** `runs\finale_piper` ha 44
+battute e 5 identita'; Piper rigirato oggi **su HEAD pulito** ne da' 43 e 4, e i
+due concordano al 95,6%. La causa e' l'OCR — `Esteban Jimenez.` contro
+`Esteban Jimenez.7`, e una battuta letta come frammento unito invece che
+separata — quindi sta a monte del TTS ed e' anteriore a questa sessione. Le
+tabelle qui sopra sono tutte rimisurate oggi e fra loro si confrontano; **quelle
+piu' in alto in questo file no.**
+
 ## Cosa resta aperto, in ordine
+
+0. **L'ascolto di Kokoro, e poi il vivo.** `runs\finale_kokoro\dub.mp4` è la
+   scena intera con il testo dell'OCR a schermo. Le domande: l'italiano **è**
+   italiano (le voci sono state addestrate soprattutto sull'inglese, e a monte
+   segnalano prosodia anglicizzata)? I 932 ms contro i 589 di Piper si sentono?
+   I due timbri reggono spostati di ±2,5 semitoni per fare tre uomini?
+   Se l'orecchio approva, il vivo è
+   `-m tools.ui --profile live --loopback voicemeeter --set vision.ocr_backend=oneocr --set tts.backend=kokoro`,
+   **ma la passata `--tempo-reale` dice di aspettarsi peggio del banco**: 1949 ms
+   contro 1372 di Piper. Se il difetto delle battute non lette ricompare, è una
+   previsione confermata, non una sorpresa.
 
 1. **L'ascolto.** Tutto quello che sta qui sopra è misurato ma non ascoltato.
    `runs\finale_piper\dub.wav` e `runs\finale_supertonic\dub.wav` sono la stessa

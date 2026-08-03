@@ -61,18 +61,17 @@ from tools.session import Session  # noqa: E402
 def costruisci_tts(nome: str, cfg):
     """Il backend di sintesi. `tone` non e' un ripiego, e' uno strumento: fa
     sentire il *tempo* del doppiaggio senza il costo della voce vera, ed e' il
-    modo di capire se un problema e' di ritmo o di sintesi."""
-    if nome == "tone":
-        return ToneTts()
-    if nome == "supertonic":
-        from speak.backends.supertonic import SupertonicTts
+    modo di capire se un problema e' di ritmo o di sintesi.
 
-        return SupertonicTts(
-            samplerate=cfg.tts.samplerate, steps=cfg.tts.steps, speed=cfg.tts.speed
-        )
-    from speak.backends.piper import PiperTts
+    Resta come nome perche' la usa `tools/ui.py`, ma la costruzione vera sta in
+    `speak.base.make_tts`: era ripetuta in sei posti, e ognuno passava un
+    sottoinsieme diverso dei parametri.
+    """
+    from dataclasses import replace
 
-    return PiperTts(samplerate=cfg.tts.samplerate)
+    from speak.base import make_tts
+
+    return make_tts(replace(cfg.tts, backend=nome))
 
 
 def main(argv: list[str] | None = None) -> int:

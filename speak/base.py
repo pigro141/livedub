@@ -159,3 +159,76 @@ class SilentTts:
             voice_id=voice.voice_id,
             text=text,
         )
+
+
+# I nomi che `tts.backend` accetta. Dichiarati qui perche' li usano sia la
+# factory sia gli `argparse` degli strumenti: due elenchi diverghevano gia'
+# (`tools/say.py` vietava SuperTonic con un `choices` rimasto indietro).
+BACKEND_NOTI = ("piper", "supertonic", "kokoro", "tone", "silent")
+
+
+def make_tts(cfg, *, download: bool = True, preload: bool = True):
+    """Il backend di sintesi richiesto, costruito con **tutti** i suoi parametri.
+
+    Prende la sezione `tts` intera e non i singoli campi, ed e' il punto. Finche'
+    la costruzione era ripetuta in sei posti, `tools/dub.py` non passava `steps`
+    e `speed`: il banco misurava una configurazione diversa da quella che diceva
+    di misurare, mentre `tools/live.py` li passava da sempre — banco e vivo
+    giravano con due velocita' diverse. Con un solo punto di costruzione non e'
+    una cosa da ricordarsi, e' una cosa che non puo' succedere.
+
+    **Un nome sconosciuto e' un errore.** Prima si ripiegava in silenzio su
+    Piper, quindi `--set tts.backend=<refuso>` produceva un doppiaggio del tutto
+    plausibile con il motore sbagliato, e nessun numero lo diceva. E' la stessa
+    forma del «trattamento non applicato» che ha gia' fatto leggere due volte un
+    risultato pulito e falso. `make_ocr` e `make_embedder` sollevano da sempre.
+
+    `preload` scalda le voci della famiglia: il primo `synthesize` costruisce le
+    sessioni e paga tutto il caricamento — 1,7 s per Piper, quasi altrettanto
+    per Kokoro su CUDA dove vanno compilati i kernel — e non deve capitare sulla
+    prima battuta di una partita.
+    """
+    nome = (cfg.backend or "").lower()
+
+    if nome == "tone":
+        return ToneTts(samplerate=cfg.samplerate)
+    if nome == "silent":
+        return SilentTts(samplerate=cfg.samplerate)
+
+    if nome == "piper":
+        from speak.backends.piper import PiperTts
+
+        tts = PiperTts(samplerate=cfg.samplerate, download=download)
+    elif nome == "supertonic":
+        from speak.backends.supertonic import SupertonicTts
+
+        tts = SupertonicTts(
+            samplerate=cfg.samplerate,
+            steps=cfg.steps,
+            speed=cfg.speed,
+            download=download,
+        )
+    elif nome == "kokoro":
+        from speak.backends.kokoro import KokoroTts
+
+        tts = KokoroTts(
+            samplerate=cfg.samplerate,
+            speed=cfg.kokoro_speed,
+            pesi=cfg.kokoro_weights,
+            device=cfg.device,
+            download=download,
+        )
+    else:
+        raise ValueError(
+            f"backend TTS sconosciuto: {cfg.backend!r} (noti: {', '.join(BACKEND_NOTI)})"
+        )
+
+    if preload:
+        # Le voci dichiarate se ci sono, altrimenti quelle della famiglia. Prima
+        # si passava `cfg.voices`, che e' **vuoto** per default: il precaricamento
+        # non precaricava niente e la prima battuta pagava lo stesso.
+        from speak.pool import FAMIGLIE
+
+        voci = list(cfg.voices) or list(FAMIGLIE.get(nome, ()))
+        tts.preload(voci)
+    return tts

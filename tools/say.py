@@ -21,7 +21,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.config import Config  # noqa: E402
-from speak.base import ToneTts  # noqa: E402
+from speak.base import BACKEND_NOTI, make_tts  # noqa: E402
 from speak.pool import build_pool  # noqa: E402
 
 BATTUTA = "Non ho tempo per queste stronzate. Sali in macchina e muoviti, adesso."
@@ -55,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("testo", nargs="?", default=BATTUTA)
     ap.add_argument("--pool", action="store_true", help="tutte le voci del pool")
     ap.add_argument("--scena", action="store_true", help="un dialogo alternato fra le voci")
-    ap.add_argument("--backend", default="piper", choices=("piper", "tone"))
+    ap.add_argument("--backend", default="piper", choices=BACKEND_NOTI)
     ap.add_argument("--out", default="runs", help="cartella di uscita")
     ap.add_argument("--set", action="append", dest="overrides", metavar="CHIAVE=VALORE")
     args = ap.parse_args(argv)
@@ -63,14 +63,14 @@ def main(argv: list[str] | None = None) -> int:
     cfg = Config().apply(args.overrides)
     out_dir = Path(args.out)
 
-    if args.backend == "tone":
-        tts = ToneTts()
-    else:
-        from speak.backends.piper import PiperTts
+    from dataclasses import replace
 
-        tts = PiperTts(samplerate=cfg.tts.samplerate)
+    tts = make_tts(replace(cfg.tts, backend=args.backend))
 
-    pool = build_pool(cfg.tts.voices, cfg.tts.pool_size)
+    # Il pool va costruito per la **famiglia del backend scelto**: senza,
+    # `--backend supertonic` chiedeva a SuperTonic di parlare con le voci di
+    # Piper, e il personaggio a cui toccava restava muto.
+    pool = build_pool(cfg.tts.voices, cfg.tts.pool_size, backend=args.backend)
     print(f"pool: {len(pool)} voci\n")
 
     if args.scena:

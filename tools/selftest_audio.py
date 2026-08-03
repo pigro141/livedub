@@ -263,6 +263,39 @@ def test_pool(c) -> None:
     c.ok(len(solo_paola) >= 3, "anche con una base sola il pool ha piu' voci")
     c.raises(ValueError, lambda: build_pool(("inesistente",)), "nessuna base valida e' un errore")
 
+    # **Le stesse garanzie per ogni famiglia**, in ciclo: cosi' il prossimo
+    # backend le eredita invece di doversele ricordare.
+    from speak.pool import FAMIGLIE, NATIVE, VARIANTS, voce_neutra
+
+    basi_varianti = {b for b, _, _ in VARIANTS}
+    c.eq(basi_varianti - set(NATIVE), set(), "ogni base di VARIANTS e' dichiarata in NATIVE")
+    c.eq(set(NATIVE) - basi_varianti, set(), "e ogni voce nativa compare fra le varianti")
+    unione = [v for fam in FAMIGLIE.values() for v in fam]
+    c.eq(len(unione), len(set(unione)), "le famiglie non si sovrappongono")
+    c.eq(set(unione), set(NATIVE), "e insieme coprono tutte le native: nessun orfano")
+
+    for fam in FAMIGLIE:
+        p = build_pool(size=6, backend=fam)
+        c.eq(len(p), 6, f"{fam}: il pool ha sei voci")
+        c.eq(len({v.voice_id for v in p}), 6, f"{fam}: identificativi tutti diversi")
+        c.ok(all(v.base_voice in FAMIGLIE[fam] for v in p),
+             f"{fam}: nessuna voce di un'altra famiglia entra nel pool")
+        c.eq({v.gender for v in p}, {"m", "f"}, f"{fam}: il pool copre entrambi i generi")
+        c.ok(p[0].gender != p[1].gender,
+             f"{fam}: le prime due voci alternano il genere, che e' il contrasto piu' forte")
+
+        # **La neutra ha preso l'avanzo, non e' caduta nel ripiego.** Sono due
+        # cose che si somigliano — entrambe danno un VoiceSpec — e nessun numero
+        # le distingue: nel ripiego la voce d'attesa somiglia a quella di un
+        # personaggio, che e' esattamente cio' che la neutra esiste per evitare.
+        n = voce_neutra(p, fam)
+        c.eq(n.voice_id, "neutra", f"{fam}: la neutra si chiama neutra")
+        c.ok((n.base_voice, n.semitones, n.rate) in VARIANTS,
+             f"{fam}: la neutra e' una variante vera, non un ripiego costruito a mano")
+        c.ok(all((v.base_voice, v.semitones, v.rate) != (n.base_voice, n.semitones, n.rate)
+                 for v in p),
+             f"{fam}: e non e' una delle sei che il pool ha gia' preso")
+
     # Assegnazione: stabile, e stabile e basta.
     vp = VoicePool(build_pool(size=3))
     a1 = vp.voice_for("S0", 1.0)
@@ -534,6 +567,119 @@ def test_tts_fake(c) -> None:
 
     c.eq(tts.synthesize("", voce).duration > 0, True, "anche un testo vuoto produce qualcosa")
     c.eq(SilentTts().synthesize("qualcosa", voce).audio.size, 0, "SilentTts non produce audio")
+
+    _verifica_kokoro(c)
+    _verifica_make_tts(c)
+
+
+def _verifica_kokoro(c) -> None:
+    """Kokoro senza scaricare i 326 MB.
+
+    Si legge dalla classe, si istanzia senza sintetizzare (il caricamento e'
+    pigro) e si prova esaustivamente la funzione **pura** di clamp: le stesse
+    tre tecniche gia' usate per SuperTonic.
+    """
+    from core.config import Config as _Config
+    from speak.backends import kokoro as _kok
+    from speak.backends.kokoro import KokoroTts as _Kok
+
+    c.ok(10.0 <= _Kok().chars_per_second <= 20.0,
+         f"kokoro: passo dichiarato plausibile ({_Kok().chars_per_second:.1f})")
+    c.close(_Kok().chars_per_second, 12.9,
+            "e vale la misura (12,9 car/s su 24 battute vere, unita' spoken_length)", tol=0.1)
+    c.ok(_Kok(speed=1.2).chars_per_second > _Kok().chars_per_second,
+         "il passo di kokoro e' dichiarato in funzione della velocita'")
+    c.ok(_Kok().chars_per_second < 14.8,
+         "kokoro parla piu' adagio di Piper: la catena gli chiedera' fretta piu' spesso")
+
+    # Le due verifiche gemelle di quella che sarebbe servita a SuperTonic: un
+    # numero che vive in due posti diverge, e a divergere e' quello che nessuno
+    # legge.
+    c.close(_Config().tts.kokoro_speed, _kok.DEFAULT_SPEED,
+            "config e backend dichiarano la stessa velocita' di Kokoro", tol=1e-9)
+    c.ok(_Config().tts.kokoro_weights in _kok.PESI,
+         f"i pesi dichiarati in config esistono ({_Config().tts.kokoro_weights})")
+
+    # Il clamp, fino a `rate=3.0` che e' il tetto **vero** della pipeline
+    # (`min(nativo * self._native_gain, 3.0)`), non `tts.native_rate_max`.
+    c.close(_kok.velocita_effettiva(_kok.DEFAULT_SPEED, 1.0, 1.0), _kok.DEFAULT_SPEED,
+            "senza fretta si chiede il ritmo di base")
+    c.ok(_kok.VELOCITA_INTEGRA < _kok.VELOCITA_MAX,
+         "il tetto d'integrita' sta sotto quello che il modello accetterebbe")
+    c.ok(_kok.VELOCITA_INTEGRA > 1.10,
+         "e sta sopra quello di SuperTonic: kokoro assorbe piu' fretta articolando")
+    c.eq(_kok.velocita_effettiva(_kok.DEFAULT_SPEED, 0.1, 0.5), _kok.VELOCITA_MIN,
+         "e sotto non si scende")
+    for r in (0.5, 0.8, 1.0, 1.2, 1.45, 1.55, 3.0):
+        for car in (0.96, 1.0, 1.03, 1.05):
+            v = _kok.velocita_effettiva(_kok.DEFAULT_SPEED, r, car)
+            c.ok(_kok.VELOCITA_MIN <= v <= _kok.VELOCITA_INTEGRA,
+                 f"kokoro rate {r} carattere {car}: {v:.2f} resta dove le sillabe ci sono tutte")
+
+    # I contratti che scattano **prima** di qualunque rete.
+    c.raises(ValueError, lambda: _kok.model_path("inventati"), "pesi ignoti: errore, non download")
+    c.raises(ValueError, lambda: _Kok()._stile("it_IT-paola-medium"),
+             "una voce di un'altra famiglia non e' una voce di kokoro")
+
+    # Lo spezzettamento e' puro apposta: si prova senza il modello.
+    lungo = "a" * 1200
+    pezzi = _kok.spezza_fonemi(lungo, limite=100)
+    c.ok(all(len(p) <= 100 for p in pezzi), "nessun pezzo supera il limite di fonemi")
+    c.ok(len(_kok.spezza_fonemi("ke kattso", limite=510)) == 1,
+         "una battuta normale non viene spezzata")
+    c.eq(_kok.spezza_fonemi("", limite=510), [], "niente da dire, niente da sintetizzare")
+    frase = ". ".join(["ab" * 30] * 8)
+    pezzi = _kok.spezza_fonemi(frase, limite=100)
+    c.ok(all(len(p) <= 100 for p in pezzi) and len(pezzi) > 1,
+         "una battuta lunga si spezza sulla punteggiatura")
+
+    # **La barriera degli import.** `speak/backends/kokoro.py` non deve portare
+    # onnxruntime a chi lo importa soltanto: esiste gia' un vincolo di
+    # coabitazione fra runtime ONNX in questo repo (oneocr porta la propria DLL).
+    import subprocess
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    fuori = subprocess.run(
+        [_sys.executable, "-c",
+         "import sys, speak.backends.kokoro; "
+         "print('onnxruntime' in sys.modules, 'kokoro_onnx' in sys.modules)"],
+        capture_output=True, text=True, cwd=str(_Path(__file__).resolve().parents[1]),
+    ).stdout.strip()
+    c.eq(fuori, "False False",
+         "importare il backend kokoro non tira dentro onnxruntime ne' kokoro_onnx")
+
+
+def _verifica_make_tts(c) -> None:
+    """La factory, che esiste per rendere impossibili due difetti gia' presi."""
+    from dataclasses import replace
+
+    from core.config import Config as _Config
+    from speak.base import BACKEND_NOTI, make_tts
+
+    sezione = _Config().tts
+
+    # **Il ripiego silenzioso e' sparito.** Prima un nome sconosciuto dava Piper
+    # senza dire niente, quindi `--set tts.backend=<refuso>` produceva un
+    # doppiaggio plausibile con il motore sbagliato e nessun numero lo diceva.
+    c.raises(ValueError, lambda: make_tts(replace(sezione, backend="kokoro-tts")),
+             "un backend sconosciuto e' un errore, non Piper in silenzio")
+    c.raises(ValueError, lambda: make_tts(replace(sezione, backend="")),
+             "e nemmeno un backend vuoto passa")
+
+    # Solo i finti si costruiscono qui: gli altri scaricherebbero.
+    c.eq(make_tts(replace(sezione, backend="tone")).name, "tone", "tone si costruisce")
+    c.eq(make_tts(replace(sezione, backend="silent")).name, "silent", "silent si costruisce")
+    for nome in ("piper", "supertonic", "kokoro"):
+        c.ok(nome in BACKEND_NOTI, f"{nome} e' fra i backend dichiarati")
+    c.ok(_Config().tts.backend in BACKEND_NOTI,
+         "il default di config e' un backend che esiste")
+
+    # E il ripiego di `tools/live.py`, che e' la porta del vivo.
+    from tools.live import costruisci_tts
+
+    c.raises(ValueError, lambda: costruisci_tts("boh", _Config()),
+             "anche dal vivo un nome inventato solleva")
 
 
 def test_mixer(c) -> None:

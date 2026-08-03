@@ -19,6 +19,13 @@ femminili, quindi nessuna variante finche' i personaggi non superano la decina.
 Una voce nativa e' sempre meglio di una trasformata, e le trasformazioni restano
 disponibili solo come riserva.
 
+Con Kokoro il vincolo **torna**, identico a quello di Piper: le voci italiane
+sono due, `if_sara` e `im_nicola` — il modello ne ha cinquantaquattro, ma le
+altre parlano altre lingue. Quindi anche qui il pool si riallarga per
+trasformazione, con la stessa tabella di scostamenti di Piper. E' il motivo per
+cui un motore con voci migliori non da' automaticamente una scena migliore:
+oltre il secondo personaggio si torna comunque a spostare i semitoni.
+
 L'ordine di assegnazione non e' casuale: prima le native, poi gli scostamenti
 piccoli, poi quelli grandi. Cosi' una scena con due soli personaggi usa le voci
 migliori, e le varianti entrano solo quando servono davvero.
@@ -44,6 +51,8 @@ NATIVE = {
     "supertonic-F3": ("f", 44100),
     "supertonic-F4": ("f", 44100),
     "supertonic-F5": ("f", 44100),
+    "kokoro-nicola": ("m", 24000),
+    "kokoro-sara": ("f", 24000),
 }
 
 # Varianti, in ordine di assegnazione: prima le native, poi gli scostamenti
@@ -74,6 +83,20 @@ VARIANTS: tuple[tuple[str, float, float], ...] = (
     ("supertonic-F4", 0.0, 1.00),
     ("supertonic-M5", 0.0, 1.00),
     ("supertonic-F5", 0.0, 1.00),
+    # Kokoro: due native, come Piper, quindi gli stessi scostamenti. Sono otto
+    # e non sette di proposito: con `pool_size = 6` ne restano due libere,
+    # quindi `voce_neutra` prende la settima e **non** cade nel ramo di ripiego
+    # — quello in cui la voce d'attesa somiglia a quella di un personaggio. Il
+    # margine di una serve perche' `pool_size` e' un campo di config, e prima o
+    # poi qualcuno lo mettera' a 7.
+    ("kokoro-nicola", 0.0, 1.00),  # maschile nativa
+    ("kokoro-sara", 0.0, 1.00),  # femminile nativa
+    ("kokoro-nicola", -2.5, 0.96),  # maschile piu' grave e lenta
+    ("kokoro-sara", +2.0, 1.05),  # femminile piu' acuta e svelta
+    ("kokoro-nicola", +2.5, 1.03),  # maschile piu' chiara
+    ("kokoro-sara", -2.5, 0.97),  # femminile piu' scura
+    ("kokoro-nicola", -4.0, 1.00),  # maschile molto grave
+    ("kokoro-sara", +4.0, 1.00),  # femminile molto acuta
 )
 
 # Le basi di ciascun backend: serve a `build_pool` quando non si dichiara nulla,
@@ -81,6 +104,7 @@ VARIANTS: tuple[tuple[str, float, float], ...] = (
 FAMIGLIE = {
     "piper": tuple(k for k in NATIVE if k.startswith("it_IT-")),
     "supertonic": tuple(k for k in NATIVE if k.startswith("supertonic-")),
+    "kokoro": tuple(k for k in NATIVE if k.startswith("kokoro-")),
 }
 
 

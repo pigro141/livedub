@@ -24,7 +24,7 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest              # 828 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest              # 944 verifiche
 .\.venv\Scripts\python.exe -m tools.selftest speaker pool # gruppi scelti
 .\.venv\Scripts\python.exe -m tools.selftest -v           # con i verdi in chiaro
 
@@ -92,6 +92,33 @@ al motore (`tts.native_rate_max`) e solo il residuo va a WSOLA
 (`timing.rate_max`). Ogni backend dichiara il **proprio** passo
 (`chars_per_second`, nell'unita' di `spoken_length()`) e il proprio tetto: un
 numero solo per tutti i motori e' gia' costato due sessioni.
+
+**Tre motori, un solo posto dove si costruiscono** (`speak.base.make_tts`). Prima
+la costruzione era ripetuta in sei file e ognuno passava un sottoinsieme diverso
+dei parametri: `dub.py` non passava `steps` e `speed`, quindi il banco misurava
+una configurazione diversa da quella che diceva di misurare mentre il vivo ne
+usava un'altra. La factory prende la sezione `tts` **intera**, e un nome
+sconosciuto **solleva** invece di ripiegare in silenzio su Piper — perche' un
+ripiego silenzioso li' vuol dire consegnare un doppiaggio plausibile fatto dal
+motore sbagliato, con i log verdi.
+
+|  | sintesi p50 | latenza p50 (banco) | car/s | tetto integro | dove gira |
+|---|---|---|---|---|---|
+| **piper** (default) | 45 ms | 589 ms | 14,8 | — | CPU |
+| **supertonic** | 210 ms | 752 ms | 14,3 | 1,10 | CPU |
+| **kokoro** | 299 ms | 932 ms | 12,9 | **1,30** | **CUDA** |
+
+**Kokoro ha senso solo su GPU, e questo riapre un vincolo dichiarato.** Su CPU
+costa 725 ms a battuta contro i 207 su CUDA — non vivibile. Quindi `.venv` monta
+`onnxruntime-gpu` (superset: ECAPA e rapidocr restano su CPU), e la sintesi
+adesso **compete con il gioco per la GPU**, che era esattamente il motivo per cui
+Piper e' default. Il prezzo e' 1128 MB di VRAM su una 4060 da 8 GB. `tts.device`
+vale `cpu | cuda | auto` e **lo legge solo Kokoro**; era un campo dichiarato e
+non letto da nessuno, come `max_ocr_hz` prima di lui.
+
+Kokoro ha **due sole voci italiane**, come Piper: oltre il secondo personaggio si
+torna comunque a spostare i semitoni. E il quantizzato (92 MB) e' **quattro volte
+piu' lento** del fp32 su CPU, non piu' veloce.
 
 ## Banco e vivo: la cosa che costa di piu' capire
 
@@ -230,7 +257,39 @@ raggruppamento non migliorava perche' l'audio non era cambiato (correlazione
 **Isolare una taratura con un motore deterministico.** SuperTonic e' a diffusione:
 cambiando la voce cambia la sintesi, cambiano i tempi, cambiano le decisioni. Due
 misure di seguito hanno detto il contrario del vero. Le tarature si isolano con
-Piper e si verificano dopo con SuperTonic.
+Piper e si verificano dopo con SuperTonic. **Ma Piper non e' deterministico**:
+misurato, la stessa battuta nello stesso processo da' 95314 e 99075 campioni —
+e' VITS, il predittore di durata ha del rumore dentro. Kokoro invece e'
+deterministico campione per campione, ed e' l'unico dei tre che lo sia.
+
+**Un caso nullo puo' essere mal posto quanto una misura.** Per verificare che
+scambiare `onnxruntime` con `onnxruntime-gpu` non rompesse Piper, si e'
+confrontata la sua uscita prima e dopo, campione per campione: risultato
+«diverso», due volte. Ma anche **due passate consecutive senza cambiare niente**
+davano lunghezze diverse. Il confronto chiedeva stabilita' a una quantita' che
+non ce l'ha. La domanda giusta era l'aggregato — passo in car/s, picco, suite —
+che infatti non si e' mosso. Prima di concludere che un trattamento ha cambiato
+qualcosa, misurare **quanto varia quella quantita' da sola**.
+
+**Un ripiego che non si dichiara e' peggio di un errore.** ORT non trovava le DLL
+CUDA ed e' ricaduto sulla CPU senza dire niente: 708 ms stavano per essere
+riportati come «il numero della GPU», con la conclusione opposta a quella vera.
+Chi chiede un acceleratore deve **verificare che l'abbia ottenuto**
+(`sess.get_providers()`), non che la chiamata non abbia sollevato.
+
+**Il costo di uno stadio non si somma, si amplifica.** Kokoro costa 229 ms di
+sintesi in piu' di Piper, ma in `--tempo-reale` la latenza cresce di **577**: la
+sintesi sta nel thread video, i frame arretrati si saltano (883 contro 649), e il
+lettore di sottotitoli e' costruito su frame *consecutivi*. Preventivare un
+motore piu' lento sommando il suo costo alla latenza sottostima di piu' del
+doppio.
+
+**Prima di attribuire una differenza al pezzo nuovo, rigirare il vecchio.** La
+passata Kokoro dava 43 battute invece delle 44 archiviate e il 95,6% di accordo
+sulle identita' — sembrava che il motore toccasse il riconoscimento, che sta a
+monte. Rigirando Piper **adesso**: 43 battute e lo stesso 95,6%, e Piper-oggi
+contro Kokoro-oggi al **100%**. Lo scarto stava fra le passate archiviate e HEAD,
+non fra i motori, ed era l'OCR (`Esteban Jimenez.` contro `Esteban Jimenez.7`).
 
 **E la piu' importante: l'orecchio dell'utente trova cio' che la suite non puo'.**
 E' successo a ogni difetto serio di questo progetto, con la suite verde. Quando

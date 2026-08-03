@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.clock import VirtualClock, set_clock  # noqa: E402
 from core.config import Config  # noqa: E402
 from core.pipeline import DubPipeline  # noqa: E402
+from speak.base import BACKEND_NOTI, make_tts  # noqa: E402
 from tools.frames import GREY, WHITE, YELLOW, empty_frame, frame_with_roi  # noqa: E402
 
 ROI = (0.15, 0.72, 0.70, 0.22)
@@ -94,7 +95,7 @@ def scrivi_wav(path: Path, stereo: np.ndarray, sr: int = SR) -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="tools.demo", description="Scena finta completa.")
-    ap.add_argument("--backend", default="piper", choices=("piper", "tone"))
+    ap.add_argument("--backend", default="piper", choices=BACKEND_NOTI)
     ap.add_argument("--out", default="runs")
     ap.add_argument("--no-duck", action="store_true", help="per sentire la differenza")
     ap.add_argument("--set", action="append", dest="overrides", metavar="CHIAVE=VALORE")
@@ -106,16 +107,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.no_duck:
         cfg.mix.duck_db = 0.0
 
-    if args.backend == "tone":
-        from speak.base import ToneTts
+    from dataclasses import replace
 
-        tts = ToneTts()
-    else:
-        from speak.backends.piper import PiperTts
-
-        tts = PiperTts(samplerate=cfg.tts.samplerate)
-        print("carico le voci...")
-        tts.preload(list(cfg.tts.voices))
+    print("carico le voci...")
+    tts = make_tts(replace(cfg.tts, backend=args.backend))
 
     clock = VirtualClock()
     precedente = set_clock(clock)

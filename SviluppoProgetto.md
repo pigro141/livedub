@@ -1,5 +1,25 @@
 # live dub tts
 
+## Dove siamo
+
+**Feature: 10 fatte su 14.** Le quattro aperte non sono un arretrato di lavoro —
+tre delle quattro aspettano qualcosa che non sta in questo repo:
+
+| resta | cosa la sblocca |
+|---|---|
+| SuperTonic su PC vecchi | **l'altro PC.** Qui non è provabile |
+| nome del parlante scritto dal gioco | **materiale di un altro gioco.** GTA V i nomi non li scrive |
+| LLM per gli artefatti OCR | **una decisione**, e le prove fatte dicono di no |
+| traduzione con sostituzione grafica | **solo lavoro.** È la feature grossa che resta |
+
+**Step finali: 0 su 13**, ed è lì che sta ormai quasi tutto il lavoro rimasto.
+Nessuno di quei punti aspetta una misura: sono UI, impacchettamento e repo. In
+mezzo c'è il cancello dichiarato — la prova dell'utente prima della fase di
+distribuzione.
+
+*(La riga per riga sta sotto: ogni voce fatta porta il suo esito, comprese quelle
+che si sono chiuse con un "no".)*
+
 * **Cosa ho fatto**
 
   1. riconoscimento testo con ocr
@@ -36,6 +56,10 @@
   * \[ ]  capire se il programma con Supertonic rallenta su pc vecchi
     → **non provabile qui**, serve l'altro PC. Quasi certamente non è un bug: la sintesi
     sta nel thread video, dove il costo si amplifica invece di sommarsi.
+    → **Adesso però si sa come chiederlo**, ed è la lezione della prova hardware di Qwen:
+    non «va più piano?» ma **da cosa dipende il costo**. Su quel motore la risposta era
+    banda di memoria, e da lì la soglia è uscita da sola. Per SuperTonic la stessa
+    domanda si fa con `tools/benchmark.py` sommando i costi per stadio.
   * \[x]  chiedere se sul testo viene fatto un controllo di grammatica
     → **sì**, filtro di lingua (`vision/lexicon.py`). **Correggere è stato provato e
     rifiutato di proposito**: 2 giuste su 8, e gli errori erano `rapinato` → `rovinato`.
@@ -105,6 +129,10 @@
     * \[ ]  spiegazione con un diagramma di flusso di cosa avviene nel programma
     * \[ ]  valorizzazione dell'uso completamente locale ed estrema privacy
     * \[ ]  scrivere requisiti minimi richiesti, e quelli per la migliore esperienza in assoluto
+      → **i numeri ci sono già, manca scriverli**: senza GPU si gira con Piper o SuperTonic
+      (CPU); Kokoro vuole CUDA e 1128 MB di VRAM; Qwen vuole ~670 GB/s di banda e 16 GB,
+      cioè 4070 Ti SUPER / 4080 / 3090 in su. È l'unico punto degli step finali che
+      poggia su misure, e le misure sono fatte.
     * \[ ]  fare anche un link paypal o qualcosa del genere per prendere delle donazioni
     * \[ ]  fare sito github dove c'è spiegato tutto
     * \[ ]  fruttare hype di gtavi per dire che è compatibile anche con quello

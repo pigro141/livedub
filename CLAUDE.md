@@ -126,14 +126,31 @@ motore sbagliato, con i log verdi.
 | **kokoro** | 299 ms | 932 ms | 12,9 | **1,30** | **CUDA** |
 | **qwen** | 3,1 s | non usabile | 10,6 | — | CUDA |
 
-**Il quarto motore esiste e non e' finito.** `speak/backends/qwen.py` funziona e
-le sue voci sono **descrizioni** («un uomo maturo, voce profonda e roca»), quindi
-li' il pool non e' piu' un vincolo del modello. Ma senza streaming costa 3,1 s a
-battuta. Misurato: il modello gira a **0,66x tempo reale** (55,3 ms di calcolo per
-83,3 ms di audio, 12 Hz), quindi **in streaming la latenza al primo campione
-sarebbe 320-430 ms** — vivibile. Serve toccare `mix/mixer.py` e `fuse/timing.py`,
-perche' oggi la catena deve conoscere la durata **prima** di programmare. Prezzo:
-4,2 GB di VRAM contro i 1128 MB di Kokoro.
+**Il quarto motore fa streaming, ed e' inutilizzabile lo stesso — ma per un altro
+motivo.** `speak/backends/qwen.py` ha le voci come **descrizioni** («un uomo
+maturo, voce profonda e roca»), quindi li' il pool non e' un vincolo del modello.
+Lo streaming c'e' ed e' verificato: **primo campione a 257 ms** invece di 4820, i
+blocchi concatenati sono campione per campione la battuta che darebbe
+`synthesize`, e regge il tempo reale (0,83x, zero `mix.underrun`).
+
+Il muro e' altrove, e lo dice una misura sola. Sulla **stessa scena da 49 s** e
+sulle stesse 25 battute:
+
+| | parlato prodotto | passo | WSOLA p50 | latenza p50 |
+|---|---|---|---|---|
+| piper | 35 s (72% della scena) | 18,3 car/s | 1,024 | 533 ms |
+| **qwen** | **77 s (157%)** | **8,4 car/s** | **1,250 (al tetto)** | 3,6-6,7 s |
+
+Qwen parla **la meta'** di Piper, quindi produce piu' audio di quanto la scena
+abbia tempo, e comprimendo al tetto resta al 125%. La coda non rientra piu'. E
+non c'e' leva: questo modello **non ha controllo di velocita'** — `rate` gli
+arriva e lo ignora — quindi la fretta puo' chiederla solo WSOLA, che e' gia' al
+massimo. Prezzo, per completezza: 4,2 GB di VRAM contro i 1128 MB di Kokoro.
+
+Lo streaming quindi non e' stato sprecato — e' il pezzo che serviva e funziona,
+`mix/mixer.py` sa tenere una battuta **aperta** e chiunque scriva un altro motore
+autoregressivo lo eredita — ma **non ha reso vivibile Qwen**, e chi legge solo i
+257 ms conclude il contrario.
 
 **Ma il riferimento vero e' il vivo, ed e' gia' in `runs/`.** Una quarantina di
 sessioni, rilette con `tools/reopen runs\<timestamp>` — quel comando legge le
@@ -403,10 +420,51 @@ sporcavano solo la parola che occupavano, disturbavano il riconoscimento intorno
 
 **`preload_dlls()` non e' del backend che lo chiama.** ORT non trova le DLL CUDA
 dei pacchetti pip `nvidia-*` finche' qualcuno non chiama `preload_dlls()`, e
-ripiega sulla CPU **senza dirlo**. Quella riga oggi vive solo dentro
-`speak/backends/kokoro.py`: misurando Qwen ci si e' ricascati entro un'ora
-dall'aver letto quel commento, riportando 4-7 s a battuta come «il numero della
-GPU». Va spostata dove la vede chiunque apra una sessione ONNX.
+ripiega sulla CPU **senza dirlo**. Quella riga viveva dentro
+`speak/backends/kokoro.py`, ed era una cosa da ricordarsi: misurando Qwen ci si e'
+ricascati entro un'ora dall'aver letto quel commento, riportando 4-7 s a battuta
+come «il numero della GPU». **Adesso sta in `core/onnx.py`**, che e' la porta da
+cui passa chi vuole i provider — quindi non e' piu' una cosa da ricordarsi, e'
+una cosa che non puo' non succedere. Li' c'e' anche `verifica_provider()`, perche'
+chiedere un acceleratore non e' ottenerlo.
+
+**Un numero impossibile e' piu' utile di un numero sbagliato.** Il ramo in
+streaming non ricampionava da 22050 a 48000 — la riga che il ramo normale ha da
+sempre — e versava campioni nel mixer a piu' del doppio della velocita': voce da
+scoiattolo. Nessun contatore lo diceva, la suite era verde, il WAV usciva. A
+smascherarlo e' stato che il passo misurato del motore risultava **30 caratteri al
+secondo**, che non e' una velocita' di parlato di nessuno. Un numero fuori scala
+va inseguito anche quando tutto il resto e' verde: e' l'unica traccia che lascia
+un'unita' sbagliata.
+
+**Lo stesso difetto non si eredita, e i rami nuovi non ereditano nemmeno le
+cure.** Nella stessa sessione, due volte: il ricampionamento e il taglio del
+silenzio in coda. `synthesize` toglieva l'imbottitura da sempre (`taglia_silenzio`,
+scritto per SuperTonic dopo mezza notte di conclusioni sbagliate); `stream` no, e
+consegnava **100 secondi di parlato per 49 di scena**, meta' dei quali silenzio,
+con la catena che chiedeva fretta per starci dentro. Si accelerava del silenzio,
+pagandolo in parole — la stessa frase gia' scritta in questo file, un anno e un
+motore piu' tardi. Quando si apre una strada parallela a una che funziona, la
+domanda non e' «cosa serve» ma **«cosa fa quella vecchia che questa non fa»**.
+
+**In streaming il silenzio in coda non si taglia: si trattiene.** Quello che e'
+uscito e' uscito. Il silenzio in fondo al prefisso resta indietro e, se il modello
+riprende a parlare, esce insieme al resto (era una pausa); se il modello chiude,
+non esce affatto (era imbottitura). Le due si distinguono solo dopo, ed e'
+esattamente per questo che la decisione va rimandata invece che presa bene.
+
+**Un motore autoregressivo si incanta, e il tetto non e' una rifinitura.**
+Misurato: `'Toc toc, negri!'` — quindici caratteri — ha prodotto **9,12 secondi**
+di audio. `max_new_tokens` valeva 2048, cioe' due minuti e mezzo: come rete di
+sicurezza dal vivo non e' una rete. Nove secondi di voce su una battuta da uno
+tengono occupata l'unica voce disponibile, e tutto cio' che arriva intanto o si
+accavalla o slitta. Il taglio e' un difetto piccolo al posto di uno grosso.
+
+**E quando la prenotazione si fa su una previsione, va corretta su cio' che
+arriva.** In streaming `_free_at` nasce da `chars_per_second`; se la battuta vera
+e' piu' lunga, la successiva e' gia' stata programmata **sopra** di lei — due voci
+italiane insieme, il difetto peggiore del prodotto. Il produttore la rialza a ogni
+blocco leggendo `mixer.finisce_a`, che e' l'unico posto che sa la verita'.
 
 **E la piu' importante: l'orecchio dell'utente trova cio' che la suite non puo'.**
 E' successo a ogni difetto serio di questo progetto, con la suite verde. Quando

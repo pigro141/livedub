@@ -28,7 +28,14 @@ from mix.center import DuckEnvelope, db_to_gain, duck_center
 
 @dataclass
 class Scheduled:
-    """Una battuta in attesa del proprio turno."""
+    """Una battuta in attesa del proprio turno.
+
+    **Puo' essere ancora aperta**, cioe' il sintetizzatore la sta ancora
+    producendo. E' l'unica cosa che lo streaming aggiunge al mixer, e cambia il
+    significato di una sola parola: `done` non e' piu' "i campioni sono finiti" ma
+    "i campioni sono finiti **e** non ne arrivano altri". Un array che finisce non
+    e' una battuta che finisce, finche' qualcuno sta ancora scrivendo in coda.
+    """
 
     audio: np.ndarray  # mono, alla frequenza del mixer
     t_start: float
@@ -40,6 +47,22 @@ class Scheduled:
     # il tetto e' una proprieta' della **voce**, non di uno stadio, e due
     # compressioni ciascuna dentro il limite lo sfondano insieme.
     rate: float = 1.0
+    # -- streaming ---------------------------------------------------------
+    # Arriveranno altri campioni? Finche' e' vera la battuta non e' finita
+    # nemmeno quando l'array e' esaurito.
+    aperta: bool = False
+    # Quanto ci si aspetta che duri **in tutto**, in secondi, mentre e' aperta.
+    # Serve a `finisce_a`, che senza sotto-stimerebbe: la battuta dopo verrebbe
+    # messa in fila sopra questa e le due voci si sovrapporrebbero, che e' il
+    # difetto peggiore di tutti.
+    durata_attesa: float = 0.0
+    # La compressione da applicare a cio' che **deve ancora arrivare**. `hurry`
+    # stringe il residuo gia' presente; senza questa, i blocchi successivi
+    # tornerebbero a velocita' naturale e la battuta cambierebbe passo a meta'.
+    rate_futuro: float = 1.0
+    # Il mixer l'ha buttata via mentre il produttore ci scriveva ancora: chi
+    # produce lo legge e smette.
+    annullata: bool = False
 
     @property
     def remaining(self) -> int:
@@ -47,7 +70,12 @@ class Scheduled:
 
     @property
     def done(self) -> bool:
-        return self.consumed >= len(self.audio)
+        return self.consumed >= len(self.audio) and not self.aperta
+
+    @property
+    def a_secco(self) -> bool:
+        """Aperta ma senza campioni pronti: il sintetizzatore non sta stando dietro."""
+        return self.aperta and self.consumed >= len(self.audio)
 
 
 class Mixer:
@@ -81,6 +109,14 @@ class Mixer:
         self._n_clipped = self.metrics.counter("mix.limited")
         self._n_late = self.metrics.counter("mix.late")
         self._n_hurried = self.metrics.counter("mix.hurried")
+        # **Quante volte una battuta in streaming e' rimasta a secco**, cioe' era
+        # il suo turno di suonare e i campioni non c'erano ancora. E' il numero
+        # che dice se lo streaming regge: il modello sta avanti al tempo reale
+        # (0,74x misurato), ma se la catena gli chiede anche di comprimere, il
+        # margine si mangia. Senza questo contatore un difetto del genere si
+        # sente e non si misura, che e' il modo in cui questo progetto ha gia'
+        # perso due sessioni.
+        self._n_secco = self.metrics.counter("mix.underrun")
         # **Di quanto il muro e' avanti al contatore dei campioni**, a ogni
         # blocco. Se resta a zero i due vanno insieme; se cresce, il mixer stava
         # suonando in una linea temporale sua — e questa e' la misura che
@@ -105,14 +141,26 @@ class Mixer:
         tenuto a parte: dopo `hurry` la durata residua e' cambiata, e un
         contatore aggiornato altrove direbbe la lunghezza di prima. E' la stessa
         forma dei due orologi con origini diverse, un travestimento piu' in la'.
+
+        **Una battuta aperta e' l'unica eccezione, e deve esserlo.** Li' i campioni
+        che ci sono non sono tutti quelli che ci saranno, quindi si usa la durata
+        attesa — che e' una stima, ma sbagliarla per difetto vorrebbe dire mettere
+        in fila la battuta dopo *sopra* questa, e due voci italiane sovrapposte
+        sono il difetto che tutto lo scheduler esiste per evitare. Fra sbagliare
+        lungo e sbagliare corto, qui si sbaglia lungo.
         """
         with self._lock:
             if not self._queue:
                 return self._t
-            return max(
-                max(s.t_start, self._t) + s.remaining / self.samplerate
-                for s in self._queue
-            )
+            return max(self._fine(s) for s in self._queue)
+
+    def _fine(self, s: Scheduled) -> float:
+        base = max(s.t_start, self._t)
+        pronta = base + s.remaining / self.samplerate
+        if not s.aperta:
+            return pronta
+        attesa = s.t_start + max(0.0, s.durata_attesa) / max(1e-6, s.rate_futuro)
+        return max(pronta, attesa)
 
     @property
     def speaking(self) -> bool:
@@ -127,6 +175,8 @@ class Mixer:
         speaker_id: str = "?",
         text: str = "",
         rate: float = 1.0,
+        aperta: bool = False,
+        durata_attesa: float = 0.0,
     ) -> Scheduled:
         """Mette una battuta in coda per l'istante indicato.
 
@@ -151,6 +201,9 @@ class Mixer:
             speaker_id=speaker_id,
             text=text,
             rate=rate,
+            aperta=aperta,
+            durata_attesa=durata_attesa,
+            rate_futuro=rate,
         )
         with self._lock:
             if item.t_start < self._t:
@@ -159,6 +212,33 @@ class Mixer:
             self._queue.append(item)
         self._n_played.inc()
         return item
+
+    def append(self, item: Scheduled, audio: np.ndarray, *, chiudi: bool = False) -> None:
+        """Aggiunge campioni a una battuta ancora aperta.
+
+        La chiama il produttore — il thread che sta sintetizzando — mentre il
+        thread audio sta gia' suonando i campioni di prima. **Il lucchetto e' lo
+        stesso della coda e non uno nuovo**: `process` legge `item.audio` mentre
+        questa lo riscrive, e due lucchetti diversi sullo stesso dato sono un
+        lucchetto solo scritto male.
+
+        `rate_futuro` si applica **qui**, all'arrivo. Se `hurry` ha stretto il
+        residuo perche' e' arrivato un altro sottotitolo, i blocchi che seguono
+        devono arrivare stretti uguale: altrimenti la battuta accelera e poi
+        rallenta a meta', che all'ascolto e' peggio che restare lenta.
+        """
+        a = np.asarray(audio, dtype=np.float32).reshape(-1)
+        with self._lock:
+            if item.annullata:
+                return
+            if a.size and item.rate_futuro > 1.001:
+                from mix.stretch import time_stretch
+
+                a = time_stretch(a, item.rate_futuro, samplerate=self.samplerate)
+            if a.size:
+                item.audio = np.concatenate([item.audio, a]).astype(np.float32)
+            if chiudi:
+                item.aperta = False
 
     def hurry(
         self,
@@ -198,6 +278,16 @@ class Mixer:
             if corrente is None:
                 return 1.0
             residuo = corrente.audio[corrente.consumed :]
+            # **Su una battuta aperta il residuo presente non e' il residuo.** Cio'
+            # che c'e' nell'array e' solo quanto il sintetizzatore ha fatto in
+            # tempo a consegnare: guardare quello vorrebbe dire misurare la
+            # velocita' del produttore invece della lunghezza della battuta, e
+            # concludere ogni volta "manca pochissimo, non stringo" — cioe'
+            # spegnere `hurry` proprio dove serve. Si guarda quanto **durera'**.
+            resta_s = max(
+                len(residuo) / self.samplerate,
+                self._fine(corrente) - self._t if corrente.aperta else 0.0,
+            )
             # **Sotto un certo residuo si sfora invece di stringere.** Tutta la
             # compressione di `hurry` cade sulla coda, cioe' esattamente
             # sull'ultima parola — quella che chiude il senso della frase. Con la
@@ -207,7 +297,7 @@ class Mixer:
             # costa piu' di quanto renda, perche' uno sforamento di due decimi
             # non lo nota nessuno mentre una parola finale impastata si sente
             # sempre.
-            if len(residuo) < int(max(0.0, min_residue) * self.samplerate):
+            if resta_s < max(0.0, min_residue):
                 return 1.0
             # **Il tetto vale sul totale, non su questo stadio.** Questa battuta
             # e' gia' arrivata accelerata: comprimerla di nuovo fino al limite
@@ -223,21 +313,38 @@ class Mixer:
             if disponibile <= 0:
                 rate = limits[1]
             else:
-                rate = (len(residuo) / self.samplerate) / disponibile
+                rate = resta_s / disponibile
             if rate <= 1.001:
                 return 1.0
             rate = float(np.clip(rate, max(1.0, limits[0]), resto))
-            stretto = time_stretch(residuo, rate, samplerate=self.samplerate)
-            corrente.audio = np.concatenate(
-                [corrente.audio[: corrente.consumed], stretto]
-            ).astype(np.float32)
+            if residuo.size:
+                stretto = time_stretch(residuo, rate, samplerate=self.samplerate)
+                corrente.audio = np.concatenate(
+                    [corrente.audio[: corrente.consumed], stretto]
+                ).astype(np.float32)
             corrente.rate *= rate  # il totale speso, per la prossima volta
+            if corrente.aperta:
+                # Cio' che deve ancora arrivare va stretto uguale: `append` lo fa
+                # all'ingresso. Senza, la battuta si comprime fino a dove il
+                # sintetizzatore era arrivato e poi torna lenta.
+                corrente.rate_futuro *= rate
             self._n_hurried.inc()
             return rate
 
     def clear(self) -> int:
+        """Svuota la coda. Le battute aperte vengono **annullate**, non dimenticate.
+
+        Un produttore che sta ancora sintetizzando tiene un riferimento al proprio
+        `Scheduled`: senza il contrassegno continuerebbe a versare campioni in un
+        oggetto che non sta piu' in coda, cioe' a lavorare per un'uscita che
+        nessuno ascoltera' — e a farlo finche' non finisce la battuta, occupando
+        la GPU mentre la battuta nuova aspetta il suo turno.
+        """
         with self._lock:
             n = len(self._queue)
+            for s in self._queue:
+                s.annullata = True
+                s.aperta = False
             self._queue.clear()
         self._n_dropped.inc(n)
         return n
@@ -308,6 +415,15 @@ class Mixer:
                     offset = 0
                 take = min(n - offset, item.remaining)
                 if take <= 0:
+                    # **Una battuta aperta senza campioni pronti e' un buco, e va
+                    # contato qui.** Non si puo' concluderne che sia finita — lo
+                    # dice `done`, che su una battuta aperta e' falso — quindi il
+                    # blocco esce muto e si riprende appena il produttore
+                    # consegna. Il duck resta giu' perche' `active` non e' l'unica
+                    # cosa che lo tiene giu': la battuta e' ancora in coda.
+                    if item.a_secco and item.t_start <= t0:
+                        self._n_secco.inc()
+                        active = True  # non rialzare il gioco dentro una battuta
                     continue
                 dub[offset : offset + take] += (
                     item.audio[item.consumed : item.consumed + take] * item.gain
@@ -361,6 +477,10 @@ class Mixer:
         return np.tanh(x * 0.9).astype(np.float32)
 
     def reset(self, t: float = 0.0) -> None:
-        self._queue.clear()
+        with self._lock:
+            for s in self._queue:
+                s.annullata = True
+                s.aperta = False
+            self._queue.clear()
         self.envelope.reset()
         self._t = t

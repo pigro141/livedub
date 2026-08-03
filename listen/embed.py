@@ -238,12 +238,19 @@ class EcapaOnnxEmbedder:
     def __init__(self, *, download: bool = True, threads: int = 1) -> None:
         import onnxruntime as ort
 
+        from core.onnx import provider_voluti
+
         self.path = self._fetch(download)
         opts = ort.SessionOptions()
         opts.intra_op_num_threads = max(1, int(threads))
         opts.inter_op_num_threads = 1
+        # CPU per scelta: il modello e' piccolo e la GPU serve alla sintesi. Ma si
+        # passa comunque dalla porta di `core/onnx.py`, perche' e' li' che vive il
+        # precaricamento delle DLL — averne una sola vale piu' della scorciatoia.
         self._sess = ort.InferenceSession(
-            str(self.path), sess_options=opts, providers=["CPUExecutionProvider"]
+            str(self.path),
+            sess_options=opts,
+            providers=provider_voluti("cpu", chi="ecapa"),
         )
         self._input = self._sess.get_inputs()[0].name
         self._output = self._sess.get_outputs()[0].name

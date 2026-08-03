@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import json
 import re
+import sys
+import threading
 import time
 import unicodedata
 from dataclasses import dataclass, field
@@ -30,7 +32,7 @@ from difflib import SequenceMatcher
 
 import numpy as np
 
-from core.clock import Clock, get_clock
+from core.clock import Clock, VirtualClock, get_clock
 from core.config import Config
 from core.metrics import MetricsRegistry
 from core.types import Emotion, LineClass, SubtitleEvent, Utterance
@@ -41,7 +43,7 @@ from listen.vad import make_vad
 from mix.center import split
 from mix.mixer import Mixer
 from mix.stretch import fit_duration, fit_duration_keep_tail  # noqa: F401
-from speak.base import TtsBackend
+from speak.base import TtsBackend, sa_streaming
 from speak.pool import VoicePool, build_pool, voce_neutra, voce_per
 from vision.ocr import OcrBackend, make_ocr
 from vision.reader import SubtitleReader
@@ -209,6 +211,23 @@ class DubPipeline:
         # voluta. Parte da 1 e si impara: `length_scale` non e' proporzionale,
         # e senza questa correzione il tetto sulla velocita' resta un desiderio.
         self._native_gain = 1.0
+        # **Il motore sa consegnare a pezzi?** Se si', la battuta si programma
+        # prima di esistere e i campioni la raggiungono mentre suona. Lo decide
+        # `speak.base.sa_streaming`, cioe' il backend piu' `tts.stream` di config.
+        self._streaming = sa_streaming(tts)
+        # **Siamo sul banco?** Lo dice l'orologio: virtuale vuol dire che il tempo
+        # avanza a comando e non a muro. Serve solo allo streaming, che con un
+        # orologio virtuale non puo' consegnare in tempo per costruzione.
+        self._banco = isinstance(self.clock, VirtualClock)
+        # Un produttore alla volta. **Non e' prudenza, e' aritmetica**: il modello
+        # sta avanti al tempo reale con un margine del 20% (0,83x misurato), e due
+        # generazioni che si contendono la stessa GPU lo perdono tutte e due. La
+        # battuta dopo, del resto, non serve finche' la precedente non ha finito
+        # di suonare.
+        self._turno_sintesi = threading.Lock()
+        self._produttori: list[threading.Thread] = []
+        self._t_primo = self.metrics.timer("speak.first_sample")
+        self._n_stream_rotto = self.metrics.counter("speak.stream_failed")
         self._t_backlog = self.metrics.timer("dub.backlog")
         self._t_rate = self.metrics.timer("dub.rate_x1000")
         self._t_hurry = self.metrics.timer("dub.hurry_x1000")
@@ -412,6 +431,11 @@ class DubPipeline:
         # cosa fosse arrivato. Il tetto vale su cio' che si **ottiene**, quindi
         # la richiesta va corretta del divario misurato.
         richiesta = min(nativo * self._native_gain, 3.0) if nativo > 1.0 else 1.0
+
+        if self._streaming:
+            return self._speak_streaming(
+                event, voice, decisione, p, stima=stima, richiesta=richiesta
+            )
 
         t0 = time.perf_counter()
         speech = self.tts.synthesize(event.text, voice, rate=richiesta)
@@ -662,6 +686,272 @@ class DubPipeline:
                 else 0.0,
                 "wsola": round(float(rate), 3),
                 "synth_ms": round(synth_ms, 1),
+                "coda_ms": round((t_start - now) * 1000.0, 1),
+                "latenza_ms": round(line.latency_ms, 1),
+                "durata": round(line.duration, 3),
+                "durata_naturale": round(stima, 3),
+                "finestra_prevista": round(self.timing.predict(event.text), 3),
+                "cps": round(self._cps, 2),
+                "guadagno_nativo": round(self._native_gain, 3),
+            }
+        )
+        return line
+
+    def _speak_streaming(
+        self,
+        event: SubtitleEvent,
+        voice,
+        decisione: Decisione,
+        p,
+        *,
+        stima: float,
+        richiesta: float,
+    ) -> SpokenLine:
+        """La battuta si programma **prima di esistere**, e i campioni la
+        raggiungono mentre suona.
+
+        ## Perche' l'ordine si rovescia
+
+        La catena normale fa: sintetizza, misura la durata, calcola la fretta,
+        programma. Con un motore autoregressivo quel primo passo costa **4,9
+        secondi** — la battuta e' finita da un pezzo a schermo. In streaming il
+        primo blocco arriva dopo ~270 ms, ma quando arriva la durata totale non
+        esiste ancora: la si conoscera' quando il modello avra' finito, cioe'
+        troppo tardi per servire a programmare.
+
+        Quindi si programma su una **previsione**, `n / chars_per_second`, ed e'
+        una previsione debole per costruzione — su Qwen il passo misurato varia
+        fra 9,0 e 14,8 car/s perche' il modello campiona. Va bene lo stesso, e per
+        la stessa ragione per cui va bene che `D = a + b*n` abbia R2 0,15: chi
+        stima qui **non decide**, prepara. A raccogliere lo scarto c'e' `hurry`,
+        che su una battuta aperta lavora sulla durata attesa e non su quella
+        presente — e c'e' `mix.underrun`, che conta le volte in cui la previsione
+        ha sbagliato dalla parte che si sente.
+
+        ## Un produttore alla volta
+
+        Il modello sta avanti al tempo reale con un margine misurato del 17%
+        (0,83x, rivocodifiche comprese). Due battute generate insieme si spartiscono
+        la stessa GPU e lo perdono tutte e due, quindi il produttore prende un
+        turno. Non e' una coda che rallenta niente: la battuta dopo comincia a
+        suonare quando questa ha finito, e per allora il turno e' libero.
+
+        ## Cosa **non** succede qui
+
+        Non si impara `chars_per_second` dalla durata ottenuta, e non si chiude
+        l'anello di `_native_gain`. Tutti e due misurano quanto il motore ha
+        obbedito alla fretta chiesta, e questo motore la fretta non la sa prendere:
+        `rate` gli arriva e lo ignora. Un anello che corregge in base a una leva
+        scollegata non converge, si sposta — ed e' esattamente il difetto che
+        `_native_gain` ha gia' avuto una volta, quando inseguiva la propria uscita.
+        """
+        now = self.clock.now()
+        t_start = max(now, self.mixer.now, self._free_at)
+        self._t_backlog.add((t_start - now) * 1000.0)
+
+        # Il budget, sulla durata **prevista**: e' l'unica che esista adesso.
+        piano = self.timing.plan(event.text, stima, elapsed=t_start - event.t_on)
+        bersaglio = max(piano.budget, stima / self.cfg.timing.rate_max)
+        rate = 1.0
+        if stima > bersaglio + 1e-3:
+            rate = float(
+                np.clip(stima / max(bersaglio, 1e-6), 1.0, self.cfg.timing.rate_max)
+            )
+        self._t_rate.add(rate * 1000.0)
+        if piano.overflow > 0:
+            self._n_overflow.inc()
+
+        item = self.mixer.schedule(
+            np.zeros(0, np.float32),
+            t_start,
+            speaker_id=decisione.speaker_id,
+            text=event.text,
+            rate=rate,
+            aperta=True,
+            durata_attesa=stima,
+        )
+
+        line = SpokenLine(
+            text=event.text,
+            speaker_id=decisione.speaker_id,
+            voice_id=voice.voice_id,
+            cls=event.cls.value,
+            t_subtitle=event.t_on,
+            t_scheduled=t_start,
+            synth_ms=0.0,
+            duration=stima / rate,
+            rate=rate,
+        )
+
+        # **La frequenza del motore non e' quella del mixer**, e in streaming la
+        # conversione non e' una riga di passaggio come nel ramo normale.
+        #
+        # Li' si ricampiona l'array intero una volta (`speech.samplerate !=
+        # self.samplerate`, poco piu' su). Qui gli array sono tanti, e
+        # ricampionarli uno per uno lascerebbe a ogni giuntura una frazione di
+        # campione: da 22050 a 48000 il rapporto non e' intero, e i resti si
+        # sommano. Si ricampiona quindi **la battuta fin qui** e si consegna solo
+        # la coda nuova — la stessa forma che `QwenTts.stream` usa un piano piu'
+        # sotto, e per lo stesso motivo.
+        #
+        # Saltare del tutto questa conversione non da' errore, ed e' il punto: la
+        # prima versione lo faceva, versava campioni a 22050 in un mixer a 48000 e
+        # ne usciva un doppiaggio a 2,2x — voce da scoiattolo, e nei log un passo
+        # di 30 caratteri al secondo dove il motore ne fa 12. Nessun contatore lo
+        # diceva; a dirlo e' stato che *quel* numero era impossibile.
+        # **La prenotazione parte dalla previsione e si corregge dentro il
+        # produttore.** Serve un numero *adesso* — la battuta dopo puo' arrivare
+        # fra un frame — e sbagliarlo corto vuol dire farla partire sopra questa.
+        in_ritardo = t_start > now + 0.05
+        respiro = 0.0 if in_ritardo else self.cfg.tts.gap_seconds
+        self._free_at = t_start + stima / rate + respiro
+
+        grezzi: list[np.ndarray] = []
+        convertiti = 0
+
+        def converti(blocco: np.ndarray) -> np.ndarray:
+            if self.tts.samplerate == self.samplerate:
+                return blocco
+            from mix.stretch import resample
+
+            nonlocal convertiti
+            grezzi.append(blocco)
+            intero = resample(
+                np.concatenate(grezzi), self.tts.samplerate, self.samplerate
+            )
+            pezzo = intero[convertiti:]
+            convertiti = len(intero)
+            return pezzo
+
+        def produci() -> None:
+            t0 = time.perf_counter()
+            primo = True
+            with self._turno_sintesi:  # noqa: SIM117 - un turno alla volta, si veda sopra
+                if item.annullata:
+                    return
+                try:
+                    # Il tetto e' **largo**: tre volte la previsione piu' un
+                    # secondo. Deve prendere il modello che si incanta e non
+                    # toccare mai una frase lunga detta piano.
+                    flusso = self.tts.stream(
+                        event.text, voice, rate=richiesta, max_seconds=3.0 * stima + 1.0
+                    )
+                    for grezzo, finita in flusso:
+                        if item.annullata:
+                            return
+                        blocco = converti(grezzo)
+                        self.mixer.append(item, blocco, chiudi=finita)
+                        # **La prenotazione si corregge man mano.** `_free_at` e'
+                        # stato preso sulla durata *prevista*; se la battuta vera
+                        # e' piu' lunga, la successiva e' gia' stata programmata
+                        # sopra questa — due voci italiane insieme, che e' il
+                        # difetto peggiore del prodotto. Misurato: una battuta di
+                        # quindici caratteri ha prodotto 9,12 s di audio (il
+                        # modello si e' incantato), contro 1,04 previsti.
+                        #
+                        # `finisce_a` guarda gia' anche cio' che e' arrivato, e la
+                        # coda e' l'unica cosa che sa la verita': si prende da li'.
+                        self._free_at = max(self._free_at, self.mixer.finisce_a + respiro)
+                        if primo and blocco.size:
+                            primo = False
+                            ms = (time.perf_counter() - t0) * 1000.0
+                            self._t_primo.add(ms)
+                            # `synth_ms` in streaming e' **il tempo al primo
+                            # campione**, non il costo della battuta. E' quello che
+                            # si sente, ed e' l'unico che `live_latency_ms` puo'
+                            # sommare senza mentire: il resto della sintesi avviene
+                            # mentre la voce gia' parla.
+                            line.synth_ms = ms
+                        if finita:
+                            break
+                except Exception as e:  # pragma: no cover - dipende dal motore
+                    # **Si conta, non solo si stampa.** Una battuta che muore qui
+                    # esce come silenzio: la catena non se ne accorge, il mixer
+                    # chiude un array vuoto e il log dice "detta". E' la forma
+                    # esatta del ripiego che non si dichiara — e ci sono gia'
+                    # cascato in questa sessione, quando un parametro nuovo nella
+                    # firma di `stream()` ha trasformato sette verifiche in zero
+                    # campioni invece che in un errore.
+                    self._n_stream_rotto.inc()
+                    print(f"streaming: battuta interrotta: {e!r}", file=sys.stderr)
+                finally:
+                    self.mixer.append(item, np.zeros(0, np.float32), chiudi=True)
+            ms_tot = (time.perf_counter() - t0) * 1000.0
+            self._t_synth.add(ms_tot)
+            line.duration = len(item.audio) / self.samplerate
+
+            # **Il passo si impara anche qui, e qui e' piu' onesto che altrove.**
+            # Nel ramo normale si impara solo dalle battute a cui non e' stata
+            # chiesta fretta, perche' altrimenti si misurerebbe quanto il motore
+            # ha obbedito invece di quanto parla in fretta. In streaming quel
+            # dubbio non c'e': la compressione l'ha applicata il mixer, di un
+            # fattore che conosciamo esattamente (`rate`), e il motore la fretta
+            # non la prende affatto. Dividendolo via resta la durata naturale.
+            #
+            # Serve: `chars_per_second` decide `stima`, e in streaming `stima`
+            # non e' piu' solo la fretta da chiedere — e' la **prenotazione**
+            # della coda. Sbagliarla del venti per cento sposta ogni battuta
+            # successiva.
+            n_car = spoken_length(event.text)
+            naturale = line.duration * rate
+            if n_car >= 8 and naturale > 0.2:
+                misurato = n_car / naturale
+                self._cps_n += 1
+                self._cps += min(0.25, 1.0 / self._cps_n) * (misurato - self._cps)
+
+        if self._banco:
+            # **Sul banco il produttore gira qui, non in un thread, e la ragione e'
+            # la stessa per cui `--tempo-reale` esiste.** Con l'orologio virtuale
+            # il tempo del media avanza a comando, quaranta volte piu' in fretta
+            # del muro: il thread audio versa tutta la battuta prima che il thread
+            # di sintesi abbia consegnato il secondo blocco, e cio' che si
+            # registrerebbe sarebbe silenzio con `mix.underrun` alle stelle. Non
+            # sarebbe un difetto dello streaming, sarebbe **il banco che non puo'
+            # esprimere la domanda** — lo stesso motivo per cui la sintesi
+            # spostata fuori dal thread video sembrava valere -745 ms.
+            #
+            # Girando qui, l'audio prodotto e' esattamente quello del vivo (lo
+            # verifica `bench_qwen --pezzi`: i blocchi concatenati sono la battuta
+            # intera), e cio' che il banco smette di poter dire — il tempo al primo
+            # campione — e' precisamente cio' che non saprebbe dire comunque.
+            produci()
+        else:
+            t = threading.Thread(target=produci, name="tts-stream", daemon=True)
+            self._produttori = [x for x in self._produttori if x.is_alive()]
+            self._produttori.append(t)
+            t.start()
+
+        self._n_lines.inc()
+
+        self._t_latency.add(line.latency_ms)
+        self._t_live.add(line.live_latency_ms)
+        self.spoken.append(line)
+        udito = self.udito_fino_a
+        self._registra_riga(
+            {
+                "kind": "detta",
+                "t_on": round(event.t_on, 3),
+                "t_off": None if event.t_off is None else round(event.t_off, 3),
+                "text": event.text,
+                "cls": event.cls.value,
+                "speaker": decisione.speaker_id,
+                "anonima": bool(decisione.anonima),
+                "punteggio": round(float(decisione.confidence), 3),
+                "genere": getattr(p, "gender", "?") if p is not None else "?",
+                "f0": round(getattr(p, "f0", 0.0), 1) if p is not None else 0.0,
+                "battute_note": getattr(p, "battute", 0) if p is not None else 0,
+                "identita_vive": len(self.tracker) if self.tracker is not None else 0,
+                "ritardo_anello": None if udito is None else round(self.clock.now() - udito, 3),
+                "divario_mixer": round(self.clock.now() - self.mixer.now, 3),
+                "voce": voice.voice_id,
+                "nativo_chiesto": round(float(richiesta), 3),
+                # In streaming non si misura: la durata ottenuta non esiste ancora
+                # quando questa riga si scrive, e scrivere zero e' meno peggio che
+                # scrivere un numero che sembra una misura.
+                "nativo_ottenuto": 0.0,
+                "wsola": round(float(rate), 3),
+                "synth_ms": 0.0,  # si legge in `speak.first_sample`, non qui
+                "streaming": True,
                 "coda_ms": round((t_start - now) * 1000.0, 1),
                 "latenza_ms": round(line.latency_ms, 1),
                 "durata": round(line.duration, 3),

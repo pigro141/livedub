@@ -47,10 +47,22 @@
   * \[x]  installare qwen tts e Chatterbox, provare sul banco e stimare l'hardware
     → **fatti tutti e due**, erano già installati nei venv delle cartelle sorelle.
     **Chatterbox**: 3394 ms a battuta su CUDA — fuori portata dal vivo, ma dà emozione
-    continua e clonazione zero-shot. **Qwen3-TTS ONNX**: gira a **0,66× tempo reale**,
-    quindi in streaming la latenza sarebbe **320-430 ms** contro i 174 di Kokoro, cioè
-    **è vivibile su GPU consumer**. Backend scritto (`speak/backends/qwen.py`), voci come
-    **descrizioni**. **Manca lo streaming**: senza, costa 3,1 s a battuta.
+    continua e clonazione zero-shot. **Qwen3-TTS ONNX**: backend scritto
+    (`speak/backends/qwen.py`), voci come **descrizioni**, italiano nativo.
+  * \[x]  streaming di Qwen3-TTS
+    → **fatto e verificato**: primo campione a **257 ms** invece di 4820, e i blocchi
+    concatenati sono la battuta intera (`bench_qwen --pezzi`: stessi campioni di
+    `synthesize`, giunture a 0,89× dell'errore di fondo). Regge il tempo reale (0,83×,
+    zero `mix.underrun` su 25 battute). Si vocoda il **prefisso** e si consegna la coda:
+    misurato, `vocoder(codici[:k])` è trasparente (corr 1,0000) mentre il blocco interno
+    no (corr 0,95).
+    → **Ma il motore resta inutilizzabile dal vivo, per un'altra ragione.** Sulla stessa
+    scena da 49 s e sulle stesse 25 battute, Qwen produce **77 s di parlato contro i 35
+    di Piper** — 8,4 car/s contro 18,3. Non ci sta nemmeno comprimendo al tetto (WSOLA
+    inchiodato a 1,250, latenza p50 3,6-6,7 s contro 533 ms). Lo streaming ha risolto la
+    latenza al primo campione; **non può risolvere una voce che parla la metà**.
+    Qwen non ha controllo di velocità (`rate` gli arriva e lo ignora), quindi la leva non
+    c'è. È la misura che decide se questo motore ha un futuro qui, ed è nuova.
   * \[ ]  adattamento speaker per tutti i giochi (nome del parlante scritto a schermo)
     → vale la latenza: toglierebbe i 500 ms di `decide_after_ms`, che oggi costano **il
     doppio della sintesi**. Non misurabile su questa registrazione: GTA V i nomi non li scrive.

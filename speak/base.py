@@ -97,6 +97,27 @@ class TtsBackend(Protocol):
         ...
 
 
+# **Sa consegnare a pezzi?** Un backend che espone `streaming = True` offre anche
+#
+#     stream(text, voice, rate=1.0, max_seconds=0.0) -> Iterator[(blocco, finita)]
+#
+# Serve ai motori autoregressivi, dove aspettare la battuta intera costa secondi
+# mentre il primo blocco costa centinaia di millisecondi.
+#
+# `max_seconds` non e' facoltativo e non e' una rifinitura: un modello
+# autoregressivo **si incanta** — misurato, quindici caratteri diventati 9,12
+# secondi di audio — e senza un tetto quella battuta tiene occupata l'unica voce
+# disponibile mentre le altre slittano. `0` vuol dire nessun tetto, che e' giusto
+# sul banco e sbagliato dal vivo.
+#
+# E' un attributo e non un `hasattr(tts, "stream")` di proposito: cosi' si puo'
+# **spegnere** (`tts.stream = false`) su un backend che pure lo saprebbe fare, e
+# rimisurare il divario invece di ricordarselo. La catena guarda questo, non la
+# presenza del metodo.
+def sa_streaming(tts) -> bool:
+    return bool(getattr(tts, "streaming", False)) and hasattr(tts, "stream")
+
+
 @dataclass
 class ToneTts:
     """Backend finto: produce un bip modulato invece di parlare.
@@ -228,8 +249,16 @@ def make_tts(cfg, *, download: bool = True, preload: bool = True):
         tts = QwenTts(
             samplerate=cfg.samplerate,
             device=cfg.device,
+            blocco_iniziale=cfg.stream_first_frames,
+            blocco_massimo=cfg.stream_max_frames,
             download=download,
         )
+        if not cfg.stream:
+            # Spegnere lo streaming e' legittimo — serve a rimisurare il divario
+            # invece di ricordarselo — ma va **dichiarato**, perche' da li' in poi
+            # questo motore costa secondi a battuta e chi legge i tempi deve
+            # sapere quale dei due sta guardando.
+            tts.streaming = False
     else:
         raise ValueError(
             f"backend TTS sconosciuto: {cfg.backend!r} (noti: {', '.join(BACKEND_NOTI)})"

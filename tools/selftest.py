@@ -1514,6 +1514,242 @@ def test_una_voce_alla_volta(c: Check) -> None:
     c.ok(p.metrics.timer("dub.backlog").count == 3, "l'arretrato viene misurato a ogni battuta")
 
 
+class _StreamTts:
+    """Un motore finto che consegna a pezzi, per provare lo streaming senza GPU.
+
+    Imita cio' che conta di Qwen e nient'altro: `streaming = True`, blocchi che
+    escono uno alla volta, e `rate` **ignorato** — perche' e' proprio il motore
+    che non sa accelerare a dare senso a tutta la parte in cui la fretta cade
+    su WSOLA.
+    """
+
+    name = "stream-fake"
+    streaming = True
+
+    def __init__(self, samplerate: int = 48000, chars_per_second: float = 10.0,
+                 blocchi: int = 4, ritardo: float = 0.0) -> None:
+        self.samplerate = samplerate
+        self.chars_per_second = chars_per_second
+        self.blocchi = blocchi
+        self.ritardo = ritardo
+
+    def preload(self, names) -> None:
+        pass
+
+    def _durata(self, text: str) -> float:
+        from fuse.timing import spoken_length
+
+        return max(0.2, spoken_length(text) / self.chars_per_second)
+
+    def synthesize(self, text, voice, rate: float = 1.0):
+        from speak.base import Speech
+
+        n = int(self._durata(text) * self.samplerate)
+        return Speech(np.zeros(n, np.float32), self.samplerate, voice.voice_id, text=text)
+
+    def stream(self, text, voice, rate: float = 1.0, max_seconds: float = 0.0):
+        import time as _t
+
+        n = int(self._durata(text) * self.samplerate)
+        if max_seconds > 0:
+            n = min(n, int(max_seconds * self.samplerate))
+        passo = max(1, n // max(1, self.blocchi))
+        fatti = 0
+        while fatti < n:
+            if self.ritardo:
+                _t.sleep(self.ritardo)
+            quanti = min(passo, n - fatti)
+            fatti += quanti
+            yield np.full(quanti, 0.1, np.float32), fatti >= n
+
+
+def test_streaming(c: Check) -> None:
+    """Una battuta si puo' programmare prima di esistere.
+
+    E' il pezzo che rende utilizzabile un motore autoregressivo: aspettare la
+    battuta intera costa secondi, il primo blocco costa centinaia di
+    millisecondi. Il mixer deve quindi saper tenere una battuta **aperta** — e
+    l'unica parola che cambia significato e' `done`, che non e' piu' "i campioni
+    sono finiti" ma "i campioni sono finiti e non ne arrivano altri".
+    """
+    c.group("streaming")
+
+    from core.config import Config
+    from core.pipeline import DubPipeline
+    from mix.mixer import Mixer
+    from speak.base import ToneTts, sa_streaming
+
+    sr = 48000
+
+    # -- il mixer: una battuta aperta non e' una battuta finita ---------------
+    m = Mixer(samplerate=sr, passthrough=False)
+    item = m.schedule(np.zeros(0, np.float32), 0.0, aperta=True, durata_attesa=1.0)
+    c.ok(not item.done, "una battuta aperta e vuota non e' finita")
+    c.ok(item.a_secco, "ed e' a secco: era il suo turno e i campioni non c'erano")
+    c.close(m.finisce_a, 1.0, "finisce_a usa la durata attesa finche' e' aperta", tol=1e-6)
+
+    m.process(None, n=sr // 10, t=0.0)
+    c.ok(m.metrics.counter("mix.underrun").value >= 1, "il buco viene contato")
+    c.ok(m.pending == 1, "e la battuta resta in coda invece di sparire")
+
+    m.append(item, np.full(sr // 2, 0.5, np.float32))
+    c.eq(len(item.audio), sr // 2, "i campioni arrivati si aggiungono")
+    fuori = m.process(None, n=sr // 10, t=0.1)
+    c.ok(float(np.abs(fuori).max()) > 0.1, "e al blocco dopo si sentono")
+
+    m.append(item, np.zeros(0, np.float32), chiudi=True)
+    c.ok(not item.aperta, "chiudere la chiude")
+    while not item.done:
+        m.process(None, n=sr // 10)
+    c.ok(item.done, "e a campioni esauriti adesso e' finita davvero")
+
+    # -- `clear` annulla, cosi' il produttore smette -------------------------
+    m2 = Mixer(samplerate=sr, passthrough=False)
+    aperta = m2.schedule(np.zeros(0, np.float32), 0.0, aperta=True, durata_attesa=1.0)
+    m2.clear()
+    m2.append(aperta, np.ones(1000, np.float32))
+    c.ok(aperta.annullata, "una battuta buttata via e' contrassegnata")
+    c.eq(len(aperta.audio), 0, "e chi produceva non riesce piu' a versarci dentro")
+
+    # -- `hurry` su una battuta aperta guarda la durata attesa ---------------
+    # Il residuo *presente* e' quello che il produttore ha fatto in tempo a
+    # consegnare: guardare quello vorrebbe dire misurare la velocita' del motore
+    # invece della lunghezza della battuta, e concludere ogni volta "manca
+    # pochissimo, non stringo" — cioe' spegnere `hurry` dove serve di piu'.
+    m3 = Mixer(samplerate=sr, passthrough=False)
+    viva = m3.schedule(np.zeros(0, np.float32), 0.0, aperta=True, durata_attesa=4.0)
+    m3.append(viva, np.full(sr // 5, 0.3, np.float32))  # solo 200 ms consegnati
+    m3.process(None, n=sr // 100, t=0.0)  # falla partire
+    r = m3.hurry(t_finish=2.0, limits=(1.0, 1.35), min_residue=0.6)
+    c.ok(r > 1.001, f"si stringe anche se il residuo presente e' corto (rate {r:.3f})")
+    c.close(viva.rate_futuro, r, "e cio' che deve ancora arrivare arrivera' stretto uguale",
+            tol=1e-6)
+    prima = len(viva.audio)
+    m3.append(viva, np.full(sr, 0.3, np.float32))  # un secondo naturale
+    aggiunti = len(viva.audio) - prima
+    c.ok(aggiunti < sr * 0.99, f"il blocco nuovo entra compresso ({aggiunti} invece di {sr})")
+
+    # -- la catena: si programma sulla previsione, e i campioni arrivano dopo -
+    cfg = Config()
+    cfg.vision.ocr_backend = "none"
+    orologio = VirtualClock()
+    tts = _StreamTts(samplerate=sr, chars_per_second=10.0, blocchi=4)
+    c.ok(sa_streaming(tts), "il motore finto si dichiara capace di streaming")
+    c.ok(not sa_streaming(ToneTts()), "e un motore normale no")
+
+    p = DubPipeline(cfg, tts, clock=orologio, samplerate=sr)
+    p.start_live(warmup=False)
+    testo = "Lavoriamo insieme gia da qualche mese, giusto?"
+    riga = p._speak(SubtitleEvent(text=testo, cls=LineClass.WHITE, t_on=orologio.now()))
+
+    c.ok(riga.duration > 0, "la riga esce con una durata, che e' quella prevista")
+    c.ok(p._banco, "con l'orologio virtuale la catena si sa sul banco")
+    c.eq(len(p._produttori), 0, "e non lancia nessun thread: li' consegnerebbe tardi sempre")
+
+    coda = p.mixer._queue
+    c.eq(len(coda), 1, "e in coda c'e' una battuta sola")
+    c.ok(not coda[0].aperta, "chiusa dal produttore")
+    atteso = int(tts._durata(testo) * sr / riga.rate)
+    c.ok(
+        abs(len(coda[0].audio) - atteso) <= sr // 10,
+        f"con tutti i campioni ({len(coda[0].audio)} contro {atteso} attesi)",
+    )
+    c.ok(p.metrics.timer("speak.first_sample").count == 1,
+         "e il tempo al primo campione e' misurato, che e' l'unico che si sente")
+
+    # Due battute di fila non si sovrappongono nemmeno qui: la seconda si
+    # prenota sulla previsione della prima, non su cio' che e' gia' arrivato.
+    seconda = p._speak(
+        SubtitleEvent(text="Si, era lui.", cls=LineClass.WHITE, t_on=orologio.now())
+    )
+    c.ok(
+        seconda.t_scheduled >= riga.t_scheduled + riga.duration - 1e-6,
+        "la seconda comincia dopo la fine prevista della prima",
+    )
+
+    # -- il motore che si incanta viene tagliato, e la prenotazione lo segue --
+    # Misurato con Qwen: `'Toc toc, negri!'` — quindici caratteri — ha prodotto
+    # 9,12 secondi di audio contro 1,04 previsti. Senza tetto quella battuta tiene
+    # occupata l'unica voce per nove secondi; senza correggere `_free_at`, la
+    # battuta dopo parte **sopra** di lei, che e' il difetto peggiore del prodotto.
+    incantato = _StreamTts(samplerate=sr, chars_per_second=1.0, blocchi=4)
+    p3 = DubPipeline(cfg, incantato, clock=VirtualClock(), samplerate=sr)
+    p3.start_live(warmup=False)
+    p3._cps = 10.0  # la catena prevede un secondo, il motore ne fa dieci
+    corta = "Toc toc, negri!"
+    r3 = p3._speak(SubtitleEvent(text=corta, cls=LineClass.WHITE, t_on=p3.clock.now()))
+    vera = len(p3.mixer._queue[0].audio) / sr
+    from fuse.timing import spoken_length as _sl
+
+    previsto = _sl(corta) / 10.0
+    c.ok(vera <= 3.0 * previsto + 1.05,
+         f"la battuta incantata viene troncata al tetto ({vera:.2f}s, previsti {previsto:.2f}s)")
+    c.ok(p3._free_at >= r3.t_scheduled + vera - 1e-6,
+         "e la prenotazione si allunga su cio' che e' arrivato davvero")
+    dopo = p3._speak(
+        SubtitleEvent(text="Come va, bello?", cls=LineClass.WHITE, t_on=p3.clock.now())
+    )
+    c.ok(dopo.t_scheduled >= r3.t_scheduled + vera - 1e-6,
+         "cosi' la battuta dopo non parte sopra quella lunga")
+    c.eq(p3.metrics.counter("speak.stream_failed").value, 0, "e niente e' esploso per strada")
+
+    # -- la frequenza del motore non e' quella del mixer ---------------------
+    # **Questa verifica esiste per un difetto vero.** Il ramo in streaming non
+    # ricampionava: versava campioni a 22050 in un mixer a 48000, e ne usciva un
+    # doppiaggio a 2,2x — voce da scoiattolo. Nessun contatore lo diceva, la suite
+    # era verde, e a smascherarlo e' stato che il passo misurato del motore
+    # risultava di 30 caratteri al secondo, che non e' una velocita' di parlato.
+    # Il ramo normale la conversione la faceva da sempre: era il ramo nuovo a non
+    # aver ereditato una riga.
+    lento = _StreamTts(samplerate=22050, chars_per_second=10.0, blocchi=4)
+    p2 = DubPipeline(cfg, lento, clock=VirtualClock(), samplerate=48000)
+    p2.start_live(warmup=False)
+    r_lenta = p2._speak(
+        SubtitleEvent(text=testo, cls=LineClass.WHITE, t_on=p2.clock.now())
+    )
+    campioni = len(p2.mixer._queue[0].audio)
+    atteso48 = int(lento._durata(testo) * 48000 / r_lenta.rate)
+    c.ok(
+        abs(campioni - atteso48) <= 48000 // 20,
+        f"la battuta arriva al mixer nella **sua** frequenza "
+        f"({campioni} campioni contro {atteso48} attesi a 48 kHz)",
+    )
+    c.close(
+        campioni / 48000.0,
+        lento._durata(testo) / r_lenta.rate,
+        "cioe' dura i secondi che deve durare, non la meta'",
+        tol=0.05,
+    )
+
+    # -- e dal vivo il produttore e' un thread, che e' il caso che conta -------
+    # Con l'orologio vero la battuta si programma e **ritorna subito**: e' tutto
+    # il punto dello streaming. Il motore finto mette 40 ms a consegnare i suoi
+    # quattro blocchi, quindi se `_speak` li aspettasse si vedrebbe.
+    import time
+
+    from core.clock import RealClock
+
+    vivo = DubPipeline(
+        cfg, _StreamTts(samplerate=sr, blocchi=4, ritardo=0.01), clock=RealClock(), samplerate=sr
+    )
+    vivo.start_live(warmup=False)
+    c.ok(not vivo._banco, "con l'orologio vero la catena si sa dal vivo")
+    t0 = time.perf_counter()
+    r2 = vivo._speak(SubtitleEvent(text=testo, cls=LineClass.WHITE, t_on=vivo.clock.now()))
+    ritorno_ms = (time.perf_counter() - t0) * 1000.0
+    c.ok(ritorno_ms < 30.0, f"_speak torna subito, senza aspettare la sintesi ({ritorno_ms:.0f} ms)")
+    c.ok(r2.duration > 0, "e la battuta e' gia' programmata")
+    c.eq(len(vivo._produttori), 1, "con un produttore suo")
+    for t in vivo._produttori:
+        t.join(timeout=10.0)
+    c.ok(not any(t.is_alive() for t in vivo._produttori), "che poi finisce")
+    c.ok(not vivo.mixer._queue[0].aperta, "e chiude la battuta")
+    c.ok(
+        vivo.metrics.timer("speak.first_sample").count == 1,
+        "il tempo al primo campione si misura solo dal vivo, dove significa qualcosa",
+    )
+
+
 def test_stringi_non_accodare(c: Check) -> None:
     """La battuta si stringe per stare nella sua finestra, non si sposta avanti.
 
@@ -2096,6 +2332,7 @@ GROUPS = {
     "non_ripetere": test_non_ripetere,
     "chi_parla": test_chi_parla,
     "stringi": test_stringi_non_accodare,
+    "streaming": test_streaming,
     "fretta": test_fretta,
     "duck": test_duck_non_pompa,
     "velocita": test_velocita_totale,

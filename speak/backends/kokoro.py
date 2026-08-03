@@ -40,7 +40,6 @@ quello per cui e' buono, cioe' la fonemizzazione e il vocabolario.
 
 from __future__ import annotations
 
-import sys
 import time
 from pathlib import Path
 
@@ -263,35 +262,21 @@ class KokoroTts:
         `tts.device` era dichiarato in config e **non lo leggeva nessuno**. Qui
         comincia a valere qualcosa, e vale solo per questo backend: Piper e
         SuperTonic girano su CPU per scelta e non lo guardano.
+
+        La scelta — e il `preload_dlls()` senza il quale ORT ripiega sulla CPU in
+        silenzio — sta in `core/onnx.py`, perche' non e' di questo backend: e' di
+        chiunque apra una sessione ONNX, e finche' e' vissuta qui ci sono cascati
+        in due.
         """
-        import onnxruntime as rt
+        from core.onnx import provider_voluti
 
-        if hasattr(rt, "preload_dlls"):
-            # Senza questa, le DLL CUDA dei pacchetti pip nvidia-* non si
-            # trovano e ORT ripiega sulla CPU **senza dirlo**: e' successo, e
-            # 708 ms stavano per essere riportati come "il numero della GPU".
-            rt.preload_dlls()
-
-        disponibili = rt.get_available_providers()
-        vuole = (self.device or "auto").lower()
-        if vuole in ("cpu",):
-            return ["CPUExecutionProvider"]
-        if "CUDAExecutionProvider" in disponibili:
-            return ["CUDAExecutionProvider", "CPUExecutionProvider"]
-        if vuole == "cuda":
-            raise RuntimeError(
-                "tts.device=cuda ma CUDAExecutionProvider non e' disponibile: "
-                "`.\\.venv\\Scripts\\python.exe -m pip install onnxruntime-gpu[cuda,cudnn]`"
-            )
-        # Ripiego dichiarato. Su CPU questo motore costa 725 ms contro 207, e la
-        # differenza si sente: chi ascolta deve sapere che sta ascoltando il
-        # ripiego, non concluderne che Kokoro e' lento.
-        print(
-            "kokoro: CUDA non disponibile, si ripiega sulla CPU "
-            "(~725 ms a battuta invece di ~207: dal vivo si sente)",
-            file=sys.stderr,
+        # Il costo va detto: chi ascolta il ripiego deve sapere che sta ascoltando
+        # il ripiego, non concluderne che Kokoro e' lento.
+        return provider_voluti(
+            self.device,
+            chi="kokoro",
+            costo="~725 ms a battuta invece di ~207: dal vivo si sente",
         )
-        return ["CPUExecutionProvider"]
 
     def _engine(self):
         if self._k is not None:
@@ -305,12 +290,13 @@ class KokoroTts:
                 "`.\\.venv\\Scripts\\python.exe -m pip install kokoro-onnx`"
             ) from e
 
+        from core.onnx import verifica_provider
+
         providers = self._provider_voluto()
         sess = rt.InferenceSession(
             str(model_path(self.pesi, self.download)), providers=providers
         )
-        attivi = sess.get_providers()
-        self._provider = attivi[0] if attivi else "?"
+        self._provider = verifica_provider(sess, "kokoro", providers)
         self._k = Kokoro.from_session(sess, str(voices_path(self.download)))
         return self._k
 

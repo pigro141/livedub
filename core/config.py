@@ -671,6 +671,30 @@ class TtsConfig:
     # dev'essere leggibile dalla prova, non ricostruibile a memoria.
     kokoro_speed: float = 1.0
     kokoro_weights: str = "fp32"  # fp32 | fp16 | int8 | q8f16
+    # **Programmare la battuta prima di averla tutta.** Lo legge solo Qwen, che e'
+    # l'unico backend che sa consegnare a pezzi; gli altri restituiscono un array
+    # e questo campo per loro non esiste.
+    #
+    # E' acceso di default perche' senza, quel motore non e' utilizzabile dal
+    # vivo: la battuta intera costa ~4,9 s contro i ~270 ms al primo campione in
+    # streaming. Ma resta spegnibile, perche' e' l'unico modo di rimisurare il
+    # divario invece di ricordarselo.
+    #
+    # **Il prezzo dichiarato**: la durata della battuta non si conosce piu' quando
+    # la si programma, quindi il budget e la fretta si calcolano su
+    # `chars_per_second` — che per Qwen e' il piu' incerto dei quattro (9,0-14,8
+    # car/s su tre battute, perche' il modello campiona). Sbagliare la stima non
+    # perde la battuta: la raccoglie `hurry`, che sul residuo lavora con la durata
+    # attesa e non con quella presente.
+    stream: bool = True
+    # Frame del primo blocco in streaming, e tetto alla crescita dei successivi.
+    # Il primo e' l'unico che si paga in latenza (2 frame = 160 ms di audio,
+    # ~270 ms al primo campione); i successivi raddoppiano perche' rivocodare il
+    # prefisso costa in proporzione alla sua lunghezza — a blocchi fissi da 2 una
+    # battuta da 79 frame paga 2,4 s di rivocodifiche e lo streaming non regge.
+    # Misure e conti stanno in `speak/backends/qwen.py`, `stream()`.
+    stream_first_frames: int = 2
+    stream_max_frames: int = 32
     # **Quanto in fretta si chiede al sintetizzatore di parlare**, prima di
     # sintetizzare, quando la finestra della battuta e' stretta.
     #

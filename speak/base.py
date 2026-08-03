@@ -164,7 +164,7 @@ class SilentTts:
 # I nomi che `tts.backend` accetta. Dichiarati qui perche' li usano sia la
 # factory sia gli `argparse` degli strumenti: due elenchi diverghevano gia'
 # (`tools/say.py` vietava SuperTonic con un `choices` rimasto indietro).
-BACKEND_NOTI = ("piper", "supertonic", "kokoro", "tone", "silent")
+BACKEND_NOTI = ("piper", "supertonic", "kokoro", "qwen", "tone", "silent")
 
 
 def make_tts(cfg, *, download: bool = True, preload: bool = True):
@@ -215,6 +215,18 @@ def make_tts(cfg, *, download: bool = True, preload: bool = True):
             samplerate=cfg.samplerate,
             speed=cfg.kokoro_speed,
             pesi=cfg.kokoro_weights,
+            device=cfg.device,
+            download=download,
+        )
+    elif nome == "qwen":
+        from speak.backends.qwen import QwenTts
+
+        # **Non fa streaming, quindi dal vivo non e' ancora utilizzabile**: la
+        # battuta intera costa ~3,5 s. Serve all'ascolto sul banco, dove si
+        # giudica se le voci descritte e l'italiano valgono il lavoro di
+        # streaming (che tocca il mixer e i tempi, non questo file).
+        tts = QwenTts(
+            samplerate=cfg.samplerate,
             device=cfg.device,
             download=download,
         )

@@ -53,6 +53,19 @@ NATIVE = {
     "supertonic-F5": ("f", 44100),
     "kokoro-nicola": ("m", 24000),
     "kokoro-sara": ("f", 24000),
+    # **Qwen non ha voci: ha descrizioni.** Il modello e' VoiceDesign, quindi
+    # ogni "voce" e' una frase che la descrive (`speak/backends/qwen.py`). E'
+    # la differenza che conta rispetto a Piper e Kokoro: qui il pool non e' un
+    # vincolo del modello ma una scelta, e allargarlo costa scrivere una riga
+    # invece di spostare i semitoni.
+    "qwen-uomo1": ("m", 24000),
+    "qwen-uomo2": ("m", 24000),
+    "qwen-uomo3": ("m", 24000),
+    "qwen-donna1": ("f", 24000),
+    "qwen-donna2": ("f", 24000),
+    "qwen-donna3": ("f", 24000),
+    "qwen-uomo4": ("m", 24000),
+    "qwen-donna4": ("f", 24000),
 }
 
 # Varianti, in ordine di assegnazione: prima le native, poi gli scostamenti
@@ -97,6 +110,23 @@ VARIANTS: tuple[tuple[str, float, float], ...] = (
     ("kokoro-sara", -2.5, 0.97),  # femminile piu' scura
     ("kokoro-nicola", -4.0, 1.00),  # maschile molto grave
     ("kokoro-sara", +4.0, 1.00),  # femminile molto acuta
+    # Qwen: otto descrizioni native, **nessuna trasformazione**. Alternate come
+    # le altre famiglie, perche' il contrasto fra due personaggi consecutivi lo
+    # fa il sesso prima del timbro. Otto e non sei per la stessa ragione di
+    # Kokoro — la neutra deve trovarne una libera — e la verifica `pool` lo ha
+    # preso al primo giro, quando erano sei.
+    #
+    # **Qui pero' allargare non costa niente**: non si spostano semitoni, si
+    # scrive un'altra riga in `speak/backends/qwen.py`. E' l'unica famiglia in
+    # cui il numero di personaggi distinguibili non e' un vincolo del modello.
+    ("qwen-uomo1", 0.0, 1.00),
+    ("qwen-donna1", 0.0, 1.00),
+    ("qwen-uomo2", 0.0, 1.00),
+    ("qwen-donna2", 0.0, 1.00),
+    ("qwen-uomo3", 0.0, 1.00),
+    ("qwen-donna3", 0.0, 1.00),
+    ("qwen-uomo4", 0.0, 1.00),
+    ("qwen-donna4", 0.0, 1.00),
 )
 
 # Le basi di ciascun backend: serve a `build_pool` quando non si dichiara nulla,
@@ -105,6 +135,7 @@ FAMIGLIE = {
     "piper": tuple(k for k in NATIVE if k.startswith("it_IT-")),
     "supertonic": tuple(k for k in NATIVE if k.startswith("supertonic-")),
     "kokoro": tuple(k for k in NATIVE if k.startswith("kokoro-")),
+    "qwen": tuple(k for k in NATIVE if k.startswith("qwen-")),
 }
 
 

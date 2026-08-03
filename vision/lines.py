@@ -41,6 +41,13 @@ class LineBand:
     crop: np.ndarray
     x0: int = 0
     x1: int = 0  # escluso
+    # **Il colore medio dell'inchiostro**, 0-255 per canale. Serve ai giochi che
+    # danno un colore a ciascun personaggio (`vision/label.py`): la sola coppia
+    # luminanza+saturazione non lo puo' dire — un blu e un rosso della stessa
+    # intensita' hanno gli stessi due numeri, quindi la misura non poteva
+    # esprimere la risposta. Su GTA V non lo guarda nessuno, e non costa niente:
+    # sono i pixel gia' mascherati.
+    rgb: tuple[float, float, float] = (0.0, 0.0, 0.0)
     sat_share: float = 0.0  # quota dell'inchiostro che e' satura: 0 = riga pulita
     # La riga e' stata scartata perche' conteneva una **parola** colorata, non
     # per la quota. E' un campo e non un booleano interno perche' senza di lui
@@ -290,6 +297,18 @@ def classify_lines(roi: np.ndarray, cfg: VisionConfig) -> list[LineBand]:
         else:
             cls = LineClass.GREY
 
+        # Il colore medio dei pixel di testo, se la ROI e' a colori.
+        if roi.ndim == 3 and roi.shape[2] >= 3:
+            banda_rgb = roi[top : bottom + 1, :, :3].astype(np.float32)
+            medio = banda_rgb[body_mask]
+            ink_rgb = (
+                (float(medio[:, 0].mean()), float(medio[:, 1].mean()), float(medio[:, 2].mean()))
+                if medio.size
+                else (0.0, 0.0, 0.0)
+            )
+        else:
+            ink_rgb = (body_luma, body_luma, body_luma)
+
         cols = np.where(body_mask.any(axis=0))[0]
         x0, x1 = (int(cols[0]), int(cols[-1]) + 1) if cols.size else (0, roi.shape[1])
         band_grey = band_luma_img[:, x0:x1] * body_mask[:, x0:x1]
@@ -300,6 +319,7 @@ def classify_lines(roi: np.ndarray, cfg: VisionConfig) -> list[LineBand]:
                 cls=cls,
                 luma=body_luma,
                 sat=peak_sat,
+                rgb=ink_rgb,
                 crop=np.clip(band_grey, 0, 255).astype(np.uint8),
                 x0=x0,
                 x1=x1,

@@ -27,7 +27,7 @@ import sys
 import threading
 import time
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
 
 import numpy as np
@@ -45,6 +45,7 @@ from mix.mixer import Mixer
 from mix.stretch import fit_duration, fit_duration_keep_tail  # noqa: F401
 from speak.base import TtsBackend, sa_streaming
 from speak.pool import VoicePool, build_pool, voce_neutra, voce_per
+from vision.label import LabelReader
 from vision.ocr import OcrBackend, make_ocr
 from vision.reader import SubtitleReader
 from vision.subtitles import contenimento
@@ -134,6 +135,9 @@ class DubPipeline:
         # La voce di chi non si sa ancora chi sia. Fuori dal pool: nessuno se la
         # tiene, quindi non diventa mai la voce di un personaggio.
         self._neutra = voce_neutra(self.pool.voices, backend=cfg.tts.backend)
+        # Chi parla scritto dal gioco, se il gioco lo scrive. Spento di default:
+        # si veda `LabelConfig`, dove sta anche il perche' non si indovina.
+        self.label = LabelReader(cfg.label) if cfg.label.enabled else None
         self.mixer = Mixer(
             samplerate=samplerate,
             duck_db=cfg.mix.duck_db,
@@ -228,6 +232,11 @@ class DubPipeline:
         self._produttori: list[threading.Thread] = []
         self._t_primo = self.metrics.timer("speak.first_sample")
         self._n_stream_rotto = self.metrics.counter("speak.stream_failed")
+        # Quante battute hanno avuto il nome **dal gioco** invece che dall'audio.
+        # Se resta a zero con `label.enabled` acceso, il formato dichiarato non
+        # corrisponde a quello che il gioco scrive — ed e' l'unico modo di
+        # accorgersene senza stare a guardare i sottotitoli a uno a uno.
+        self._n_etichette = self.metrics.counter("vision.label.hit")
         self._t_backlog = self.metrics.timer("dub.backlog")
         self._t_rate = self.metrics.timer("dub.rate_x1000")
         self._t_hurry = self.metrics.timer("dub.hurry_x1000")
@@ -360,6 +369,14 @@ class DubPipeline:
             ora = self.clock.now()
 
             def pronta(e: SubtitleEvent) -> bool:
+                # **Se il gioco dice chi parla, non c'e' niente da aspettare.**
+                # L'attesa serve ad avere mezzo secondo di parlato da dare
+                # all'impronta; con il nome scritto a schermo l'impronta non si
+                # calcola nemmeno, quindi aspettarla sarebbe pagare 500 ms per una
+                # domanda a cui si e' gia' risposto. E' tutto il guadagno di
+                # questa feature, e sta in questa riga.
+                if self._etichetta(e) is not None:
+                    return True
                 if udito is not None and udito - e.t_on >= attesa:
                     return True
                 return ora - e.t_on >= limite
@@ -371,6 +388,14 @@ class DubPipeline:
     def _speak(self, event: SubtitleEvent) -> SpokenLine:
         """Da battuta letta a audio programmato."""
         decisione = self._speaker_for(event)
+        # **Il nome non si pronuncia.** Leggere ad alta voce «Franklin due punti
+        # come va bello» sarebbe peggio che non avere l'etichetta: si toglie il
+        # prefisso da tutto cio' che viene dopo — durata prevista, sintesi, log —
+        # rilegando l'evento. La deduplica invece e' gia' avvenuta sul testo
+        # grezzo, in `_pronte`, quindi confronta sempre mele con mele.
+        etichetta = self._etichetta(event)
+        if etichetta is not None and etichetta.testo != event.text:
+            event = replace(event, text=etichetta.testo)
         speaker_id = decisione.speaker_id
         # Il sesso della voce arriva dall'intonazione misurata sulle battute
         # intere di questo personaggio. Senza, il pool alterna maschile e
@@ -1028,6 +1053,18 @@ class DubPipeline:
             self._n_neutra.inc()
         return voce
 
+    def _etichetta(self, event: SubtitleEvent):
+        """Chi parla secondo il **gioco**, se il gioco lo scrive. Altrimenti `None`.
+
+        Il colore si prende dalla prima riga: un sottotitolo su due righe e' una
+        frase andata a capo, quindi il colore e' lo stesso — e se non lo fosse
+        sarebbero due eventi, non uno.
+        """
+        if self.label is None:
+            return None
+        rgb = event.lines[0].rgb if event.lines else None
+        return self.label.leggi(event.text, rgb)
+
     def _speaker_for(self, event: SubtitleEvent) -> "Decisione":
         """Chi parla, con quel poco che si e' riusciti a sentire finora.
 
@@ -1044,6 +1081,14 @@ class DubPipeline:
         cambia in continuazione". L'iscrizione avviene in `_learn`, a battuta
         finita.
         """
+        # **Il nome dichiarato dal gioco vince su tutto.** Non e' una stima da
+        # confrontare con una soglia: e' cio' che il gioco ha scritto. Qui non si
+        # calcola nessuna impronta — che e' il secondo pezzo del guadagno, dopo
+        # l'attesa saltata in `_pronte`.
+        etichetta = self._etichetta(event)
+        if etichetta is not None:
+            self._n_etichette.inc()
+            return Decisione(f"L-{etichetta.nome}", 1.0)
         if self.tracker is None:
             return Decisione("S-grey" if event.cls is LineClass.GREY else "S-white", 0.0)
         # Si guarda **indietro** dalla comparsa del sottotitolo, non avanti: la

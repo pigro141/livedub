@@ -251,6 +251,7 @@ class SubtitleReader(Stage):
                     bbox=band.bbox,
                     luma=band.luma,
                     sat=band.sat,
+                    rgb=band.rgb,
                     conf=conf,
                 )
             )

@@ -1750,6 +1750,126 @@ def test_streaming(c: Check) -> None:
     )
 
 
+def test_etichetta(c: Check) -> None:
+    """Chi parla scritto dal gioco: si legge, si toglie, e vale mezzo secondo.
+
+    **Queste verifiche girano su testo sintetico, e va detto.** GTA V i nomi non
+    li scrive, quindi non esiste materiale vero su cui provarle: dicono che il
+    codice fa quello che dichiara, non che funzioni su un gioco. La prima cosa da
+    fare con una registrazione di un altro gioco e' rimisurare tutto qui sopra.
+    """
+    c.group("etichetta")
+
+    from core.config import Config, LabelConfig
+    from core.pipeline import DubPipeline
+    from core.types import OcrLine
+    from speak.base import ToneTts
+    from vision.label import LabelReader
+
+    # -- le tre forme pronte ------------------------------------------------
+    for forma, riga, atteso in (
+        ("nome:", "Franklin: Come va, bello?", "Come va, bello?"),
+        ("nome:", "FRANKLIN : Come va, bello?", "Come va, bello?"),
+        ("[nome]", "[Franklin] Come va, bello?", "Come va, bello?"),
+        ("[nome]", "(Franklin) Come va, bello?", "Come va, bello?"),
+        ("nome-", "Franklin - Come va, bello?", "Come va, bello?"),
+        ("nome-", "Franklin — Come va, bello?", "Come va, bello?"),
+    ):
+        cfg = LabelConfig(enabled=True, form=forma)
+        e = LabelReader(cfg).dal_testo(riga)
+        c.ok(e is not None and e.testo == atteso,
+             f"forma {forma}: {riga!r} -> {None if e is None else e.testo!r}")
+
+    # -- e il nome esce dal testo, che e' il punto ---------------------------
+    e = LabelReader(LabelConfig(enabled=True)).dal_testo("Franklin: Come va, bello?")
+    c.eq(e.nome, "Franklin", "il nome si legge")
+    c.ok("Franklin" not in e.testo, "e sparisce da cio' che si pronuncia")
+
+    # -- i falsi positivi, che sono il vero nemico --------------------------
+    # Ogni falso positivo **crea un personaggio** e gli brucia addosso una voce
+    # del pool, togliendola a qualcuno che parla davvero.
+    lettore = LabelReader(LabelConfig(enabled=True))
+    for riga, perche in (
+        ("Si, era lui: adesso lo so", "c'e' punteggiatura di frase dentro il nome"),
+        ("Franklin:", "non resta niente da dire"),
+        (": Come va", "il nome e' vuoto"),
+        ("12345: Come va", "il nome non ha lettere"),
+        ("Come va, bello?", "non c'e' nessun separatore"),
+        ("A" * 40 + ": Come va", "il nome e' troppo lungo"),
+    ):
+        c.ok(lettore.dal_testo(riga) is None, f"scartato ({perche}): {riga!r}")
+
+    # -- l'elenco dichiarato e' la guardia forte ----------------------------
+    con_elenco = LabelReader(
+        LabelConfig(enabled=True, names=("Franklin", "Lamar", "Simeon"))
+    )
+    c.ok(con_elenco.dal_testo("Franklin: Come va") is not None, "un nome dell'elenco passa")
+    c.ok(con_elenco.dal_testo("Sconosciuto: Come va") is None,
+         "uno fuori elenco no: e' un OCR che ha letto male, non un personaggio nuovo")
+    e = con_elenco.dal_testo("FRANKLlN: Come va")  # I maiuscola letta come elle
+    c.ok(e is None, "e nemmeno una lettura sbagliata di un nome dell'elenco")
+    e = con_elenco.dal_testo("franklin : Come va")
+    c.ok(e is not None and e.nome == "Franklin",
+         "ma maiuscole e spazi non contano, e il nome torna nella forma dichiarata")
+
+    c.ok(
+        LabelReader(LabelConfig(enabled=True, require_names=True)).dal_testo("X: ciao") is None,
+        "con require_names e senza elenco non si etichetta niente",
+    )
+
+    # -- il colore ----------------------------------------------------------
+    col = LabelReader(LabelConfig(
+        enabled=True, colors={"Franklin": "#5ac8fa", "Lamar": "#ffcc00"},
+        color_tolerance=60.0,
+    ))
+    c.eq(col.dal_colore((90.0, 200.0, 250.0)), "Franklin", "il colore piu' vicino vince")
+    c.eq(col.dal_colore((255.0, 204.0, 0.0)), "Lamar", "e distingue i due")
+    c.ok(col.dal_colore((255.0, 255.0, 255.0)) is None,
+         "ma oltre la soglia non si decide: senza, il bianco finirebbe a qualcuno")
+
+    # -- una regex libera, per i giochi che non rientrano nelle tre forme ----
+    libero = LabelReader(LabelConfig(
+        enabled=True, regex=r"^<<(?P<nome>[^>]+)>>\s*(?P<testo>.+)$"
+    ))
+    e = libero.dal_testo("<<Franklin>> Come va")
+    c.ok(e is not None and e.nome == "Franklin" and e.testo == "Come va", "regex libera")
+    try:
+        LabelReader(LabelConfig(enabled=True, regex=r"^(.+)$"))
+        c.ok(False, "una regex senza i gruppi dichiarati deve sollevare")
+    except ValueError:
+        c.ok(True, "una regex senza i gruppi dichiarati solleva invece di tacere")
+
+    # -- e nella catena: niente attesa, niente impronta ---------------------
+    cfg = Config()
+    cfg.vision.ocr_backend = "none"
+    cfg.label.enabled = True
+    cfg.label.names = ("Franklin", "Lamar")
+    orologio = VirtualClock()
+    p = DubPipeline(cfg, ToneTts(), clock=orologio, samplerate=48000)
+    p.start_live(warmup=False)
+
+    ev = SubtitleEvent(text="Franklin: Come va, bello?", cls=LineClass.WHITE, t_on=0.0)
+    d = p._speaker_for(ev)
+    c.eq(d.speaker_id, "L-Franklin", "chi parla arriva dal gioco, non dall'audio")
+    c.close(d.confidence, 1.0, "e non e' una stima: e' quello che il gioco ha scritto", tol=1e-9)
+    c.ok(p.metrics.counter("vision.label.hit").value == 1, "e si conta, per accorgersi se il formato e' sbagliato")
+
+    riga = p._speak(ev)
+    c.ok("Franklin" not in riga.text, f"la battuta detta non contiene il nome: {riga.text!r}")
+    c.eq(riga.speaker_id, "L-Franklin", "e resta attribuita a lui")
+
+    # Due personaggi diversi, due voci diverse: e' tutto il punto della feature.
+    altra = p._speak(
+        SubtitleEvent(text="Lamar: Toc toc!", cls=LineClass.WHITE, t_on=1.0)
+    )
+    c.ok(altra.voice_id != riga.voice_id,
+         f"due nomi diversi -> due voci diverse ({riga.voice_id} / {altra.voice_id})")
+
+    # E senza etichetta la catena resta quella di prima.
+    muto = DubPipeline(Config(), ToneTts(), clock=VirtualClock(), samplerate=48000)
+    c.ok(muto.label is None, "spenta di default: nessun gioco e' uguale a un altro")
+
+
 def test_stringi_non_accodare(c: Check) -> None:
     """La battuta si stringe per stare nella sua finestra, non si sposta avanti.
 
@@ -2333,6 +2453,7 @@ GROUPS = {
     "chi_parla": test_chi_parla,
     "stringi": test_stringi_non_accodare,
     "streaming": test_streaming,
+    "etichetta": test_etichetta,
     "fretta": test_fretta,
     "duck": test_duck_non_pompa,
     "velocita": test_velocita_totale,

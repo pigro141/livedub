@@ -1010,10 +1010,55 @@ class UiConfig:
 
 
 @dataclass
+class LabelConfig:
+    """Chi parla, quando e' il **gioco** a scriverlo (`vision/label.py`).
+
+    Spento di default, e deve esserlo: nessun gioco e' uguale a un altro e
+    indovinare il formato del prefisso vuol dire, sul primo falso positivo,
+    inventare un personaggio e bruciargli addosso una voce del pool. Chi accende
+    questa sezione sa che gioco sta giocando.
+
+    **Quando c'e', vale mezzo secondo.** Il nome dichiarato sostituisce il
+    riconoscimento dall'audio, quindi cadono sia i `speaker.decide_after_ms` di
+    attesa sia il calcolo dell'impronta — e quei 500 ms sono la voce piu' grossa
+    della latenza (misurato: il doppio della sintesi, con Kokoro).
+
+    GTA V i nomi non li scrive, quindi qui resta spenta e **non e' mai stata
+    provata su materiale vero**: le verifiche sono su testo sintetico. E' la prima
+    cosa da guardare quando arriva la registrazione di un altro gioco.
+    """
+
+    enabled: bool = False
+    # Come il gioco scrive il nome. `nome:` -> «Franklin: come va»;
+    # `[nome]` -> «[Franklin] come va»; `nome-` -> «Franklin - come va».
+    form: str = "nome:"
+    # Per i casi che non rientrano nelle tre forme. Deve dichiarare i gruppi
+    # `(?P<nome>...)` e `(?P<testo>...)`; se c'e', vince su `form`.
+    regex: str = ""
+    # **I personaggi dichiarati, ed e' la guardia che conta.** Con l'elenco pieno
+    # si accettano solo quei nomi, e un OCR che legge «Si, era lui» come nome
+    # viene scartato invece di diventare un personaggio. Vuoto = si accetta
+    # qualunque nome che superi le guardie di forma.
+    names: tuple[str, ...] = ()
+    # Se vero, senza `names` non si etichetta nulla. Per chi preferisce non
+    # correre alcun rischio di falso positivo.
+    require_names: bool = False
+    max_name_len: int = 24
+    # Un colore per personaggio: `{"Franklin": "#5ac8fa"}`. Si confronta col
+    # colore medio dell'inchiostro della riga. Sopra `color_tolerance` (distanza
+    # euclidea in RGB 0-255) non si decide — senza soglia il piu' vicino c'e'
+    # sempre, e un sottotitolo bianco finirebbe al personaggio meno lontano dal
+    # bianco.
+    colors: dict = field(default_factory=dict)
+    color_tolerance: float = 60.0
+
+
+@dataclass
 class Config:
     profile: str = "gtav"
     capture: CaptureConfig = field(default_factory=CaptureConfig)
     vision: VisionConfig = field(default_factory=VisionConfig)
+    label: LabelConfig = field(default_factory=LabelConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
     vad: VadConfig = field(default_factory=VadConfig)
     speaker: SpeakerConfig = field(default_factory=SpeakerConfig)

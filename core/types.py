@@ -46,6 +46,10 @@ class OcrLine:
     bbox: tuple[int, int, int, int]  # x, y, w, h dentro la ROI
     luma: float = 0.0  # luminanza mediana dei pixel di testo, 0-255
     sat: float = 0.0  # saturazione massima trovata sulla riga, 0-255
+    # Colore medio dell'inchiostro. Lo usano i giochi che danno un colore a
+    # ciascun personaggio (`vision/label.py`); luminanza e saturazione da sole
+    # non bastano, perche' un blu e un rosso pari le hanno identiche.
+    rgb: tuple[float, float, float] = (0.0, 0.0, 0.0)
     conf: float = 1.0
 
     @property

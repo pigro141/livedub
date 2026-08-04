@@ -1086,12 +1086,71 @@ class CorrectConfig:
 
 
 @dataclass
+class TranslateConfig:
+    """Tradurre il sottotitolo, e ridisegnarlo sopra l'originale.
+
+    Spenta di default: su GTA V i sottotitoli sono gia' in italiano e tradurre
+    sarebbe tradurre l'italiano in italiano.
+
+    **`locale` e' il default quando si accende, e non per prestazioni.** `google`
+    manda ogni sottotitolo ai server di Google, che e' il contrario dell'«uso
+    completamente locale ed estrema privacy» che questo progetto si e' messo fra
+    gli obiettivi. Si puo' scegliere, la scelta e' esplicita, e il backend lo
+    dichiara su stderr quando parte.
+    """
+
+    enabled: bool = False
+    backend: str = "locale"  # locale | google | nessuno
+    # `auto` lo capisce solo Google: i modelli offline sono **di** una coppia di
+    # lingue, quindi con `locale` un `auto` diventa `en` e viene detto.
+    source: str = "auto"
+    target: str = "it"
+    # Oltre questo tempo la traduzione e' comunque usata ma **contata come
+    # lenta**: sta sulla strada critica, e se succede spesso quel backend non e'
+    # adatto. Vale anche da timeout di rete per `google`.
+    timeout_ms: float = 400.0
+    local_model: str = ""
+
+    # -- come si vede a schermo -------------------------------------------
+    # **La sostituzione grafica**: il testo tradotto viene ridisegnato sopra il
+    # sottotitolo originale, dentro un riquadro pieno che lo copre. Senza il
+    # riquadro si leggerebbero due testi sovrapposti, che e' peggio di nessuno
+    # dei due.
+    overlay: bool = True
+    # Come si copre il sottotitolo originale sotto quello tradotto:
+    #
+    #   `riquadro` un rettangolo pieno del colore di `background`;
+    #   `blur`     si sfoca la ROI invece di coprirla — l'originale diventa
+    #              illeggibile ma il gioco resta visibile sotto, che a schermo e'
+    #              molto meno invadente di una macchia nera;
+    #   `nessuno`  niente sfondo, solo il contorno del testo. Si legge solo se
+    #              sotto c'e' poco, e sotto c'e' l'originale: da usare sapendolo.
+    #
+    # `blur` costa un filtro video in piu' e vale solo quando un sottotitolo
+    # tradotto e' a schermo: fuori da quegli istanti la ROI resta nitida.
+    background_mode: str = "riquadro"  # riquadro | blur | nessuno
+    blur_strength: float = 12.0
+    # Altezza del carattere come frazione dell'altezza del fotogramma. In
+    # frazione e non in punti: la stessa configurazione deve valere a 1080p e a
+    # 1440p, e un numero in punti no.
+    font_frac: float = 0.038
+    font: str = "Arial"
+    # Colori in formato `#rrggbb`. Il fondo copre l'originale, quindi la sua
+    # opacita' e' quello che decide se la sostituzione funziona davvero.
+    color: str = "#ffffff"
+    background: str = "#000000"
+    background_opacity: float = 1.0
+    outline: float = 2.0
+
+
+@dataclass
 class Config:
     profile: str = "gtav"
     capture: CaptureConfig = field(default_factory=CaptureConfig)
     vision: VisionConfig = field(default_factory=VisionConfig)
     label: LabelConfig = field(default_factory=LabelConfig)
     correct: CorrectConfig = field(default_factory=CorrectConfig)
+    translate: TranslateConfig = field(default_factory=TranslateConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
     vad: VadConfig = field(default_factory=VadConfig)
     speaker: SpeakerConfig = field(default_factory=SpeakerConfig)

@@ -2,16 +2,19 @@
 
 ## Dove siamo
 
-**Feature: 12 fatte su 14.** Le due aperte:
+**Feature: 13 fatte su 14.** L'unica aperta:
 
 | resta | cosa la sblocca |
 |---|---|
 | LLM per gli artefatti OCR | **l'impalcatura è fatta e misurata; manca scegliere il modello**, ed è una decisione sull'ambiente (disco, e contesa per la GPU) |
-| traduzione con sostituzione grafica | **solo lavoro.** È la feature grossa che resta, e va fatta insieme alla UI |
 
-**Step finali: 0 su 13**, ed è lì che sta ormai quasi tutto il lavoro rimasto.
-Nessuno di quei punti aspetta una misura: sono UI, impacchettamento e repo. In
-mezzo c'è il cancello dichiarato — la prova dell'utente prima della fase di
+**Step finali: 2 su 13.** Le due spuntate — colore/dimensione dei sottotitoli e
+scelta delle lingue — sono fatte **come meccanismo**: i parametri esistono e si
+regolano da `--set`. Quello che manca è la UI che li espone, ed è il resto della
+lista.
+
+Nessuno dei punti rimasti aspetta una misura: sono UI, impacchettamento e repo.
+In mezzo c'è il cancello dichiarato — la prova dell'utente prima della fase di
 distribuzione.
 
 *(La riga per riga sta sotto: ogni voce fatta porta il suo esito, comprese quelle
@@ -96,7 +99,26 @@ che si sono chiuse con un "no".)*
     l'ho scelto io perché è una decisione sull'ambiente — peso su disco, e soprattutto
     **contesa per la GPU**, che abbiamo appena misurato essere la risorsa scarsa — e la
     correzione sta sul thread video, dove il costo si amplifica invece di sommarsi.
-  * \[ ]  implementazione di traduzione con sostituzione grafica
+  * \[x]  implementazione di traduzione con sostituzione grafica
+    → **fatta** (`translate/`, sezione `translate` di config, spenta di default: su GTA V
+    si tradurrebbe l'italiano in italiano).
+    → **Due strade a scelta, come chiesto**: `locale` (Argos/CTranslate2, offline, niente
+    esce dalla macchina — è il default quando si accende) e `google` (endpoint pubblico,
+    nessuna chiave né pacchetto, **ma manda ogni sottotitolo a Google** e lo dichiara su
+    stderr all'avvio). Più `prova`, finto, per il banco.
+    → **L'ordine conta**: si traduce **prima** di stimare i tempi. `chars_per_second` e
+    `D = a + b*n` sono misurati sull'italiano e vanno applicati al testo che verrà
+    *detto*: «I've never had a black son» sta in 26 caratteri, la traduzione in 30.
+    → **Non si resta mai muti**: se la traduzione fallisce o va in eccezione si tiene
+    l'originale e si conta. Cache per battuta, perché sta sulla strada critica.
+    → **Sostituzione grafica** con tre modi di sfondo (`translate.background_mode`):
+    `riquadro` (rettangolo pieno), **`blur`** (si sfoca la ROI: l'originale diventa
+    illeggibile ma il gioco resta visibile sotto — molto meno invadente) e `nessuno`.
+    Il riquadro si posiziona **dalla ROI del profilo**, cioè dallo stesso rettangolo da
+    cui l'OCR ha letto: copre per costruzione quello che c'era.
+    → **La sfocatura vale solo mentre un tradotto è a schermo** e gli intervalli attaccati
+    si fondono, se no sfarfalla. Verificato che il trattamento sia applicato davvero:
+    nitidezza della ROI a **0,00** dentro gli intervalli e **1,00** fuori.
   * \[x]  installare qwen tts e Chatterbox, provare sul banco e stimare l'hardware
     → **fatti tutti e due**, erano già installati nei venv delle cartelle sorelle.
     **Chatterbox**: 3394 ms a battuta su CUDA — fuori portata dal vivo, ma dà emozione
@@ -154,8 +176,15 @@ che si sono chiuse con un "no".)*
 * **Step finali**
 
   * \[ ]  UI interfaccia chiara e funzionale
-  * \[ ]  possibilità di modificare i sottotitoli tradotti colore dimensione
-  * \[ ]  scegliere lingua input lingua output
+  * \[x]  possibilità di modificare i sottotitoli tradotti colore dimensione
+    → `translate.color`, `background`, `background_opacity`, `background_mode`,
+    `blur_strength`, `font`, `font_frac`, `outline`. La dimensione è una **frazione**
+    dell'altezza del fotogramma e non punti: così la stessa configurazione vale a 1080p
+    e a 1440p. **Manca la UI che li espone**, non i parametri.
+  * \[x]  scegliere lingua input lingua output
+    → `translate.source` / `translate.target`. `auto` lo capisce solo Google: i modelli
+    offline sono **di** una coppia di lingue, quindi con `locale` un `auto` diventa `en`
+    e viene detto, invece di esserlo in silenzio. **Manca la UI**, non il meccanismo.
   * \[ ]  selettore delle tecnologie da usare
   * \[ ]  impostazioni avanzate con regolazione di tutti i parametri con vicino un icona a ogni settings che spiega bene cosa fa e cosa succede se viene cambiato rischi ecc
   * \[ ] cambiamento live dei settings e applicazione live

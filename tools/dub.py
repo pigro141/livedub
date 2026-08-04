@@ -266,6 +266,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\ntempo reale: {saltati} frame saltati perche' arretrati")
     if args.mp4:
         ass = scrivi_sottotitoli(pipeline.spoken, out / "letto.ass", args.mp4_width)
+        tradotti, quando = (None, [])
+        if cfg.translate.enabled and cfg.translate.overlay:
+            tradotti, quando = scrivi_tradotti(
+                pipeline.spoken, out / "tradotto.ass", args.mp4_width,
+                cfg.translate, cfg.vision.roi,
+            )
+        blur = ""
+        if tradotti is not None and cfg.translate.background_mode.lower() == "blur":
+            blur = _filtro_blur(
+                args.mp4_width, cfg.vision.roi, cfg.translate.blur_strength, quando
+            )
         video = monta(
             args.video,
             path,
@@ -274,6 +285,8 @@ def main(argv: list[str] | None = None) -> int:
             len(mix) / sr,
             args.mp4_width,
             sottotitoli=None if args.mp4_nudo else ass,
+            tradotti=tradotti,
+            blur=blur,
         )
         if video is not None:
             print(f"-> {video}")
@@ -325,23 +338,184 @@ Format: Layer, Start, End, Style, Text
     return destinazione
 
 
-def _filtro_video(larghezza: int, sottotitoli: Path | None) -> str:
+def _ass_colore(hex_rgb: str, opacita: float = 1.0) -> str:
+    """Da `#rrggbb` al formato ASS, che e' `&HAABBGGRR` — alpha e ordine invertiti.
+
+    **L'alpha di ASS e' la trasparenza, non l'opacita'**: 00 e' pieno, FF e'
+    invisibile. Scriverla al contrario da' un riquadro trasparente esattamente
+    quando lo si voleva pieno, cioe' due testi sovrapposti al posto della
+    sostituzione — e non solleva niente.
+    """
+    s = (hex_rgb or "").strip().lstrip("#")
+    if len(s) != 6:
+        s = "ffffff"
+    r, g, b = s[0:2], s[2:4], s[4:6]
+    alpha = int(round((1.0 - max(0.0, min(1.0, opacita))) * 255))
+    return f"&H{alpha:02X}{b}{g}{r}".upper()
+
+
+def scrivi_tradotti(righe: list, destinazione: Path, larghezza: int, cfg, roi):
+    """Il testo tradotto **sopra** il sottotitolo originale, che viene coperto.
+
+    E' la "sostituzione grafica": non una didascalia in piu', ma un riquadro pieno
+    piazzato sulla ROI — dove il gioco scrive i suoi sottotitoli — con dentro il
+    testo tradotto. Senza il riquadro si leggerebbero due testi sovrapposti, che
+    e' peggio di tutti e due.
+
+    Il riquadro si posiziona **dalla ROI del profilo**, che e' gia' tarata su dove
+    quel gioco scrive: e' lo stesso rettangolo da cui l'OCR ha letto, quindi
+    copre per costruzione quello che c'era. Un rettangolo dichiarato a parte
+    sarebbe una seconda taratura da tenere allineata alla prima, e le due
+    divergerebbero.
+
+    Lo sfondo che copre l'originale ha tre modi (`translate.background_mode`), e
+    il piu' utile non e' il primo: **`blur` sfoca la ROI invece di coprirla**, cosi'
+    l'originale diventa illeggibile ma il gioco resta visibile sotto — a schermo e'
+    molto meno invadente di un rettangolo nero piantato in mezzo all'immagine.
+
+    Restituisce `(percorso, intervalli)`, dove gli intervalli sono gli istanti in
+    cui un tradotto e' a schermo: servono a sfocare **solo allora**. Una ROI
+    sfocata per tutto il video sarebbe un difetto permanente al posto di una cura
+    temporanea. `(None, [])` se non c'e' niente di tradotto: meglio il video di
+    prima che una banda vuota.
+    """
+    tradotte = [r for r in righe if getattr(r, "text_original", "")]
+    if not tradotte:
+        return None, []
+
+    altezza = int(larghezza * 9 / 16)
+    corpo = max(12, int(altezza * cfg.font_frac))
+    # La ROI e' normalizzata (x, y, w, h): il margine dal basso e' quanto resta
+    # sotto il suo bordo inferiore.
+    x, y, w, h = roi
+    margine_v = max(4, int(altezza * (1.0 - (y + h))))
+    margine_l = max(4, int(larghezza * x))
+    margine_r = max(4, int(larghezza * (1.0 - (x + w))))
+
+    # **Con il blur il riquadro non ci va.** Sarebbero due coperture sovrapposte:
+    # si sfoca l'originale *e* poi gli si mette sopra un rettangolo, cioe' si paga
+    # un filtro video per un effetto che non si vede piu'. Con `blur` e `nessuno`
+    # il testo si regge sul contorno, che e' quello che lo rende leggibile su uno
+    # sfondo qualunque.
+    modo = (cfg.background_mode or "riquadro").lower()
+    if modo == "riquadro":
+        bordo = 3  # BorderStyle 3 = rettangolo pieno dietro al testo
+        sfondo = _ass_colore(cfg.background, cfg.background_opacity)
+        contorno = sfondo
+    else:
+        bordo = 1  # contorno e ombra, niente rettangolo
+        sfondo = _ass_colore("#000000", 1.0)
+        contorno = _ass_colore("#000000", 1.0)
+
+    testa = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: {larghezza}
+PlayResY: {altezza}
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: dub,{cfg.font},{corpo},{_ass_colore(cfg.color)},{contorno},{sfondo},0,{bordo},{cfg.outline},0,2,{margine_l},{margine_r},{margine_v},1
+
+[Events]
+Format: Layer, Start, End, Style, Text
+"""
+    eventi, intervalli = [], []
+    for r in tradotte:
+        inizio = r.t_subtitle
+        fine = max(inizio + 0.8, r.t_scheduled + max(r.duration, 0.8))
+        testo = r.text.replace("\\", "").replace("{", "(").replace("}", ")").replace("\n", " ")
+        eventi.append(
+            f"Dialogue: 0,{_ass_tempo(inizio)},{_ass_tempo(fine)},dub,,{testo}"
+        )
+        intervalli.append((inizio, fine))
+    destinazione.write_text(testa + "\n".join(eventi) + "\n", encoding="utf-8")
+    return destinazione, _fondi(intervalli)
+
+
+def _fondi(intervalli: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """Unisce gli intervalli che si toccano.
+
+    Serve al blur: due battute attaccate produrrebbero due `between` consecutivi e
+    quindi uno sfarfallio della sfocatura fra l'una e l'altra — la stessa forma
+    del duck che risale e si riabbassa subito, e che nel mixer si e' gia' dovuto
+    curare con `hold_ms`.
+    """
+    if not intervalli:
+        return []
+    ordinati = sorted(intervalli)
+    fuori = [list(ordinati[0])]
+    for a, b in ordinati[1:]:
+        if a <= fuori[-1][1] + 0.2:
+            fuori[-1][1] = max(fuori[-1][1], b)
+        else:
+            fuori.append([a, b])
+    return [(a, b) for a, b in fuori]
+
+
+def _filtro_blur(larghezza: int, roi, forza: float, quando: list) -> str:
+    """Sfoca la ROI, e **solo** negli istanti in cui c'e' un tradotto a schermo.
+
+    Si ritaglia la ROI, la si sfoca, e la si rimette sopra con `enable`: fuori da
+    quegli intervalli il fotogramma passa intatto. Una ROI sfocata per tutto il
+    video sarebbe un difetto permanente al posto di una cura temporanea — si
+    vedrebbe una macchia molle in mezzo al gioco anche quando nessuno parla.
+
+    Le coordinate si prendono dalla ROI del profilo, la stessa da cui l'OCR ha
+    letto: cosi' quello che si copre e' per costruzione quello che c'era.
+    """
+    if not quando:
+        return ""
+    altezza = int(larghezza * 9 / 16)
+    x, y, w, h = roi
+    # Pari per forza: molti filtri di ffmpeg vogliono dimensioni pari, e un
+    # dispari qui fa fallire il montaggio con un errore che non nomina la ROI.
+    cx, cy = int(larghezza * x) // 2 * 2, int(altezza * y) // 2 * 2
+    cw, ch = max(2, int(larghezza * w)) // 2 * 2, max(2, int(altezza * h)) // 2 * 2
+    condizione = "+".join(f"between(t,{a:.2f},{b:.2f})" for a, b in quando)
+    forza = max(1.0, forza)
+    return (
+        f"split=2[base][sfoca];"
+        f"[sfoca]crop={cw}:{ch}:{cx}:{cy},boxblur={forza}:1[macchia];"
+        f"[base][macchia]overlay={cx}:{cy}:enable='{condizione}'"
+    )
+
+
+def _filtro_video(
+    larghezza: int,
+    sottotitoli: Path | None,
+    tradotti: Path | None = None,
+    blur: str = "",
+) -> str:
     """Scala, e se ci sono i sottotitoli aggiunge la fascia nera in alto.
 
     La fascia si ottiene allargando il fotogramma verso l'alto (`pad`) invece di
     coprire il gioco: il testo letto e il gioco vanno guardati insieme, e uno
     sopra l'altro renderebbe illeggibile proprio la parte inquadrata dalla ROI.
     """
-    base = f"scale={larghezza}:-2"
-    if sottotitoli is None:
-        return base
-    alta = max(64, larghezza // 12)
-    # ffmpeg vuole il percorso con le barre in avanti e i due punti protetti.
-    via = str(sottotitoli.resolve()).replace("\\", "/").replace(":", "\:")
-    return (
-        f"{base},pad=iw:ih+{alta}:0:{alta}:black,"
-        f"subtitles='{via}':force_style='MarginV=10'"
-    )
+    def via(p: Path) -> str:
+        # ffmpeg vuole il percorso con le barre in avanti e i due punti protetti.
+        return str(p.resolve()).replace("\\", "/").replace(":", "\\:")
+
+    filtro = f"scale={larghezza}:-2"
+
+    # **Il tradotto va disegnato prima della fascia**, cioe' sul fotogramma con le
+    # coordinate del gioco. Dopo il `pad` l'immagine e' piu' alta, e la ROI —
+    # normalizzata sul frame del gioco — cadrebbe nel posto sbagliato, quindi il
+    # riquadro coprirebbe qualcos'altro invece del sottotitolo. L'ordine dei
+    # filtri qui non e' stile: e' il sistema di coordinate.
+    if blur:
+        filtro += f",{blur}"
+    if tradotti is not None:
+        filtro += f",subtitles='{via(tradotti)}'"
+
+    if sottotitoli is not None:
+        alta = max(64, larghezza // 12)
+        filtro += (
+            f",pad=iw:ih+{alta}:0:{alta}:black,"
+            f"subtitles='{via(sottotitoli)}':force_style='MarginV=10'"
+        )
+    return filtro
 
 
 def monta(
@@ -352,6 +526,8 @@ def monta(
     durata: float,
     larghezza: int,
     sottotitoli: Path | None = None,
+    tradotti: Path | None = None,
+    blur: str = "",
 ) -> Path | None:
     """Il video del gioco con la traccia doppiata al posto dell'originale.
 
@@ -378,7 +554,7 @@ def monta(
         "-accurate_seek", "-ss", f"{start:.6f}", "-i", str(sorgente),
         "-i", str(wav),
         "-map", "0:v:0", "-map", "1:a:0", "-t", f"{durata:.3f}",
-        "-vf", _filtro_video(larghezza, sottotitoli), "-r", "30",
+        "-vf", _filtro_video(larghezza, sottotitoli, tradotti, blur), "-r", "30",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
         str(destinazione),

@@ -19,6 +19,7 @@ Vincoli che la suite si impone:
 
 from __future__ import annotations
 
+import re
 import sys
 import tempfile
 import traceback
@@ -1980,6 +1981,120 @@ def test_correzione(c: Check) -> None:
     c.ok(hasattr(NessunCorrettore(), "proponi"), "il correttore di default rispetta il protocollo")
 
 
+def test_traduzione(c: Check) -> None:
+    """Tradurre: prima dei tempi, con la cache, e senza mai restare muti."""
+    c.group("traduzione")
+
+    from core.config import Config, TranslateConfig
+    from core.pipeline import DubPipeline
+    from speak.base import ToneTts
+    from translate.base import NessunTraduttore, Traduzioni, make_traduttore
+
+    class _Finto:
+        name = "finto"
+
+        def __init__(self, mappa=None, rompe=False) -> None:
+            self.mappa = mappa or {}
+            self.rompe = rompe
+            self.chiamate = 0
+
+        def traduci(self, testo, da, a):
+            self.chiamate += 1
+            if self.rompe:
+                raise RuntimeError("rete assente")
+            return self.mappa.get(testo)
+
+    # -- il default non traduce --------------------------------------------
+    c.ok(isinstance(make_traduttore(TranslateConfig()), NessunTraduttore),
+         "spenta di default: su GTA V si tradurrebbe l'italiano in italiano")
+    try:
+        make_traduttore(TranslateConfig(enabled=True, backend="refuso"))
+        c.ok(False, "un backend sconosciuto deve sollevare")
+    except ValueError:
+        c.ok(True, "un backend sconosciuto solleva invece di ripiegare")
+
+    # -- tradurre, e la cache ----------------------------------------------
+    finto = _Finto({"Hello there": "Ciao"})
+    t = Traduzioni(finto, da="en", a="it")
+    r = t("Hello there")
+    c.eq(r.testo, "Ciao", "traduce")
+    c.ok(r.tradotto, "e lo dichiara")
+    r2 = t("Hello there")
+    c.eq(r2.testo, "Ciao", "la seconda volta pure")
+    c.ok(r2.da_cache, "ma dalla cache")
+    c.eq(finto.chiamate, 1, "il traduttore e' stato chiamato una volta sola")
+
+    # -- fallire non e' tradurre a caso ------------------------------------
+    # Una battuta nella lingua sbagliata e' un difetto; una battuta muta e' un
+    # buco, e questo progetto sfora invece di scartare.
+    t = Traduzioni(_Finto({}), da="en", a="it")
+    r = t("Something else")
+    c.eq(r.testo, "Something else", "se non sa tradurre tiene l'originale")
+    c.ok(not r.tradotto, "e non finge di averlo tradotto")
+    c.eq(t.n_falliti, 1, "il fallimento si conta")
+
+    t = Traduzioni(_Finto(rompe=True), da="en", a="it")
+    c.eq(t("Boom").testo, "Boom", "e un'eccezione non zittisce la battuta")
+
+    # -- i tempi si calcolano sul testo TRADOTTO ---------------------------
+    # E' l'ordine che conta: `chars_per_second` e `D = a + b*n` sono misurati
+    # sull'italiano e vanno applicati a cio' che verra' **detto**.
+    cfg = Config()
+    cfg.vision.ocr_backend = "none"
+    cfg.translate.enabled = True
+    cfg.translate.backend = "nessuno"
+    p = DubPipeline(cfg, ToneTts(), clock=VirtualClock(), samplerate=48000)
+    p.start_live(warmup=False)
+    p.traduci = Traduzioni(
+        _Finto({"Hi": "Buongiorno a tutti quanti voi che siete qui"}), da="en", a="it"
+    )
+    riga = p._speak(SubtitleEvent(text="Hi", cls=LineClass.WHITE, t_on=0.0))
+    c.eq(riga.text, "Buongiorno a tutti quanti voi che siete qui", "si dice il tradotto")
+    c.eq(riga.text_original, "Hi", "e l'originale resta scritto, per la prova d'ascolto")
+    c.ok(riga.duration > 0.8,
+         f"la durata segue il testo tradotto, non le due lettere dell'originale "
+         f"({riga.duration:.2f}s)")
+
+    # -- il colore ASS: alpha invertita ------------------------------------
+    from tools.dub import _ass_colore, _fondi
+
+    c.eq(_ass_colore("#ffffff", 1.0), "&H00FFFFFF", "opaco = alpha 00, e il canale e' BGR")
+    c.eq(_ass_colore("#ff0000", 1.0), "&H000000FF", "rosso in BGR sta in fondo")
+    c.ok(_ass_colore("#000000", 0.0).startswith("&HFF"),
+         "trasparente = alpha FF: scriverla al contrario darebbe un riquadro "
+         "invisibile proprio quando lo si voleva pieno")
+
+    # -- gli intervalli del blur si fondono --------------------------------
+    c.eq(_fondi([(0.0, 1.0), (1.1, 2.0), (5.0, 6.0)]), [(0.0, 2.0), (5.0, 6.0)],
+         "due battute attaccate non fanno sfarfallare la sfocatura")
+    c.eq(_fondi([]), [], "e senza tradotti non si sfoca niente")
+
+    # -- il filtro del blur -------------------------------------------------
+    from tools.dub import _filtro_blur, _filtro_video
+
+    c.eq(_filtro_blur(1280, (0.15, 0.72, 0.70, 0.22), 12.0, []), "",
+         "senza intervalli non si costruisce nessun filtro")
+    f = _filtro_blur(1280, (0.15, 0.72, 0.70, 0.22), 12.0, [(1.0, 2.0), (5.0, 6.0)])
+    c.ok("boxblur=12.0" in f, "la forza arriva al filtro")
+    c.ok("between(t,1.00,2.00)+between(t,5.00,6.00)" in f,
+         "e si sfoca **solo** negli intervalli: una ROI sfocata per tutto il video "
+         "sarebbe un difetto permanente al posto di una cura temporanea")
+    # ffmpeg vuole dimensioni pari: un dispari fa fallire il montaggio con un
+    # errore che non nomina la ROI, cioe' con mezz'ora di ricerca nel posto sbagliato.
+    fra = [int(v) for v in re.findall(r"crop=(\d+):(\d+):(\d+):(\d+)", f)[0]]
+    c.ok(all(v % 2 == 0 for v in fra), f"le coordinate del ritaglio sono pari: {fra}")
+
+    # **L'ordine dei filtri e' il sistema di coordinate, non lo stile.** Il
+    # tradotto va disegnato prima del `pad`: dopo, il fotogramma e' piu' alto e la
+    # ROI — normalizzata sul frame del gioco — cadrebbe altrove, quindi si
+    # coprirebbe qualcosa che non e' il sottotitolo.
+    v = _filtro_video(1280, Path("letto.ass"), Path("tradotto.ass"), f)
+    c.ok(v.index("tradotto.ass") < v.index("pad="),
+         "il tradotto si disegna prima della fascia, con le coordinate del gioco")
+    c.ok(v.index("boxblur") < v.index("tradotto.ass"),
+         "e la sfocatura prima del testo, se no si sfocherebbe il testo stesso")
+
+
 def test_stringi_non_accodare(c: Check) -> None:
     """La battuta si stringe per stare nella sua finestra, non si sposta avanti.
 
@@ -2565,6 +2680,7 @@ GROUPS = {
     "streaming": test_streaming,
     "etichetta": test_etichetta,
     "correzione": test_correzione,
+    "traduzione": test_traduzione,
     "fretta": test_fretta,
     "duck": test_duck_non_pompa,
     "velocita": test_velocita_totale,

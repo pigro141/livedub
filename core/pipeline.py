@@ -44,6 +44,7 @@ from mix.center import split
 from mix.mixer import Mixer
 from mix.stretch import fit_duration, fit_duration_keep_tail  # noqa: F401
 from speak.base import TtsBackend, sa_streaming
+from translate.base import Traduzioni, make_traduttore
 from speak.pool import VoicePool, build_pool, voce_neutra, voce_per
 from vision.label import LabelReader
 from vision.ocr import OcrBackend, make_ocr
@@ -76,6 +77,11 @@ class SpokenLine:
     synth_ms: float
     duration: float
     rate: float = 1.0
+    # Il testo **letto a schermo**, prima della traduzione. Vuoto se non si
+    # traduce. Serve alla prova d'ascolto: senza, guardando l'MP4 non si
+    # distingue "ha tradotto male" da "ha letto male", che e' la stessa domanda
+    # per cui l'MP4 esiste.
+    text_original: str = ""
 
     @property
     def latency_ms(self) -> float:
@@ -138,6 +144,18 @@ class DubPipeline:
         # Chi parla scritto dal gioco, se il gioco lo scrive. Spento di default:
         # si veda `LabelConfig`, dove sta anche il perche' non si indovina.
         self.label = LabelReader(cfg.label) if cfg.label.enabled else None
+        # La traduzione, con cache e tetto di tempo. `None` quando e' spenta, cosi'
+        # la catena non paga nemmeno una chiamata a vuoto per battuta.
+        self.traduci = (
+            Traduzioni(
+                make_traduttore(cfg.translate),
+                da=cfg.translate.source,
+                a=cfg.translate.target,
+                max_ms=cfg.translate.timeout_ms,
+            )
+            if cfg.translate.enabled
+            else None
+        )
         self.mixer = Mixer(
             samplerate=samplerate,
             duck_db=cfg.mix.duck_db,
@@ -396,6 +414,21 @@ class DubPipeline:
         etichetta = self._etichetta(event)
         if etichetta is not None and etichetta.testo != event.text:
             event = replace(event, text=etichetta.testo)
+
+        # **La traduzione va qui, prima dei tempi, e l'ordine e' la parte che
+        # conta.** Sotto si stima la durata da `spoken_length(event.text)` e da
+        # `chars_per_second`: quei numeri sono misurati sull'italiano, e vanno
+        # applicati al testo che verra' **detto**. Tradurre dopo aver deciso i
+        # tempi vorrebbe dire pianificare la battuta su una lunghezza che nessuno
+        # pronuncera' mai — la stessa forma dell'errore per cui si misurava il
+        # silenzio di SuperTonic e lo si chiamava parlato.
+        #
+        # Dopo l'etichetta e non prima: il nome del personaggio non si traduce.
+        originale = event.text
+        if self.traduci is not None:
+            t = self.traduci(event.text)
+            if t.tradotto:
+                event = replace(event, text=t.testo)
         speaker_id = decisione.speaker_id
         # Il sesso della voce arriva dall'intonazione misurata sulle battute
         # intere di questo personaggio. Senza, il pool alterna maschile e
@@ -459,7 +492,8 @@ class DubPipeline:
 
         if self._streaming:
             return self._speak_streaming(
-                event, voice, decisione, p, stima=stima, richiesta=richiesta
+                event, voice, decisione, p, stima=stima, richiesta=richiesta,
+                originale=originale,
             )
 
         t0 = time.perf_counter()
@@ -659,6 +693,7 @@ class DubPipeline:
             t_scheduled=t_start,
             synth_ms=synth_ms,
             duration=len(audio) / self.samplerate if audio.size else 0.0,
+            text_original=originale if originale != event.text else "",
             rate=rate,
         )
         self._t_latency.add(line.latency_ms)
@@ -731,6 +766,7 @@ class DubPipeline:
         *,
         stima: float,
         richiesta: float,
+        originale: str = "",
     ) -> SpokenLine:
         """La battuta si programma **prima di esistere**, e i campioni la
         raggiungono mentre suona.
@@ -805,6 +841,7 @@ class DubPipeline:
             t_scheduled=t_start,
             synth_ms=0.0,
             duration=stima / rate,
+            text_original=originale if originale != event.text else "",
             rate=rate,
         )
 

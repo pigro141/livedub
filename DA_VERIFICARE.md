@@ -118,13 +118,48 @@ metterei finché la GPU serve alla sintesi.
 `candidati()` dato il contesto, non che genera testo libero: così non può
 inventare una non-parola e la fiducia esce dal distacco fra i primi due.)*
 
-## 7. Una cosa su cui voglio il tuo permesso, non la tua verifica
+## 7. La traduzione — funziona, ma **non l'ho mai provata con un traduttore vero**
 
-Per la traduzione avevi detto «Google Translate via API oppure Gemma 3». **L'API
-manda i sottotitoli a Google**, e nella tua stessa lista di step finali c'è
-«valorizzazione dell'uso completamente locale ed estrema privacy». Sono due cose
-che non stanno insieme, e la scelta è tua, non mia: non ho scritto niente né in
-un verso né nell'altro.
+Ho verificato tutto quello che sta *intorno* alla traduzione con un traduttore
+finto (`translate.backend=prova`, che rimanda il testo in maiuscolo): il riquadro
+che copre l'originale, la sfocatura, i tempi ricalcolati sulla lunghezza nuova.
+**Nessuno dei due traduttori veri è mai stato eseguito**, per due motivi
+deliberati: `locale` vuole un pacchetto e un modello che non ho installato senza
+di te, e `google` avrebbe mandato i tuoi sottotitoli a Google.
+
+**Per provare quello locale**:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install argostranslate
+.\.venv\Scripts\python.exe -m translate.locale --scarica en it
+.\.venv\Scripts\python.exe -m tools.dub <video-inglese> --profile <gioco> `
+    --set translate.enabled=true --set translate.backend=locale `
+    --set translate.source=en --set translate.target=it `
+    --set translate.background_mode=blur --mp4
+```
+
+**Cosa guardare**:
+
+- che il riquadro/la sfocatura cada **sul** sottotitolo del gioco. Se cade
+  altrove, la ROI del profilo non è tarata per quel gioco: si rifà con
+  `tools/calibrate.py`.
+- che la voce dica il **tradotto** e non l'originale.
+- il tempo: la traduzione sta sulla strada critica e ogni battuta ne paga il
+  costo la prima volta. Se la latenza sale molto, quel backend non è adatto lì.
+
+Prova anche `--set translate.background_mode=riquadro` per confrontare a occhio:
+il blur è meno invadente ma copre meno; il riquadro copre tutto ma mette una
+macchia in mezzo al gioco. **Non c'è un numero che lo decida.**
+
+## 8. Il filtro blur — verificato, ma su GTA V è un caso degenere
+
+L'ho misurato: nitidezza della ROI a **0,00** dentro gli intervalli e **1,00**
+fuori, cioè sfoca dove deve e non tocca niente altrove. Ma l'ho provato
+traducendo l'italiano in MAIUSCOLO, non da una lingua vera.
+
+L'MP4 che ti mando è quello: serve a giudicare **la grafica**, non la traduzione.
+Guarda se il testo bianco maiuscolo copre bene l'originale sfocato sotto, e se la
+dimensione ti sembra giusta (`translate.font_frac`, oggi 0,038 dell'altezza).
 
 ---
 
@@ -136,4 +171,22 @@ un verso né nell'altro.
   quantizzazione a 16 bit, cioè solo la scrittura del WAV);
 - le guardie della correzione reggono anche con un correttore sconsiderato: una
   parola italiana non gli viene nemmeno proposta;
-- 1039 verifiche verdi.
+- la sfocatura è applicata **solo** negli istanti dichiarati (ROI a 0,00 dentro,
+  1,00 fuori);
+- se la traduzione fallisce o esplode, si dice l'originale invece di restare muti;
+- 1064 verifiche verdi.
+
+---
+
+## La decisione che resta tua, e non è una verifica
+
+**Google Translate manda ogni sottotitolo ai server di Google.** L'ho montato
+perché me l'hai chiesto, ma è spento e il default è `locale`: nella tua stessa
+lista di step finali c'è «valorizzazione dell'uso completamente locale ed estrema
+privacy», e le due cose non stanno insieme. Quando accendi `google` il programma
+te lo dice su stderr, così chi usa il tuo software lo sa senza leggere i
+documenti.
+
+Se il repo pubblico vuole vendere la privacy come punto di forza, la strada
+onesta è tenere `locale` come default dichiarato e `google` come opzione che
+l'utente accende sapendo cosa fa — che è esattamente com'è adesso.

@@ -8,14 +8,22 @@
 |---|---|
 | LLM per gli artefatti OCR | **l'impalcatura è fatta e misurata; manca scegliere il modello**, ed è una decisione sull'ambiente (disco, e contesa per la GPU) |
 
-**Step finali: 2 su 13.** Le due spuntate — colore/dimensione dei sottotitoli e
+**Step finali: 2 su 17.** Le due spuntate — colore/dimensione dei sottotitoli e
 scelta delle lingue — sono fatte **come meccanismo**: i parametri esistono e si
-regolano da `--set`. Quello che manca è la UI che li espone, ed è il resto della
-lista.
+regolano da `--set`. Quello che manca è la UI che li espone.
 
-Nessuno dei punti rimasti aspetta una misura: sono UI, impacchettamento e repo.
-In mezzo c'è il cancello dichiarato — la prova dell'utente prima della fase di
-distribuzione.
+I quindici rimasti sono tre blocchi, e il primo blocca gli altri:
+
+| blocco | cosa | quanti |
+|---|---|---|
+| **UI** | interfaccia, selettore tecnologie, impostazioni avanzate con spiegazioni, modifica a caldo | 4 |
+| *(cancello)* | **la tua prova, con report di cosa va e cosa no** | — |
+| **distribuzione** | installabile, exe, licenza | 3 |
+| **repo** | il repo più i suoi sette punti | 8 |
+
+**Nessuno aspetta una misura.** L'unico che poggiava su dati — i requisiti minimi
+— ce li ha già tutti. Da qui in poi è lavoro di interfaccia e di confezione, non
+di misura: il contrario di tutto quello che è venuto prima.
 
 *(La riga per riga sta sotto: ogni voce fatta porta il suo esito, comprese quelle
 che si sono chiuse con un "no".)*

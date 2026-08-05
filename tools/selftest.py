@@ -2160,6 +2160,37 @@ def test_traduzione(c: Check) -> None:
          f"la durata segue il testo tradotto, non le due lettere dell'originale "
          f"({riga.duration:.2f}s)")
 
+    # -- tradurre cambia anche la **voce** ---------------------------------
+    # Un pool italiano che dice battute inglesi non ha un accento: ha i fonemi
+    # sbagliati, e sembra un difetto del modello.
+    from speak.backends.kokoro import FONEMI_LINGUA, PER_LINGUA
+    from speak.pool import build_pool
+
+    it = build_pool(None, 6, backend="kokoro", lingua="it")
+    en = build_pool(None, 6, backend="kokoro", lingua="en")
+    c.ok(all(v.base_voice in PER_LINGUA["it"] for v in it),
+         "con `it` il pool prende solo le voci italiane")
+    c.ok(all(v.base_voice in PER_LINGUA["en"] for v in en),
+         "con `en` solo le inglesi")
+    c.ok(not {v.base_voice for v in it} & {v.base_voice for v in en},
+         "e i due insiemi non si toccano")
+    c.ok(all(v.semitones == 0.0 for v in en),
+         "le sei inglesi sono tutte native: **nessun semitono spostato**, perche' "
+         "Kokoro in inglese ne ha abbastanza e una voce trasformata e' sempre "
+         "peggio di una nativa quando se ne puo' fare a meno")
+    c.eq(len({v.gender for v in en}), 2, "e alternano maschile e femminile")
+    c.eq(FONEMI_LINGUA["en"], "en-us", "l'inglese si fonemizza con le regole inglesi")
+
+    # La catena prende la lingua **di arrivo**, non quella del gioco.
+    cfg_en = Config()
+    cfg_en.vision.ocr_backend = "none"
+    cfg_en.tts.backend = "kokoro"
+    cfg_en.translate.enabled = True
+    cfg_en.translate.target = "en"
+    p_en = DubPipeline(cfg_en, ToneTts(), clock=VirtualClock(), samplerate=48000)
+    c.ok(all(v.base_voice in PER_LINGUA["en"] for v in p_en.pool.voices),
+         "la catena che traduce in inglese costruisce un pool inglese")
+
     # -- il template di TranslateGemma -------------------------------------
     # **Le due righe vuote non sono formattazione.** Il modello e' addestrato su
     # quel template esatto: sbagliarlo non da' errore, da' una traduzione un po'

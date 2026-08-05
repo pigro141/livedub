@@ -53,6 +53,15 @@ NATIVE = {
     "supertonic-F5": ("f", 44100),
     "kokoro-nicola": ("m", 24000),
     "kokoro-sara": ("f", 24000),
+    # Le inglesi di Kokoro, che servono quando si traduce verso l'inglese. Sei
+    # native invece di due: **e' l'unico caso in cui il pool non ha bisogno di
+    # spostare i semitoni** per distinguere sei personaggi.
+    "kokoro-heart": ("f", 24000),
+    "kokoro-bella": ("f", 24000),
+    "kokoro-michael": ("m", 24000),
+    "kokoro-fenrir": ("m", 24000),
+    "kokoro-emma": ("f", 24000),
+    "kokoro-george": ("m", 24000),
 }
 
 # Varianti, in ordine di assegnazione: prima le native, poi gli scostamenti
@@ -89,6 +98,15 @@ VARIANTS: tuple[tuple[str, float, float], ...] = (
     # — quello in cui la voce d'attesa somiglia a quella di un personaggio. Il
     # margine di una serve perche' `pool_size` e' un campo di config, e prima o
     # poi qualcuno lo mettera' a 7.
+    # Le inglesi prima, e **senza trasformazioni**: sei voci native alternate
+    # maschile/femminile bastano da sole, e un semitono spostato su una voce
+    # nativa e' sempre un peggioramento quando se ne puo' fare a meno.
+    ("kokoro-michael", 0.0, 1.00),
+    ("kokoro-heart", 0.0, 1.00),
+    ("kokoro-fenrir", 0.0, 1.00),
+    ("kokoro-bella", 0.0, 1.00),
+    ("kokoro-george", 0.0, 1.00),
+    ("kokoro-emma", 0.0, 1.00),
     ("kokoro-nicola", 0.0, 1.00),  # maschile nativa
     ("kokoro-sara", 0.0, 1.00),  # femminile nativa
     ("kokoro-nicola", -2.5, 0.96),  # maschile piu' grave e lenta
@@ -109,7 +127,10 @@ FAMIGLIE = {
 
 
 def build_pool(
-    voices: tuple[str, ...] | None = None, size: int = 6, backend: str = "piper"
+    voices: tuple[str, ...] | None = None,
+    size: int = 6,
+    backend: str = "piper",
+    lingua: str = "it",
 ) -> list[VoiceSpec]:
     """Costruisce il pool, al piu' `size` voci, usando solo le basi disponibili.
 
@@ -117,8 +138,21 @@ def build_pool(
     un pool che mescolasse voci Piper e SuperTonic chiederebbe a un motore di
     sintetizzare con lo stile di un altro, e il personaggio a cui tocca la voce
     sbagliata resterebbe muto per tutta la sessione.
+
+    **E nemmeno voci di lingue diverse.** Se si traduce, la lingua che conta e'
+    quella di *arrivo*: dare a un personaggio una voce italiana per dire una
+    battuta inglese non e' un difetto di accento, e' un modello fonemizzato con
+    le regole sbagliate. Oggi solo Kokoro ha voci in piu' lingue; per gli altri
+    `lingua` non cambia niente.
     """
-    allowed = set(voices) if voices else set(FAMIGLIE.get(backend, FAMIGLIE["piper"]))
+    per_lingua = None
+    if not voices and backend == "kokoro":
+        from speak.backends.kokoro import PER_LINGUA
+
+        per_lingua = PER_LINGUA.get((lingua or "it").split("-")[0])
+    allowed = set(
+        voices or per_lingua or FAMIGLIE.get(backend, FAMIGLIE["piper"])
+    )
     pool: list[VoiceSpec] = []
     for base, semitones, rate in VARIANTS:
         if base not in allowed:

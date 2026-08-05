@@ -224,8 +224,15 @@ class DubPipeline:
         )
         # Il pool segue il backend: senza, una sessione SuperTonic riceverebbe
         # in dote le voci di Piper e non saprebbe pronunciarle.
+        # **La lingua del pool e' quella che si parlera'**: se si traduce, quella
+        # di arrivo. Un pool italiano che dice battute inglesi non ha un accento,
+        # ha i fonemi sbagliati.
+        lingua_voce = cfg.translate.target if cfg.translate.enabled else "it"
         self.pool = VoicePool(
-            build_pool(cfg.tts.voices, cfg.tts.pool_size, backend=cfg.tts.backend)
+            build_pool(
+                cfg.tts.voices, cfg.tts.pool_size,
+                backend=cfg.tts.backend, lingua=lingua_voce,
+            )
         )
         # La voce di chi non si sa ancora chi sia. Fuori dal pool: nessuno se la
         # tiene, quindi non diventa mai la voce di un personaggio.

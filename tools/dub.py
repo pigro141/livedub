@@ -110,7 +110,10 @@ def main(argv: list[str] | None = None) -> int:
 
     sezione = replace(cfg.tts, backend="tone") if args.tone else cfg.tts
     print("carico le voci...")
-    tts = make_tts(sezione)
+    # La lingua e' quella che si **parlera'**: se si traduce, quella di arrivo.
+    tts = make_tts(
+        sezione, lingua=cfg.translate.target if cfg.translate.enabled else "it"
+    )
 
     clock = VirtualClock()
     precedente = set_clock(clock)

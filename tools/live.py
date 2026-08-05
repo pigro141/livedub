@@ -71,7 +71,11 @@ def costruisci_tts(nome: str, cfg):
 
     from speak.base import make_tts
 
-    return make_tts(replace(cfg.tts, backend=nome))
+    # La lingua e' quella che si **parlera'**: se si traduce, quella di arrivo.
+    return make_tts(
+        replace(cfg.tts, backend=nome),
+        lingua=cfg.translate.target if cfg.translate.enabled else "it",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

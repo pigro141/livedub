@@ -188,7 +188,25 @@ class SilentTts:
 BACKEND_NOTI = ("piper", "supertonic", "kokoro", "tone", "silent")
 
 
-def make_tts(cfg, *, download: bool = True, preload: bool = True):
+def _famiglia(backend: str, lingua: str) -> tuple[str, ...]:
+    """Le voci native di quel backend **in quella lingua**, per il precaricamento.
+
+    Scaldare le voci italiane per poi parlare inglese vorrebbe dire pagare il
+    caricamento due volte: una a vuoto all'avvio e una sulla prima battuta, che
+    e' precisamente cio' che il precaricamento esiste per evitare.
+    """
+    from speak.pool import FAMIGLIE
+
+    if backend == "kokoro":
+        from speak.backends.kokoro import PER_LINGUA
+
+        per = PER_LINGUA.get((lingua or "it").split("-")[0])
+        if per:
+            return per
+    return FAMIGLIE.get(backend, ())
+
+
+def make_tts(cfg, *, download: bool = True, preload: bool = True, lingua: str = "it"):
     """Il backend di sintesi richiesto, costruito con **tutti** i suoi parametri.
 
     Prende la sezione `tts` intera e non i singoli campi, ed e' il punto. Finche'
@@ -237,6 +255,11 @@ def make_tts(cfg, *, download: bool = True, preload: bool = True):
             speed=cfg.kokoro_speed,
             pesi=cfg.kokoro_weights,
             device=cfg.device,
+            # **La lingua di arrivo, non quella del gioco.** Se si traduce, il
+            # testo che questo motore dovra' dire e' nella lingua di uscita, e
+            # fonemizzarlo con le regole di un'altra da' parlato comprensibile a
+            # meta' — che sembra un difetto del modello.
+            lingua=lingua,
             download=download,
         )
     else:
@@ -248,8 +271,6 @@ def make_tts(cfg, *, download: bool = True, preload: bool = True):
         # Le voci dichiarate se ci sono, altrimenti quelle della famiglia. Prima
         # si passava `cfg.voices`, che e' **vuoto** per default: il precaricamento
         # non precaricava niente e la prima battuta pagava lo stesso.
-        from speak.pool import FAMIGLIE
-
-        voci = list(cfg.voices) or list(FAMIGLIE.get(nome, ()))
+        voci = list(cfg.voices) or list(_famiglia(nome, lingua))
         tts.preload(voci)
     return tts

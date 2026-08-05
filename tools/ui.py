@@ -119,6 +119,24 @@ class App:
         self.root.title("livedub")
         self.root.geometry("880x560")
 
+        # La sostituzione grafica dal vivo: una finestra sopra il gioco, sulla
+        # ROI. Solo se si traduce **e** l'overlay e' acceso — coprire il
+        # sottotitolo originale con la sua stessa traduzione mancante non
+        # servirebbe a niente.
+        self.overlay = None
+        self._overlay_fino_a = 0.0
+        if self.cfg.translate.enabled and self.cfg.translate.overlay:
+            from ui.overlay import Overlay
+
+            self.overlay = Overlay(
+                self.root, self.cfg.vision.roi,
+                colore=self.cfg.translate.color,
+                fondo=self.cfg.translate.background,
+                font=self.cfg.translate.font,
+                font_frac=self.cfg.translate.font_frac,
+                opacita=self.cfg.translate.background_opacity,
+            )
+
         barra = tk.Frame(self.root)
         barra.pack(fill="x", padx=8, pady=6)
         self.b_area = tk.Button(barra, text="Seleziona area", command=self.scegli_area)
@@ -183,12 +201,21 @@ class App:
                         f"{t:7.1f}s  {sid:>4}  {voce:<14} {lat:4.0f} ms  {testo}",
                         tag=f"s{self.noti[sid]}",
                     )
+                elif tipo == "overlay":
+                    testo, fine = dato
+                    if self.overlay is not None:
+                        self.overlay.mostra(testo)
+                        self._overlay_fino_a = fine
                 elif tipo == "stato":
                     self.l_stato.config(text=dato)
                 elif tipo == "nota":
                     self.scrivi(dato, tag="nota")
         except queue.Empty:
             pass
+        # **Il sottotitolo tradotto sparisce da solo.** Una banda perenne in
+        # mezzo allo schermo e' peggio dell'originale che copriva.
+        if self.overlay is not None and time.perf_counter() >= self._overlay_fino_a:
+            self.overlay.nascondi()
         self.root.after(100, self._svuota_coda)
 
     # -- avvio e arresto ---------------------------------------------------
@@ -276,6 +303,15 @@ class App:
                             (riga.speaker_id, riga.voice_id, riga.text,
                              riga.live_latency_ms, time.perf_counter() - t_avvio),
                         ))
+                        # **La sostituzione grafica dal vivo.** Si passa dalla
+                        # coda come tutto il resto: disegnare da qui vorrebbe
+                        # dire toccare Tkinter dal thread video, che e' il modo
+                        # piu' rapido di far cadere l'interfaccia. Si manda solo
+                        # se c'e' stata una traduzione — se no si coprirebbe il
+                        # sottotitolo originale con sé stesso.
+                        if self.overlay is not None and riga.text_original:
+                            fine = time.perf_counter() + max(riga.duration, 1.0)
+                            self.coda.put(("overlay", (riga.text, fine)))
                     if n % 30 == 0:
                         p = len(self.pipeline.tracker) if self.pipeline.tracker else 0
                         self.coda.put(("stato",

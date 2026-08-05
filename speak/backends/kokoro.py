@@ -73,9 +73,43 @@ DEFAULT_PESI = "fp32"
 VOICES = {
     "kokoro-nicola": ("im_nicola", "m"),
     "kokoro-sara": ("if_sara", "f"),
+    # **Le voci inglesi, che servono quando si traduce.** Kokoro ne ha due sole in
+    # italiano — oltre il secondo personaggio si spostano i semitoni — ma in
+    # inglese ne ha molte, quindi tradurre verso l'inglese e' l'unico caso in cui
+    # il pool non e' un vincolo del modello. I nomi sono quelli del repo:
+    # `a` = American, `b` = British, `f`/`m` = femminile/maschile.
+    "kokoro-heart": ("af_heart", "f"),
+    "kokoro-bella": ("af_bella", "f"),
+    "kokoro-michael": ("am_michael", "m"),
+    "kokoro-fenrir": ("am_fenrir", "m"),
+    "kokoro-emma": ("bf_emma", "f"),
+    "kokoro-george": ("bm_george", "m"),
+}
+
+# Le famiglie per lingua: `build_pool` prende quella giusta invece di mescolare
+# voci italiane e inglesi nello stesso pool — che darebbe a un personaggio una
+# voce che pronuncia l'altra lingua.
+PER_LINGUA = {
+    "it": ("kokoro-nicola", "kokoro-sara"),
+    "en": (
+        "kokoro-michael", "kokoro-heart", "kokoro-fenrir",
+        "kokoro-bella", "kokoro-george", "kokoro-emma",
+    ),
 }
 
 LINGUA = "it"
+
+# La lingua che `espeak` deve fonemizzare, per codice ISO. **Non e' un dettaglio
+# di cortesia**: fonemizzare l'inglese con le regole italiane produce parlato
+# comprensibile a meta', e sembrerebbe un difetto del modello.
+FONEMI_LINGUA = {
+    "it": "it",
+    "en": "en-us",
+    "es": "es",
+    "fr": "fr-fr",
+    "de": "de",
+    "pt": "pt",
+}
 
 # Quanti fonemi il modello accetta in un colpo. Le battute vere di GTA V ne
 # fanno un'ottantina, quindi il limite non si tocca mai — ma una battuta troncata
@@ -147,17 +181,29 @@ def model_path(quale: str = DEFAULT_PESI, download: bool = True) -> Path:
 
 
 def voices_path(download: bool = True) -> Path:
-    """L'archivio degli stili, costruito dalle sole voci italiane.
+    """L'archivio degli stili, costruito dalle voci dichiarate in `VOICES`.
 
     `kokoro_onnx` vuole un file che `np.load` sappia aprire; il repo HF tiene le
-    voci una per file. Si scaricano le due che servono e si impacchettano, cosi'
-    non si tirano giu' 26 MB di voci giapponesi e hindi per parlare italiano.
+    voci una per file. Si scaricano solo quelle che servono e si impacchettano,
+    cosi' non si tirano giu' 26 MB di voci giapponesi e hindi.
+
+    **Si controlla che l'archivio sia completo, non solo che esista.** La prima
+    versione tornava indietro appena il file c'era: aggiungendo le voci inglesi a
+    `VOICES`, il file vecchio — con dentro le sole due italiane — e' rimasto
+    buono agli occhi di questa funzione, e la prima voce inglese e' morta con un
+    `KeyError` dentro `kokoro_onnx`. Un artefatto in cache che non sa di essere
+    scaduto e' un difetto che si manifesta lontano da dove sta.
     """
-    local = MODELS_DIR / "voices-it.npz"
+    local = MODELS_DIR / "voices.npz"
     if local.exists():
-        return local
+        try:
+            with np.load(local) as z:
+                if set(n for n, _ in VOICES.values()) <= set(z.files):
+                    return local
+        except Exception:  # pragma: no cover - archivio corrotto: si rifa'
+            pass
     if not download:
-        raise FileNotFoundError(f"voci non presenti: {local}")
+        raise FileNotFoundError(f"voci non presenti o incomplete: {local}")
 
     from huggingface_hub import hf_hub_download
 
@@ -230,12 +276,18 @@ class KokoroTts:
         speed: float = DEFAULT_SPEED,
         pesi: str = DEFAULT_PESI,
         device: str = "auto",
+        lingua: str = LINGUA,
         download: bool = True,
     ) -> None:
         self.samplerate = samplerate
         self.speed = float(speed)
         self.pesi = pesi
         self.device = device
+        # La lingua **del testo che verra' detto**, non quella del gioco: se si
+        # traduce, e' quella di arrivo. Fonemizzare l'inglese con le regole
+        # italiane da' parlato comprensibile a meta' e sembra un difetto del
+        # modello.
+        self.lingua = FONEMI_LINGUA.get(lingua, lingua)
         self.download = download
         self._k = None
         self._provider = "?"
@@ -328,7 +380,7 @@ class KokoroTts:
                 continue
             try:
                 k = self._engine()
-                tok = k.tokenizer.tokenize(k.tokenizer.phonemize("Andiamo.", lang=LINGUA))
+                tok = k.tokenizer.tokenize(k.tokenizer.phonemize("Andiamo.", lang=self.lingua))
                 if tok:
                     k.sess.run(
                         None,
@@ -354,7 +406,7 @@ class KokoroTts:
         effective = velocita_effettiva(self.speed, rate, voice.rate)
 
         t0 = time.perf_counter()
-        fonemi = k.tokenizer.phonemize(text, lang=LINGUA)
+        fonemi = k.tokenizer.phonemize(text, lang=self.lingua)
         pezzi: list[np.ndarray] = []
         for batch in spezza_fonemi(fonemi):
             tok = k.tokenizer.tokenize(batch)

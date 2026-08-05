@@ -36,16 +36,24 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.config import Config, load_profile  # noqa: E402
-from ui.overlay import MisuraCarattere, dipingi, inchiostro  # noqa: E402
-
-# La stessa memoria che tiene la finestra dal vivo: senza, il carattere
-# seguirebbe la dissolvenza del sottotitolo e il video mostrerebbe un difetto
-# che dal vivo non c'e' — o, peggio, non ne mostrerebbe uno che c'e'.
-MISURA = MisuraCarattere()
+from ui.overlay import (  # noqa: E402
+    MisuraCarattere, Sostituzione, bande_veloci, inchiostro, ritaglia,
+)
 
 
-def componi(frame, cfg, testo):
-    """Il fotogramma con sopra il sottotitolo tradotto. `False` se non c'era testo.
+
+def prepara(frame, cfg, testo, originale, misura):
+    """Dipinge **una volta** il sottotitolo tradotto. `None` se non c'e' testo.
+
+    Torna la `Sostituzione`, che tiene **la geometria decisa una volta**: taglia,
+    colore, posizione e a-capo non si toccano piu' finche' la battuta resta a
+    schermo. Ricalcolarli a ogni fotogramma li faceva ballare — il riquadro
+    inseguiva l'immagine come un tracker, e nei fotogrammi di dissolvenza il
+    sottotitolo spariva del tutto. Un sottotitolo compare, sta fermo, sparisce.
+
+    I **pixel** invece si rifanno a ogni fotogramma (`disegna`): se no la toppa
+    che cancella la riga italiana resta quella del primo fotogramma e diventa un
+    rettangolo di immagine vecchia mentre la scena si muove.
 
     Usa `ui.overlay.inchiostro` e `ui.overlay.dipingi`, cioe' **le stesse due
     funzioni del vivo**. Una copia locale sarebbe divergita al primo ritocco, e
@@ -54,13 +62,13 @@ def componi(frame, cfg, testo):
     """
     pezzo, bande, rett, tinta = inchiostro(frame, cfg)
     if pezzo is None:
-        return False
+        return None
     rx = int(round(rett[0] * frame.shape[1]))
     ry = int(round(rett[1] * frame.shape[0]))
     corpo = (int(frame.shape[0] * cfg.translate.font_frac)
              if cfg.translate.font_frac > 0
-             else MISURA.aggiorna(bande, 1.0, cfg.translate.font))
-    fatto = dipingi(
+             else misura.aggiorna(bande, originale, 1.0, cfg.translate.font))
+    sost = Sostituzione(
         pezzo, bande, testo,
         scala=1.0,
         nome_font=cfg.translate.font,
@@ -71,12 +79,10 @@ def componi(frame, cfg, testo):
         inchiostro_rgb=tinta,
         modo=cfg.translate.background_mode,
         fondo_rgb=_rgb(cfg.translate.background)[::-1],
+        testo_originale=originale,
+        larghezza_schermo=frame.shape[1],
     )
-    if fatto is None:
-        return False
-    tela, (ox, oy) = fatto
-    _incolla(frame, tela, rx + ox, ry + oy)
-    return True
+    return sost, rett, rx, ry
 
 
 def _rgb(s: str):
@@ -146,33 +152,43 @@ def main(argv=None) -> int:
 
     uscita = Path(args.out)
     uscita.parent.mkdir(parents=True, exist_ok=True)
+    misura = MisuraCarattere()
     video = None
     scritti = png = 0
+    corrente = None   # (chiave della battuta, tela, x, y)
+    ultimo_png = None
     while True:
         t = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
         ok, frame = cap.read()
         if not ok or t > t1:
             break
-        # **La battuta corrente e' l'ultima comparsa, e si disegna finche' il
-        # sottotitolo del gioco e' a schermo** — che e' `inchiostro` a dirlo, non
-        # un orologio. Chiudere la finestra sulla durata dell'audio doppiato la
-        # faceva sparire mentre l'originale era ancora li'.
+        # **La battuta corrente e' l'ultima comparsa, e si dipinge una volta
+        # sola.** Chiuderla sulla durata dell'audio doppiato la faceva sparire
+        # mentre l'originale era ancora a schermo; ridisegnarla a ogni fotogramma
+        # la faceva tremare.
         tr = t - args.offset
         attiva = None
         for r in righe:
             if r[0] <= tr and tr - r[0] < 8.0:
                 attiva = r
-        disegnata = componi(frame, cfg, attiva[1]) if attiva else False
+        if attiva is None:
+            corrente = None
+        elif corrente is None or corrente[0] != attiva[0]:
+            fatto = prepara(frame, cfg, attiva[1], attiva[2], misura)
+            corrente = (attiva[0], *fatto) if fatto else None
+        if corrente is not None:
+            _, sost, rett, rx, ry = corrente
+            pezzo = ritaglia(frame, rett)
+            if pezzo is not None and pezzo.shape[:2] == sost.forma:
+                tela, (ox, oy) = sost.disegna(pezzo, bande_veloci(pezzo, cfg.vision))
+                _incolla(frame, tela, rx + ox, ry + oy)
         if args.frames:
-            if disegnata and png < args.frames:
-                # Un fotogramma per battuta, non uno ogni tre: due PNG della
-                # stessa riga non dicono niente di piu' del primo.
-                if png == 0 or attiva[0] != main._ultima:
-                    nome = uscita.with_name(f"{uscita.stem}_{png}.png")
-                    cv2.imwrite(str(nome), frame)
-                    print(f"  {nome}  t={t:.1f}s  '{attiva[2]}' -> '{attiva[1]}'")
-                    png += 1
-                main._ultima = attiva[0]
+            if corrente is not None and png < args.frames and attiva[0] != ultimo_png:
+                nome = uscita.with_name(f"{uscita.stem}_{png}.png")
+                cv2.imwrite(str(nome), frame)
+                print(f"  {nome}  t={t:.1f}s  '{attiva[2]}' -> '{attiva[1]}'")
+                png += 1
+                ultimo_png = attiva[0]
             if png >= args.frames:
                 break
             continue
@@ -187,8 +203,6 @@ def main(argv=None) -> int:
         print(f"scritti {scritti} fotogrammi in {uscita}")
     return 0
 
-
-main._ultima = None
 
 
 if __name__ == "__main__":

@@ -146,6 +146,7 @@ class App:
                 modo=self.cfg.translate.background_mode,
                 blur=self.cfg.translate.blur_strength,
             )
+            self.overlay.vision = self.cfg.vision
 
         barra = tk.Frame(self.root)
         barra.pack(fill="x", padx=8, pady=6)
@@ -218,10 +219,13 @@ class App:
                         tag=f"s{self.noti[sid]}",
                     )
                 elif tipo == "overlay":
-                    testo, fine, pezzo, bande, rett, inchiostro = dato
+                    testo, originale, fine, pezzo, bande, rett, tinta = dato
                     if self.overlay is not None:
-                        self.overlay.mostra(testo, pezzo, bande, rett, inchiostro)
+                        self.overlay.mostra(testo, pezzo, bande, rett, tinta, originale)
                         self._overlay_fino_a = fine
+                elif tipo == "aggiorna":
+                    if self.overlay is not None:
+                        self.overlay.aggiorna(dato)
                 elif tipo == "stato":
                     self.l_stato.config(text=dato)
                 elif tipo == "nota":
@@ -342,8 +346,19 @@ class App:
                             # ritagliarlo, e non c'e' nessuna seconda cattura da
                             # pagare — cosa che avevo scritto e che era falsa.
                             self.coda.put(
-                                ("overlay", (riga.text, fine, *inchiostro(g.frame, self.cfg)))
+                                ("overlay",
+                                 (riga.text, riga.text_original, fine,
+                                  *inchiostro(g.frame, self.cfg)))
                             )
+                    # **La cancellatura segue la scena, la geometria no.** Il
+                    # riquadro resta dove e' comparso; sotto, i pixel si
+                    # rinfrescano — se no, mentre la telecamera si muove, resta
+                    # una toppa di immagine vecchia in mezzo allo schermo. A
+                    # 10 Hz invece che a 30 perche' ogni giro rifa' la bitmap di
+                    # Tk, e su una macchia sfocata l'occhio non distingue le due.
+                    if (self.overlay is not None and n % 3 == 0
+                            and time.perf_counter() < self._overlay_fino_a):
+                        self.coda.put(("aggiorna", g.frame.copy()))
                     if n % 30 == 0:
                         p = len(self.pipeline.tracker) if self.pipeline.tracker else 0
                         self.coda.put(("stato",

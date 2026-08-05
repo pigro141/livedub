@@ -100,59 +100,84 @@ def carica_font(nome: str, corpo: int):
     return ImageFont.load_default()
 
 
-def corpo_del_gioco(bande, scala: float, nome_font: str) -> int:
-    """Quanto e' alto, in punti, il carattere che il gioco sta usando.
+def corpo_del_gioco(bande, testo_originale: str, scala: float, nome_font: str) -> int:
+    """Quanto e' grande, in punti, il carattere che il gioco sta usando.
 
-    Non si stima con un coefficiente: si **misura per confronto**. La banda alta
-    `h` pixel e' l'inchiostro di una riga da ascendenti a discendenti; si cerca
-    quindi il corpo il cui `Ag` occupa la stessa altezza. Un coefficiente fisso
-    («il corpo e' 1,4 volte l'inchiostro») sarebbe giusto per un font solo, e il
-    font lo sceglie l'utente.
+    **Si misura sulla larghezza, non sull'altezza, e la differenza e' un
+    quarto.** Il primo tentativo confrontava l'altezza della banda con l'altezza
+    dell'inchiostro di `Ag`: ma `Ag` occupa dall'ascendente al discendente,
+    mentre una riga come `Ciao, Lamar!` non ha nessun discendente e la sua banda
+    e' alta solo quanto le maiuscole. Confrontare le due voleva dire chiedere un
+    carattere alto quanto una riga intera per ottenere delle sole maiuscole —
+    circa il 40% troppo grande, che e' esattamente quello che si vedeva.
+
+    La larghezza invece si confronta con se' stessa: si prende **il testo che
+    l'OCR ha letto**, lo si disegna col carattere scelto e si cerca il corpo in
+    cui occupa la stessa larghezza che occupa a schermo. Stesse lettere, stessa
+    grandezza — nessuna conversione fra due misure diverse. In piu' funziona con
+    un carattere di forma diversa da quello del gioco: GTA V ne usa uno stretto,
+    e chiedere la stessa **altezza** ad Arial avrebbe dato una riga molto piu'
+    larga dell'originale.
+
+    Senza il testo (non dovrebbe capitare) si ricade sull'altezza, dichiarando
+    il rapporto fra inchiostro maiuscolo e corpo invece di far finta che sia 1.
     """
-    # **La mediana e non il massimo.** Due righe vicine possono saldarsi in una
-    # banda sola, e una banda doppia farebbe scrivere la traduzione al doppio
-    # della taglia — misurato su un fotogramma vero, il testo veniva grande la
-    # meta' in piu' del sottotitolo che stava coprendo.
-    import statistics
+    larghezza = sum(x1 - x0 for x0, _, x1, _ in bande) * scala
+    testo = " ".join((testo_originale or "").split())
+    if not testo or larghezza <= 0:
+        import statistics
 
-    alta = statistics.median(sorted(y1 - y0 for _, y0, _, y1 in bande)) * scala
-    corpo = max(8, int(alta))
-    for _ in range(8):
-        f = carica_font(nome_font, corpo)
-        x0, y0, x1, y1 = f.getbbox("Ag")
-        h = max(1, y1 - y0)
-        if abs(h - alta) <= 1:
+        alta = statistics.median(sorted(y1 - y0 for _, y0, _, y1 in bande)) * scala
+        return max(8, int(round(alta / 0.72)))  # inchiostro maiuscolo / corpo
+
+    from PIL import Image, ImageDraw
+
+    misura = ImageDraw.Draw(Image.new("L", (1, 1)))
+    corpo = max(8, int(larghezza / max(1, len(testo)) * 2.0))
+    for _ in range(10):
+        w = misura.textlength(testo, font=carica_font(nome_font, corpo))
+        if w <= 0:
             break
-        corpo = max(8, int(round(corpo * alta / h)))
+        if abs(w - larghezza) <= max(2.0, 0.01 * larghezza):
+            break
+        corpo = max(8, int(round(corpo * larghezza / w)))
     return corpo
 
 
 class MisuraCarattere:
-    """Ricorda quanto e' grande il carattere del gioco, contro le dissolvenze.
+    """Ricorda quanto e' grande il carattere del gioco. **Uno, sempre lo stesso.**
 
-    Misurato su un fotogramma solo, il corpo segue la **dissolvenza**: GTA V fa
-    comparire il sottotitolo sfumando, e a meta' sfumatura la maschera prende
-    solo il cuore dei glifi. Misurato su fotogrammi veri della stessa battuta:
-    23 punti a un istante, 38 mezzo secondo dopo — e a schermo si vedeva una
-    battuta scritta in piccolo in mezzo alle altre.
+    Un gioco scrive i sottotitoli sempre della stessa taglia, quindi una taglia
+    che cambia da una battuta all'altra e' rumore della misura, non un fatto — e
+    a schermo si vede benissimo. Le fonti del rumore sono due, misurate: la
+    dissolvenza con cui GTA V fa comparire il sottotitolo (a meta' sfumatura la
+    maschera prende solo il cuore dei glifi) e l'OCR che legge una parola in piu'
+    o in meno di quelle che ci sono.
 
-    Un sottotitolo non cambia taglia da solo, quindi della misura istantanea si
-    tiene **la piu' grande vista**: la dissolvenza puo' solo rimpicciolire.
-    L'unica cosa che potrebbe gonfiarla e' due righe saldate in una banda sola,
-    e quella si riconosce perche' arriva quasi doppia: si scarta.
+    Si tiene quindi la **mediana** delle misure viste, non l'ultima e nemmeno la
+    piu' grande: la mediana e' insensibile a entrambe le code, e dopo poche
+    battute non si muove piu'. Fino ad allora si muove poco.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, quante: int = 25) -> None:
+        self.viste: list[int] = []
+        self.quante = quante
         self.corpo = 0
 
     def azzera(self) -> None:
+        self.viste.clear()
         self.corpo = 0
 
-    def aggiorna(self, bande, scala: float, nome_font: str) -> int:
-        c = corpo_del_gioco(bande, scala, nome_font)
-        if self.corpo and c > 1.6 * self.corpo:
-            return self.corpo  # una banda saldata, non un carattere piu' grande
-        self.corpo = max(self.corpo, c)
+    def aggiorna(self, bande, testo_originale, scala: float, nome_font: str) -> int:
+        c = corpo_del_gioco(bande, testo_originale, scala, nome_font)
+        if c > 0:
+            self.viste.append(c)
+            del self.viste[: -self.quante]
+        if not self.viste:
+            return self.corpo or 8
+        import statistics
+
+        self.corpo = int(round(statistics.median(self.viste)))
         return self.corpo
 
 
@@ -224,48 +249,94 @@ def inchiostro(frame, cfg):
     return pezzo, bande, rett, (canali[2], canali[1], canali[0])
 
 
-def _cancella(fetta):
-    """Toglie i glifi dalla striscia, **ricostruendo lo sfondo** che c'era sotto.
+def bande_veloci(pezzo, cfg):
+    """Dove sta l'inchiostro **adesso**, con la sola soglia e senza il resto.
 
-    Confrontato su una riga vera di GTA V, quattro modi di far sparire il
-    sottotitolo originale:
+    Esiste perche' la cancellatura va rinfrescata dieci volte al secondo e
+    `classify_lines` costa 11 ms: dieci volte al secondo sono il 10% del thread
+    video, e in questo progetto un costo nel thread video non si somma, si
+    amplifica. Qui non serve sapere *cosa* c'e' scritto ne' di che classe sia la
+    riga — serve sapere quali righe di pixel sono accese — e quello costa un
+    profilo per righe.
 
-        sfocare tutta la striscia   una fascia grigia: si vede che c'e' qualcosa
-        sfocare i soli glifi        le lettere restano leggibili, sono chiare
-        rettangolo pieno            una macchia in mezzo allo schermo
-        **ricostruire** (inpaint)   la riga sparisce e resta la scena
-
-    Solo l'ultimo risponde alla domanda giusta, che non e' «rendere illeggibile»
-    ma «far sembrare che quel sottotitolo non ci sia mai stato»: sopra ci va il
-    nostro, e due sottotitoli sovrapposti si vedono anche quando uno e' sfocato.
-
-    La maschera dei glifi si ricava dalla striscia stessa e non dalla soglia
-    dell'OCR: qui non serve sapere *cosa* c'e' scritto, serve sapere quali pixel
-    sono inchiostro, e il percentile alto lo dice senza dipendere da una
-    taratura che vive altrove.
+    La soglia e la fascia minima sono **le stesse della config** che usa l'OCR:
+    una seconda taratura per la stessa cosa divergerebbe dalla prima.
     """
-    import cv2
     import numpy as np
 
-    luma = fetta[:, :, :3].mean(axis=2)
-    alto = float(np.percentile(luma, 99))
-    soglia = 0.55 * alto + 0.45 * float(np.median(luma))
-    mask = (luma > soglia).astype(np.uint8)
+    from vision.lines import find_bands, text_mask
+
+    luma = pezzo[:, :, :3].mean(axis=2) if pezzo.ndim == 3 else pezzo.astype(np.float32)
+    # **La stessa maschera dell'OCR, contrasto locale compreso.** Con la sola
+    # soglia assoluta una camicia chiara o un tavolo illuminato diventano una
+    # riga di testo, e la cancellatura ci passa sopra: a schermo si vedevano
+    # rettangoli sfumati grandi mezza inquadratura. Il contrasto locale e' cio'
+    # che distingue un glifo bordato di nero da una superficie chiara, e costa
+    # una sfocatura.
+    mask = text_mask(luma, cfg)
     if not mask.any():
-        return fetta
-    # **Dilatare non e' generosita'.** Il glifo chiaro e' solo il cuore della
-    # lettera: attorno c'e' il contorno **nero**, che sta sotto la soglia e che
-    # restando produce il fantasma della riga — leggibile, e a schermo si vede.
-    k = max(5, int(0.28 * fetta.shape[0]) | 1)
-    mask = cv2.dilate(mask, np.ones((k, k), np.uint8))
-    # Il bordo della striscia si tiene pulito: `inpaint` ricostruisce copiando
-    # da fuori la maschera, e una maschera che tocca il bordo non ha da dove
-    # copiare — il risultato e' un blocco scuro proprio in fondo alla riga, che
-    # e' esattamente l'artefatto che si vedeva.
-    b = 2
-    mask[:b, :] = mask[-b:, :] = 0
-    mask[:, :b] = mask[:, -b:] = 0
-    return cv2.inpaint(np.ascontiguousarray(fetta[:, :, :3]), mask, 3, cv2.INPAINT_TELEA)
+        return []
+    min_px = max(1, int(pezzo.shape[1] * cfg.min_line_fill))
+    fuori = []
+    for top, bottom in find_bands(mask, cfg.min_line_height, min_px, cfg.line_grow):
+        cols = np.flatnonzero(mask[top : bottom + 1].any(axis=0))
+        if cols.size:
+            fuori.append((int(cols[0]), int(top), int(cols[-1]) + 1, int(bottom) + 1))
+    return fuori
+
+
+def ritaglia(frame, rett):
+    """La stessa fascia di prima, presa da un fotogramma nuovo.
+
+    Serve ad aggiornare la cancellatura **senza ricalcolare dove sta il
+    sottotitolo**: se si ricercassero le bande, il riquadro si sposterebbe di un
+    pixel per fotogramma e il sottotitolo tremerebbe. La geometria si decide una
+    volta; qui si prendono solo pixel nuovi dentro lo stesso rettangolo.
+    """
+    import numpy as np
+
+    h, w = frame.shape[:2]
+    x0, y0 = int(round(rett[0] * w)), int(round(rett[1] * h))
+    x1, y1 = x0 + int(round(rett[2] * w)), y0 + int(round(rett[3] * h))
+    fetta = frame[max(0, y0) : min(h, y1), max(0, x0) : min(w, x1)]
+    return np.ascontiguousarray(fetta) if fetta.size else None
+
+
+def _cancella(fetta, alta: int = 0):
+    """Toglie i glifi dalla striscia, **ricostruendo lo sfondo** che c'era sotto.
+
+    Confrontato su una riga vera di GTA V, cinque modi di far sparire il
+    sottotitolo originale:
+
+        sfocare tutta la striscia    una fascia grigia: si vede che c'e' qualcosa
+        sfocare i soli glifi         le lettere restano leggibili, sono chiare
+        mediana                      resta il fantasma
+        inpaint (Telea)              pulito, **16,3 ms**
+        **apri e chiudi**            pulito, **0,15 ms**
+
+    Si usa l'ultimo, e i 16 millisecondi risparmiati non sono un vezzo: sono
+    quelli che permettono di **rifare la cancellatura a ogni fotogramma** invece
+    di congelarla. Una toppa congelata mentre la scena si muove diventa un
+    rettangolo di pixel vecchi in mezzo all'immagine, ed e' peggio del
+    sottotitolo che copriva.
+
+    L'apertura toglie il chiaro sottile — l'asta del glifo — e la chiusura toglie
+    lo scuro sottile, cioe' il **contorno nero** che l'apertura lascia indietro e
+    che da solo si legge ancora. Due passaggi e non uno: con la sola apertura
+    resta il fantasma della riga, misurato e guardato.
+    """
+    import cv2
+
+    alta = alta or fetta.shape[0]
+    apri = max(3, int(0.28 * alta) | 1)
+    chiudi = max(apri + 2, int(0.55 * alta) | 1)
+    ko = cv2.getStructuringElement(cv2.MORPH_RECT, (apri, apri))
+    kc = cv2.getStructuringElement(cv2.MORPH_RECT, (chiudi, chiudi))
+    out = cv2.morphologyEx(fetta[:, :, :3], cv2.MORPH_OPEN, ko)
+    out = cv2.morphologyEx(out, cv2.MORPH_CLOSE, kc)
+    # Un velo di sfocatura solo per togliere gli spigoli della morfologia, che e'
+    # fatta di rettangoli e si vede.
+    return cv2.GaussianBlur(out, (0, 0), max(1.0, 0.08 * alta))
 
 
 def _righe(disegno, testo: str, font, larghezza_max: int) -> list[str]:
@@ -283,117 +354,148 @@ def _righe(disegno, testo: str, font, larghezza_max: int) -> list[str]:
     return righe or [testo]
 
 
-def dipingi(
-    pezzo,
-    bande,
-    testo: str,
-    *,
-    scala: float = 1.0,
-    nome_font: str = "Arial",
-    colore=None,
-    corpo: int = 0,
-    contorno: float = 2.0,
-    blur: float = 12.0,
-    inchiostro_rgb=None,
-    modo: str = "cancella",
-    fondo_rgb=(0, 0, 0),
-):
-    """Il sottotitolo tradotto su una tela trasparente, e dove va messa.
+class Sostituzione:
+    """Il sottotitolo tradotto: **geometria decisa una volta, pixel aggiornati**.
 
-    - `pezzo`: ritaglio BGR del fotogramma attorno al sottotitolo;
-    - `bande`: `[(x0, y0, x1, y1)]` dei glifi del gioco, in pixel del pezzo — sono
-      le righe che l'OCR ha letto, non l'ingombro della ROI;
-    - `scala`: pixel di schermo per pixel di fotogramma (1.0 per l'MP4);
-    - `colore`/`corpo`: `None`/`0` vuol dire «come il gioco».
+    E' la divisione che risolve i due difetti opposti visti a schermo.
 
-    Torna `(tela RGBA, (x, y))` con la posizione in pixel **del pezzo per scala**.
-    Fuori dai glifi coperti la tela e' trasparente: li' non c'e' niente da
-    nascondere e il gioco deve restare quello che e'.
+    Ridisegnando tutto a ogni fotogramma, il riquadro veniva ricalcolato da bande
+    leggermente diverse: il testo tremava, cambiava taglia e nei fotogrammi in
+    cui la dissolvenza nascondeva i glifi spariva del tutto. Un sottotitolo non
+    fa niente di tutto questo — compare, sta fermo, sparisce.
+
+    Congelando invece anche i pixel, la toppa che cancella la riga italiana
+    restava quella del primo fotogramma: la scena dietro si muove, e resta un
+    rettangolo di immagine vecchia in mezzo allo schermo.
+
+    Quindi: **taglia, colore, posizione, a-capo e rettangoli si decidono
+    all'inizio e non si toccano piu'**; solo la cancellatura viene rifatta sui
+    pixel nuovi, e costa 0,15 ms a riga proprio per poterlo fare.
     """
-    import cv2
-    import numpy as np
-    from PIL import Image, ImageDraw
 
+    def __init__(
+        self,
+        pezzo,
+        bande,
+        testo: str,
+        *,
+        scala: float = 1.0,
+        nome_font: str = "Arial",
+        colore=None,
+        corpo: int = 0,
+        contorno: float = 2.0,
+        blur: float = 12.0,
+        inchiostro_rgb=None,
+        modo: str = "cancella",
+        fondo_rgb=(0, 0, 0),
+        testo_originale: str = "",
+        larghezza_schermo: int = 0,
+    ) -> None:
+        from PIL import Image, ImageDraw
+
+        self.bande = list(bande)
+        self.modo = (modo or "cancella").lower()
+        self.blur = blur
+        self.fondo_rgb = tuple(int(v) for v in fondo_rgb)
+        self.scala = scala
+        self.forma = pezzo.shape[:2]
+        h_pezzo, w_pezzo = self.forma
+
+        self.corpo = corpo or corpo_del_gioco(bande, testo_originale, scala, nome_font)
+        self.colore = colore or colore_del_gioco(inchiostro_rgb or (255, 255, 255))
+        self.font = carica_font(nome_font, self.corpo)
+        self.contorno = max(1, int(round(contorno * scala)))
+
+        su = lambda v: int(round(v * scala))  # noqa: E731
+        self.su = su
+        rett = [(su(x0), su(y0), su(x1), su(y1)) for x0, y0, x1, y1 in bande]
+        bx0, by0 = min(r[0] for r in rett), min(r[1] for r in rett)
+        bx1, by1 = max(r[2] for r in rett), max(r[3] for r in rett)
+
+        # L'a-capo alla larghezza a cui va a capo il gioco, e **mai oltre lo
+        # schermo**: una battuta piu' larga dello schermo non e' un sottotitolo,
+        # e' un difetto che esce dall'immagine.
+        misura = ImageDraw.Draw(Image.new("L", (1, 1)))
+        limite = su(w_pezzo) - 8
+        if larghezza_schermo:
+            limite = min(limite, larghezza_schermo - 16)
+        self.righe = _righe(misura, (testo or "").strip(), self.font, max(80, limite))
+        self.passo = int(round(self.corpo * 1.22))
+        largh = int(max(misura.textlength(r, font=self.font) for r in self.righe))
+        alt = self.passo * len(self.righe)
+
+        pad = self.contorno + 3
+        self.cx, cy = (bx0 + bx1) // 2, (by0 + by1) // 2
+        self.ty0 = cy - alt // 2
+        # **La tela copre tutta la fascia, non solo cio' che c'e' adesso.**
+        # Mentre la nostra battuta e' a schermo il gioco puo' essere gia'
+        # passato alla riga dopo — succede sempre, perche' la voce arriva un
+        # secondo e mezzo dopo il sottotitolo. Se la tela fosse stretta sui
+        # rettangoli di partenza, quella riga nuova resterebbe scoperta e si
+        # leggerebbero due sottotitoli insieme. Con la tela larga la
+        # cancellatura si sposta dentro di lei e **il testo non si muove**.
+        self.ox = 0
+        self.oy = min(0, self.ty0 - pad)
+        self.larg = max(1, su(w_pezzo))
+        self.alt = max(1, max(su(h_pezzo), self.ty0 + alt + pad) - self.oy)
+        self.misura = misura
+
+    # -- i pixel, che invece si rifanno ------------------------------------
+
+    def disegna(self, pezzo, bande=None):
+        """La tela RGBA di adesso, con la geometria di sempre.
+
+        `bande` diverse da quelle di partenza servono a inseguire il sottotitolo
+        del gioco quando cambia sotto di noi: cambia **cosa** si cancella, non
+        dove sta scritta la traduzione.
+        """
+        import numpy as np
+        from PIL import Image, ImageDraw
+
+        tela = Image.new("RGBA", (self.larg, self.alt), (0, 0, 0, 0))
+        h_pezzo, w_pezzo = pezzo.shape[:2]
+        if self.modo != "nessuno":
+            for x0, y0, x1, y1 in (bande or self.bande):
+                # Un filo di margine attorno alla riga: i glifi hanno un contorno
+                # e un'ombra, e un ritaglio esatto sui pixel accesi lascerebbe
+                # scoperto proprio il bordo delle lettere vecchie.
+                m = max(4, int(0.45 * (y1 - y0)))
+                a0, b0 = max(0, x0 - m), max(0, y0 - m)
+                a1, b1 = min(w_pezzo, x1 + m), min(h_pezzo, y1 + m)
+                w = max(1, self.su(a1) - self.su(a0))
+                h = max(1, self.su(b1) - self.su(b0))
+                if self.modo == "riquadro":
+                    patch = Image.new("RGB", (w, h), self.fondo_rgb)
+                else:
+                    fetta = np.ascontiguousarray(pezzo[b0:b1, a0:a1])
+                    if fetta.size == 0:
+                        continue
+                    if self.modo == "cancella":
+                        fetta = _cancella(fetta, y1 - y0)
+                    else:
+                        import cv2
+
+                        raggio = max(1.5, self.blur * (y1 - y0) / 40.0)
+                        fetta = cv2.GaussianBlur(fetta[:, :, :3], (0, 0), sigmaX=raggio)
+                    fetta = fetta[:, :, ::-1]  # BGR -> RGB
+                    patch = Image.fromarray(np.ascontiguousarray(fetta)).resize((w, h))
+                tela.paste(patch, (self.su(a0) - self.ox, self.su(b0) - self.oy))
+
+        d = ImageDraw.Draw(tela)
+        for i, riga in enumerate(self.righe):
+            w = self.misura.textlength(riga, font=self.font)
+            x = self.cx - int(w) // 2 - self.ox
+            y = self.ty0 + i * self.passo - self.oy
+            d.text((x, y), riga, font=self.font, fill=(*self.colore, 255),
+                   stroke_width=self.contorno, stroke_fill=(0, 0, 0, 255))
+        return tela, (self.ox, self.oy)
+
+
+def dipingi(pezzo, bande, testo: str, **kw):
+    """Decide e disegna in un colpo solo. `None` se non c'e' niente da coprire."""
     if not bande:
         return None
-    h_pezzo, w_pezzo = pezzo.shape[:2]
-
-    if not corpo:
-        corpo = corpo_del_gioco(bande, scala, nome_font)
-    if colore is None:
-        colore = colore_del_gioco(inchiostro_rgb or (255, 255, 255))
-    font = carica_font(nome_font, corpo)
-
-    # Le bande, portate in pixel di schermo.
-    su = lambda v: int(round(v * scala))  # noqa: E731
-    rett = [(su(x0), su(y0), su(x1), su(y1)) for x0, y0, x1, y1 in bande]
-    bx0 = min(r[0] for r in rett)
-    by0 = min(r[1] for r in rett)
-    bx1 = max(r[2] for r in rett)
-    by1 = max(r[3] for r in rett)
-
-    # Il testo, a capo alla stessa larghezza a cui va a capo il gioco.
-    misura = ImageDraw.Draw(Image.new("RGB", (1, 1)))
-    righe = _righe(misura, testo, font, max(80, su(w_pezzo) - 8))
-    passo = int(round(corpo * 1.22))
-    largh_testo = int(max(misura.textlength(r, font=font) for r in righe))
-    alt_testo = passo * len(righe)
-
-    # La tela: l'unione fra cio' che va coperto e cio' che va scritto, piu' il
-    # bordo del contorno. Il testo si centra sul sottotitolo vecchio.
-    pad = int(round(contorno * scala)) + 3
-    cx = (bx0 + bx1) // 2
-    cy = (by0 + by1) // 2
-    tx0, tx1 = cx - largh_testo // 2, cx + largh_testo // 2
-    ty0, ty1 = cy - alt_testo // 2, cy + alt_testo // 2
-    ox = min(bx0, tx0) - pad
-    oy = min(by0, ty0) - pad
-    larg = max(bx1, tx1) + pad - ox
-    alt = max(by1, ty1) + pad - oy
-
-    tela = Image.new("RGBA", (max(1, larg), max(1, alt)), (0, 0, 0, 0))
-
-    # -- 1. si cancella la scritta del gioco, e **solo** quella ---------------
-    if modo != "nessuno":
-        for x0, y0, x1, y1 in bande:
-            # Un filo di margine attorno alla riga: i glifi hanno un contorno e
-            # un'ombra, e un ritaglio esatto sui pixel accesi lascerebbe scoperto
-            # proprio il bordo delle lettere vecchie. Serve anche a `cancella`,
-            # che ha bisogno di sfondo pulito da cui ricostruire.
-            m = max(4, int(0.45 * (y1 - y0)))
-            a0, b0 = max(0, x0 - m), max(0, y0 - m)
-            a1, b1 = min(w_pezzo, x1 + m), min(h_pezzo, y1 + m)
-            w = max(1, su(a1) - su(a0))
-            h = max(1, su(b1) - su(b0))
-            if modo == "riquadro":
-                patch = Image.new("RGB", (w, h), tuple(int(v) for v in fondo_rgb))
-            else:
-                fetta = np.ascontiguousarray(pezzo[b0:b1, a0:a1])
-                if fetta.size == 0:
-                    continue
-                if modo == "cancella":
-                    fetta = _cancella(fetta)
-                else:
-                    # Il raggio segue l'altezza dei glifi invece di essere in
-                    # pixel fissi: `blur_strength` e' dichiarato su un inchiostro
-                    # alto 40 px (GTA V a 1080p), e cosi' lo stesso numero vale a
-                    # 1080p, a 1440p e su un gioco che scrive piu' grande.
-                    raggio = max(1.5, blur * (y1 - y0) / 40.0)
-                    fetta = cv2.GaussianBlur(fetta, (0, 0), sigmaX=raggio, sigmaY=raggio)
-                fetta = cv2.cvtColor(fetta[:, :, :3], cv2.COLOR_BGR2RGB)
-                patch = Image.fromarray(fetta).resize((w, h))
-            tela.paste(patch, (su(a0) - ox, su(b0) - oy))
-
-    # -- 2. si scrive la nostra, della taglia e del colore del gioco ---------
-    d = ImageDraw.Draw(tela)
-    bordo = max(1, int(round(contorno * scala)))
-    for i, riga in enumerate(righe):
-        w = misura.textlength(riga, font=font)
-        x = cx - int(w) // 2 - ox
-        y = ty0 + i * passo - oy
-        d.text((x, y), riga, font=font, fill=(*colore, 255),
-               stroke_width=bordo, stroke_fill=(0, 0, 0, 255))
-    return tela, (ox, oy)
+    return Sostituzione(pezzo, bande, testo, **kw).disegna(pezzo)
 
 
 def su_chiave(tela):
@@ -442,6 +544,9 @@ class Overlay:
         # sottotitolo invece del sottotitolo.
         self.colore = self._rgb(colore) if colore else None
         self.misura = MisuraCarattere()
+        self.sost = None     # la battuta a schermo adesso, con la sua geometria
+        self.vision = None   # le soglie con cui ritrovare l'inchiostro
+        self.rett = None
         self.fondo_rgb = self._rgb(fondo) if fondo else (0, 0, 0)
         self.font_frac = font_frac
         self._foto = None
@@ -531,7 +636,8 @@ class Overlay:
 
     # -- uso ---------------------------------------------------------------
 
-    def mostra(self, testo: str, pezzo=None, bande=None, rett=None, inchiostro=None) -> None:
+    def mostra(self, testo: str, pezzo=None, bande=None, rett=None, inchiostro=None,
+               originale: str = "") -> None:
         """Mostra il testo tradotto sopra il sottotitolo del gioco.
 
         `pezzo` e' il ritaglio del fotogramma attorno al sottotitolo, `bande` i
@@ -547,7 +653,7 @@ class Overlay:
         if pezzo is None or not bande or rett is None:
             return  # non si sa dove sta il sottotitolo: non si disegna a caso
         try:
-            fatto = self._prepara(testo, pezzo, bande, rett, inchiostro)
+            fatto = self._prepara(testo, pezzo, bande, rett, inchiostro, originale)
         except Exception as exc:  # pragma: no cover - meglio zoppicare che cadere
             print(f"overlay: {type(exc).__name__}: {exc}", file=sys.stderr)
             fatto = None
@@ -561,23 +667,44 @@ class Overlay:
             self.top.attributes("-topmost", True)
             self._visibile = True
 
-    def _prepara(self, testo, pezzo, bande, rett, inchiostro):
+    def aggiorna(self, frame) -> None:
+        """Rifa' **solo la cancellatura** sui pixel nuovi, senza muovere niente.
+
+        La scena dietro il sottotitolo si muove; una toppa congelata al primo
+        fotogramma diventa un rettangolo di immagine vecchia in mezzo allo
+        schermo. Costa 0,15 ms a riga apposta per poterlo fare.
+        """
+        if self.sost is None or not self._visibile:
+            return
+        pezzo = ritaglia(frame, self.rett)
+        if pezzo is None or pezzo.shape[:2] != self.sost.forma:
+            return
+        try:
+            tela, _ = self.sost.disegna(pezzo, bande_veloci(pezzo, self.vision))
+        except Exception:  # pragma: no cover - meglio una toppa vecchia che un crollo
+            return
+        from PIL import ImageTk
+
+        self._foto = ImageTk.PhotoImage(su_chiave(tela), master=self.top)
+        self.etichetta.configure(image=self._foto)
+
+    def _prepara(self, testo, pezzo, bande, rett, inchiostro, originale=""):
         from PIL import ImageTk
 
         sw, sh = self.schermo
         h_pezzo, w_pezzo = pezzo.shape[:2]
         scala = (rett[2] * sw) / max(1, w_pezzo)
         corpo = (int(sh * self.font_frac) if self.font_frac > 0
-                 else self.misura.aggiorna(bande, scala, self.nome_font))
-        fatto = dipingi(
+                 else self.misura.aggiorna(bande, originale, scala, self.nome_font))
+        self.sost = Sostituzione(
             pezzo, bande, testo,
             scala=scala, nome_font=self.nome_font, colore=self.colore,
             corpo=corpo, contorno=self.contorno, blur=self.blur,
             inchiostro_rgb=inchiostro, modo=self.modo, fondo_rgb=self.fondo_rgb,
+            testo_originale=originale, larghezza_schermo=sw,
         )
-        if fatto is None:
-            return None
-        tela, (ox, oy) = fatto
+        self.rett = rett
+        tela, (ox, oy) = self.sost.disegna(pezzo)
         piatta = su_chiave(tela)
         foto = ImageTk.PhotoImage(piatta, master=self.top)
         x = int(rett[0] * sw) + ox
@@ -587,6 +714,7 @@ class Overlay:
         return foto, geom
 
     def nascondi(self) -> None:
+        self.sost = None
         if self._visibile:
             self.top.withdraw()
             self._visibile = False

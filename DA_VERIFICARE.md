@@ -1,7 +1,7 @@
 # La tua prova, e cosa guardare
 
 Questo file e' il foglio della **prova d'ascolto**: come si accende, cosa
-guardare, e cosa mi serve nel tuo report. La suite e' verde (1120 verifiche) ma
+guardare, e cosa mi serve nel tuo report. La suite e' verde (1122 verifiche) ma
 la suite non sente niente: ogni difetto serio di questo progetto e' stato trovato
 dal tuo orecchio, con la suite verde.
 
@@ -58,15 +58,36 @@ domanda giusta non era «renderla illeggibile» ma «farla sembrare mai esistita
 sopra ci va la nostra, e due sottotitoli sovrapposti si vedono anche quando uno
 e' sfocato.
 
-**Il testo copia quello del gioco**: misura e colore si prendono dal sottotitolo
-che si sta coprendo, e sono il default. Su GTA V viene bianco della stessa taglia;
-su un gioco che colora i personaggi verrebbe del loro colore. Restano regolabili
-(`translate.font_frac`, `translate.color`), e l'interfaccia li esporra'.
+**Il testo copia quello del gioco, e non c'e' nessun numero scritto a mano.**
+Misura e colore si prendono dal sottotitolo che si sta coprendo, battuta per
+battuta: su GTA V viene bianco della stessa taglia, su un gioco che colora i
+personaggi verrebbe del loro colore, su un gioco che scrive piu' grande verrebbe
+piu' grande. Restano forzabili (`translate.font_frac`, `translate.color`), e
+l'interfaccia li esporra'.
 
-**E un'altra cosa che si vedeva solo guardando**: la finestra spariva quando
-finiva la nostra voce, non quando spariva il sottotitolo del gioco — quindi per
-l'ultimo pezzo di battuta tornava a vedersi l'italiano. Adesso resta finche' resta
-l'originale.
+**Il font era troppo grosso, e adesso so perche'.** Confrontavo l'altezza della
+riga con l'altezza di `Ag` — che va dall'ascendente al discendente, mentre `Ciao,
+Lamar!` e' alto solo quanto le maiuscole: chiedevo un carattere alto quanto una
+riga intera per ottenere delle sole maiuscole, il 40% di troppo. Adesso il
+confronto e' sulla **larghezza** del testo che l'OCR ha letto: stesse lettere,
+stessa grandezza. La verifica e' un andata e ritorno — si disegna un sottotitolo
+finto a 26 punti e si devono ritrovare 26.
+
+**La taglia e' una sola per tutta la sessione**: si tiene la mediana delle
+battute viste, perche' un gioco non cambia taglia da solo e una taglia che balla
+e' rumore (la dissolvenza con cui il sottotitolo compare, l'OCR che legge una
+parola in piu').
+
+**Il testo non si muove piu'.** Era la cosa peggiore: ridisegnavo tutto a ogni
+fotogramma, quindi il riquadro inseguiva l'immagine come un tracker, tremava e
+nei fotogrammi di dissolvenza spariva. Adesso taglia, colore e posizione si
+decidono **quando la battuta compare** e non si toccano piu'. Solo la
+cancellatura sotto si rinfresca dieci volte al secondo, se no — provato e
+guardato — resta una toppa di immagine vecchia mentre la scena si muove.
+
+**E la finestra resta finche' resta il sottotitolo del gioco**, non finche' dura
+la nostra voce: prima spariva prima, e per l'ultimo pezzo di battuta tornava a
+vedersi l'italiano.
 
 ### Guardalo prima di accendere il gioco
 

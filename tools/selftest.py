@@ -2227,8 +2227,8 @@ def test_overlay(c: Check) -> None:
     from PIL import Image, ImageDraw
 
     from ui.overlay import (
-        CHIAVE_RGB, carica_font, colore_del_gioco, corpo_del_gioco, dipingi,
-        inchiostro, su_chiave,
+        CHIAVE_RGB, MisuraCarattere, carica_font, colore_del_gioco,
+        corpo_del_gioco, dipingi, inchiostro, su_chiave,
     )
 
     # -- il colore si prende dal gioco, e si rialza ------------------------
@@ -2242,29 +2242,51 @@ def test_overlay(c: Check) -> None:
     c.eq(colore_del_gioco((0, 0, 0)), (255, 255, 255),
          "un inchiostro nero (niente da misurare) ricade sul bianco")
 
-    # -- la misura si prende dal gioco ------------------------------------
-    for alta in (24, 33, 48):
-        corpo = corpo_del_gioco([(0, 0, 100, alta)], 1.0, "Arial")
-        x0, y0, x1, y1 = carica_font("Arial", corpo).getbbox("Ag")
-        c.ok(abs((y1 - y0) - alta) <= 2,
-             f"un inchiostro alto {alta} px da' un corpo che ne occupa "
-             f"{y1 - y0} (corpo {corpo})")
-    # **La mediana, non il massimo**: due righe saldate in una banda sola
-    # farebbero scrivere la traduzione al doppio della taglia.
-    normale = corpo_del_gioco([(0, 0, 100, 33)], 1.0, "Arial")
-    con_saldata = corpo_del_gioco(
-        [(0, 0, 100, 33), (0, 40, 100, 73), (0, 80, 100, 160)], 1.0, "Arial"
-    )
-    c.ok(abs(con_saldata - normale) <= 2,
-         f"una banda doppia non gonfia il carattere ({con_saldata} contro {normale})")
-    c.ok(corpo_del_gioco([(0, 0, 100, 33)], 2.0, "Arial") > normale * 1.5,
+    # -- la misura si prende dal gioco, **sulla larghezza** ---------------
+    # Confrontare l'altezza della banda con l'altezza di `Ag` chiedeva un
+    # carattere alto quanto una riga intera per ottenere delle sole maiuscole:
+    # circa il 40% troppo grande. La larghezza invece si confronta con se'
+    # stessa, sul testo che l'OCR ha letto.
+    from PIL import Image as _Im, ImageDraw as _Dr
+
+    reg = _Dr.Draw(_Im.new("L", (1, 1)))
+    for testo, larga in (("Ciao, Lamar!", 300), ("Come stai, fratello mio?", 700)):
+        corpo = corpo_del_gioco([(0, 0, larga, 30)], testo, 1.0, "Arial")
+        w = reg.textlength(testo, font=carica_font("Arial", corpo))
+        c.ok(abs(w - larga) <= max(4, 0.02 * larga),
+             f"'{testo}' largo {larga} px da' un corpo che ne occupa {w:.0f} "
+             f"(corpo {corpo})")
+    alto = corpo_del_gioco([(0, 0, 300, 30)], "Ciao, Lamar!", 1.0, "Arial")
+    c.ok(corpo_del_gioco([(0, 0, 600, 30)], "Ciao, Lamar!", 2.0, "Arial")
+         > alto * 1.5,
          "e su uno schermo il doppio piu' fitto il carattere raddoppia")
+
+    # **La taglia e' una sola per tutto il gioco.** Una taglia che cambia da una
+    # battuta all'altra e' rumore della misura, e a schermo si vede.
+    m = MisuraCarattere()
+    for testo, larga in (("Ciao, Lamar!", 300), ("Ciao, Lamar!", 180),
+                         ("Come stai?", 250), ("Ciao, Lamar!", 305),
+                         ("Ciao, Lamar!", 298)):
+        ultimo = m.aggiorna([(0, 0, larga, 30)], testo, 1.0, "Arial")
+    solo_pieni = MisuraCarattere()
+    for _ in range(3):
+        atteso = solo_pieni.aggiorna([(0, 0, 300, 30)], "Ciao, Lamar!", 1.0, "Arial")
+    c.ok(abs(ultimo - atteso) <= max(1, int(0.08 * atteso)),
+         f"una battuta letta a meta' dalla dissolvenza non sposta la taglia "
+         f"({ultimo} contro {atteso})")
 
     # -- un fotogramma finto, con dentro un sottotitolo vero --------------
     cfg = Config()
     cfg.vision.roi = (0.1, 0.80, 0.8, 0.08)
     cfg.vision.use_local_contrast = False
-    tela = Image.new("RGB", (960, 540), (40, 30, 60))
+    # Sfondo **non uniforme**: su una tinta piatta la cancellatura darebbe lo
+    # stesso risultato su qualunque fotogramma, e la verifica che i pixel si
+    # aggiornino non potrebbe esprimere la risposta.
+    sfondo = np.zeros((540, 960, 3), np.uint8)
+    sfondo[:, :, 0] = np.linspace(20, 90, 960).astype(np.uint8)
+    sfondo[:, :, 1] = np.linspace(90, 20, 960).astype(np.uint8)
+    sfondo[:, :, 2] = 60
+    tela = Image.fromarray(sfondo)
     d = ImageDraw.Draw(tela)
     f = carica_font("Arial", 26)
     d.text((240, 432), "Ciao, Lamar!", font=f, fill=(250, 250, 250))
@@ -2281,6 +2303,15 @@ def test_overlay(c: Check) -> None:
          f"e si guarda piu' in alto della ROI ({rett[3]:.3f} contro {cfg.vision.roi[3]})")
     c.ok(all(x1 - x0 < pezzo.shape[1] for x0, _, x1, _ in bande),
          "ogni banda e' larga quanto la sua riga, non quanto la ROI")
+
+    # **Andata e ritorno.** Il sottotitolo finto e' stato disegnato con Arial a
+    # 26 punti: rimisurandolo dai suoi pixel si devono ritrovare 26. E' la
+    # verifica piu' forte che si possa fare su una misura — se il numero che
+    # esce non e' quello che e' entrato, la formula sbaglia e basta.
+    ritrovato = corpo_del_gioco(bande, "Ciao, Lamar! Come stai, fratello?", 1.0, "Arial")
+    c.ok(abs(ritrovato - 26) <= 2,
+         f"il carattere con cui era stato scritto si ritrova dai pixel "
+         f"(26 disegnati, {ritrovato} misurati)")
 
     # -- si cancella la riga, e lo si **verifica** ------------------------
     # La regola di metodo del progetto: prima di leggere il risultato di un
@@ -2304,7 +2335,7 @@ def test_overlay(c: Check) -> None:
     x0, y0, x1, y1 = bande[0]
 
     fatto = dipingi(pezzo, bande, "Hi, Lamar!", scala=1.0, modo="cancella",
-                    inchiostro_rgb=tinta)
+                    inchiostro_rgb=tinta, testo_originale="Ciao, Lamar!")
     c.ok(fatto is not None, "si disegna qualcosa")
     img, (ox, oy) = fatto
     arr = np.array(img)
@@ -2313,11 +2344,28 @@ def test_overlay(c: Check) -> None:
     # E' la richiesta dell'utente, testuale: si cancella la scrittina, non il
     # riquadro. La si verifica sul fotogramma, non sulla tela: si sovrappone e si
     # contano i pixel cambiati fuori dalle bande.
-    from tools.overlay_mp4 import componi
+    from tools.overlay_mp4 import _incolla, prepara
+    from ui.overlay import ritaglia
 
     cfg.translate.background_mode = "cancella"
     dipinto = frame.copy()
-    c.ok(componi(dipinto, cfg, "Hi, Lamar! How are you?"), "il fotogramma viene dipinto")
+    reso = prepara(dipinto, cfg, "Hi, Lamar! How are you?", "Ciao, Lamar!",
+                   MisuraCarattere())
+    c.ok(reso is not None, "il fotogramma viene dipinto")
+    sost, rett2, rx2, ry2 = reso
+    tela2, (ox2, oy2) = sost.disegna(ritaglia(dipinto, rett2))
+    _incolla(dipinto, tela2, rx2 + ox2, ry2 + oy2)
+
+    # **La geometria si decide una volta e non si muove piu'.** Rifacendo il
+    # disegno su un fotogramma diverso — la scena dietro cambia — il riquadro
+    # deve venire identico: e' quello che impedisce al sottotitolo di tremare.
+    mosso = frame.copy()
+    mosso[:] = np.roll(mosso, 7, axis=1)
+    tela3, (ox3, oy3) = sost.disegna(ritaglia(mosso, rett2))
+    c.eq((tela3.size, ox3, oy3), (tela2.size, ox2, oy2),
+         "su un fotogramma diverso la geometria non si sposta di un pixel")
+    c.ok(np.any(np.array(tela3) != np.array(tela2)),
+         "ma i pixel sotto si aggiornano: la toppa non resta quella vecchia")
     cambiati = np.any(dipinto != frame, axis=2)
     ry = int(round(rett[1] * frame.shape[0]))
     rx = int(round(rett[0] * frame.shape[1]))
@@ -2333,7 +2381,10 @@ def test_overlay(c: Check) -> None:
     # cose.
     cfg.translate.background_mode = "riquadro"
     solo_fondo = frame.copy()
-    componi(solo_fondo, cfg, " ")
+    s2, rett3, rx3, ry3 = prepara(solo_fondo, cfg, " ", "Ciao, Lamar!",
+                                  MisuraCarattere())
+    t3, (ox4, oy4) = s2.disegna(ritaglia(solo_fondo, rett3))
+    _incolla(solo_fondo, t3, rx3 + ox4, ry3 + oy4)
     tocco = np.any(solo_fondo != frame, axis=2)
     consentito = np.zeros_like(tocco)
     for bx0, by0, bx1, by1 in bande:
@@ -2367,7 +2418,7 @@ def test_overlay(c: Check) -> None:
     t0 = time.perf_counter()
     for _ in range(5):
         dipingi(pezzo, bande, "Hi, Lamar! How are you doing today?", scala=1.0,
-                modo="cancella", inchiostro_rgb=tinta)
+                modo="cancella", inchiostro_rgb=tinta, testo_originale="Ciao, Lamar!")
     ms = (time.perf_counter() - t0) / 5 * 1000
     c.ok(ms < 60.0, f"dipingere costa {ms:.1f} ms, e sta nel thread video")
     del cv2

@@ -37,7 +37,7 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest              # 1120 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest              # 1122 verifiche
 .\.venv\Scripts\python.exe -m tools.selftest speaker pool # gruppi scelti
 .\.venv\Scripts\python.exe -m tools.selftest -v           # con i verdi in chiaro
 
@@ -279,16 +279,48 @@ trasparente (colore-chiave) da cui si vede il gioco intatto. E la domanda giusta
 non era «rendere illeggibile» ma **«far sembrare che quel sottotitolo non ci sia
 mai stato»**, perche' sopra ci va il nostro: confrontati sulla stessa riga vera,
 sfocare la striscia lascia una fascia grigia, sfocare i soli glifi li lascia
-leggibili, il rettangolo e' una macchia — **ricostruire lo sfondo** (inpaint, il
-modo `cancella`) la fa sparire.
+leggibili, il rettangolo e' una macchia — **ricostruire lo sfondo** (il modo
+`cancella`) la fa sparire.
 
-**Misura e colore del testo si copiano dal gioco**: l'altezza della banda dice il
-corpo, il colore medio dell'inchiostro dice la tinta. `font_frac=0` e `color=""`
-vogliono dire «come il gioco», e sono i default. Un carattere scelto da noi e'
-sbagliato per costruzione, perche' ogni gioco scrive i sottotitoli come vuole.
-La misura si tiene **a memoria col massimo** (`MisuraCarattere`), perche' su un
-fotogramma solo segue la dissolvenza: 23 punti a meta' sfumatura contro 38 a
-piena opacita', misurati sulla stessa battuta.
+E il come conta quanto il cosa: si ricostruisce con **un'apertura e una
+chiusura**, non con `inpaint`. Stesso risultato all'occhio, **0,15 ms contro
+16,3** — e quei sedici millisecondi sono esattamente cio' che permette di rifare
+la cancellatura a ogni fotogramma invece di congelarla. L'apertura toglie il
+chiaro sottile (l'asta del glifo), la chiusura toglie lo scuro sottile (il
+contorno nero, che l'apertura lascia indietro e che da solo si legge ancora).
+
+**Misura e colore del testo si copiano dal gioco**, e nessun numero e' scritto a
+mano: `font_frac=0` e `color=""` vogliono dire «come il gioco» e sono i default.
+Un carattere scelto da noi e' sbagliato per costruzione, perche' ogni gioco
+scrive i sottotitoli come vuole.
+
+**E la misura e' sulla larghezza, non sull'altezza — la differenza e' un
+quarto.** Confrontare l'altezza della banda con l'altezza dell'inchiostro di
+`Ag` chiede un carattere alto quanto una riga intera per ottenere delle sole
+maiuscole: circa il 40% troppo grande, e a schermo si vedeva. Si prende invece
+**il testo che l'OCR ha letto**, lo si disegna e si cerca il corpo in cui occupa
+la stessa larghezza — stesse lettere, stessa grandezza, nessuna conversione fra
+due misure diverse. In piu' regge con un carattere di forma diversa da quello
+del gioco: GTA V ne usa uno stretto, e chiedere la stessa *altezza* ad Arial
+darebbe una riga molto piu' larga dell'originale. La verifica e' un andata e
+ritorno: si disegna un sottotitolo finto a 26 punti e si devono ritrovare 26.
+
+Della taglia si tiene la **mediana** delle battute viste (`MisuraCarattere`): un
+gioco non cambia taglia da solo, quindi una taglia che balla e' rumore della
+misura — la dissolvenza con cui il sottotitolo compare, e l'OCR che legge una
+parola in piu' o in meno.
+
+**Geometria decisa una volta, pixel aggiornati** (`Sostituzione`). Sono due
+difetti opposti, visti tutti e due a schermo. Ridisegnando tutto a ogni
+fotogramma il riquadro veniva ricalcolato da bande leggermente diverse: il testo
+tremava, cambiava taglia e nei fotogrammi di dissolvenza spariva del tutto — un
+sottotitolo compare, sta fermo, sparisce. Congelando anche i pixel, la toppa che
+cancella la riga italiana restava quella del primo fotogramma e diventava un
+rettangolo di immagine vecchia mentre la scena si muove. Quindi taglia, colore,
+posizione e a-capo si decidono all'inizio; la cancellatura si rifa' a 10 Hz, e la
+tela copre **tutta la fascia** perche' mentre la nostra battuta e' a schermo il
+gioco e' spesso gia' passato alla riga dopo (la voce arriva un secondo e mezzo
+dopo il sottotitolo, sempre).
 
 **`core/onnx.py`** — la porta unica per aprire una sessione ONNX, che esiste per
 la riga `preload_dlls()`. Si veda la regola piu' sotto.
@@ -611,6 +643,15 @@ monta un video con **lo stesso pittore** che usa la finestra dal vivo, quindi
 la grafica si guarda da soli in trenta secondi. Un MP4 disegnato da ffmpeg no:
 sarebbe un secondo disegnatore, e mostrerebbe una cosa mentre il vivo ne fa
 un'altra — che e' esattamente com'era nato il difetto.
+
+**Un ottimo algoritmo nel posto sbagliato e' un difetto.** `inpaint` cancellava
+la riga meglio di tutto il resto, e per questo e' stato scelto: 16 ms sembravano
+niente perche' si pagavano una volta per battuta. Ma quel costo **decideva
+l'architettura** — a 16 ms si puo' solo congelare la toppa, e una toppa congelata
+mentre la scena si muove e' un rettangolo di immagine vecchia. Con apertura e
+chiusura a 0,15 ms la si puo' rifare trenta volte al secondo, e il difetto
+sparisce da solo. Prima di scegliere il pezzo migliore, chiedersi **quale
+architettura consente**.
 
 **Un pezzo che nessuno ha guardato non e' «scritto», e' «supposto».** L'overlay
 e' stato consegnato verde e con gli import a posto; messo su un fotogramma a

@@ -54,11 +54,19 @@ l'ha provata dal vivo.** Il difetto peggiore l'ha trovato lui e non era grafico:
 per darlo all'OCR, e la finestra sta sullo schermo — misurato, il 100% dei suoi
 pixel entrava nel fotogramma, con `mss` e con `dxcam`. L'OCR leggeva noi, e le
 righe sparivano. `WDA_EXCLUDEFROMCAPTURE` porta quel numero a 0%.
-E poi: si spegneva tutto il riquadro invece della sola riga, il carattere era
-scelto da noi ed enorme, la finestra spariva alla fine della nostra voce invece
-che alla fine del sottotitolo. Adesso si tocca solo la riga letta, si
-**ricostruisce lo sfondo** al posto dei glifi (inpaint), e **misura e colore si
-copiano dal sottotitolo del gioco**.
+E poi, tutti trovati guardando l'MP4: si spegneva tutto il riquadro invece della
+sola riga; il carattere era il 40% troppo grande perche' confrontavo l'altezza
+della banda con l'altezza di `Ag` (una riga senza discendenti e' alta solo quanto
+le maiuscole — adesso il confronto e' sulla **larghezza** del testo letto); la
+taglia cambiava da una battuta all'altra; il riquadro **inseguiva l'immagine come
+un tracker** perche' lo ridisegnavo a ogni fotogramma; e la finestra spariva alla
+fine della nostra voce invece che alla fine del sottotitolo.
+
+Adesso: geometria decisa **una volta** e mai piu' toccata, pixel della
+cancellatura rinfrescati a 10 Hz (se no la toppa congelata diventa un rettangolo
+di immagine vecchia mentre la scena si muove), e la cancellatura fatta con
+apertura+chiusura invece che con `inpaint` — stesso risultato, **0,15 ms contro
+16,3**, ed e' quel costo che permette di rinfrescarla.
 
 **2. `accepted_delay_ms` da 250 a 1250, misurato.** La compressione restava a
 1250 su *tutti* i percentili con la scena piena a metà. Non era il passo: era la
@@ -84,7 +92,7 @@ staccarsi da 1250 nella prossima sessione dal vivo. È scritto in
 ## Il banco
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                    # 1120 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest                    # 1122 verifiche
 .\.venv\Scripts\python.exe -m tools.dub testGameplayFattoDaMe.mp4 --profile gtav `
     --start 1240 --end 1290 --set vision.ocr_backend=oneocr --mp4
 .\.venv\Scripts\python.exe -m tools.reopen runs\<cartella> [secondo]

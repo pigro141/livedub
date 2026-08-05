@@ -314,7 +314,16 @@ class App:
                 if getattr(self, "_registro", None) is not None:
                     self._registro.close()
                     self._registro = None
-                self.coda.put(("nota", f"sessione salvata in {self.sessione.close(self.cfg)}"))
+                # **Il riepilogo va nella cartella, non solo sul terminale.**
+                # Senza, `mix.underrun` e `speak.first_sample` restano nella
+                # finestra e muoiono con lei — e sono esattamente i due numeri che
+                # dicono se lo streaming ha retto. Dopo la prima prova dal vivo di
+                # Qwen la diagnosi si e' dovuta **dedurre**, perche' i contatori
+                # non erano stati scritti da nessuna parte.
+                rapporto = self.pipeline.report() if self.pipeline is not None else ""
+                self.coda.put(
+                    ("nota", f"sessione salvata in {self.sessione.close(self.cfg, rapporto)}")
+                )
             except Exception as exc:
                 self.coda.put(("nota", f"! salvataggio fallito: {exc}"))
         self.pipeline = None

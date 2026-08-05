@@ -1582,8 +1582,41 @@ def test_streaming(c: Check) -> None:
 
     sr = 48000
 
+    # -- **il cuscino: non si comincia a suonare il vuoto** ------------------
+    # Il difetto che una prova dal vivo ha trovato e che il banco non poteva
+    # vedere: la battuta partiva nell'istante in cui la sua generazione
+    # cominciava, quindi il mixer versava silenzio e le parole arrivavano a
+    # goccia. All'ascolto: parole sminuzzate, contenuto sempre piu' indietro.
+    mp = Mixer(samplerate=sr, passthrough=False, prebuffer_ms=300.0)
+    vuota = mp.schedule(np.zeros(0, np.float32), 0.0, aperta=True, durata_attesa=2.0)
+    for _ in range(5):
+        fuori = mp.process(None, n=sr // 100)
+        c.ok(float(np.abs(fuori).max()) == 0.0, "senza campioni non esce niente")
+    c.eq(vuota.consumed, 0, "e la battuta non e' partita")
+    c.eq(mp.metrics.counter("mix.underrun").value, 0,
+         "e **non** e' un underrun: non e' ancora cominciata")
+    c.ok(mp.metrics.counter("mix.prebuffer").value >= 5,
+         "l'attesa si conta a parte, cosi' si distingue 'lenta' da 'rotta'")
+    c.ok(vuota.t_start > 0.0, "l'inizio slitta invece di accumulare ritardo")
+
+    mp.append(vuota, np.full(int(0.1 * sr), 0.4, np.float32))  # meno del cuscino
+    mp.process(None, n=sr // 100)
+    c.eq(vuota.consumed, 0, "con meno del cuscino si aspetta ancora")
+
+    mp.append(vuota, np.full(int(0.3 * sr), 0.4, np.float32))  # adesso basta
+    fuori = mp.process(None, n=sr // 100)
+    c.ok(float(np.abs(fuori).max()) > 0.1, "raggiunto il cuscino, parte")
+
+    # E una battuta **chiusa** corta non aspetta: li' non arrivera' altro.
+    mc = Mixer(samplerate=sr, passthrough=False, prebuffer_ms=300.0)
+    corta = mc.schedule(np.full(int(0.05 * sr), 0.4, np.float32), 0.0)
+    fuori = mc.process(None, n=sr // 100)
+    c.ok(float(np.abs(fuori).max()) > 0.1,
+         "una battuta gia' completa parte subito, anche se dura meno del cuscino")
+    c.ok(corta.consumed > 0, "cioe' il cuscino vale solo per chi sta ancora arrivando")
+
     # -- il mixer: una battuta aperta non e' una battuta finita ---------------
-    m = Mixer(samplerate=sr, passthrough=False)
+    m = Mixer(samplerate=sr, passthrough=False, prebuffer_ms=0.0)
     item = m.schedule(np.zeros(0, np.float32), 0.0, aperta=True, durata_attesa=1.0)
     c.ok(not item.done, "una battuta aperta e vuota non e' finita")
     c.ok(item.a_secco, "ed e' a secco: era il suo turno e i campioni non c'erano")
@@ -1617,10 +1650,13 @@ def test_streaming(c: Check) -> None:
     # consegnare: guardare quello vorrebbe dire misurare la velocita' del motore
     # invece della lunghezza della battuta, e concludere ogni volta "manca
     # pochissimo, non stringo" — cioe' spegnere `hurry` dove serve di piu'.
-    m3 = Mixer(samplerate=sr, passthrough=False)
+    m3 = Mixer(samplerate=sr, passthrough=False, prebuffer_ms=300.0)
     viva = m3.schedule(np.zeros(0, np.float32), 0.0, aperta=True, durata_attesa=4.0)
-    m3.append(viva, np.full(sr // 5, 0.3, np.float32))  # solo 200 ms consegnati
+    # Mezzo secondo consegnato: basta a superare il cuscino e a far partire la
+    # battuta, ed e' comunque un ottavo dei quattro secondi che durera'.
+    m3.append(viva, np.full(sr // 2, 0.3, np.float32))
     m3.process(None, n=sr // 100, t=0.0)  # falla partire
+    c.ok(viva.consumed > 0, "la battuta e' partita, quindi `hurry` ha su cosa lavorare")
     r = m3.hurry(t_finish=2.0, limits=(1.0, 1.35), min_residue=0.6)
     c.ok(r > 1.001, f"si stringe anche se il residuo presente e' corto (rate {r:.3f})")
     c.close(viva.rate_futuro, r, "e cio' che deve ancora arrivare arrivera' stretto uguale",

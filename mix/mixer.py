@@ -91,10 +91,14 @@ class Mixer:
         dub_gain_db: float = 0.0,
         passthrough: bool = True,
         hold_ms: float = 500.0,
+        prebuffer_ms: float = 350.0,
         metrics: MetricsRegistry | None = None,
     ) -> None:
         self.samplerate = samplerate
         self.passthrough = passthrough
+        # Quanti campioni devono esserci prima che una battuta **aperta** cominci
+        # a suonare. Si veda `_da_riempire`.
+        self._cuscino = int(max(0.0, prebuffer_ms) / 1000.0 * samplerate)
         self.hold_seconds = max(0.0, hold_ms / 1000.0)
         self.dub_gain = db_to_gain(dub_gain_db)
         self.envelope = DuckEnvelope(samplerate, duck_db, attack_ms, release_ms)
@@ -117,6 +121,11 @@ class Mixer:
         # sente e non si misura, che e' il modo in cui questo progetto ha gia'
         # perso due sessioni.
         self._n_secco = self.metrics.counter("mix.underrun")
+        # **Blocchi passati ad aspettare che una battuta si riempisse.** Diverso
+        # dall'underrun: qui la battuta non e' ancora partita, quindi non si sente
+        # niente di rotto — si sente solo un po' piu' tardi. Tenerli separati e'
+        # cio' che permette di dire "e' lenta" invece di "e' rotta".
+        self._n_attesa = self.metrics.counter("mix.prebuffer")
         # **Di quanto il muro e' avanti al contatore dei campioni**, a ogni
         # blocco. Se resta a zero i due vanno insieme; se cresce, il mixer stava
         # suonando in una linea temporale sua — e questa e' la misura che
@@ -409,6 +418,31 @@ class Mixer:
             for item in self._queue:
                 if item.t_start >= t1 or item.done:
                     continue
+                # **Una battuta aperta non parte finche' non ha un cuscino.**
+                #
+                # E' il difetto che una prova dal vivo ha trovato e che il banco
+                # non poteva vedere: li' il produttore genera tutto e *poi*
+                # ritorna, quindi i campioni ci sono sempre. Dal vivo il
+                # produttore lavora un turno alla volta, e `t_start` veniva
+                # calcolato dalla fine **prevista** della battuta precedente —
+                # cioe' la successiva cominciava a suonare nell'istante esatto in
+                # cui la sua generazione cominciava. Il mixer apriva la bocca, non
+                # trovava niente, versava silenzio, e le parole arrivavano a
+                # goccia: all'ascolto **parole sminuzzate**, con il contenuto
+                # sempre piu' indietro del video.
+                #
+                # Aspettare un cuscino costa un ritardo pari al cuscino, una volta
+                # per battuta. Non aspettarlo costa la battuta intera.
+                if self._da_riempire(item):
+                    # Non e' partita: si sposta l'inizio invece di accumulare
+                    # ritardo. E **non e' un underrun** — quello e' restare a
+                    # secco *dopo* aver cominciato, che si sente e va contato a
+                    # parte. Confonderli renderebbe illeggibile il contatore che
+                    # serve proprio a decidere se questo motore regge.
+                    item.t_start = max(item.t_start, t1)
+                    self._n_attesa.inc()
+                    active = True  # il duck resta giu': la battuta sta arrivando
+                    continue
                 # Dove cade, dentro questo blocco, l'inizio della parte da versare.
                 offset = max(0, int(round((item.t_start - t0) * self.samplerate)))
                 if item.consumed > 0:
@@ -445,6 +479,17 @@ class Mixer:
 
         self._t = t1
         return self._limit(out)
+
+    def _da_riempire(self, s: Scheduled) -> bool:
+        """La battuta e' aperta, non e' ancora partita, e ha troppo poco dentro.
+
+        Solo prima di cominciare: una volta partita non si aspetta piu' niente,
+        perche' fermarsi a meta' per aspettare sarebbe un buco in mezzo a una
+        parola — peggio di andare avanti.
+        """
+        if not s.aperta or s.consumed > 0:
+            return False
+        return len(s.audio) < self._cuscino
 
     def _starts_soon(self, t1: float) -> bool:
         """Sta per iniziare una battuta, abbastanza presto da non rialzare?

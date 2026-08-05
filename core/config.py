@@ -984,6 +984,17 @@ class MixConfig:
     parlato: musica ed effetti restano intatti."""
 
     passthrough: bool = True
+    # **Quanti millisecondi di voce devono essere pronti prima che una battuta in
+    # streaming cominci a suonare.** Vale solo per i motori che consegnano a
+    # pezzi (oggi Qwen): per gli altri l'audio c'e' tutto e questo campo non fa
+    # niente.
+    #
+    # Serve a un difetto trovato dal vivo e invisibile al banco: la battuta
+    # partiva nell'istante in cui la sua generazione cominciava, quindi il mixer
+    # versava silenzio e le parole arrivavano a goccia — **parole sminuzzate**.
+    # Aspettare il cuscino costa un ritardo pari al cuscino, una volta per
+    # battuta; non aspettarlo costa la battuta.
+    prebuffer_ms: float = 350.0
     duck_db: float = -14.0
     duck_attack_ms: int = 40
     duck_release_ms: int = 220

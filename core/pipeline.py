@@ -254,6 +254,7 @@ class DubPipeline:
             dub_gain_db=cfg.mix.dub_gain_db,
             passthrough=cfg.mix.passthrough,
             hold_ms=cfg.mix.duck_hold_ms,
+            prebuffer_ms=cfg.mix.prebuffer_ms,
             metrics=self.metrics,
         )
 

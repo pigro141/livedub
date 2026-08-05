@@ -1,33 +1,69 @@
 # Cosa verificare a mano
 
 Lavoro fatto in autonomia. Qui sotto **solo le cose che io non ho potuto
-verificare**, in ordine di quanto costa sbagliarsi. La suite è verde (1087
+verificare**, in ordine di quanto costa sbagliarsi. La suite è verde (1098
 verifiche) ma la suite non sente niente: ogni difetto serio di questo progetto è
 stato trovato dall'orecchio, con la suite verde.
 
 ---
 
-## 1. La prova dal vivo con traduzione — **e' l'unica cosa che resta da giudicare**
+## 0. LA COSA PIU' IMPORTANTE: la grafica nuova non l'ha vista nessuno
 
-I numeri dicono che va: 18 battute, **zero underrun**, sintesi 198 ms, voci
-inglesi assegnate, traduzione pulita (`'Ehi, come va, Simeon?'` ->
-`"Hey, how's it going, Simeon?"`).
+Ultimo lavoro della sessione, **scritto e mai eseguito a schermo**. La suite e'
+verde e gli import passano, ma un overlay si giudica solo col gioco acceso.
 
-Nella prima passata `dub.rate_x1000` stava a 1250 su tutti i percentili — ogni
-battuta compressa al tetto — con il parlato che riempiva appena il **49%** della
-scena. Era il passo dell'italiano applicato all'inglese: corretto, e l'ultima
-passata gira con 14,37 car/s invece di 12,9.
+Cosa dovrebbe fare adesso (`ui/overlay.py`):
 
-**Cosa devi dirmi, perche' nessun contatore lo dice:**
+- **stringersi sull'inchiostro vero** invece di coprire tutta la ROI. Il riquadro
+  si ricava dalla stessa maschera che usa l'OCR (`vision.lines.text_mask`): non
+  una stima di dove sia il testo, letteralmente i pixel che l'OCR ha letto;
+- **sfocare** il sottotitolo vecchio invece di coprirlo di nero, prendendo la ROI
+  dal fotogramma corrente.
 
-- **l'overlay**: cade sul sottotitolo del gioco? lo copre? da' fastidio mentre
-  giochi? Il rettangolo e' pieno — dal vivo il blur non si puo' fare, servirebbe
-  una seconda cattura dello schermo solo per quello. Se e' invadente si regolano
-  `translate.color`, `translate.background`, `translate.background_opacity`;
-- **la voce inglese**: articola, o si sente ancora compressa?
-- **il tempo**: la battuta arriva mentre il sottotitolo e' ancora a schermo?
+**Se il riquadro cade nel posto sbagliato**, il sospetto numero uno e' la
+conversione fra pixel del fotogramma e pixel dello schermo in
+`Overlay._prepara_sfondo` (`sx`, `sy`): li' si assume che la ROI del fotogramma e
+la ROI dello schermo abbiano le stesse proporzioni, e con una cattura che scala
+non e' detto.
 
-## Qwen: chiuso, e non c'e' piu' niente da verificare
+**Se non si vede nessuna sfocatura**, `_inchiostro()` in `tools/ui.py` sta
+tornando `(None, None)` — cattura l'eccezione apposta, per non perdere una battuta
+per colpa di un effetto grafico. Togliere il `try` li' dentro e guardare l'errore
+e' il primo passo.
+
+Il comando per provarla e' quello della sezione 1 qui sotto.
+
+## 1. La compressione resta al tetto, e adesso so perche' — non e' piu' il passo
+
+Due sessioni dal vivo con traduzione, 18 e 24 battute. Entrambe:
+`dub.rate_x1000` a **1250 su tutti i percentili**, con il parlato che riempie
+**41-49% della scena**. Tutto il tempo del mondo, e la voce corre lo stesso.
+
+La prima volta era il passo dell'italiano applicato all'inglese: corretto
+(`PASSO_LINGUA`), e non e' bastato. Il passo vero misurato dal vivo e' **16,74
+car/s** contro i 14,37 dichiarati, quindi resta un po' di sottostima — ma il
+grosso viene da un'altra parte.
+
+**E' la latenza che mangia il budget.** `DurationModel.plan` calcola
+`budget = durata prevista - (tempo gia' passato - accepted_delay)`. Con la
+traduzione sulla strada critica il tempo gia' passato e' ~1,7 s (500 ms di
+`decide_after_ms` + ~600 ms di traduzione la prima volta + 217 ms di sintesi +
+coda), e `accepted_delay_ms` vale **250**. Quindi al budget vengono tolti ~1,4 s
+di una finestra che ne dura due, e WSOLA schiaccia per rientrare in quel poco che
+resta.
+
+**La cura giusta e' quella che `fuse/timing.py` descrive gia' nel suo docstring**:
+`accepted_delay_ms` esiste per «la parte che torna identica a ogni battuta», e
+la traduzione e' esattamente quella. Va alzato — indicativamente a **800-900 ms**
+quando `translate.enabled` — e poi **rimisurato**, perche' il docstring avverte
+anche che scusare troppo fa crescere la coda: la tabella li' dentro dice che a
+250 ms c'era il ginocchio *senza* traduzione.
+
+**Non l'ho cambiato**, perche' cambiare una soglia senza rimisurarla e' il modo
+in cui in questo progetto sono nate meta' delle sessioni sprecate. E' la prima
+cosa da fare, con la tabella di `fuse/timing.py` rifatta a traduzione accesa.
+
+## Qwen: chiuso## Qwen: chiuso, e non c'e' piu' niente da verificare
 ## Il nome del parlante — **controllato**, come chiesto
 
 Le sette forme provate su testo di gioco realistico, con l'elenco dei personaggi

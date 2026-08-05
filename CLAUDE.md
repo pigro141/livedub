@@ -37,7 +37,7 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest              # 944 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest              # 1098 verifiche
 .\.venv\Scripts\python.exe -m tools.selftest speaker pool # gruppi scelti
 .\.venv\Scripts\python.exe -m tools.selftest -v           # con i verdi in chiaro
 
@@ -49,6 +49,17 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 .\.venv\Scripts\python.exe -m tools.reopen runs\<cartella> [secondo]
 .\.venv\Scripts\python.exe -m tools.recluster runs\<cartella>\speaker.jsonl --profile gtav
 .\.venv\Scripts\python.exe -m tools.ui --profile live --loopback voicemeeter --set vision.ocr_backend=oneocr
+
+# dal vivo con traduzione, grafica e audio (serve `ollama serve` acceso)
+.\.venv\Scripts\python.exe -m tools.ui --profile live --loopback voicemeeter `
+    --set vision.ocr_backend=oneocr --set tts.backend=kokoro --set tts.device=cuda `
+    --set translate.enabled=true --set translate.backend=ollama `
+    --set translate.source=it --set translate.target=en
+
+# i banchi specializzati, ognuno risponde a una domanda sola
+.\.venv\Scripts\python.exe -m tools.bench_cpu --backend supertonic    # rallenta sui PC vecchi?
+.\.venv\Scripts\python.exe -m tools.bench_translate --parolacce       # il traduttore dice cio' che c'e' scritto?
+.\.venv\Scripts\python.exe -m tools.bench_correct --censimento        # cosa c'e' davvero da correggere nell'OCR?
 ```
 
 - venv: `.venv` (Python 3.11.9), **sempre invocato per esteso**. Si ricostruisce
@@ -204,6 +215,49 @@ SuperTonic e sul banco — non risponde piu' alla domanda di adesso. Chi vuole
 guadagnare latenza guardi **li'**, non il sintetizzatore. Il prezzo dichiarato di
 abbassarli e' che si sbagli piu' spesso a dire chi parla, e quello lo giudica
 l'orecchio.
+
+## I pezzi aggiunti dopo, e cosa fa ciascuno
+
+Quattro moduli che non c'erano quando questo file e' stato scritto. Sono tutti
+**spenti di default**, perche' nessuno serve a GTA V in italiano: servono a farci
+girare un altro gioco o un'altra lingua.
+
+**`translate/`** — tradurre il sottotitolo. Quattro backend: `locale` (Argos,
+leggero), `llm` (Gemma 3 1B in-process su CPU), `ollama` (TranslateGemma, fuori
+dal venv) e `google`. Due cose non ovvie: **si traduce prima di stimare i tempi**,
+perche' `chars_per_second` va applicato al testo che verra' *detto*; e se la
+traduzione fallisce **si tiene l'originale**, perche' una battuta nella lingua
+sbagliata e' un difetto e una battuta muta e' un buco.
+
+E la domanda che su questo materiale viene **prima della qualita'**: il modello
+dice cio' che c'e' scritto? Misurato su sei battute volgari — google 6/6,
+TranslateGemma **0/6** col suo template, 2-3/6 chiedendo esplicitamente di non
+ammorbidire. Un modello che riscrive «Get the fuck out of my car, asshole» in
+«Esci immediatamente dalla mia macchina, idiota» consegna un doppiaggio che dice
+un'altra cosa, e nessun contatore lo mostra.
+
+**`vision/label.py`** — chi parla, quando lo scrive il gioco. Sette formati
+pronti piu' una regex. Vale mezzo secondo: cadono sia l'attesa di
+`decide_after_ms` sia il calcolo dell'impronta. Il nemico sono i falsi positivi,
+perche' ognuno **crea un personaggio** e gli brucia una voce del pool: la guardia
+forte e' l'elenco dichiarato dei nomi. E con un nome stabile la voce si puo'
+ricordare fra sessioni (`runs/cast.json`) — senza, la voce non e' del personaggio,
+e' del *turno*.
+
+**`vision/correct.py`** — correggere gli artefatti dell'OCR. Il correttore
+**propone**, il `Revisore` decide: una parola italiana non gli viene nemmeno
+mostrata, i nomi propri nemmeno, e si sceglie **fra candidati** invece di
+generare. Spento, e con ragione misurata: il guadagno massimo e' **una parola su
+settanta** (delle 1230 fuori dal lessico su 19146, 527 sono nomi propri e il
+resto e' onomatopee, forme vere non elencate e frammenti di HUD).
+
+**`ui/overlay.py`** — il sottotitolo tradotto disegnato sopra il gioco. Dal vivo
+il fotogramma non passa da noi, quindi serve una finestra: senza bordi, sempre in
+primo piano, con i clic che la attraversano e senza rubare il fuoco — che in molti
+giochi vuol dire mettere in pausa.
+
+**`core/onnx.py`** — la porta unica per aprire una sessione ONNX, che esiste per
+la riga `preload_dlls()`. Si veda la regola piu' sotto.
 
 ## Banco e vivo: la cosa che costa di piu' capire
 
@@ -480,6 +534,31 @@ arriva.** In streaming `_free_at` nasce da `chars_per_second`; se la battuta ver
 e' piu' lunga, la successiva e' gia' stata programmata **sopra** di lei — due voci
 italiane insieme, il difetto peggiore del prodotto. Il produttore la rialza a ogni
 blocco leggendo `mixer.finisce_a`, che e' l'unico posto che sa la verita'.
+
+**La stessa unita' sbagliata, per la quarta volta — stavolta era una lingua.**
+Dopo `chars_per_second` contato in due unita', dopo `merge_similarity` misurata su
+una distribuzione e applicata a un'altra, dopo il passo di un motore applicato a
+un altro: traducendo in inglese, la catena usava i 12,9 car/s misurati
+sull'italiano. Credeva ogni battuta piu' lunga di quanto fosse, e comprimeva **al
+tetto** una scena piena al 49%. Compressione autoinflitta, con tutto il tempo del
+mondo a disposizione.
+
+Il sintomo era `dub.rate_x1000` a 1250 **su tutti i percentili**. Un numero
+inchiodato al tetto su ogni percentile non e' mai una coincidenza: e' sempre un
+vincolo che morde da un'altra parte.
+
+**Un artefatto in cache che non sa di essere scaduto.** L'archivio delle voci di
+Kokoro si costruiva una volta e poi bastava che il file esistesse. Aggiungendo le
+voci inglesi, quello vecchio — con dentro le sole due italiane — e' rimasto
+«buono» agli occhi di quella funzione, e la prima voce inglese e' morta con un
+`KeyError` dentro la libreria, lontanissimo da dove stava il difetto. Chi mette
+qualcosa in cache controlli **cosa** c'e' dentro, non che ci sia.
+
+**Prima di dire che una cosa non si puo' fare, guardare cosa si ha gia' in mano.**
+Avevo scritto che dal vivo la sfocatura del sottotitolo era impossibile, perche'
+avrebbe richiesto una seconda cattura dello schermo. Falso: la catena cattura gia'
+il fotogramma a 30 Hz per darlo all'OCR. Quei pixel erano nostri, e prenderli
+costava un ritaglio.
 
 **E la piu' importante: l'orecchio dell'utente trova cio' che la suite non puo'.**
 E' successo a ogni difetto serio di questo progetto, con la suite verde. Quando

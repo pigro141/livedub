@@ -5,7 +5,7 @@
 **Feature: 14 su 14.** Tutte chiuse, comprese quelle che si sono chiuse con un
 "no" misurato (i tag del TTS, la correzione automatica per distanza di edit, Qwen).
 
-**Step finali: 2 su 17.** Le due spuntate — colore/dimensione dei sottotitoli e
+**Step finali: 2 su 18**, piu' una scritta e non provata (la grafica del sottotitolo). Le due spuntate — colore/dimensione dei sottotitoli e
 scelta delle lingue — sono fatte **come meccanismo**: i parametri esistono e si
 regolano da `--set`. Quello che manca è la UI che li espone.
 
@@ -194,6 +194,23 @@ che si sono chiuse con un "no".)*
     resto (`': olta'` → `'svolta'`).
 * **Step finali**
 
+  * \[~]  sistemare la grafica del sottotitolo tradotto
+    → **Chiesto dall'utente**: deve occupare **solo lo spazio dove sta il testo** (non
+    tutta la ROI, che su una battuta di due parole mette una fascia larga mezzo
+    schermo), e usare **una sfocatura** per togliere il sottotitolo vecchio invece di
+    coprirlo con un rettangolo pieno.
+    → **Scritto, non provato.** `ui/overlay.py` adesso: ritaglia il riquadro
+    sull'**inchiostro vero** (la stessa maschera che usa l'OCR, `vision.lines.text_mask` —
+    non una stima della posizione, letteralmente i pixel che l'OCR ha letto), e ci mette
+    dietro la ROI **sfocata** presa dal fotogramma corrente.
+    → **Su questo mi ero sbagliato e va detto**: avevo scritto che dal vivo il blur era
+    impossibile perché avrebbe richiesto una seconda cattura dello schermo. Falso: la
+    catena cattura già il fotogramma a 30 Hz per darlo all'OCR, e quei pixel sono in mano
+    nostra. Costava un ritaglio.
+    → **Nessuno l'ha ancora visto funzionare.** La suite è verde e gli import passano, ma
+    l'overlay si giudica solo a schermo, col gioco acceso. È la prima cosa da guardare.
+    Se il riquadro cade nel posto sbagliato, il sospetto numero uno è la conversione fra
+    pixel del fotogramma e pixel dello schermo in `Overlay._prepara_sfondo` (`sx`, `sy`).
   * \[ ]  UI interfaccia chiara e funzionale
   * \[x]  possibilità di modificare i sottotitoli tradotti colore dimensione
     → `translate.color`, `background`, `background_opacity`, `background_mode`,

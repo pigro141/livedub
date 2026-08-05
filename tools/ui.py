@@ -202,9 +202,9 @@ class App:
                         tag=f"s{self.noti[sid]}",
                     )
                 elif tipo == "overlay":
-                    testo, fine = dato
+                    testo, fine, roi, box = dato
                     if self.overlay is not None:
-                        self.overlay.mostra(testo)
+                        self.overlay.mostra(testo, roi, box)
                         self._overlay_fino_a = fine
                 elif tipo == "stato":
                     self.l_stato.config(text=dato)
@@ -311,7 +311,13 @@ class App:
                         # sottotitolo originale con sé stesso.
                         if self.overlay is not None and riga.text_original:
                             fine = time.perf_counter() + max(riga.duration, 1.0)
-                            self.coda.put(("overlay", (riga.text, fine)))
+                            # **Il fotogramma ce l'abbiamo gia' in mano.** Serviva
+                            # all'OCR; per sfocare il sottotitolo vecchio basta
+                            # ritagliarlo, e non c'e' nessuna seconda cattura da
+                            # pagare — cosa che avevo scritto e che era falsa.
+                            self.coda.put(
+                                ("overlay", (riga.text, fine, *_inchiostro(g.frame, self.cfg)))
+                            )
                     if n % 30 == 0:
                         p = len(self.pipeline.tracker) if self.pipeline.tracker else 0
                         self.coda.put(("stato",
@@ -375,6 +381,43 @@ class App:
 
     def run(self) -> None:
         self.root.mainloop()
+
+
+def _inchiostro(frame, cfg):
+    """La ROI del fotogramma e il rettangolo dove sta **davvero** l'inchiostro.
+
+    Serve all'overlay per due cose insieme: sfocare il sottotitolo vecchio, e
+    stringersi solo su di lui invece di stendere una fascia su mezzo schermo per
+    una battuta di due parole.
+
+    La maschera e' **la stessa che usa l'OCR** (`vision.lines.text_mask`), non una
+    stima della posizione del testo: sono letteralmente i pixel che l'OCR ha
+    letto. Una seconda regola per la stessa cosa divergerebbe dalla prima, ed e'
+    il genere di doppione che questo progetto ha gia' pagato.
+
+    `(None, None)` se non si capisce dove sia il testo: l'overlay ricade sul
+    rettangolo pieno invece di piazzare un riquadro a caso.
+    """
+    try:
+        import numpy as np
+
+        from vision.lines import luma_sat, text_mask
+        from vision.roi import crop
+
+        roi = crop(frame, cfg.vision.roi)
+        if roi is None or roi.size == 0:
+            return None, None
+        luma, _ = luma_sat(roi)
+        maschera = text_mask(luma, cfg.vision)
+        righe = np.flatnonzero(maschera.any(axis=1))
+        colonne = np.flatnonzero(maschera.any(axis=0))
+        if righe.size == 0 or colonne.size == 0:
+            return roi, None
+        y0, y1 = int(righe[0]), int(righe[-1]) + 1
+        x0, x1 = int(colonne[0]), int(colonne[-1]) + 1
+        return roi, (x0, y0, x1 - x0, y1 - y0)
+    except Exception:  # pragma: no cover - meglio nessun blur che nessuna battuta
+        return None, None
 
 
 def main(argv: list[str] | None = None) -> int:

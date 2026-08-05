@@ -2207,7 +2207,81 @@ def test_traduzione(c: Check) -> None:
     c.ok(all(v.base_voice in PER_LINGUA["en"] for v in p_en.pool.voices),
          "la catena che traduce in inglese costruisce un pool inglese")
 
-    # -- il template di TranslateGemma -------------------------------------
+
+def test_overlay(c: Check) -> None:
+    """La geometria del sottotitolo tradotto disegnato sopra il gioco.
+
+    **Questo gruppo non c'era, ed e' il motivo per cui l'overlay e' arrivato in
+    mano all'utente con un difetto che si vedeva al primo sguardo.** La suite era
+    verde perche' non guardava: la finestra veniva dimensionata sul testo
+    *originale* e dentro ci si disegnava quello *tradotto*, quindi una battuta
+    piu' lunga usciva tagliata sopra e sotto. Il calcolo sta ora in
+    `disposizione()`, che e' pura e non tocca Tk apposta: cosi' si verifica senza
+    aprire una finestra, e il difetto avrebbe fatto rosso invece che verde.
+    """
+    c.group("overlay")
+    from ui.overlay import disposizione
+
+    schermo = (2560, 1440)
+    # Un pezzo largo quanto la ROI del profilo gtav, preso da una cattura 1080p.
+    rett = (0.204, 0.846, 0.592, 0.152)
+    pezzo = (1136, 164)
+    sx = rett[2] * schermo[0] / pezzo[0]  # 1,333 px di schermo per px di frame
+
+    # -- una battuta corta: la finestra si stringe sull'inchiostro ----------
+    box = (350, 67, 436, 31)
+    _, (w, h, x, y) = disposizione(schermo, rett, pezzo, box, (300, 60))
+    c.ok(w < 0.5 * rett[2] * schermo[0],
+         f"su due parole la finestra non copre mezza ROI ({w} px su "
+         f"{int(rett[2] * schermo[0])})")
+    centro_box = rett[0] * schermo[0] + (box[0] + box[2] / 2) * sx
+    c.ok(abs((x + w / 2) - centro_box) <= 2,
+         f"ed e' centrata sull'inchiostro vecchio ({x + w // 2} contro "
+         f"{int(centro_box)})")
+
+    # -- la stessa battuta tradotta lunga: la finestra cresce --------------
+    # E' il difetto trovato a schermo: 'But if I had one, ...' su tre righe
+    # dentro una finestra alta una riga.
+    _, (w2, h2, x2, y2) = disposizione(schermo, rett, pezzo, box, (1400, 190))
+    c.ok(w2 >= 1400, f"un testo largo 1400 px non viene stretto in {w2}")
+    c.ok(h2 >= 190, f"ne alto 190 px schiacciato in {h2}")
+    c.ok(y2 + h2 <= schermo[1], "e la finestra resta dentro lo schermo")
+    c.ok(y2 < y, "cresce verso l'alto: sotto c'e' il bordo dello schermo")
+    c.ok(abs((y2 + h2) - (y + h)) <= 4,
+         "restando appoggiata dov'era la riga vecchia, che e' dove guarda l'occhio")
+
+    # -- il ritaglio dello sfondo segue la finestra ------------------------
+    (tx0, ty0, tx1, ty1), (w3, h3, _, _) = disposizione(
+        schermo, rett, pezzo, box, (300, 60)
+    )
+    c.ok(0 <= tx0 < tx1 <= pezzo[0] and 0 <= ty0 < ty1 <= pezzo[1],
+         f"il ritaglio sta dentro il pezzo ({tx0},{ty0})-({tx1},{ty1})")
+    c.ok(abs((tx1 - tx0) * sx - w3) <= 3,
+         "e ha le proporzioni della finestra, se no lo sfondo si sposta")
+
+    # -- **la conversione non suppone proporzioni uguali** -----------------
+    # Era il sospetto numero uno scritto in DA_VERIFICARE: due rettangoli di cui
+    # si assumeva il rapporto. Passando per le coordinate normalizzate non c'e'
+    # piu' niente da assumere, e una cattura di forma diversa dallo schermo lo
+    # dimostra: la finestra deve restare sulla stessa **frazione** di schermo.
+    _, (_, _, xa, _) = disposizione(schermo, rett, (1136, 164), box, (300, 60))
+    _, (_, _, xb, _) = disposizione(schermo, rett, (2272, 328), (700, 134, 872, 62), (300, 60))
+    c.ok(abs(xa - xb) <= 2,
+         f"la stessa scena catturata al doppio della risoluzione cade nello "
+         f"stesso posto ({xa} contro {xb})")
+
+    # -- niente di quello che esce puo' essere assurdo ---------------------
+    for prova in ((0, 0, 1, 1), (0, 0, 1136, 164), (1130, 160, 6, 4)):
+        (a0, b0, a1, b1), (pw, ph, px, py) = disposizione(
+            schermo, rett, pezzo, prova, (900, 120)
+        )
+        c.ok(a1 > a0 and b1 > b0 and pw > 0 and ph > 0 and px >= 0 and py >= 0,
+             f"box {prova} non produce una geometria degenere")
+
+
+def test_template(c: Check) -> None:
+    """Il template di TranslateGemma, che va rispettato alla lettera."""
+    c.group("traduzione")
     # **Le due righe vuote non sono formattazione.** Il modello e' addestrato su
     # quel template esatto: sbagliarlo non da' errore, da' una traduzione un po'
     # peggiore — e si finisce per concludere che il modello non e' un granche'.
@@ -2376,8 +2450,15 @@ def test_duration_model(c: Check) -> None:
     # compressione mediana passava da 1,000 a 1,146 solo per questo.
     scusa = cfg.accepted_delay_ms / 1000.0
     c.ok(scusa > 0, "di suo un pezzo del ritardo si accetta invece di rincorrerlo")
-    p = m.plan("a" * 50, spoken=1.0, elapsed=0.5)
-    c.close(p.budget, 2.0 - (0.5 - scusa), "il budget e' quello che resta, scusato il ritardo costante")
+    trascorso = scusa + 0.5
+    p = m.plan("a" * 50, spoken=1.0, elapsed=trascorso)
+    c.close(p.budget, 2.0 - (trascorso - scusa),
+            "il budget e' quello che resta, scusato il ritardo costante")
+    # E un ritardo **piu' piccolo** della scusa non toglie niente: e' il caso
+    # normale adesso che la scusa vale 1250 ms, e la formula non deve andare in
+    # negativo per conto suo.
+    p = m.plan("a" * 50, spoken=1.0, elapsed=scusa / 2.0)
+    c.close(p.budget, 2.0, "e un ritardo dentro la scusa lascia la finestra intera")
     c.close(p.predicted, 2.0, "la durata prevista non cambia")
     p = m.plan("a" * 50, spoken=1.0, elapsed=scusa)
     c.close(p.budget, 2.0, "un ritardo tutto dentro la scusa non toglie niente")
@@ -2854,6 +2935,8 @@ GROUPS = {
     "etichetta": test_etichetta,
     "correzione": test_correzione,
     "traduzione": test_traduzione,
+    "template": test_template,
+    "overlay": test_overlay,
     "fretta": test_fretta,
     "duck": test_duck_non_pompa,
     "velocita": test_velocita_totale,

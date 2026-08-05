@@ -906,13 +906,48 @@ class TimingConfig:
     # 2,42. E' li' che nasce `dub.rate_x1000` inchiodato a 1250 su **tutti** i
     # percentili.
     #
-    # **250 ms e' misurato**, ed e' il ginocchio: porta la compressione mediana
-    # da 1,146 a 1,000 e costa undici millisecondi di latenza percepita. Oltre si
-    # paga latenza senza comprare quasi niente, perche' il ritardo scusato entra
-    # anche nell'arretrato della coda. Il rischio era la deriva e non c'e': le
-    # ultime dieci battute della scena sono in ritardo **meno** delle prime
-    # dieci. La tabella intera sta nel docstring del modulo `fuse/timing.py`.
-    accepted_delay_ms: int = 250
+    # **Era 250 ms, ed era misurato — su una catena che costava la meta'.**
+    # Quel numero era il ginocchio quando la parte che torna identica a ogni
+    # battuta erano l'attesa del riconoscimento e la sintesi, cioe' ~670 ms.
+    # Con la traduzione sulla strada critica quella parte e' **1,6-1,7 s**
+    # (misurata, non stimata: la mediana di `t_scheduled - t_subtitle` sulle
+    # battute che non erano in coda, in due sessioni dal vivo), e una scusa da
+    # 250 ms su un costo fisso da 1690 lascia al budget briciole: `dub.rate_x1000`
+    # a 1250 su **tutti** i percentili con il parlato che riempie meta' scena.
+    #
+    # Rigiocando la programmazione di quelle due sessioni — stessi tempi veri,
+    # stessa durata del parlato, cambia solo la scusa (24 e 18 battute, si
+    # riporta la **peggiore** delle due):
+    #
+    #     scusa    compressione p50    battute al tetto    latenza p95
+    #      250          1,250                100%             2551 ms
+    #      900          1,250                 62%             2574 ms
+    #     1000          1,182                 25%             2660 ms
+    #     1200          1,000                 17%             2771 ms
+    #     1250          1,000                 17%             2771 ms
+    #     1600          1,000                 12%             3080 ms di coda
+    #
+    # Il precipizio sta fra 900 e 1200 e l'altopiano comincia a 1200: **1250 e'
+    # in mezzo all'altopiano**, non sul suo orlo — che e' la regola con cui in
+    # questo progetto si sceglie una soglia. Oltre non si compra piu' niente e la
+    # coda comincia a crescere.
+    #
+    # **E senza traduzione non peggiora**, che era il rischio (misurato adesso
+    # sulla registrazione, 43 battute, Piper, italiano):
+    #
+    #     scusa    compressione p50   p95     latenza p95   sfori
+    #      250          1,000        1,250      1031 ms       9
+    #      750          1,000        1,248      1066 ms       4
+    #     1250          1,000        1,133      1401 ms       4
+    #     1750          1,000        1,143      1486 ms       4
+    #
+    # La mediana non si muove, il p95 della compressione **migliora**, gli
+    # sfori si dimezzano, e si pagano 370 ms sul p95 della latenza. Da 1250 a
+    # 1750 non cambia quasi niente: nessuna fuga in avanti della coda.
+    #
+    # La tabella vecchia, e il perche' del meccanismo, stanno nel docstring del
+    # modulo `fuse/timing.py`.
+    accepted_delay_ms: int = 1250
     # **Spento perche' misurato, non perche' non sia scritto.** Il piano dava per
     # buono che il sottotitolo compaia quando il gioco decide e la voce cominci
     # quando il personaggio apre la bocca, e che i due istanti non coincidano:
@@ -1210,7 +1245,18 @@ class TranslateConfig:
     #
     # `blur` costa un filtro video in piu' e vale solo quando un sottotitolo
     # tradotto e' a schermo: fuori da quegli istanti la ROI resta nitida.
-    background_mode: str = "riquadro"  # riquadro | blur | nessuno
+    #
+    # **Il default e' `blur` da quando lo si e' guardato a schermo.** Era
+    # `riquadro`, e dal vivo non lo leggeva nessuno: l'overlay sfocava sempre,
+    # qualunque cosa dicesse questo campo. Adesso lo legge — e fra i tre, sul
+    # gioco acceso, e' il blur quello che copre l'originale senza mettere una
+    # macchia nera in mezzo allo schermo.
+    background_mode: str = "blur"  # riquadro | blur | nessuno
+    # Quanto sfocare. Per l'MP4 e' il raggio di `boxblur` in pixel del video;
+    # dal vivo e' un raggio dichiarato **a 1080p** e riscalato con l'altezza del
+    # fotogramma, perche' a 1440p le lettere sono piu' grandi e una sfocatura in
+    # pixel fissi ne lascia leggere la forma. Verificato a schermo su una
+    # cattura 1920x1080 mostrata a 2560x1440: a 12 l'originale non si legge piu'.
     blur_strength: float = 12.0
     # Altezza del carattere come frazione dell'altezza del fotogramma. In
     # frazione e non in punti: la stessa configurazione deve valere a 1080p e a

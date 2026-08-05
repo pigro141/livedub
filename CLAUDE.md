@@ -37,7 +37,7 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest              # 1098 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest              # 1112 verifiche
 .\.venv\Scripts\python.exe -m tools.selftest speaker pool # gruppi scelti
 .\.venv\Scripts\python.exe -m tools.selftest -v           # con i verdi in chiaro
 
@@ -49,6 +49,11 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 .\.venv\Scripts\python.exe -m tools.reopen runs\<cartella> [secondo]
 .\.venv\Scripts\python.exe -m tools.recluster runs\<cartella>\speaker.jsonl --profile gtav
 .\.venv\Scripts\python.exe -m tools.ui --profile live --loopback voicemeeter --set vision.ocr_backend=oneocr
+
+# la prova d'ascolto, con i controlli fatti prima (venv, cattura, Ollama e il suo
+# modello) e la configurazione stampata: la riga sotto e' lunga otto opzioni, e
+# copiarla male non da' errore — da' una prova fatta con un'altra configurazione.
+powershell -ExecutionPolicy Bypass -File tools\prova.ps1 [-Traduci] [-Motore piper]
 
 # dal vivo con traduzione, grafica e audio (serve `ollama serve` acceso)
 .\.venv\Scripts\python.exe -m tools.ui --profile live --loopback voicemeeter `
@@ -254,7 +259,13 @@ resto e' onomatopee, forme vere non elencate e frammenti di HUD).
 **`ui/overlay.py`** — il sottotitolo tradotto disegnato sopra il gioco. Dal vivo
 il fotogramma non passa da noi, quindi serve una finestra: senza bordi, sempre in
 primo piano, con i clic che la attraversano e senza rubare il fuoco — che in molti
-giochi vuol dire mettere in pausa.
+giochi vuol dire mettere in pausa. La finestra e' il **massimo fra due
+rettangoli**: l'inchiostro vecchio, che va coperto, e il testo nuovo, che va
+letto. Dimensionarla sul solo primo — cioe' sull'originale — e' esattamente il
+difetto che ci si e' trovati dentro: una battuta che in inglese occupa tre righe
+dove l'italiano ne occupava una usciva tagliata sopra e sotto. La geometria sta
+in `disposizione()`, funzione **pura e fuori da Tk apposta**: dentro un widget si
+verificherebbe solo guardandola, e infatti non era verificata affatto.
 
 **`core/onnx.py`** — la porta unica per aprire una sessione ONNX, che esiste per
 la riga `preload_dlls()`. Si veda la regola piu' sotto.
@@ -559,6 +570,27 @@ Avevo scritto che dal vivo la sfocatura del sottotitolo era impossibile, perche'
 avrebbe richiesto una seconda cattura dello schermo. Falso: la catena cattura gia'
 il fotogramma a 30 Hz per darlo all'OCR. Quei pixel erano nostri, e prenderli
 costava un ritaglio.
+
+**Un pezzo che nessuno ha guardato non e' «scritto», e' «supposto».** L'overlay
+e' stato consegnato verde e con gli import a posto; messo su un fotogramma a
+tutto schermo e fotografato, il difetto era **il primo che si vedeva** — la
+finestra dimensionata sul testo originale con dentro quello tradotto. Nessuna
+verifica lo prendeva perche' non esisteva **nessuna** verifica sull'overlay, e la
+suite verde e' stata scambiata per una conferma. Un modo di guardarlo costava
+venti minuti: fotogramma a schermo intero, overlay vero sopra, screenshot.
+
+**E la quinta volta della stessa unita' sbagliata e' stata una catena.**
+`accepted_delay_ms = 250` era misurato bene — su una catena in cui la parte fissa
+costava ~670 ms. Aggiungendo la traduzione sulla strada critica quella parte e'
+diventata 1690 ms, e il numero e' diventato sbagliato **senza che nessuno lo
+toccasse**: `dub.rate_x1000` a 1250 su tutti i percentili con la scena piena a
+meta'. Una soglia si rimisura quando cambia la catena, non quando cambia il
+sintomo. (Il corollario sullo strumento: la domanda **non era rispondibile dal
+banco**. Con `--tempo-reale` e la traduzione accesa il costo fisso diventa 8,9 s,
+e li' nessuna scusa plausibile libera il budget — 250 e 1250 danno la stessa
+compressione al tetto. La risposta e' venuta rigiocando la programmazione di due
+sessioni **dal vivo** archiviate, dove gli `elapsed` veri erano gia' scritti in
+`events.jsonl`.)
 
 **E la piu' importante: l'orecchio dell'utente trova cio' che la suite non puo'.**
 E' successo a ogni difetto serio di questo progetto, con la suite verde. Quando

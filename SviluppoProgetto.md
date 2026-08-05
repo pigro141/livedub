@@ -5,9 +5,16 @@
 **Feature: 14 su 14.** Tutte chiuse, comprese quelle che si sono chiuse con un
 "no" misurato (i tag del TTS, la correzione automatica per distanza di edit, Qwen).
 
-**Step finali: 2 su 18**, piu' una scritta e non provata (la grafica del sottotitolo). Le due spuntate — colore/dimensione dei sottotitoli e
-scelta delle lingue — sono fatte **come meccanismo**: i parametri esistono e si
-regolano da `--set`. Quello che manca è la UI che li espone.
+**Step finali: 3 su 18.** La grafica del sottotitolo tradotto è chiusa: scritta,
+**guardata a schermo**, corretta di quattro difetti e coperta da verifiche. Le
+altre due spuntate — colore/dimensione dei sottotitoli e scelta delle lingue —
+sono fatte **come meccanismo**: i parametri esistono e si regolano da `--set`.
+Quello che manca è la UI che li espone.
+
+**E il cancello è aperto**: `tools\prova.ps1` accende la catena con i controlli
+fatti prima (venv, scheda di cattura, Ollama e il suo modello) e stampa la
+configurazione per esteso, e `DA_VERIFICARE.md` è il foglio della prova. Quello
+che l'utente riporta viene prima di impacchettare.
 
 I quindici rimasti sono tre blocchi, e il primo blocca gli altri:
 
@@ -194,23 +201,37 @@ che si sono chiuse con un "no".)*
     resto (`': olta'` → `'svolta'`).
 * **Step finali**
 
-  * \[~]  sistemare la grafica del sottotitolo tradotto
+  * \[x]  sistemare la grafica del sottotitolo tradotto
     → **Chiesto dall'utente**: deve occupare **solo lo spazio dove sta il testo** (non
     tutta la ROI, che su una battuta di due parole mette una fascia larga mezzo
     schermo), e usare **una sfocatura** per togliere il sottotitolo vecchio invece di
     coprirlo con un rettangolo pieno.
-    → **Scritto, non provato.** `ui/overlay.py` adesso: ritaglia il riquadro
-    sull'**inchiostro vero** (la stessa maschera che usa l'OCR, `vision.lines.text_mask` —
-    non una stima della posizione, letteralmente i pixel che l'OCR ha letto), e ci mette
-    dietro la ROI **sfocata** presa dal fotogramma corrente.
     → **Su questo mi ero sbagliato e va detto**: avevo scritto che dal vivo il blur era
     impossibile perché avrebbe richiesto una seconda cattura dello schermo. Falso: la
     catena cattura già il fotogramma a 30 Hz per darlo all'OCR, e quei pixel sono in mano
     nostra. Costava un ritaglio.
-    → **Nessuno l'ha ancora visto funzionare.** La suite è verde e gli import passano, ma
-    l'overlay si giudica solo a schermo, col gioco acceso. È la prima cosa da guardare.
-    Se il riquadro cade nel posto sbagliato, il sospetto numero uno è la conversione fra
-    pixel del fotogramma e pixel dello schermo in `Overlay._prepara_sfondo` (`sx`, `sy`).
+    → **Scritta, poi guardata a schermo, e aveva un difetto grosso.** La prima versione
+    era verde e importava; messa su un fotogramma a tutto schermo si vedeva subito che la
+    finestra veniva dimensionata sul testo **originale** mentre dentro ci si disegnava
+    quello **tradotto**: una battuta di tre righe usciva come la sua riga di mezzo,
+    tagliata sopra e sotto. Adesso la finestra è il **massimo fra i due** — l'inchiostro
+    vecchio per coprirlo, il testo nuovo per leggerlo — e cresce verso l'alto restando
+    appoggiata dov'era la riga vecchia.
+    → **Altri tre difetti trovati nello stesso giro**: il riquadro si ricavava
+    dall'ingombro grezzo della maschera (un riflesso in un angolo della ROI lo allargava a
+    tutto lo schermo) e ora viene dalle righe che l'OCR ha **letto** (`classify_lines`,
+    senza le colorate); la sfocatura era un velo che lasciava leggere l'originale ai lati;
+    e `background_mode` e `blur_strength` **non li leggeva nessuno** dal vivo — l'overlay
+    sfocava sempre, qualunque cosa dicesse la config, che è lo stesso difetto di
+    `max_ocr_hz` e `tts.device`.
+    → **E il selettore d'area non spostava l'overlay**: si ridisegnava il rettangolo col
+    mouse — che è il modo dichiarato di usare il programma — e la finestra del tradotto
+    restava dov'era la ROI di partenza.
+    → La geometria sta ora in `ui.overlay.disposizione()`, funzione **pura**, con un
+    gruppo di verifiche suo (`selftest overlay`): prima non c'era nessuna verifica
+    sull'overlay, ed è il motivo per cui è arrivato in mano all'utente rotto con la suite
+    verde. La conversione fotogramma → schermo passa dalle coordinate normalizzate, quindi
+    non assume più che due rettangoli siano proporzionali (era il sospetto numero uno).
   * \[ ]  UI interfaccia chiara e funzionale
   * \[x]  possibilità di modificare i sottotitoli tradotti colore dimensione
     → `translate.color`, `background`, `background_opacity`, `background_mode`,

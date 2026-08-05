@@ -1,208 +1,145 @@
-# Cosa verificare a mano
+# La tua prova, e cosa guardare
 
-Lavoro fatto in autonomia. Qui sotto **solo le cose che io non ho potuto
-verificare**, in ordine di quanto costa sbagliarsi. La suite è verde (1098
-verifiche) ma la suite non sente niente: ogni difetto serio di questo progetto è
-stato trovato dall'orecchio, con la suite verde.
-
----
-
-## 0. LA COSA PIU' IMPORTANTE: la grafica nuova non l'ha vista nessuno
-
-Ultimo lavoro della sessione, **scritto e mai eseguito a schermo**. La suite e'
-verde e gli import passano, ma un overlay si giudica solo col gioco acceso.
-
-Cosa dovrebbe fare adesso (`ui/overlay.py`):
-
-- **stringersi sull'inchiostro vero** invece di coprire tutta la ROI. Il riquadro
-  si ricava dalla stessa maschera che usa l'OCR (`vision.lines.text_mask`): non
-  una stima di dove sia il testo, letteralmente i pixel che l'OCR ha letto;
-- **sfocare** il sottotitolo vecchio invece di coprirlo di nero, prendendo la ROI
-  dal fotogramma corrente.
-
-**Se il riquadro cade nel posto sbagliato**, il sospetto numero uno e' la
-conversione fra pixel del fotogramma e pixel dello schermo in
-`Overlay._prepara_sfondo` (`sx`, `sy`): li' si assume che la ROI del fotogramma e
-la ROI dello schermo abbiano le stesse proporzioni, e con una cattura che scala
-non e' detto.
-
-**Se non si vede nessuna sfocatura**, `_inchiostro()` in `tools/ui.py` sta
-tornando `(None, None)` — cattura l'eccezione apposta, per non perdere una battuta
-per colpa di un effetto grafico. Togliere il `try` li' dentro e guardare l'errore
-e' il primo passo.
-
-Il comando per provarla e' quello della sezione 1 qui sotto.
-
-## 1. La compressione resta al tetto, e adesso so perche' — non e' piu' il passo
-
-Due sessioni dal vivo con traduzione, 18 e 24 battute. Entrambe:
-`dub.rate_x1000` a **1250 su tutti i percentili**, con il parlato che riempie
-**41-49% della scena**. Tutto il tempo del mondo, e la voce corre lo stesso.
-
-La prima volta era il passo dell'italiano applicato all'inglese: corretto
-(`PASSO_LINGUA`), e non e' bastato. Il passo vero misurato dal vivo e' **16,74
-car/s** contro i 14,37 dichiarati, quindi resta un po' di sottostima — ma il
-grosso viene da un'altra parte.
-
-**E' la latenza che mangia il budget.** `DurationModel.plan` calcola
-`budget = durata prevista - (tempo gia' passato - accepted_delay)`. Con la
-traduzione sulla strada critica il tempo gia' passato e' ~1,7 s (500 ms di
-`decide_after_ms` + ~600 ms di traduzione la prima volta + 217 ms di sintesi +
-coda), e `accepted_delay_ms` vale **250**. Quindi al budget vengono tolti ~1,4 s
-di una finestra che ne dura due, e WSOLA schiaccia per rientrare in quel poco che
-resta.
-
-**La cura giusta e' quella che `fuse/timing.py` descrive gia' nel suo docstring**:
-`accepted_delay_ms` esiste per «la parte che torna identica a ogni battuta», e
-la traduzione e' esattamente quella. Va alzato — indicativamente a **800-900 ms**
-quando `translate.enabled` — e poi **rimisurato**, perche' il docstring avverte
-anche che scusare troppo fa crescere la coda: la tabella li' dentro dice che a
-250 ms c'era il ginocchio *senza* traduzione.
-
-**Non l'ho cambiato**, perche' cambiare una soglia senza rimisurarla e' il modo
-in cui in questo progetto sono nate meta' delle sessioni sprecate. E' la prima
-cosa da fare, con la tabella di `fuse/timing.py` rifatta a traduzione accesa.
-
-## Qwen: chiuso## Qwen: chiuso, e non c'e' piu' niente da verificare
-## Il nome del parlante — **controllato**, come chiesto
-
-Le sette forme provate su testo di gioco realistico, con l'elenco dei personaggi
-dichiarato: prendono tutte il nome giusto e lo tolgono dal testo da pronunciare.
-
-    nome:        'MICHAEL: Ti avevo detto di non tornare.'  -> Michael
-    nome:        'Franklin : Come va, bello?'               -> Franklin
-    -nome:       '- Lamar: Toc toc!'                        -> Lamar
-    [nome]       '[Trevor] Sono un uomo cambiato.'          -> Trevor
-    nome-        'Simeon - Il dipendente del mese.'         -> Simeon
-    nome>>       'Lamar >> Andiamo, negro.'                 -> Lamar
-    nome(nota):  'Michael (urlando): Vattene!'              -> Michael
-
-Piu' le 42 verifiche del gruppo `etichetta`, che coprono i falsi positivi e la
-voce stabile fra sessioni. **Resta vero che non esiste materiale di un gioco che
-scriva i nomi**: quando ce l'avrai, il contatore `vision.label.hit` dice subito se
-il formato dichiarato e' quello giusto.
-
-### Come si configura, in concreto
-
-Te l'avevo spiegato male. In concreto adesso puoi dire al programma **come quel
-gioco scrive chi parla**, scegliendo fra sei forme già pronte:
-
-| `label.form` | il gioco scrive |
-|---|---|
-| `nome:` | `Franklin: Come va` |
-| `-nome:` | `- Franklin: Come va` |
-| `[nome]` | `[Franklin] Come va`, `(Franklin)`, `<Franklin>` |
-| `nome-` | `Franklin - Come va` |
-| `nome>>` | `Franklin >> Come va`, `Franklin » Come va` |
-| `nome(nota):` | `Franklin (arrabbiato): Come va` |
-| `NOME` | `FRANKLIN Come va` (fragile: usare solo con l'elenco dei nomi) |
-
-Se il gioco ne usa un'altra, `label.regex` accetta la tua.
-
-**Oppure il colore**: `label.colors = {"Franklin": "#5ac8fa", "Lamar": "#ffcc00"}`
-e ogni battuta va a chi ha il colore più vicino.
-
-**E ogni personaggio ha sempre la stessa voce, per tutto il gioco.** Questo è il
-pezzo che mancava e che ho aggiunto adesso: la voce assegnata a un nome viene
-scritta in `runs/cast.json` e riletta alla sessione dopo. Senza, la voce non era
-del personaggio — era del *turno*: chi apriva la scena prendeva la prima voce del
-pool, quindi riaprendo il gioco da un altro punto Franklin ne prendeva un'altra.
-Puoi anche deciderle tu: `label.voices = {"Franklin": "riccardo"}`, che vince su
-tutto.
-
-Scrivendo la verifica ho trovato un difetto: in due sessioni separate Lamar e
-Franklin finivano **tutti e due sulla stessa voce**, perché ognuno era il primo a
-parlare nella sua sessione. Ora le voci ricordate si prenotano all'avvio, anche
-per chi in quella scena non parla.
-
-## 6. La correzione OCR — è spenta, e ti serve una decisione
-
-L'impalcatura c'è (`vision/correct.py`) con tutte le guardie, ed è **spenta**.
-Manca il modello, e non l'ho scelto io di proposito: è una decisione
-sull'ambiente — peso su disco e **contesa per la GPU**, che abbiamo appena
-misurato essere la risorsa scarsa, con la correzione che gira sul thread video
-dove il costo si amplifica.
-
-**L'LLM ora c'è ed è montato** (Gemma 3 1B, `correct.backend=llm`), ma **l'ho
-misurato e per il vivo è da lasciare spento**:
-
-| | |
-|---|---|
-| risposte giuste | **1 su 6** casi veri |
-| tempo | **p50 1564 ms** per parola |
-| errori | `oulldozer → bulldozers`, `ciassico → biascico`, `uice → ice` (doveva astenersi) |
-
-Contro un guadagno massimo di **una parola su settanta** (`bench_correct
---censimento`: delle 1230 parole «non italiane» su 19146, 527 sono nomi propri e
-il resto è onomatopee, forme italiane vere non elencate e frammenti di HUD).
-
-**E la tua idea del contesto l'ho provata con il caso nullo giusto** — stesse
-frasi, stesso modello, unica differenza le dieci battute precedenti. Il contesto
-**non ha migliorato nessuno dei nove casi e ne ha peggiorati due**, al doppio del
-tempo: `ciassico` andava a `classico` senza contesto e a `biascico` con. Un
-modello da un miliardo di parametri, con dieci righe davanti, ricopia invece di
-ragionare — infatti in traduzione ha restituito parola per parola la traduzione
-di due battute prima.
-
-Quindi `context_lines` è a **zero** di default. Il codice resta, perché con un
-modello più grande la risposta può cambiare — ma va rimisurata, non ereditata.
-
-**La domanda per te**: vuoi che provi un modello più grande (Gemma 3 4B, ~2,5 GB)?
-Su CPU costerebbe ~4 volte il tempo, quindi per il **vivo** è già escluso; avrebbe
-senso solo se un giorno la correzione la facessimo fuori dalla catena.
-
-## 7. La traduzione — **adesso provata sul materiale vero**
-
-Tradotti i sottotitoli **italiani** di GTA V in **inglese** con TranslateGemma via
-Ollama: **28 battute su 28**, con la sostituzione grafica (blur sull'originale,
-testo nuovo sopra). L'MP4 e' quello che ti ho mandato.
-
-Esempi: `'Ma domani'` -> `'But tomorrow'`, `'Saremo insieme!'` ->
-`"We'll stick together!"`, `'ma se ne avessi uno vorrei che fosse come te.'` ->
-`"But if I had one, I'd want it to be like you."`
-
-**Cosa guardare nell'MP4**: che il blur cada **sul** sottotitolo del gioco e che
-il testo inglese lo copra bene; e che la voce dica l'inglese. Se il riquadro cade
-altrove, la ROI del profilo non e' tarata per quel setup.
-
-**Quello che resta non provato**: Argos (`translate.backend=locale`), che vuole
-`pip install argostranslate` e il pacchetto della coppia di lingue. Google invece
-e' misurato (64 ms, 6/6 sul registro volgare).
-
-## 8. Il filtro blur — verificato, ma su GTA V è un caso degenere
-
-L'ho misurato: nitidezza della ROI a **0,00** dentro gli intervalli e **1,00**
-fuori, cioè sfoca dove deve e non tocca niente altrove. Ma l'ho provato
-traducendo l'italiano in MAIUSCOLO, non da una lingua vera.
-
-L'MP4 che ti mando è quello: serve a giudicare **la grafica**, non la traduzione.
-Guarda se il testo bianco maiuscolo copre bene l'originale sfocato sotto, e se la
-dimensione ti sembra giusta (`translate.font_frac`, oggi 0,038 dell'altezza).
+Questo file e' il foglio della **prova d'ascolto**: come si accende, cosa
+guardare, e cosa mi serve nel tuo report. La suite e' verde (1112 verifiche) ma
+la suite non sente niente: ogni difetto serio di questo progetto e' stato trovato
+dal tuo orecchio, con la suite verde.
 
 ---
 
-## Quello che invece è verificato e non richiede niente
+## Come si accende
 
-- il cuscino non tocca i motori normali: aggregati identici con cuscino a 350 ms
-  e a 0, e il contatore `mix.prebuffer` resta a zero perché quel ramo non parte;
-- le guardie della correzione reggono anche con un correttore sconsiderato: una
-  parola italiana non gli viene nemmeno proposta;
-- la sfocatura è applicata **solo** negli istanti dichiarati (ROI a 0,00 dentro,
-  1,00 fuori);
-- se la traduzione fallisce o esplode, si dice l'originale invece di restare muti;
-- 1064 verifiche verdi.
+```powershell
+cd C:\Users\filde\Documents\!code\CLAUDE\livedub
+
+# sottotitoli italiani -> voce italiana (il caso principale)
+powershell -ExecutionPolicy Bypass -File tools\prova.ps1
+
+# sottotitoli italiani -> voce inglese, con il sottotitolo tradotto a schermo
+powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci
+
+# per vedere solo cosa farebbe, senza partire
+powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci -Prova
+```
+
+Lo script controlla **prima** le tre cose che altrimenti si scoprono a gioco
+avviato: che il venv ci sia, che esista la scheda di cattura `voicemeeter`, e —
+se traduci — che Ollama sia acceso e abbia `translategemma:4b` (se e' spento lo
+accende lui). Poi stampa la configurazione per esteso, cosi' il report dice cosa
+e' stato provato davvero.
+
+Nella finestra: **Seleziona area** sui sottotitoli del gioco, poi **Avvia**. Alla
+fine **Ferma**, e la sessione finisce in `runs\<data-ora>` con dentro l'audio,
+gli eventi e il riepilogo.
+
+**Il gioco deve stare in finestra senza bordi, non a schermo intero esclusivo.**
+Sopra un fullscreen esclusivo nessuna finestra puo' comparire, e l'overlay non si
+vedrebbe — senza che niente lo dica.
 
 ---
 
-## La decisione che resta tua, e non è una verifica
+## 1. La grafica del sottotitolo tradotto — riscritta, e stavolta guardata
 
-**Google Translate manda ogni sottotitolo ai server di Google.** L'ho montato
-perché me l'hai chiesto, ma è spento e il default è `locale`: nella tua stessa
-lista di step finali c'è «valorizzazione dell'uso completamente locale ed estrema
-privacy», e le due cose non stanno insieme. Quando accendi `google` il programma
-te lo dice su stderr, così chi usa il tuo software lo sa senza leggere i
-documenti.
+Era il punto aperto: scritta e mai vista a schermo. **L'ho guardata**, mettendo
+un fotogramma della registrazione a tutto schermo e disegnandoci sopra l'overlay
+vero, e aveva un difetto che nessuna verifica poteva prendere:
 
-Se il repo pubblico vuole vendere la privacy come punto di forza, la strada
-onesta è tenere `locale` come default dichiarato e `google` come opzione che
-l'utente accende sapendo cosa fa — che è esattamente com'è adesso.
+> la finestra veniva dimensionata sul testo **originale**, e dentro ci si
+> disegnava quello **tradotto**. `"But if I had one, I'd want it to be like you,
+> and that is the whole point of it."` compariva come `"be like you, and that is
+> the"` — la riga di mezzo, tagliata sopra e sotto.
+
+Adesso la finestra e' il **massimo fra i due**: l'inchiostro vecchio (per
+coprirlo) e il testo nuovo (per leggerlo), e cresce verso l'alto restando
+appoggiata dov'era la riga vecchia. La sfocatura e' passata da un velo che
+lasciava leggere l'italiano sotto a una che lo cancella.
+
+**Cosa guardare a schermo:**
+
+- il riquadro cade **sul** sottotitolo del gioco, non altrove;
+- dell'originale non si legge piu' niente, nemmeno ai lati del testo nuovo;
+- una battuta lunga si legge **tutta**, anche quando va a capo;
+- **dopo aver ridisegnato l'area con «Seleziona area»** il riquadro segue: era
+  rotto, la finestra restava dove stava la ROI di partenza;
+- che non dia fastidio giocando: non deve rubare i clic ne' il fuoco.
+
+Puoi cambiare come copre senza toccare il codice:
+
+    --set translate.background_mode=blur       (default adesso, sfoca)
+    --set translate.background_mode=riquadro   (rettangolo pieno, stretto sul testo)
+    --set translate.background_mode=nessuno    (niente sfondo, si vede il gioco)
+    --set translate.blur_strength=20           (piu' alto = piu' sfocato)
+    --set translate.font_frac=0.045            (testo piu' grande)
+
+**Se il riquadro cade nel posto sbagliato** dimmi *dove* cade rispetto al
+sottotitolo (sopra? spostato a destra? troppo largo?): la conversione ora passa
+dalle coordinate normalizzate e ha una verifica sua, quindi un errore li'
+significherebbe che la cattura non inquadra lo schermo intero.
+
+## 2. La compressione — alzata la scusa, e serve il tuo giro per chiuderla
+
+`dub.rate_x1000` restava a **1250 su tutti i percentili**: ogni battuta
+schiacciata al massimo, con il parlato che riempiva meta' scena.
+
+La causa e' quella che sospettavo, e adesso e' misurata. Il budget di una battuta
+e' `finestra prevista - (tempo gia' passato - scusa)`. Con la traduzione sulla
+strada critica il tempo gia' passato e' **1,6-1,7 s** (misurato dalle tue due
+sessioni), e la scusa valeva **250 ms**: al budget venivano tolti quasi un
+secondo e mezzo di una finestra che ne dura due.
+
+Rigiocando la programmazione delle tue due sessioni con scuse diverse (stessi
+tempi veri, stesse durate: cambia solo la scusa) — la peggiore delle due:
+
+| scusa | compressione p50 | battute al tetto |
+|---|---|---|
+| 250 ms (com'era) | 1,250 | 100% |
+| 900 ms | 1,250 | 62% |
+| 1000 ms | 1,182 | 25% |
+| **1250 ms (adesso)** | **1,000** | 17% |
+| 1600 ms | 1,000 | 12%, ma la coda cresce |
+
+Il controllo che rende credibile quel conto: alla scusa che quelle sessioni
+avevano davvero, il conto riproduce esattamente quello che era stato registrato.
+
+**Il numero che ti chiedo di guardare**, nel riepilogo a fine sessione:
+`dub.rate_x1000` **deve staccarsi da 1250** almeno al p50. Se resta 1250 su tutti
+i percentili anche adesso, la diagnosi era sbagliata e il vincolo sta altrove —
+e lo scrivo qui prima della tua prova apposta, perche' una previsione fatta dopo
+non puo' perdere.
+
+E poi giudicalo a orecchio: la voce dovrebbe articolare invece di correre. In
+cambio si accettano fino a ~370 ms in piu' sul ritardo peggiore.
+
+**Senza traduzione non peggiora**, che era il rischio: misurato sulla
+registrazione, la compressione mediana non si muove, quella al p95 migliora
+(1,250 -> 1,133) e gli sfori si dimezzano.
+
+## 3. Quello che resta aperto e non dipende da me
+
+- **`translate.preserve_register`**: TranslateGemma ammorbidisce le parolacce.
+  Con il registro chiesto esplicitamente fa 2-3 su 6, Google 6 su 6 ma manda
+  ogni sottotitolo ai suoi server. Se traduci e ti sembra che dica un'altra
+  cosa, e' questo, non l'OCR.
+- **La correzione OCR resta spenta**, con i numeri in mano: `translategemma:4b`
+  fa 5 su 8 ma **1784 ms per parola**, contro un guadagno massimo di una parola
+  su settanta.
+- **Il nome del parlante** (`label.form`) e' provato solo su testo sintetico:
+  GTA V i nomi non li scrive. Il contatore `vision.label.hit` dira' subito se il
+  formato dichiarato e' quello giusto, quando avrai un gioco che li scrive.
+- **Le voci femminili**: la taratura del genere non e' mai stata provata su una
+  donna, perche' nella registrazione non ce n'e' una.
+
+---
+
+## Cosa mi serve nel report
+
+Per ogni cosa che non va, la sola informazione che vale piu' di tutte le altre e'
+**il secondo in cui l'hai sentita**: `runs\<data-ora>` si riapre con
+
+```powershell
+.\.venv\Scripts\python.exe -m tools.reopen runs\<data-ora> <secondo>
+```
+
+e da li' si vede cosa aveva letto l'OCR, chi credeva che parlasse, che voce gli
+aveva dato e quanta fretta gli aveva chiesto. Un'impressione senza il secondo
+costa mezza sessione; il secondo la chiude in cinque minuti.

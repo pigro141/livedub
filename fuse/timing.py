@@ -59,6 +59,25 @@ occupa il 65% della scena, quindi la coda ha dove smaltire — ma su una scena
 molto piu' fitta questo numero va riguardato, ed e' la prima cosa da rimisurare
 se il doppiaggio comincia a slittare.
 
+## E infatti e' stato rimisurato, perche' la catena non e' piu' quella
+
+Quella tabella e' di quando la parte che torna identica a ogni battuta erano
+l'attesa del riconoscimento e la sintesi: ~670 ms. Con la **traduzione** sulla
+strada critica diventa 1,6-1,7 s, misurata dal vivo, e una scusa da 250 ms non
+copre piu' niente: `dub.rate_x1000` torna inchiodato a 1250 su tutti i
+percentili, con il parlato che riempie meta' scena. Il default e' ora **1250 ms**
+e le due tabelle nuove stanno accanto al campo, in `core/config.py`.
+
+**La cosa da non ripetere e' come si e' misurato.** Il banco non poteva
+rispondere: con `--tempo-reale` e la traduzione accesa il costo fisso diventa 8,9
+secondi — decodifica, OCR, traduzione e sintesi nello stesso processo — e a quel
+punto nessuna scusa plausibile libera il budget (provato: 250 e 1250 danno **la
+stessa** compressione al tetto). La risposta e' venuta rigiocando la
+programmazione di due sessioni **dal vivo** gia' archiviate, dove gli `elapsed`
+veri erano gia' scritti in `events.jsonl`. Il controllo che rende credibile quel
+conto: alla scusa che quelle sessioni avevano davvero — 250 ms — il conto
+riproduce esattamente cio' che era stato registrato, 100% delle battute al tetto.
+
 ## L'aggiornamento in linea, e perche' e' prudente
 
 I coefficienti si aggiornano mentre la sessione gira, con somme pesate che

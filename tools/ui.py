@@ -312,6 +312,30 @@ class App:
         SelettoreArea(self.root, self._applica_roi)
 
     def _applica_roi(self, roi) -> None:
+        # **Il rettangolo si tira sullo schermo, ma la ROI e' della finestra.**
+        # Il selettore normalizza su quello che vede — lo schermo — mentre il
+        # fotogramma che arriva all'OCR e' la finestra del gioco. Senza questa
+        # conversione l'area finirebbe sulla stessa frazione di *schermo* invece
+        # che sulla stessa frazione di *finestra*: cioe' quasi sempre altrove, e
+        # sarebbe la prima cosa che si rompe usando il programma come si deve.
+        if self.finestra is not None:
+            from capture.finestre import rettangolo_client
+
+            r = rettangolo_client(self.finestra.hwnd)
+            if r:
+                ax, ay, aw, ah = r
+                sw = self.root.winfo_screenwidth()
+                sh = self.root.winfo_screenheight()
+                x = (roi[0] * sw - ax) / max(1, aw)
+                y = (roi[1] * sh - ay) / max(1, ah)
+                w = roi[2] * sw / max(1, aw)
+                h = roi[3] * sh / max(1, ah)
+                fuori = x < -0.02 or y < -0.02 or x + w > 1.02 or y + h > 1.02
+                roi = (min(max(x, 0.0), 1.0), min(max(y, 0.0), 1.0),
+                       min(w, 1.0), min(h, 1.0))
+                if fuori:
+                    self.scrivi("! l'area che hai tirato esce dalla finestra scelta: "
+                                "l'ho tagliata al suo bordo", tag="nota")
         self.cfg.vision.roi = roi
         self.l_roi.config(text=self._testo_roi())
         # **L'overlay deve seguire l'area, e non la seguiva.** Il selettore e' il

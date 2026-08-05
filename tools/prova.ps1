@@ -27,6 +27,7 @@ param(
     [string]$A = 'en',
     [string]$Profilo = 'live',
     [string]$Loopback = 'voicemeeter',
+    [switch]$Avvia,                         # non aspetta il tasto: parte da solo
     [switch]$Prova                          # dice cosa farebbe e non parte
 )
 
@@ -106,13 +107,13 @@ $opzioni = @(
     '--set', "tts.backend=$Motore"
 )
 if ($Motore -eq 'kokoro') { $opzioni += @('--set', 'tts.device=cuda') }
+if ($Avvia) { $opzioni += '--avvia' }
 if ($Traduci) {
     $opzioni += @(
         '--set', 'translate.enabled=true',
         '--set', 'translate.backend=ollama',
         '--set', "translate.source=$Da",
-        '--set', "translate.target=$A",
-        '--set', 'translate.background_mode=blur'
+        '--set', "translate.target=$A"
     )
 }
 
@@ -120,12 +121,17 @@ Write-Host ""
 Write-Host "  motore      $Motore"
 Write-Host "  profilo     $Profilo"
 if ($Traduci) {
-    Write-Host "  traduzione  $Da -> $A, sfondo sfocato"
+    Write-Host "  traduzione  $Da -> $A, la riga originale viene cancellata"
 } else {
     Write-Host "  traduzione  spenta (i sottotitoli sono gia' italiani)"
 }
 Write-Host ""
-Write-Host "  Nella finestra:  'Seleziona area' sui sottotitoli  ->  'Avvia'."
+if ($Avvia) {
+    Write-Host "  Parte da sola con l'area del profilo. Se non e' quella giusta:"
+    Write-Host "  'Ferma' -> 'Seleziona area' -> 'Avvia'."
+} else {
+    Write-Host "  Nella finestra:  'Seleziona area' sui sottotitoli  ->  'Avvia'."
+}
 Write-Host "  Alla fine 'Ferma': la sessione finisce in runs\<data-ora>." -ForegroundColor Yellow
 Write-Host ""
 

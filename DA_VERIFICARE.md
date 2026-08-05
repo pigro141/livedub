@@ -18,6 +18,9 @@ powershell -ExecutionPolicy Bypass -File tools\prova.ps1
 # sottotitoli italiani -> voce inglese, con il sottotitolo tradotto a schermo
 powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci
 
+# parte da sola, con l'area del profilo (niente tasti da premere)
+powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci -Avvia
+
 # per vedere solo cosa farebbe, senza partire
 powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci -Prova
 ```
@@ -35,6 +38,17 @@ gli eventi e il riepilogo.
 **Il gioco deve stare in finestra senza bordi, non a schermo intero esclusivo.**
 Sopra un fullscreen esclusivo nessuna finestra puo' comparire, e l'overlay non si
 vedrebbe — senza che niente lo dica.
+
+**E l'overlay non si puo' fotografare**: e' dichiarato fuori dalla cattura, e uno
+screenshot *e'* una cattura. Se fai uno screen per mandarmelo, li' non ci sara' —
+non e' un difetto, e' la cura. Per farmelo vedere serve una foto col telefono, o
+mi fido di quello che mi scrivi.
+
+**Se non succede niente**, guarda la prima riga nel log della finestra: dice
+quale cattura sta usando, e se quella veloce non restituisce fotogrammi lo scrive
+e passa a `mss` da sola dopo due secondi. Su questa macchina, con il desktop,
+`dxcam` restituisce **zero** fotogrammi su 1071 — col gioco acceso puo' andare
+diversamente, e per questo il ripiego e' automatico invece che una scelta.
 
 ---
 

@@ -300,11 +300,14 @@ class App:
                             self.sessione.audio(fuori, quando)
 
             def ciclo_video() -> None:
+                # La sorgente si apre **nel thread che la usa**: dxcam sta su COM,
+                # e creata altrove non solleva — restituisce `None` a ogni grab.
                 schermo = make_screen(self.args.backend, monitor=self.args.monitor)
+                self.coda.put(("nota", f"cattura schermo: {schermo.name}"))
                 pronto.wait(timeout=10.0)
                 periodo = 1.0 / max(1e-6, self.cfg.capture.fps)
                 prossimo = time.perf_counter()
-                n = 0
+                n = vuoti = 0
                 while not self.stop.is_set():
                     ora = time.perf_counter()
                     if ora < prossimo:
@@ -313,6 +316,23 @@ class App:
                     prossimo += periodo
                     g = schermo.grab()
                     if not g.ok:
+                        # **`None` vuol dire due cose diverse, e si distinguono
+                        # solo dal tempo.** Desktop Duplication risponde `None`
+                        # quando lo schermo non e' cambiato — normale — e
+                        # risponde `None` anche quando non funziona affatto, che
+                        # su questa macchina e' il caso: 1071 grab, zero
+                        # fotogrammi, con un video a tutto schermo. La seconda
+                        # non finisce mai, e senza questo ripiego la finestra
+                        # resta li' a non fare niente **senza dire perche'**.
+                        vuoti += 1
+                        if n == 0 and vuoti > 2 * self.cfg.capture.fps and schermo.name != "mss":
+                            schermo.close()
+                            schermo = make_screen("mss", monitor=self.args.monitor)
+                            self.coda.put((
+                                "nota",
+                                "! la cattura veloce non restituisce fotogrammi: passo a mss",
+                            ))
+                            vuoti = 0
                         continue
                     n += 1
                     for riga in self.pipeline.on_frame(g.frame):
@@ -359,6 +379,13 @@ class App:
                     if (self.overlay is not None and n % 3 == 0
                             and time.perf_counter() < self._overlay_fino_a):
                         self.coda.put(("aggiorna", g.frame.copy()))
+                        # Il tetto resta, ma non e' piu' lui a decidere: e' una
+                        # previsione, e una previsione sbagliata in difetto fa
+                        # sparire il tradotto con l'originale ancora a schermo.
+                        # Chi decide e' l'inchiostro, dentro `Overlay.aggiorna`.
+                        self._overlay_fino_a = max(
+                            self._overlay_fino_a, time.perf_counter() + 0.5
+                        ) if self.overlay._visibile else self._overlay_fino_a
                     if n % 30 == 0:
                         p = len(self.pipeline.tracker) if self.pipeline.tracker else 0
                         self.coda.put(("stato",
@@ -434,9 +461,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--monitor", type=int, default=1)
     ap.add_argument("--tts", default=None)
     ap.add_argument("--no-save", action="store_true")
+    ap.add_argument(
+        "--avvia",
+        action="store_true",
+        help="parte subito, senza aspettare il tasto (l'area e' quella del profilo)",
+    )
     ap.add_argument("--set", action="append", dest="overrides", metavar="CHIAVE=VALORE")
     args = ap.parse_args(argv)
-    App(args).run()
+    app = App(args)
+    if args.avvia:
+        # Comodo per riprovare la stessa cosa dieci volte di fila: l'area e'
+        # quella del profilo, che se non e' quella giusta si ridisegna dopo.
+        app.root.after(300, app.avvia)
+    app.run()
     return 0
 
 

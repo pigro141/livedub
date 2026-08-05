@@ -394,6 +394,12 @@ class Sostituzione:
         from PIL import Image, ImageDraw
 
         self.bande = list(bande)
+        # **Quanto e' alta una riga di questo gioco.** Al rinfresco arrivano le
+        # bande di adesso, e li' dentro puo' esserci di tutto: dal vivo un dito
+        # chiaro contro una camicia scura e' passato per una riga di testo, e la
+        # cancellatura ci e' passata sopra lasciando un rettangolo grigio. Una
+        # riga di sottotitolo e' alta quanto le altre; il resto no.
+        self.alta = max(1, max(y1 - y0 for _, y0, _, y1 in bande))
         self.modo = (modo or "cancella").lower()
         self.blur = blur
         self.fondo_rgb = tuple(int(v) for v in fondo_rgb)
@@ -454,8 +460,11 @@ class Sostituzione:
 
         tela = Image.new("RGBA", (self.larg, self.alt), (0, 0, 0, 0))
         h_pezzo, w_pezzo = pezzo.shape[:2]
+        scelte = self.bande
+        if bande:
+            scelte = [b for b in bande if (b[3] - b[1]) <= 2.0 * self.alta] or self.bande
         if self.modo != "nessuno":
-            for x0, y0, x1, y1 in (bande or self.bande):
+            for x0, y0, x1, y1 in scelte:
                 # Un filo di margine attorno alla riga: i glifi hanno un contorno
                 # e un'ombra, e un ritaglio esatto sui pixel accesi lascerebbe
                 # scoperto proprio il bordo delle lettere vecchie.
@@ -534,8 +543,15 @@ class Overlay:
         modo: str = "cancella",
         blur: float = 12.0,
         contorno: float = 2.0,
+        escludi_cattura: bool = True,
     ) -> None:
         self.blur = max(0.0, blur)
+        # **Spegnerla serve solo a fotografarla.** La finestra e' esclusa dalla
+        # cattura, e uno screenshot *e'* una cattura: con l'esclusione accesa
+        # l'overlay non compare in nessuna immagine, nemmeno nelle nostre. Per
+        # guardarlo si spegne, e si riaccende — non e' un'opzione da config,
+        # perche' spenta l'OCR ricomincia a leggere noi.
+        self.escludi_cattura = escludi_cattura
         self.modo = (modo or "cancella").lower()
         self.nome_font = font
         self.contorno = contorno
@@ -545,6 +561,7 @@ class Overlay:
         self.colore = self._rgb(colore) if colore else None
         self.misura = MisuraCarattere()
         self.sost = None     # la battuta a schermo adesso, con la sua geometria
+        self._vuoti = 0      # giri di seguito senza inchiostro del gioco
         self.vision = None   # le soglie con cui ritrovare l'inchiostro
         self.rett = None
         self.fondo_rgb = self._rgb(fondo) if fondo else (0, 0, 0)
@@ -628,7 +645,15 @@ class Overlay:
             self.top.attributes("-transparentcolor", CHIAVE)
         except tk.TclError:  # pragma: no cover
             print("overlay: colore trasparente non disponibile", file=sys.stderr)
-        if not u32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE):
+        if not self.escludi_cattura:
+            # Si **rimette** a WDA_NONE, non si omette la chiamata: l'affinita'
+            # e' una proprieta' della finestra, e ometterla lascia quella di
+            # prima. Provandolo, lo screenshot continuava a non vedere la
+            # finestra e sembrava che l'overlay non venisse disegnato affatto.
+            u32.SetWindowDisplayAffinity(hwnd, 0)
+            print("overlay: esclusione dalla cattura SPENTA (solo per fotografarlo): "
+                  "l'OCR leggera' anche il testo tradotto", file=sys.stderr)
+        elif not u32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE):
             # Un ripiego che non si dichiara e' peggio di un errore: senza
             # esclusione l'OCR legge noi, e il difetto sembrerebbe dell'OCR.
             print("overlay: ATTENZIONE, la finestra non e' esclusa dalla cattura: "
@@ -680,9 +705,22 @@ class Overlay:
         if pezzo is None or pezzo.shape[:2] != self.sost.forma:
             return
         try:
-            tela, _ = self.sost.disegna(pezzo, bande_veloci(pezzo, self.vision))
+            bande = bande_veloci(pezzo, self.vision) if self.vision is not None else []
+            tela, _ = self.sost.disegna(pezzo, bande)
         except Exception:  # pragma: no cover - meglio una toppa vecchia che un crollo
             return
+        # **Sparisce quando sparisce il sottotitolo del gioco, non quando lo dice
+        # una previsione.** Il tempo di permanenza si prevede da `D = a + b*n`,
+        # che su una battuta corta da' poco piu' di un secondo: dal vivo si e'
+        # visto il tradotto sparire con l'italiano ancora a schermo. Qui la
+        # risposta ce l'abbiamo sotto gli occhi — l'inchiostro c'e' o non c'e'.
+        if bande:
+            self._vuoti = 0
+        else:
+            self._vuoti += 1
+            if self._vuoti >= 3:  # tre giri a 10 Hz: tre decimi, non un lampo
+                self.nascondi()
+                return
         from PIL import ImageTk
 
         self._foto = ImageTk.PhotoImage(su_chiave(tela), master=self.top)
@@ -704,6 +742,7 @@ class Overlay:
             testo_originale=originale, larghezza_schermo=sw,
         )
         self.rett = rett
+        self._vuoti = 0
         tela, (ox, oy) = self.sost.disegna(pezzo)
         piatta = su_chiave(tela)
         foto = ImageTk.PhotoImage(piatta, master=self.top)

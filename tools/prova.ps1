@@ -21,6 +21,8 @@
 [CmdletBinding()]
 param(
     [switch]$Traduci,                       # sottotitoli italiani -> voce inglese
+    [ValidateSet('ollama', 'google', 'locale')]
+    [string]$Traduttore = 'ollama',         # google: piu' svelto e tiene il registro, ma esce dal PC
     [ValidateSet('kokoro', 'piper', 'supertonic')]
     [string]$Motore = 'kokoro',
     [string]$Da = 'it',
@@ -68,8 +70,24 @@ if ($trovati -notmatch [regex]::Escape($Loopback)) {
 Write-Host "  cattura     ok  ($Loopback)"
 
 # -- il traduttore -----------------------------------------------------------
+# **`google` non e' come gli altri e va detto qui, non nella documentazione**:
+# ogni sottotitolo esce dal PC. In cambio e' il piu' svelto (64 ms a connessione
+# aperta contro i ~630 di TranslateGemma) ed e' l'unico misurato 6 su 6 sul
+# registro volgare — gli altri riscrivono «vaffanculo» in «vattene».
 $modello = 'translategemma:4b'
-if ($Traduci) {
+if ($Traduci -and $Traduttore -eq 'google') {
+    Write-Host "  traduttore  google: **ogni sottotitolo viene inviato ai server di Google**" -ForegroundColor Yellow
+    try {
+        $null = Invoke-WebRequest -Uri 'https://translate.googleapis.com' -TimeoutSec 5 -UseBasicParsing
+    } catch {
+        if (-not ($_.Exception.Response)) {
+            Write-Host "  ! nessuna rete verso Google: la traduzione fallirebbe in silenzio" -ForegroundColor Red
+            Write-Host "    (quando la traduzione non riesce si tiene l'originale, e non si sente)"
+            exit 1
+        }
+    }
+}
+if ($Traduci -and $Traduttore -eq 'ollama') {
     $vivo = $false
     try {
         $null = Invoke-RestMethod -Uri 'http://127.0.0.1:11434/api/tags' -TimeoutSec 3
@@ -115,7 +133,7 @@ if ($Catturabile) { $opzioni += '--overlay-catturabile' }
 if ($Traduci) {
     $opzioni += @(
         '--set', 'translate.enabled=true',
-        '--set', 'translate.backend=ollama',
+        '--set', "translate.backend=$Traduttore",
         '--set', "translate.source=$Da",
         '--set', "translate.target=$A"
     )
@@ -127,7 +145,7 @@ Write-Host "  profilo     $Profilo"
 if ($Opaco) { Write-Host "  overlay     finestra opaca (niente colore trasparente)" }
 if ($Catturabile) { Write-Host "  overlay     catturabile: entra negli screenshot, e l'OCR lo legge" -ForegroundColor Yellow }
 if ($Traduci) {
-    Write-Host "  traduzione  $Da -> $A, la riga originale viene cancellata"
+    Write-Host "  traduzione  $Da -> $A con $Traduttore, la riga originale viene sfocata"
 } else {
     Write-Host "  traduzione  spenta (i sottotitoli sono gia' italiani)"
 }

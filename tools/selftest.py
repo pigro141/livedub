@@ -2333,26 +2333,24 @@ def test_overlay(c: Check) -> None:
 
     # -- si cancella la riga, e lo si **verifica** ------------------------
     # La regola di metodo del progetto: prima di leggere il risultato di un
-    # trattamento, controllare che il trattamento sia stato applicato. Si misura
-    # `_cancella` da sola: dentro `dipingi` sopra la riga cancellata ci va gia'
-    # il nostro testo, e allora il contrasto lo rialzerebbe lui — la misura non
-    # potrebbe piu' esprimere la risposta.
-    # Su una striscia con **una riga sola**: con due righe vicine il margine
-    # dell'una contiene l'altra, e il residuo che si misurerebbe sarebbe la riga
-    # che non si stava cancellando.
-    from ui.overlay import _cancella
-
-    sola = Image.new("RGB", (420, 60), (40, 30, 60))
-    ImageDraw.Draw(sola).text((16, 14), "Ciao, Lamar!", font=f, fill=(250, 250, 250))
-    striscia = np.array(sola)[:, :, ::-1].copy()
-    prima = striscia[:, :, :3].mean(axis=2)
-    dopo = _cancella(striscia)[:, :, :3].mean(axis=2)
-    c.ok(dopo.std() < prima.std() * 0.25,
-         f"la riga sparisce davvero: deviazione {prima.std():.1f} -> {dopo.std():.1f}")
+    # trattamento, controllare che il trattamento sia stato applicato. Qui il
+    # trattamento e' la sfocatura del rettangolo, e la si misura sul rettangolo
+    # **prima che ci vada sopra il testo**: dopo, il contrasto lo rialzerebbe il
+    # nostro testo e la misura non potrebbe piu' esprimere la risposta.
+    sost0 = Sostituzione(pezzo, bande, "", scala=1.0, inchiostro_rgb=tinta,
+                         testo_originale="Ciao, Lamar!")
+    rx0, ry0, rx1, ry1 = sost0.taglio
+    prima = pezzo[ry0:ry1, rx0:rx1, :3].mean(axis=2)
+    tela0, (o0, o1) = sost0.disegna(pezzo)
+    a0 = np.array(tela0)
+    dopo = a0[ry0 - o1:ry1 - o1, rx0 - o0:rx1 - o0, :3].mean(axis=2)
+    c.ok(dopo.size > 0 and dopo.std() < prima.std() * 0.5,
+         f"la riga originale diventa illeggibile: deviazione {prima.std():.1f} -> "
+         f"{0.0 if not dopo.size else dopo.std():.1f}")
 
     x0, y0, x1, y1 = bande[0]
 
-    fatto = dipingi(pezzo, bande, "Hi, Lamar!", scala=1.0, modo="cancella",
+    fatto = dipingi(pezzo, bande, "Hi, Lamar!", scala=1.0, modo="blur",
                     inchiostro_rgb=tinta, testo_originale="Ciao, Lamar!")
     c.ok(fatto is not None, "si disegna qualcosa")
     img, (ox, oy) = fatto
@@ -2365,7 +2363,7 @@ def test_overlay(c: Check) -> None:
     from tools.overlay_mp4 import _incolla, prepara
     from ui.overlay import ritaglia
 
-    cfg.translate.background_mode = "cancella"
+    cfg.translate.background_mode = "blur"
     dipinto = frame.copy()
     reso = prepara(dipinto, cfg, "Hi, Lamar! How are you?", "Ciao, Lamar!",
                    MisuraCarattere())
@@ -2405,13 +2403,15 @@ def test_overlay(c: Check) -> None:
     _incolla(solo_fondo, t3, rx3 + ox4, ry3 + oy4)
     tocco = np.any(solo_fondo != frame, axis=2)
     consentito = np.zeros_like(tocco)
-    for bx0, by0, bx1, by1 in bande:
-        mm = max(4, int(0.45 * (by1 - by0))) + 1
-        consentito[ry + by0 - mm : ry + by1 + mm, rx + bx0 - mm : rx + bx1 + mm] = True
+    # Il confine e' il **rettangolo che circoscrive il sottotitolo**, non le
+    # singole righe: fra due righe c'e' l'interlinea, e coprire anche quella e'
+    # cio' che rende la sostituzione un rettangolo solo invece di due strisce.
+    kx0, ky0, kx1, ky1 = s2.taglio
+    consentito[ry + ky0 : ry + ky1, rx + kx0 : rx + kx1] = True
     c.ok(not (tocco & ~consentito).any(),
-         f"la cancellatura non esce dalle righe del gioco "
+         f"la sfocatura non esce dal rettangolo del sottotitolo "
          f"({int((tocco & ~consentito).sum())} pixel fuori)")
-    cfg.translate.background_mode = "cancella"
+    cfg.translate.background_mode = "blur"
 
     # -- la finestra **opaca**, che e' il ripiego quando non si vede -------
     # Il colore-chiave e' una finestra layered, e layered + esclusione dalla
@@ -2419,7 +2419,7 @@ def test_overlay(c: Check) -> None:
     # speciale»: insieme puo' non comparire affatto. Il ripiego riempie il buco
     # con i pixel del gioco, e deve dare **lo stesso identico risultato** —
     # altrimenti sarebbe una seconda resa, cioe' un'altra cosa da tenere in riga.
-    op, (oxo, oyo) = dipingi(pezzo, bande, "Hi, Lamar!", scala=1.0, modo="cancella",
+    op, (oxo, oyo) = dipingi(pezzo, bande, "Hi, Lamar!", scala=1.0, modo="blur",
                              inchiostro_rgb=tinta, testo_originale="Ciao, Lamar!",
                              opaco=True)
     c.eq((op.size, oxo, oyo), (img.size, ox, oy),
@@ -2445,31 +2445,34 @@ def test_overlay(c: Check) -> None:
     # Tre difetti, una causa: la cancellatura non sapeva piu' cosa stava
     # cancellando, e l'overlay non sapeva piu' quale battuta stava traducendo.
 
-    # 1. Le bande di adesso che non sono la nostra riga non si toccano. Nel
-    #    video: una toppa rettangolare chiara in mezzo all'asfalto, per
-    #    diciotto secondi, perche' su una scena luminosa l'inchiostro si trova
-    #    sempre da qualche parte.
+    # 1. **Si tocca un rettangolo solo, quello del sottotitolo.** Prima si
+    #    inseguiva l'inchiostro riga per riga a ogni fotogramma, e da li'
+    #    venivano le toppe accanto al testo e le macchie sull'asfalto.
     sost = Sostituzione(pezzo, bande, "Hi", scala=1.0, inchiostro_rgb=tinta,
                         testo_originale="Ciao, Lamar!")
-    riga = bande[0]
-    altrove = (riga[0], riga[1] + 4 * (riga[3] - riga[1]), riga[2],
-               riga[3] + 4 * (riga[3] - riga[1]))
-    c.eq(sost._compatibili([riga]), [riga], "la propria riga si riconosce")
-    c.eq(sost._compatibili([altrove]), [],
-         "una banda che sta da un'altra parte non viene cancellata")
-    gigante = (0, riga[1], pezzo.shape[1], riga[1] + 6 * (riga[3] - riga[1]))
-    c.eq(sost._compatibili([gigante]), [],
-         "e nemmeno una banda alta sei righe, che non e' una riga di testo")
-    c.eq(sost._compatibili([]), [],
-         "senza niente di compatibile non si cancella niente, invece di "
-         "cancellare dove capita")
-    # Il caso visto a schermo: un pollice chiaro alla **stessa altezza** della
-    # riga ma da tutt'altra parte, che lasciava una toppa scura accanto al testo.
-    accanto = (max(0, riga[0] - 3 * (riga[2] - riga[0])), riga[1],
-               max(1, riga[0] - 2 * (riga[2] - riga[0])), riga[3])
-    if accanto[2] > accanto[0]:
-        c.eq(sost._compatibili([accanto]), [],
-             "una banda alla stessa altezza ma da un'altra parte non passa")
+    tx0, ty0, tx1, ty1 = sost.taglio
+    bx0 = min(b[0] for b in bande)
+    bx1 = max(b[2] for b in bande)
+    by0 = min(b[1] for b in bande)
+    by1 = max(b[3] for b in bande)
+    c.ok(tx0 <= bx0 and ty0 <= by0 and tx1 >= bx1 and ty1 >= by1,
+         "il rettangolo circoscrive tutte le righe lette")
+    margine = max(bx0 - tx0, by0 - ty0, tx1 - bx1, ty1 - by1)
+    c.ok(margine <= 1.2 * sost.alta,
+         f"e le sta addosso: il margine e' {margine} px su righe alte {sost.alta}")
+    c.ok((tx1 - tx0) * (ty1 - ty0) < 0.75 * pezzo.shape[0] * pezzo.shape[1],
+         "non e' tutta la fascia: si copre il sottotitolo, non l'inquadratura")
+
+    # E il rettangolo **non si muove** fra un fotogramma e l'altro, mentre i
+    # pixel dentro sono quelli nuovi: e' la divisione che tiene fermo il
+    # sottotitolo senza congelare la scena dietro.
+    mosso = np.roll(frame.copy(), 9, axis=1)
+    p2, b2, r2, t2 = inchiostro(mosso, cfg)
+    t_a, _ = sost.disegna(pezzo)
+    t_b, _ = sost.disegna(p2 if p2 is not None else pezzo)
+    c.eq(sost.taglio, (tx0, ty0, tx1, ty1), "il rettangolo resta quello")
+    c.ok(np.any(np.array(t_a) != np.array(t_b)),
+         "ma i pixel sfocati dentro sono quelli del fotogramma nuovo")
 
     # 2. La battuta lunga rimpicciolisce invece di uscire dal riquadro.
     lunga = ("Listen here you bastard, but I am a guy who wants money, a casino "
@@ -2509,7 +2512,7 @@ def test_overlay(c: Check) -> None:
     t0 = time.perf_counter()
     for _ in range(5):
         dipingi(pezzo, bande, "Hi, Lamar! How are you doing today?", scala=1.0,
-                modo="cancella", inchiostro_rgb=tinta, testo_originale="Ciao, Lamar!")
+                modo="blur", inchiostro_rgb=tinta, testo_originale="Ciao, Lamar!")
     ms = (time.perf_counter() - t0) / 5 * 1000
     c.ok(ms < 60.0, f"dipingere costa {ms:.1f} ms, e sta nel thread video")
     del cv2

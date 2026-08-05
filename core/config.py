@@ -1239,17 +1239,14 @@ class TranslateConfig:
     # spegnere una fascia larga mezzo schermo per coprire una riga di testo era
     # il difetto, non la soluzione.
     #
-    #   `cancella` si **ricostruisce lo sfondo** al posto dei glifi (inpaint): la
-    #              riga originale sparisce e resta la scena. E' il default, ed e'
-    #              l'unico dei quattro che risponda alla domanda giusta — che non
-    #              e' «rendere illeggibile» ma «far sembrare che non ci sia mai
-    #              stato», visto che sopra ci va il nostro sottotitolo;
-    #   `blur`     si sfocano i glifi: illeggibili, ma resta una fascia grigia
-    #              che si vede. E' quello che fa ffmpeg per l'MP4;
-    #   `riquadro` un rettangolo pieno del colore di `background`, stretto sulla
-    #              riga;
-    #   `nessuno`  non si cancella niente: si scrive sopra e basta.
-    background_mode: str = "cancella"  # cancella | blur | riquadro | nessuno
+    #   `blur`     si sfoca il **rettangolo che circoscrive il sottotitolo**, sui
+    #              pixel di ogni fotogramma: l'originale diventa illeggibile, la
+    #              scena resta viva e non si tocca niente fuori da quel
+    #              rettangolo. E' il default, ed e' la forma che ha funzionato
+    #              dopo che due piu' complicate avevano fallito a schermo;
+    #   `riquadro` un rettangolo pieno del colore di `background`;
+    #   `nessuno`  non si copre niente: si scrive sopra e basta.
+    background_mode: str = "blur"  # blur | riquadro | nessuno
     # **Come si ottiene il "buco" attorno al testo, e non e' un dettaglio di
     # gusto: e' l'unica cosa che puo' rendere l'overlay invisibile.**
     #

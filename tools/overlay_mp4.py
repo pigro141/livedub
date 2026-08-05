@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.config import Config, load_profile  # noqa: E402
 from ui.overlay import (  # noqa: E402
-    MisuraCarattere, Sostituzione, bande_veloci, inchiostro, ritaglia,
+    MisuraCarattere, Sostituzione, inchiostro, ritaglia,
 )
 
 
@@ -180,7 +180,7 @@ def main(argv=None) -> int:
             _, sost, rett, rx, ry = corrente
             pezzo = ritaglia(frame, rett)
             if pezzo is not None and pezzo.shape[:2] == sost.forma:
-                tela, (ox, oy) = sost.disegna(pezzo, bande_veloci(pezzo, cfg.vision))
+                tela, (ox, oy) = sost.disegna(pezzo)
                 _incolla(frame, tela, rx + ox, ry + oy)
         if args.frames:
             if corrente is not None and png < args.frames and attiva[0] != ultimo_png:

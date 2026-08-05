@@ -1,7 +1,7 @@
 # La tua prova, e cosa guardare
 
 Questo file e' il foglio della **prova d'ascolto**: come si accende, cosa
-guardare, e cosa mi serve nel tuo report. La suite e' verde (1129 verifiche) ma
+guardare, e cosa mi serve nel tuo report. La suite e' verde (1143 verifiche) ma
 la suite non sente niente: ogni difetto serio di questo progetto e' stato trovato
 dal tuo orecchio, con la suite verde.
 
@@ -52,7 +52,32 @@ diversamente, e per questo il ripiego e' automatico invece che una scelta.
 
 ---
 
-## 1. La grafica — rifatta da capo, e stavolta l'ho guardata io in MP4
+## 1. La grafica — la forma finale e' quella che hai proposto tu
+
+**Un rettangolo, sfocato dal vivo, col testo sopra.** Il rettangolo circoscrive
+il sottotitolo letto dall'OCR e si calcola **una volta** alla comparsa (se no
+balla); la sfocatura dentro si rifa' a **ogni fotogramma** sui pixel correnti (se
+no e' una toppa di immagine vecchia incollata su una scena che si muove); e
+sparisce quando l'OCR non legge piu' quel sottotitolo.
+
+Le due forme provate prima erano piu' complicate e sbagliate, e i difetti che
+hai visto venivano da li': sfocare tutta la ROI dava una fascia larga mezzo
+schermo; cancellare riga per riga ricostruendo lo sfondo, e inseguire
+l'inchiostro fotogramma per fotogramma, dava le toppe accanto al testo e le
+macchie sull'asfalto — perche' su una scena luminosa dell'inchiostro si trova
+sempre da qualche parte.
+
+**Quanto restava a schermo il tradotto**, stesso video e stessa catena, cambia
+solo chi decide quando sparire:
+
+| chi decide | p50 | p95 | max | oltre 5 s |
+|---|---|---|---|---|
+| l'inchiostro (com'era) | 4,9 s | 20,8 s | **23,5 s** | 21 su 43 |
+| il lettore (adesso) | 2,7 s | 5,0 s | 7,1 s | 2 su 43 |
+
+I 23,5 secondi sono i diciotto che si vedevano nel tuo video.
+
+## 1b. Come c'ero arrivato prima (storia, non istruzioni)
 
 Avevi ragione su tutto, e il difetto peggiore l'hai trovato tu.
 
@@ -118,8 +143,7 @@ di se', e — la piu' importante — **se adesso l'OCR non salta piu' le righe**
 
 Puoi cambiare come copre:
 
-    --set translate.background_mode=cancella   (default: la riga sparisce)
-    --set translate.background_mode=blur       (sfocata: resta una fascia grigia)
+    --set translate.background_mode=blur       (default: il rettangolo sfocato)
     --set translate.background_mode=riquadro   (rettangolo pieno, stretto sulla riga)
     --set translate.background_mode=nessuno    (non si cancella niente)
     --set translate.font_frac=0.045            (forza la taglia invece di copiarla)

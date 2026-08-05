@@ -224,7 +224,6 @@ class App:
                 trasparente=self.cfg.translate.transparent,
                 escludi_cattura=not getattr(args, "overlay_catturabile", False),
             )
-            self.overlay.vision = self.cfg.vision
 
         barra = tk.Frame(self.root)
         barra.pack(fill="x", padx=8, pady=6)

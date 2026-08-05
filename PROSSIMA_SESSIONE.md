@@ -11,9 +11,11 @@ italiano dal vivo dei sottotitoli dei videogiochi.
 
 **Il grafo è la memoria.** In `graphify-out/graph.json` c'è la mappa della
 codebase. Per qualunque domanda architetturale si usa `graphify query "<domanda>"`
-**prima** di partire a grep. **Va aggiornato**: da quando è stato costruito sono
-arrivati `translate/`, `ui/overlay.py`, `vision/label.py`, `vision/correct.py`,
-`core/onnx.py`, ed è sparito `speak/backends/qwen.py`.
+**prima** di partire a grep. **È aggiornato** a fine sessione (1476 nodi, 3651
+archi, 97 comunità): ci sono dentro `translate/`, `ui/overlay.py`,
+`vision/label.py`, `vision/correct.py`, `core/onnx.py`, e non c'è più
+`speak/backends/qwen.py`. Si riaggiorna con `graphify update` dopo modifiche
+grosse, non a ogni task.
 
 Poi `CLAUDE.md`, che ha l'architettura e le regole di metodo. **Non leggere il
 README per intero.**
@@ -28,7 +30,8 @@ README per intero.**
 ## Dove siamo
 
 **Feature: 14 su 14.** Tutte chiuse, comprese quelle chiuse con un "no" misurato.
-**Step finali: 2 su 17.**
+**Step finali: 2 su 18**, più una scritta e mai vista funzionare (la grafica
+dell'overlay).
 
 Quello che resta è **solo UI, impacchettamento e repo** — e nessuno dei punti
 aspetta una misura. È il contrario di tutto il lavoro precedente.

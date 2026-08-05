@@ -37,7 +37,7 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest              # 1122 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest              # 1137 verifiche
 .\.venv\Scripts\python.exe -m tools.selftest speaker pool # gruppi scelti
 .\.venv\Scripts\python.exe -m tools.selftest -v           # con i verdi in chiaro
 
@@ -321,6 +321,16 @@ posizione e a-capo si decidono all'inizio; la cancellatura si rifa' a 10 Hz, e l
 tela copre **tutta la fascia** perche' mentre la nostra battuta e' a schermo il
 gioco e' spesso gia' passato alla riga dopo (la voce arriva un secondo e mezzo
 dopo il sottotitolo, sempre).
+
+**`ui/record.py`** — la telecamera virtuale, e **nasce da una cura**. L'overlay
+e' fuori dalla cattura per non rientrare nell'OCR; ma «fuori dalla cattura» vale
+per tutte le catture, e uno streamer che mette «Cattura schermo» in OBS vedrebbe
+il gioco **senza** il sottotitolo tradotto — un doppiaggio che si sente e non si
+legge. `record.enabled` espone una sorgente che OBS vede come una webcam, con
+dentro il fotogramma catturato e sopra **la stessa tela** che sta a schermo: non
+una seconda composizione, gli stessi pixel, quindi sincronizzati per costruzione.
+Verificata rileggendola come farebbe OBS: differenza media **0,9 su 255** dal
+fotogramma mandato. Vuole OBS installato, e senza lo dichiara.
 
 **`core/onnx.py`** — la porta unica per aprire una sessione ONNX, che esiste per
 la riga `preload_dlls()`. Si veda la regola piu' sotto.
@@ -643,6 +653,15 @@ monta un video con **lo stesso pittore** che usa la finestra dal vivo, quindi
 la grafica si guarda da soli in trenta secondi. Un MP4 disegnato da ffmpeg no:
 sarebbe un secondo disegnatore, e mostrerebbe una cosa mentre il vivo ne fa
 un'altra — che e' esattamente com'era nato il difetto.
+
+**Una cura puo' rompere qualcosa che nessuno stava guardando.** Escludere
+l'overlay dalla cattura era giusto e necessario — senza, l'OCR legge noi. Ma
+«fuori dalla cattura» non e' una proprieta' che si possa dare a meta': vale
+anche per OBS, e la stessa riga che ripara il riconoscimento toglie i
+sottotitoli a chi registra. Il difetto non era nel codice nuovo, era nel **giro
+di conseguenze** che nessuna verifica poteva percorrere. Quando una modifica
+cambia cosa un'altra applicazione puo' vedere, l'elenco di chi guarda va fatto a
+mano.
 
 **Un ottimo algoritmo nel posto sbagliato e' un difetto.** `inpaint` cancellava
 la riga meglio di tutto il resto, e per questo e' stato scelto: 16 ms sembravano

@@ -28,6 +28,7 @@ param(
     [string]$Profilo = 'live',
     [string]$Loopback = 'voicemeeter',
     [switch]$Avvia,                         # non aspetta il tasto: parte da solo
+    [switch]$Recording,                     # telecamera virtuale per OBS
     [switch]$Prova                          # dice cosa farebbe e non parte
 )
 
@@ -108,6 +109,7 @@ $opzioni = @(
 )
 if ($Motore -eq 'kokoro') { $opzioni += @('--set', 'tts.device=cuda') }
 if ($Avvia) { $opzioni += '--avvia' }
+if ($Recording) { $opzioni += '--recording' }
 if ($Traduci) {
     $opzioni += @(
         '--set', 'translate.enabled=true',
@@ -120,6 +122,7 @@ if ($Traduci) {
 Write-Host ""
 Write-Host "  motore      $Motore"
 Write-Host "  profilo     $Profilo"
+if ($Recording) { Write-Host "  recording   telecamera virtuale accesa (sorgente OBS Virtual Camera)" }
 if ($Traduci) {
     Write-Host "  traduzione  $Da -> $A, la riga originale viene cancellata"
 } else {

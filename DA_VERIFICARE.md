@@ -1,7 +1,7 @@
 # La tua prova, e cosa guardare
 
 Questo file e' il foglio della **prova d'ascolto**: come si accende, cosa
-guardare, e cosa mi serve nel tuo report. La suite e' verde (1122 verifiche) ma
+guardare, e cosa mi serve nel tuo report. La suite e' verde (1137 verifiche) ma
 la suite non sente niente: ogni difetto serio di questo progetto e' stato trovato
 dal tuo orecchio, con la suite verde.
 
@@ -125,7 +125,30 @@ Puoi cambiare come copre:
     --set translate.font_frac=0.045            (forza la taglia invece di copiarla)
     --set translate.color=#ffcc00              (forza il colore)
 
-## 2. La compressione — alzata la scusa, e serve il tuo giro per chiuderla
+## 2. Recording: la telecamera virtuale per OBS — **fatta**
+
+Serve per una ragione che e' figlia della cura di sopra: l'overlay e' fuori dalla
+cattura, quindi **anche OBS non lo vede**. Chi registra con «Cattura schermo»
+avrebbe il gioco senza il sottotitolo tradotto — si sente e non si legge.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci -Avvia -Recording
+```
+
+In OBS: *Sorgenti* → **+** → *Dispositivo di acquisizione video* → *OBS Virtual
+Camera*. Dentro c'e' il gioco con il sottotitolo tradotto sopra, sfocatura e
+tutto, in diretta.
+
+**L'ho verificata rileggendola come farebbe OBS**: aperta come «OBS Virtual
+Camera», riletta con OpenCV, il fotogramma che torna e' quello mandato con una
+differenza media di **0,9 su 255**. Quello che resta da vedere e' come si
+comporta con OBS vero acceso insieme al gioco, che e' materia tua.
+
+Vuole **OBS Studio installato** (e' lui che registra la telecamera in Windows).
+Senza, il programma lo scrive nel log e va avanti senza registrare. Si manda a
+1280 px di larghezza (`record.width`) per non pesare sul ciclo video.
+
+## 3. La compressione — alzata la scusa, e serve il tuo giro per chiuderla
 
 `dub.rate_x1000` restava a **1250 su tutti i percentili**: ogni battuta
 schiacciata al massimo, con il parlato che riempiva meta' scena.
@@ -163,7 +186,7 @@ cambio si accettano fino a ~370 ms in piu' sul ritardo peggiore.
 registrazione, la compressione mediana non si muove, quella al p95 migliora
 (1,250 -> 1,133) e gli sfori si dimezzano.
 
-## 3. Quello che resta aperto e non dipende da me
+## 4. Quello che resta aperto e non dipende da me
 
 - **`translate.preserve_register`**: TranslateGemma ammorbidisce le parolacce.
   Con il registro chiesto esplicitamente fa 2-3 su 6, Google 6 su 6 ma manda

@@ -27,7 +27,8 @@ README per intero.**
 
 ## Dove siamo, e dove si è fermato il lavoro
 
-**Feature: 14 su 14.** **Step finali: 3 su 18.**
+**Feature: 14 su 14.** **Step finali: 4 su 19.** La voce nuova e'
+**recording**: la telecamera virtuale per OBS, chiesta dall'utente e chiusa.
 
 Il lavoro è fermo **al cancello dell'utente**, che l'utente stesso ha messo:
 prima la sua prova d'ascolto, con un report di cosa va e cosa no, e solo dopo
@@ -92,7 +93,7 @@ staccarsi da 1250 nella prossima sessione dal vivo. È scritto in
 ## Il banco
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                    # 1122 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest                    # 1137 verifiche
 .\.venv\Scripts\python.exe -m tools.dub testGameplayFattoDaMe.mp4 --profile gtav `
     --start 1240 --end 1290 --set vision.ocr_backend=oneocr --mp4
 .\.venv\Scripts\python.exe -m tools.reopen runs\<cartella> [secondo]

@@ -5,11 +5,14 @@
 **Feature: 14 su 14.** Tutte chiuse, comprese quelle che si sono chiuse con un
 "no" misurato (i tag del TTS, la correzione automatica per distanza di edit, Qwen).
 
-**Step finali: 3 su 18.** La grafica del sottotitolo tradotto è chiusa: scritta,
+**Step finali: 4 su 19.** La grafica del sottotitolo tradotto è chiusa: scritta,
 **guardata a schermo**, corretta di quattro difetti e coperta da verifiche. Le
 altre due spuntate — colore/dimensione dei sottotitoli e scelta delle lingue —
 sono fatte **come meccanismo**: i parametri esistono e si regolano da `--set`.
 Quello che manca è la UI che li espone.
+
+La voce nuova è **recording** (la telecamera virtuale per OBS), chiesta
+dall'utente e chiusa nella stessa sessione.
 
 **E il cancello è aperto**: `tools\prova.ps1` accende la catena con i controlli
 fatti prima (venv, scheda di cattura, Ollama e il suo modello) e stampa la
@@ -246,6 +249,30 @@ che si sono chiuse con un "no".)*
     (`ui.overlay.dipingi`), quindi i giri si fanno da soli in trenta secondi.
     → Il gruppo `selftest overlay` (21 verifiche) copre taglia, colore, che la riga sparisca
     davvero e che **la cancellatura non esca dalle righe del gioco di un pixel**.
+  * \[x]  **recording: telecamera virtuale per OBS**
+    → **Chiesto dall'utente**, e nasce da una cura di questa stessa sessione. L'overlay
+    dal vivo è dichiarato **fuori dalla cattura** (`WDA_EXCLUDEFROMCAPTURE`), perché se no
+    rientra nel fotogramma dato all'OCR e il programma legge il proprio testo — misurato,
+    il 100% dei suoi pixel. Ma «fuori dalla cattura» vale per **tutte** le catture: uno
+    streamer che mette «Cattura schermo» in OBS vedrebbe il gioco **senza** il sottotitolo
+    tradotto, cioè un doppiaggio che si sente e non si legge.
+    → `record.enabled` espone una sorgente che OBS vede come una webcam: dentro c'è il
+    fotogramma catturato con sopra **la stessa tela** che sta a schermo in quell'istante,
+    non una seconda composizione. Sincronizzato per costruzione — sono gli stessi pixel,
+    e due strade di disegno divergerebbero al primo ritocco.
+    → In OBS: *Sorgenti* → *Dispositivo di acquisizione video* → *OBS Virtual Camera*.
+    → **Verificato rileggendola come farebbe OBS**: aperta come «OBS Virtual Camera»,
+    riletta con OpenCV, il fotogramma che torna è quello mandato con una differenza media
+    di **0,9 su 255**. Non basta che `send()` non sollevi: la domanda era cosa vede chi
+    guarda.
+    → **Vuole OBS Studio installato** (è lui che registra la telecamera virtuale in
+    Windows) più `pyvirtualcam`. Senza, il programma **lo dice** e va avanti senza
+    registrare: una funzione accesa apposta che non funziona in silenzio è il difetto
+    peggiore da diagnosticare.
+    → Si manda a 1280 px di larghezza (`record.width`): un 2560x1440 in RGB sono 330 MB/s
+    dentro il thread video, dove in questo progetto un costo non si somma, si amplifica.
+    → Spenta di default: espone una sorgente video, e una cosa del genere non si accende
+    da sola. Si accende con `-Recording` in `tools\prova.ps1` o `--recording`.
   * \[ ]  UI interfaccia chiara e funzionale
   * \[x]  possibilità di modificare i sottotitoli tradotti colore dimensione
     → `translate.color`, `background`, `background_opacity`, `background_mode`,

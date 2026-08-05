@@ -1277,6 +1277,37 @@ class TranslateConfig:
 
 
 @dataclass
+class RecordConfig:
+    """**La telecamera virtuale**: il gioco col sottotitolo tradotto sopra, per OBS.
+
+    Nasce da una cura. L'overlay dal vivo e' dichiarato *fuori dalla cattura*
+    perche' se no rientra nel fotogramma che diamo all'OCR e il programma legge
+    il proprio testo (misurato: il 100% dei suoi pixel). Ma «fuori dalla
+    cattura» vale per **tutte** le catture: uno streamer che mette «Cattura
+    schermo» in OBS vedrebbe il gioco senza il sottotitolo tradotto — il
+    doppiaggio si sente e non si legge.
+
+    Accendendola, il programma espone una sorgente che OBS vede come una webcam,
+    con dentro il fotogramma catturato e sopra **la stessa tela** che sta a
+    schermo in quell'istante. Non una seconda composizione: gli stessi pixel,
+    quindi sincronizzati per costruzione.
+
+    **Vuole OBS installato**, che e' chi registra la telecamera virtuale in
+    Windows. Senza, il programma lo dice e va avanti senza registrare: una
+    funzione accesa apposta che non funziona in silenzio e' il difetto peggiore
+    da diagnosticare.
+    """
+
+    enabled: bool = False
+    # Larghezza a cui si manda. Un 2560x1440 in RGB pesa 11 MB a fotogramma,
+    # cioe' 330 MB/s a 30 Hz **dentro il thread video**, dove in questo progetto
+    # un costo non si somma ma si amplifica. OBS riscala comunque, e fra 1280 e
+    # 2560 su un sottotitolo non si vede la differenza.
+    width: int = 1280
+    fps: float = 30.0
+
+
+@dataclass
 class Config:
     profile: str = "gtav"
     capture: CaptureConfig = field(default_factory=CaptureConfig)
@@ -1293,6 +1324,7 @@ class Config:
     timing: TimingConfig = field(default_factory=TimingConfig)
     mix: MixConfig = field(default_factory=MixConfig)
     ui: UiConfig = field(default_factory=UiConfig)
+    record: RecordConfig = field(default_factory=RecordConfig)
 
     # -- override ----------------------------------------------------------
 

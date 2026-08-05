@@ -110,6 +110,8 @@ class App:
         )
         if args.tts:
             self.cfg.tts.backend = args.tts
+        if getattr(args, "recording", False):
+            self.cfg.record.enabled = True
         self.coda: queue.Queue = queue.Queue()
         self.stop = threading.Event()
         self.threads: list[threading.Thread] = []
@@ -304,6 +306,22 @@ class App:
                 # e creata altrove non solleva — restituisce `None` a ogni grab.
                 schermo = make_screen(self.args.backend, monitor=self.args.monitor)
                 self.coda.put(("nota", f"cattura schermo: {schermo.name}"))
+                # **La telecamera virtuale sta qui e non altrove**: il fotogramma
+                # da mandare a OBS e' quello appena catturato, e portarlo su un
+                # altro thread vorrebbe dire copiarlo trenta volte al secondo per
+                # niente.
+                camera = None
+                if self.cfg.record.enabled:
+                    from ui.record import apri_o_spiega
+
+                    camera = apri_o_spiega(self.cfg.record, self.coda)
+                    if camera is not None:
+                        self.coda.put((
+                            "nota",
+                            f"telecamera virtuale accesa ({self.cfg.record.width} px "
+                            f"di larghezza): in OBS aggiungi la sorgente «Dispositivo "
+                            f"di acquisizione video» -> «OBS Virtual Camera»",
+                        ))
                 pronto.wait(timeout=10.0)
                 periodo = 1.0 / max(1e-6, self.cfg.capture.fps)
                 prossimo = time.perf_counter()
@@ -386,11 +404,23 @@ class App:
                         self._overlay_fino_a = max(
                             self._overlay_fino_a, time.perf_counter() + 0.5
                         ) if self.overlay._visibile else self._overlay_fino_a
+                    # **Si manda la tela che c'e' gia'**, non una seconda
+                    # composizione: cosi' quello che si vede sul monitor e quello
+                    # che finisce in OBS sono gli stessi pixel, e non c'e' modo
+                    # che divergano.
+                    if camera is not None:
+                        ult = self.overlay.ultima if self.overlay is not None else None
+                        if ult is None:
+                            camera.manda(g.frame)
+                        else:
+                            camera.manda(g.frame, ult[0], ult[1], ult[2])
                     if n % 30 == 0:
                         p = len(self.pipeline.tracker) if self.pipeline.tracker else 0
                         self.coda.put(("stato",
                                        f"in corso  |  {n} frame  |  {len(self.pipeline.spoken)} battute"
                                        f"  |  {p} personaggi  |  {len(self.pipeline.pool)} voci"))
+                if camera is not None:
+                    camera.chiudi()
 
             for f in (ciclo_audio, ciclo_video):
                 t = threading.Thread(target=f, daemon=True)
@@ -461,6 +491,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--monitor", type=int, default=1)
     ap.add_argument("--tts", default=None)
     ap.add_argument("--no-save", action="store_true")
+    ap.add_argument(
+        "--recording",
+        action="store_true",
+        help="espone una telecamera virtuale con il gioco e il sottotitolo tradotto (per OBS)",
+    )
     ap.add_argument(
         "--avvia",
         action="store_true",

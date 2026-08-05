@@ -562,6 +562,10 @@ class Overlay:
         self.misura = MisuraCarattere()
         self.sost = None     # la battuta a schermo adesso, con la sua geometria
         self._vuoti = 0      # giri di seguito senza inchiostro del gioco
+        # L'ultima tela disegnata e dove sta sullo schermo. La legge la
+        # telecamera virtuale: **gli stessi pixel** che sono a schermo, non
+        # una seconda composizione che divergerebbe al primo ritocco.
+        self.ultima = None
         self.vision = None   # le soglie con cui ritrovare l'inchiostro
         self.rett = None
         self.fondo_rgb = self._rgb(fondo) if fondo else (0, 0, 0)
@@ -725,6 +729,7 @@ class Overlay:
 
         self._foto = ImageTk.PhotoImage(su_chiave(tela), master=self.top)
         self.etichetta.configure(image=self._foto)
+        self.ultima = (tela, self.top.winfo_x(), self.top.winfo_y())
 
     def _prepara(self, testo, pezzo, bande, rett, inchiostro, originale=""):
         from PIL import ImageTk
@@ -750,10 +755,12 @@ class Overlay:
         y = int(rett[1] * sh) + oy
         geom = (piatta.width, piatta.height,
                 max(0, min(sw - piatta.width, x)), max(0, min(sh - piatta.height, y)))
+        self.ultima = (tela, geom[2], geom[3])
         return foto, geom
 
     def nascondi(self) -> None:
         self.sost = None
+        self.ultima = None
         if self._visibile:
             self.top.withdraw()
             self._visibile = False

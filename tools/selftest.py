@@ -2424,6 +2424,87 @@ def test_overlay(c: Check) -> None:
     del cv2
 
 
+def test_record(c: Check) -> None:
+    """La telecamera virtuale: il gioco col tradotto sopra, per OBS.
+
+    **Non si apre la telecamera vera.** Aprirla occupa una risorsa di sistema e
+    su una macchina senza OBS fallirebbe per una ragione che non e' un difetto
+    del codice: la suite direbbe rosso dove non c'e' niente di rotto. Si verifica
+    quindi cio' che e' nostro — la composizione e la consegna — con un ricevitore
+    finto, e si lascia alla prova a mano il resto.
+
+    Che la telecamera vera funzioni e' stato misurato una volta e va scritto qui
+    perche' non si ripeta il dubbio: aperta come «OBS Virtual Camera», riletta
+    con OpenCV come farebbe OBS, il fotogramma che torna e' quello mandato con
+    una differenza media di **0,9 su 255**.
+    """
+    c.group("record")
+    from ui.record import TelecameraVirtuale, _incolla
+
+    cfg = Config()
+    c.ok(hasattr(cfg, "record") and not cfg.record.enabled,
+         "la sezione `record` esiste ed e' **spenta** di default: espone una "
+         "sorgente video, e una cosa del genere non si accende da sola")
+    c.ok(cfg.record.width < 1920,
+         f"e si manda ridimensionata ({cfg.record.width} px): un 2560x1440 in RGB "
+         f"e' 330 MB/s dentro il thread video")
+
+    # -- la sovrapposizione rispetta l'alfa --------------------------------
+    fondo = np.full((40, 60, 3), 10, np.uint8)
+    tela = np.zeros((10, 10, 4), np.uint8)
+    tela[:, :, 0] = 255  # rosso pieno, in RGBA
+    tela[:, :, 3] = 255
+    _incolla(fondo, tela, 5, 5)
+    c.eq(tuple(int(v) for v in fondo[6, 6]), (0, 0, 255),
+         "dove la tela e' opaca si vede la tela (e RGBA diventa BGR)")
+    c.eq(tuple(int(v) for v in fondo[30, 50]), (10, 10, 10),
+         "e dove e' trasparente resta il gioco")
+
+    # Fuori dai bordi non deve esplodere: la finestra puo' stare a cavallo del
+    # bordo dello schermo, e un ritaglio negativo qui e' un crollo dal vivo.
+    for pos in ((-8, -8), (55, 35), (1000, 1000), (-100, 20)):
+        prima = fondo.copy()
+        _incolla(fondo, tela, *pos)
+        c.ok(fondo.shape == prima.shape, f"tela in {pos} non rompe niente")
+
+    # -- la consegna, con un ricevitore finto ------------------------------
+    class Finta(TelecameraVirtuale):
+        def _apri(self, w, h):
+            self.mandati = []
+            self.cam = type("C", (), {"send": lambda _s, f: self.mandati.append(f)})()
+            self._forma = (w, h)
+            self.attiva = True
+            return True
+
+    cam = Finta(larghezza=320, fps=30.0)
+    frame = np.zeros((1440, 2560, 3), np.uint8)
+    frame[:, :, 2] = 200  # rosso, in BGR
+    c.ok(cam.manda(frame), "la consegna riesce")
+    f = cam.mandati[-1]
+    c.eq(f.shape[:2][::-1], (320, 180), "si manda alla larghezza chiesta, proporzioni tenute")
+    c.ok(f.shape[0] % 2 == 0, "e con l'altezza pari, che molti ricevitori pretendono")
+    c.eq(tuple(int(v) for v in f[10, 10]), (200, 0, 0),
+         "e in RGB: mandarlo in BGR darebbe una diretta con i colori scambiati, "
+         "che nessun contatore mostra")
+
+    # Cambiando forma la telecamera si riapre invece di mandare una misura
+    # sbagliata a un ricevitore aperto su un'altra.
+    cam.manda(np.zeros((720, 720, 3), np.uint8))
+    c.eq(cam._forma, (320, 320), "cambiando le proporzioni del gioco si riapre")
+
+    # -- e senza telecamera si **dichiara** ---------------------------------
+    class Senza(TelecameraVirtuale):
+        def _apri(self, w, h):
+            self.errore = "niente ricevitore"
+            return False
+
+    muta = Senza()
+    c.ok(not muta.manda(np.zeros((100, 100, 3), np.uint8)),
+         "senza ricevitore la consegna dice di no")
+    c.ok(muta.errore, "e lascia scritto perche': una funzione accesa apposta che "
+                      "non funziona in silenzio e' il difetto peggiore da diagnosticare")
+
+
 def test_template(c: Check) -> None:
     """Il template di TranslateGemma, che va rispettato alla lettera."""
     c.group("traduzione")
@@ -3082,6 +3163,7 @@ GROUPS = {
     "traduzione": test_traduzione,
     "template": test_template,
     "overlay": test_overlay,
+    "record": test_record,
     "fretta": test_fretta,
     "duck": test_duck_non_pompa,
     "velocita": test_velocita_totale,

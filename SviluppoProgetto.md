@@ -102,10 +102,36 @@ che si sono chiuse con un "no".)*
   * \[x]  implementazione di traduzione con sostituzione grafica
     → **fatta** (`translate/`, sezione `translate` di config, spenta di default: su GTA V
     si tradurrebbe l'italiano in italiano).
-    → **Due strade a scelta, come chiesto**: `locale` (Argos/CTranslate2, offline, niente
-    esce dalla macchina — è il default quando si accende) e `google` (endpoint pubblico,
-    nessuna chiave né pacchetto, **ma manda ogni sottotitolo a Google** e lo dichiara su
-    stderr all'avvio). Più `prova`, finto, per il banco.
+    → **Quattro strade a scelta**: `locale` (Argos, leggero, offline), `llm`
+    (Gemma 3 1B in-process su CPU), `ollama` (parla in HTTP con Ollama: TranslateGemma
+    4b/12b/27b senza toccare il venv) e `google` (**manda ogni sottotitolo a Google**, e
+    lo dichiara su stderr). Più `prova`, finto, per il banco.
+    → **E su questo materiale la domanda che viene prima della qualità è un'altra: il
+    modello dice quello che c'è scritto?** I sottotitoli di GTA V sono pieni di
+    parolacce, e un modello che le ammorbidisce consegna un doppiaggio che dice un'altra
+    cosa — senza che nessun contatore lo mostri, perché la traduzione riesce benissimo.
+    Misurato su sei battute volgari (`tools/bench_translate.py --parolacce`), quante
+    hanno tenuto il registro:
+
+    | traduttore | registro tenuto | p50 | dove |
+    |---|---|---|---|
+    | **google** | **6/6** | 1002 ms | rete |
+    | translategemma:4b + `preserve_register` | 2-3/6 | 643 ms | locale |
+    | translategemma:4b, template puro | **0/6** | 621 ms | locale |
+    | translategemma:12b, template puro | **0/6** | 1734 ms | locale |
+    | gemma-3-1b (llama.cpp) | 1/6 | 418 ms | locale |
+
+    → **Il 12b non fa meglio del 4b**: è allineamento, non capacità, quindi il 27b da
+    17 GB non cambierebbe la risposta e non l'ho scaricato. TranslateGemma non rifiuta —
+    **riscrive in silenzio**: «Get the fuck out of my car, asshole» → «Esci
+    immediatamente dalla mia macchina, idiota», e perfino «idiots» → «persone poco
+    esperte».
+    → **`translate.preserve_register`** sostituisce la frase del template sulle «cultural
+    sensitivities» con una che chiede di non ammorbidire: da 0/6 a 2-3/6. Acceso di
+    default, perché il materiale è quello che è.
+    → **Il template di TranslateGemma va rispettato alla lettera**, due righe vuote
+    comprese: sbagliarlo non dà errore, dà una traduzione peggiore, e si finirebbe per
+    incolpare il modello.
     → **L'ordine conta**: si traduce **prima** di stimare i tempi. `chars_per_second` e
     `D = a + b*n` sono misurati sull'italiano e vanno applicati al testo che verrà
     *detto*: «I've never had a black son» sta in 26 caratteri, la traduzione in 30.

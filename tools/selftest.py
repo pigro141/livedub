@@ -2124,6 +2124,27 @@ def test_traduzione(c: Check) -> None:
          f"la durata segue il testo tradotto, non le due lettere dell'originale "
          f"({riga.duration:.2f}s)")
 
+    # -- il template di TranslateGemma -------------------------------------
+    # **Le due righe vuote non sono formattazione.** Il modello e' addestrato su
+    # quel template esatto: sbagliarlo non da' errore, da' una traduzione un po'
+    # peggiore — e si finisce per concludere che il modello non e' un granche'.
+    from translate.ollama import LINGUE, prompt_translategemma
+
+    p_it = prompt_translategemma("Hello there", "en", "it", registro=False)
+    c.ok(p_it.endswith("\n\n\nHello there"),
+         "il testo da tradurre e' preceduto da due righe vuote, come dice la scheda")
+    c.ok("English (en) to Italian (it)" in p_it,
+         "e le lingue si dichiarano col nome **e** il codice")
+    c.ok("cultural sensitivities" in p_it, "senza `registro` il template resta l'originale")
+
+    p_reg = prompt_translategemma("Hello there", "en", "it", registro=True)
+    c.ok(p_reg.endswith("\n\n\nHello there"), "anche col registro le due righe restano")
+    c.ok("cultural sensitivities" not in p_reg and "Do not soften" in p_reg,
+         "con `registro` la frase sulle sensibilita' culturali lascia il posto a "
+         "quella che chiede di non ammorbidire: misurato, 0/6 -> 2-3/6 battute "
+         "volgari tradotte per quello che sono")
+    c.eq(LINGUE["it"], "Italian", "il template vuole il nome della lingua, non il codice")
+
     # -- il colore ASS: alpha invertita ------------------------------------
     from tools.dub import _ass_colore, _fondi
 

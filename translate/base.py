@@ -176,6 +176,16 @@ def make_traduttore(cfg):
         from translate.llm import TraduttoreLlm
 
         return TraduttoreLlm(modello=cfg.llm_model, contesto=cfg.context_lines)
+    if nome == "ollama":
+        from translate.ollama import TraduttoreOllama
+
+        return TraduttoreOllama(
+            modello=cfg.ollama_model,
+            host=cfg.ollama_host,
+            timeout_s=max(1.0, cfg.timeout_ms / 1000.0 * 20),
+            contesto=cfg.context_lines,
+            registro=cfg.preserve_register,
+        )
     if nome == "google":
         from translate.google import TraduttoreGoogle
 

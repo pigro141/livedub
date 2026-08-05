@@ -1128,8 +1128,32 @@ class TranslateConfig:
     #   `google`  Nessun costo di calcolo, ma **i sottotitoli escono dalla
     #             macchina**. E' l'opzione per chi non ha potenza da spendere e
     #             accetta il baratto.
-    backend: str = "locale"  # locale | llm | google | nessuno
+    #   `ollama`  parla con Ollama in HTTP: i modelli stanno fuori dal venv e si
+    #             cambiano senza reinstallare niente. `TranslateGemma` e' il piu'
+    #             fluente dei locali, ma si veda `preserve_register`.
+    backend: str = "locale"  # locale | llm | ollama | google | nessuno
     llm_model: str = ""  # vuoto = `models/llm/gemma-3-1b-it-Q4_K_M.gguf`
+    ollama_model: str = "translategemma:4b"  # 4b | 12b | 27b, o un altro modello
+    ollama_host: str = "http://127.0.0.1:11434"
+    # **Chiedere al modello di non ammorbidire le parolacce.** Su questo materiale
+    # non e' una questione di gusto: un modello che riscrive «Get the fuck out of
+    # my car, asshole» in «Esci immediatamente dalla mia macchina, idiota»
+    # consegna un doppiaggio che dice un'altra cosa rispetto a quello che c'e'
+    # scritto a schermo — e nessun contatore lo mostra, perche' la traduzione
+    # riesce benissimo.
+    #
+    # Misurato su sei battute volgari di GTA V (`tools/bench_translate.py
+    # --parolacce`), quante uscite hanno tenuto il registro:
+    #
+    #     google                          6/6      (ma i dati escono)
+    #     translategemma:4b  + registro   3/6
+    #     translategemma:4b  template     0/6
+    #     translategemma:12b template     0/6
+    #     gemma-3-1b locale               1/6
+    #
+    # Acceso costa una traduzione un po' meno elegante — si tocca il template su
+    # cui il modello e' stato addestrato — e vale la pena lo stesso.
+    preserve_register: bool = True
     # **Quante battute precedenti dare al modello. Zero, e non e' pigrizia: e'
     # una misura contraria a quello che ci si aspettava.**
     #

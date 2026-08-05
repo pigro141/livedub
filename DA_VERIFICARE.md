@@ -7,6 +7,37 @@ stato trovato dall'orecchio, con la suite verde.
 
 ---
 
+## 0. La prova live di Qwen: un comando, e il criterio scritto PRIMA
+
+```powershell
+.\.venv\Scripts\python.exe -m tools.ui --profile live --loopback voicemeeter `
+    --set vision.ocr_backend=oneocr --set tts.backend=qwen `
+    --set tts.device=cuda --set timing.rate_max=1.45
+```
+
+Gioca cinque minuti con dialogo fitto, poi chiudi e mandami la cartella
+`runs\<timestamp>`.
+
+**Il criterio, dichiarato adesso perché una previsione scritta dopo non può
+perdere.** Qwen resta se e solo se, dal vivo su questa 4060:
+
+| numero | soglia | cosa vuol dire se sfora |
+|---|---|---|
+| `mix.underrun` | **0** | sopra zero la voce si spezza a metà battuta: è il difetto che chiude la partita |
+| latenza p50 | **< 2,5 s** | sopra, il doppiaggio arriva quando la scena è cambiata |
+| `dub.rate_x1000` p50 | **< 1450** | al tetto significa che comprime sempre al massimo |
+
+**Se `mix.underrun` è > 0 su questa scheda**, la domanda diventa quella che hai
+posto tu: esiste hardware consumer che ce la fa? La risposta l'ho già misurata in
+parte — il costo è **banda di memoria**, 6,12 GB riletti per ogni 80 ms di audio,
+e il tempo segue i byte. Scalando: una 4070 Ti SUPER sta a ~0,30× tempo reale
+contro lo 0,75× di questa, una 3090/4090 a ~0,21×. Cioè il margine passa dal 25%
+al 70-79%, e **a quel punto il gioco acceso ci sta dentro**.
+
+Quindi il piano è: se qui va male, non togliamo Qwen subito — la conclusione
+onesta è «serve una scheda da ~670 GB/s in su». Lo togliamo se anche su quella
+classe di hardware non regge, e per saperlo serve provarci sopra.
+
 ## 1. Qwen dal vivo — **non l'ho mai provato dal vivo, e va detto per primo**
 
 Tutti i numeri di Qwen sono **di banco**. Sullo streaming c'è un motivo
@@ -78,10 +109,28 @@ me. Dicono che il codice fa quello che dichiara, **non** che funzioni su un gioc
 Compila sempre `label.names` se puoi: è la guardia che impedisce a un errore di
 OCR di diventare un personaggio e di bruciargli addosso una voce del pool.
 
-## 5. SuperTonic sui PC vecchi — misurato, ma con un limite dichiarato
+## 5. SuperTonic sui PC vecchi — cosa ho fatto, in parole semplici
 
-Ho simulato il PC vecchio riducendo i core. **Non ho simulato core più lenti**,
-quindi i numeri sono un limite inferiore: un PC vero sta peggio.
+**Il problema**: la lista chiedeva se il programma rallenta su un PC vecchio, e
+c'era scritto «serve l'altro PC».
+
+**Cosa ho capito**: un PC vecchio è lento per due motivi diversi — ha **meno
+core**, e ogni core è **più lento**. Il primo si può simulare su questa macchina:
+dico a Windows «questo programma può usare solo 4 processori» e misuro. Il
+secondo no: non posso rendere lenti i core che ho.
+
+**Cosa ho fatto**: ho misurato quanto costa sintetizzare una battuta con 8, 6, 4
+e 2 core.
+
+**Cosa è venuto fuori**: SuperTonic passa da mezzo secondo a **1,3 secondi** a
+battuta su 4 core. Piper passa da 48 millisecondi a 261. Su un PC a 4 core,
+SuperTonic non è usabile e Piper sì.
+
+**Cosa NON ho provato**: core più lenti. Quindi i miei numeri sono il **caso
+migliore** — un PC vero, con core anche più lenti dei miei, va peggio di così.
+
+**Cosa ne faccio**: sotto i 6 core il programma dovrebbe usare Piper. Se hai
+davvero l'altro PC, la prova vera è farci girare una sessione.
 
 | core fisici | supertonic | piper |
 |---|---|---|
@@ -92,6 +141,39 @@ quindi i numeri sono un limite inferiore: un PC vero sta peggio.
 **Conclusione**: sotto i 6 core, `tts.backend=piper`. Se hai davvero l'altro PC a
 disposizione, la verifica vera è una sessione lì.
 
+## 4-bis. Il nome del parlante: cosa vuol dire «modulare», in concreto
+
+Te l'avevo spiegato male. In concreto adesso puoi dire al programma **come quel
+gioco scrive chi parla**, scegliendo fra sei forme già pronte:
+
+| `label.form` | il gioco scrive |
+|---|---|
+| `nome:` | `Franklin: Come va` |
+| `-nome:` | `- Franklin: Come va` |
+| `[nome]` | `[Franklin] Come va`, `(Franklin)`, `<Franklin>` |
+| `nome-` | `Franklin - Come va` |
+| `nome>>` | `Franklin >> Come va`, `Franklin » Come va` |
+| `nome(nota):` | `Franklin (arrabbiato): Come va` |
+| `NOME` | `FRANKLIN Come va` (fragile: usare solo con l'elenco dei nomi) |
+
+Se il gioco ne usa un'altra, `label.regex` accetta la tua.
+
+**Oppure il colore**: `label.colors = {"Franklin": "#5ac8fa", "Lamar": "#ffcc00"}`
+e ogni battuta va a chi ha il colore più vicino.
+
+**E ogni personaggio ha sempre la stessa voce, per tutto il gioco.** Questo è il
+pezzo che mancava e che ho aggiunto adesso: la voce assegnata a un nome viene
+scritta in `runs/cast.json` e riletta alla sessione dopo. Senza, la voce non era
+del personaggio — era del *turno*: chi apriva la scena prendeva la prima voce del
+pool, quindi riaprendo il gioco da un altro punto Franklin ne prendeva un'altra.
+Puoi anche deciderle tu: `label.voices = {"Franklin": "riccardo"}`, che vince su
+tutto.
+
+Scrivendo la verifica ho trovato un difetto: in due sessioni separate Lamar e
+Franklin finivano **tutti e due sulla stessa voce**, perché ognuno era il primo a
+parlare nella sua sessione. Ora le voci ricordate si prenotano all'avvio, anche
+per chi in quella scena non parla.
+
 ## 6. La correzione OCR — è spenta, e ti serve una decisione
 
 L'impalcatura c'è (`vision/correct.py`) con tutte le guardie, ed è **spenta**.
@@ -100,23 +182,33 @@ sull'ambiente — peso su disco e **contesa per la GPU**, che abbiamo appena
 misurato essere la risorsa scarsa, con la correzione che gira sul thread video
 dove il costo si amplifica.
 
-**Prima di decidere, guarda questo**:
+**L'LLM ora c'è ed è montato** (Gemma 3 1B, `correct.backend=llm`), ma **l'ho
+misurato e per il vivo è da lasciare spento**:
 
-```powershell
-.\.venv\Scripts\python.exe -m tools.bench_correct --censimento
-```
+| | |
+|---|---|
+| risposte giuste | **1 su 6** casi veri |
+| tempo | **p50 1564 ms** per parola |
+| errori | `oulldozer → bulldozers`, `ciassico → biascico`, `uice → ice` (doveva astenersi) |
 
-Dice che gli errori davvero correggibili sono **circa una parola su settanta**:
-delle 1230 parole «non italiane» su 19146, 527 sono nomi propri e il resto è in
-buona parte onomatopee, forme italiane vere non elencate e frammenti di HUD.
+Contro un guadagno massimo di **una parola su settanta** (`bench_correct
+--censimento`: delle 1230 parole «non italiane» su 19146, 527 sono nomi propri e
+il resto è onomatopee, forme italiane vere non elencate e frammenti di HUD).
 
-**La domanda per te**: con un guadagno di una parola su settanta, quanto sei
-disposto a pagare in latenza e in rischio? Io un modello sulla GPU non ce lo
-metterei finché la GPU serve alla sintesi.
+**E la tua idea del contesto l'ho provata con il caso nullo giusto** — stesse
+frasi, stesso modello, unica differenza le dieci battute precedenti. Il contesto
+**non ha migliorato nessuno dei nove casi e ne ha peggiorati due**, al doppio del
+tempo: `ciassico` andava a `classico` senza contesto e a `biascico` con. Un
+modello da un miliardo di parametri, con dieci righe davanti, ricopia invece di
+ragionare — infatti in traduzione ha restituito parola per parola la traduzione
+di due battute prima.
 
-*(Se lo vuoi comunque, la forma giusta è un modello che **ordina i candidati** di
-`candidati()` dato il contesto, non che genera testo libero: così non può
-inventare una non-parola e la fiducia esce dal distacco fra i primi due.)*
+Quindi `context_lines` è a **zero** di default. Il codice resta, perché con un
+modello più grande la risposta può cambiare — ma va rimisurata, non ereditata.
+
+**La domanda per te**: vuoi che provi un modello più grande (Gemma 3 4B, ~2,5 GB)?
+Su CPU costerebbe ~4 volte il tempo, quindi per il **vivo** è già escluso; avrebbe
+senso solo se un giorno la correzione la facessimo fuori dalla catena.
 
 ## 7. La traduzione — funziona, ma **non l'ho mai provata con un traduttore vero**
 
@@ -127,7 +219,13 @@ che copre l'originale, la sfocatura, i tempi ricalcolati sulla lunghezza nuova.
 deliberati: `locale` vuole un pacchetto e un modello che non ho installato senza
 di te, e `google` avrebbe mandato i tuoi sottotitoli a Google.
 
-**Per provare quello locale**:
+**Il traduttore LLM invece l'ho provato**: 254 ms p50, qualità da modello piccolo
+ma sensata («Oggi recuperiamo veicoli comprati da idioti a tassi esorbitanti»).
+Sta sulla strada critica, quindi quei 254 ms si sommano a ogni battuta nuova — la
+cache li paga una volta sola per battuta. Si accende con
+`--set translate.backend=llm`.
+
+**Per provare quello leggero (Argos)**:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install argostranslate

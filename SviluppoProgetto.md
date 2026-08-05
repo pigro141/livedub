@@ -153,37 +153,27 @@ che si sono chiuse con un "no".)*
   * \[x]  installare qwen tts e Chatterbox, provare sul banco e stimare l'hardware
     → **fatti tutti e due**, erano già installati nei venv delle cartelle sorelle.
     **Chatterbox**: 3394 ms a battuta su CUDA — fuori portata dal vivo, ma dà emozione
-    continua e clonazione zero-shot. **Qwen3-TTS ONNX**: backend scritto
-    (`speak/backends/qwen.py`), voci come **descrizioni**, italiano nativo.
-  * \[x]  streaming di Qwen3-TTS
-    → **fatto e verificato**: primo campione a **257 ms** invece di 4820, e i blocchi
-    concatenati sono la battuta intera (`bench_qwen --pezzi`: stessi campioni di
-    `synthesize`, giunture a 0,89× dell'errore di fondo). Regge il tempo reale (0,83×,
-    zero `mix.underrun` su 25 battute). Si vocoda il **prefisso** e si consegna la coda:
-    misurato, `vocoder(codici[:k])` è trasparente (corr 1,0000) mentre il blocco interno
-    no (corr 0,95).
-    → **Ma il motore resta inutilizzabile dal vivo, per un'altra ragione.** Sulla stessa
-    scena da 49 s e sulle stesse 25 battute, Qwen produce **77 s di parlato contro i 35
-    di Piper** — 8,4 car/s contro 18,3. Non ci sta nemmeno comprimendo al tetto (WSOLA
-    inchiodato a 1,250, latenza p50 3,6-6,7 s contro 533 ms). Lo streaming ha risolto la
-    latenza al primo campione; **non può risolvere una voce che parla la metà**.
-    Qwen non ha controllo di velocità (`rate` gli arriva e lo ignora).
-    → **Le due leve provate tutte e due.** La fretta chiesta *a parole* nella descrizione
-    della voce funziona ma poco (8,4 → 9,6 car/s nella catena vera; «parla svelto» non fa
-    niente, serve una descrizione concreta — sillabe fitte, nessuna pausa). Alzando anche
-    `timing.rate_max` a 1,45 la scena rientra: **86% invece del 125%, latenza p50 2,2 s
-    invece di 6,7**. Ma il criterio dichiarato prima della prova era «sopra 13-14 car/s
-    torna in gioco» e il motore sta a 10,8, e ci arriva solo con WSOLA ben oltre l'1,3
-    dove le consonanti spariscono. **Il numero dice no; decide l'ascolto.**
-    → **Le descrizioni vanno scritte in inglese** (il testo da dire resta italiano):
-    misurato contando il sesso che esce, italiano 4-5/8 voci giuste, inglese **7/8**. In
-    italiano le voci femminili uscivano a 159-164 Hz, cioè maschili.
-    → **L'hardware che serve, misurato**: il costo è **banda di memoria** (6,12 GB riletti
-    per ogni 80 ms di audio; il tempo segue i byte, 33/67 contro 23/77). Sulla 4060 sono
-    0,75× tempo reale, cioè il 25% di margine — e **a GPU occupata va a 9,6×**. Serve
-    ~670 GB/s e 16 GB: **4070 Ti SUPER / 4080 / 3090 e oltre** (la 3090 usata è la via
-    economica). Il motore resta **integrato ma spento di default**: chi ha la scheda lo
-    accende con `--set tts.backend=qwen`.
+    continua e clonazione zero-shot. **Qwen3-TTS ONNX**: provato a fondo — voci come
+    **descrizioni** (pool illimitato), italiano nativo, streaming funzionante — e poi
+    **tolto** dopo la prova dal vivo. La voce alla riga sotto dice perché.
+  * \[x]  streaming di Qwen3-TTS — **fatto, misurato, e Qwen è stato tolto**
+    → Lo streaming funzionava: primo campione a **257 ms** invece di 4820, blocchi
+    concatenati identici alla battuta intera, zero underrun sul banco.
+    → **Dal vivo no.** Tre soglie dichiarate *prima* della prova, tutte e tre sfondate:
+    `mix.underrun` 0 → **5415**; latenza < 2,5 s → **26,7 s** al primo campione;
+    compressione < 1450 → **1450 a ogni percentile**. Su 65 battute lette, **25 hanno
+    prodotto audio**: quaranta non hanno mai parlato.
+    → **E non è l'hardware.** La coda si comprerebbe con una scheda da ~670 GB/s. Ma la
+    compressione al tetto su *ogni* battuta non dipende dalla GPU: dipende dal fatto che
+    il motore parla **la metà** di Piper (8,4 car/s contro 18,3) e produce il 157% del
+    parlato che la scena ha tempo di contenere. Su una 4090 sarebbe identico, solo
+    puntuale.
+    → **Cosa resta**: il protocollo di streaming (`speak/base.py`), il mixer che tiene una
+    battuta **aperta** col suo cuscino (`mix.prebuffer_ms`), la catena che programma prima
+    di avere l'audio, e la verifica `streaming` su un motore finto. Il prossimo motore
+    autoregressivo eredita tutto.
+    → **La lezione**: la domanda decisiva non era la latenza, era **quanto parlato produce
+    per secondo di scena**. Si misura sul banco in un minuto.
   * \[x]  adattamento speaker per tutti i giochi (nome del parlante scritto a schermo)
     → **fatto** (`vision/label.py`, sezione `label` di config, spento di default). Quando
     il gioco dichiara chi parla, cadono **tutti e due** i costi: l'attesa di
@@ -217,7 +207,7 @@ che si sono chiuse con un "no".)*
     offline sono **di** una coppia di lingue, quindi con `locale` un `auto` diventa `en`
     e viene detto, invece di esserlo in silenzio. **Manca la UI**, non il meccanismo.
   * \[ ]  selettore delle tecnologie da usare
-  * \[ ]  impostazioni avanzate con regolazione di tutti i parametri con vicino un icona a ogni settings che spiega bene cosa fa e cosa succede se viene cambiato rischi ecc
+  * \[ ]  impostazioni avanzate con regolazione di tutti i parametri con vicino un icona a ogni settings che spiega bene cosa fa e cosa succede se viene cambiato rischi ecc (davvero tuti anche la regolazione delle frequenze maschio femmina)
   * \[ ] cambiamento live dei settings e applicazione live
   * PRIMA DI INIZIARE LA FASE SEGUENTE FAMMI FARE UNA PROVA e ti faccio un report dettagliato di cosa va e cosa no
   * \[ ]  rendere il tutto facilmente installabile plug and play
@@ -230,9 +220,8 @@ che si sono chiuse con un "no".)*
     * \[ ]  valorizzazione dell'uso completamente locale ed estrema privacy
     * \[ ]  scrivere requisiti minimi richiesti, e quelli per la migliore esperienza in assoluto
       → **i numeri ci sono già, manca scriverli**: senza GPU si gira con Piper o SuperTonic
-      (CPU); Kokoro vuole CUDA e 1128 MB di VRAM; Qwen vuole ~670 GB/s di banda e 16 GB,
-      cioè 4070 Ti SUPER / 4080 / 3090 in su. È l'unico punto degli step finali che
-      poggia su misure, e le misure sono fatte.
+      (CPU, e sotto i 6 core **solo** Piper); Kokoro vuole CUDA e 1128 MB di VRAM. È
+      l'unico punto degli step finali che poggia su misure, e le misure sono fatte.
     * \[ ]  fare anche un link paypal o qualcosa del genere per prendere delle donazioni
     * \[ ]  fare sito github dove c'è spiegato tutto
     * \[ ]  fruttare hype di gtavi per dire che è compatibile anche con quello

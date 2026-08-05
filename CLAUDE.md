@@ -126,76 +126,46 @@ motore sbagliato, con i log verdi.
 | **kokoro** | 299 ms | 932 ms | 12,9 | **1,30** | **CUDA** |
 | **qwen** | 3,1 s | non usabile | 10,6 | — | CUDA |
 
-**Il quarto motore fa streaming, ed e' inutilizzabile lo stesso — ma per un altro
-motivo.** `speak/backends/qwen.py` ha le voci come **descrizioni** («un uomo
-maturo, voce profonda e roca»), quindi li' il pool non e' un vincolo del modello.
-Lo streaming c'e' ed e' verificato: **primo campione a 257 ms** invece di 4820, i
-blocchi concatenati sono campione per campione la battuta che darebbe
-`synthesize`, e regge il tempo reale (0,83x, zero `mix.underrun`).
+**Il quarto motore e' stato tolto, e la misura che lo ha tolto va tenuta.**
+`speak/backends/qwen.py` non c'e' piu'. Aveva la cosa che nessun altro motore qui
+ha — le voci come **descrizioni** a parole, quindi un pool illimitato — e lo
+streaming funzionava davvero: primo campione a 257 ms invece di 4820, blocchi
+concatenati identici alla battuta intera, zero underrun sul banco.
 
-Il muro e' altrove, e lo dice una misura sola. Sulla **stessa scena da 49 s** e
-sulle stesse 25 battute:
+Dal vivo, su questa 4060, tre soglie dichiarate **prima** della prova e tutte e
+tre sfondate:
 
-| | parlato prodotto | passo | WSOLA p50 | latenza p50 |
-|---|---|---|---|---|
-| piper | 35 s (72% della scena) | 18,3 car/s | 1,024 | 533 ms |
-| **qwen** | **77 s (157%)** | **8,4 car/s** | **1,250 (al tetto)** | 3,6-6,7 s |
+| criterio | soglia | misurato dal vivo |
+|---|---|---|
+| `mix.underrun` | 0 | **5415** |
+| latenza p50 | < 2,5 s | **26,7 s** al primo campione |
+| compressione | < 1,450 | **1,450 a ogni percentile** |
 
-Qwen parla **la meta'** di Piper, quindi produce piu' audio di quanto la scena
-abbia tempo, e comprimendo al tetto resta al 125%. La coda non rientra piu'. E
-non c'e' leva: questo modello **non ha controllo di velocita'** — `rate` gli
-arriva e lo ignora — quindi la fretta puo' chiederla solo WSOLA, che e' gia' al
-massimo. Prezzo, per completezza: 4,2 GB di VRAM contro i 1128 MB di Kokoro.
+Su 65 battute lette, **25 hanno prodotto audio**: quaranta non hanno mai parlato,
+e la coda arrivava a settantacinque secondi. All'ascolto: parole sminuzzate e
+contenuto scollegato dal video.
 
-Lo streaming quindi non e' stato sprecato — e' il pezzo che serviva e funziona,
-`mix/mixer.py` sa tenere una battuta **aperta** e chiunque scriva un altro motore
-autoregressivo lo eredita — ma **non ha reso vivibile Qwen**, e chi legge solo i
-257 ms conclude il contrario.
+**Perche' non e' un problema di hardware, ed e' la parte che conta.** Il costo per
+frame e' banda di memoria, quindi una scheda da ~670 GB/s in su farebbe rientrare
+la coda — quello si compra. Ma `dub.rate_x1000` stava a **1450 al p50, al p95, al
+p99 e al massimo**: ogni singola battuta compressa al tetto, e 1,45 e' ben oltre
+l'1,3 dove le consonanti spariscono. Quel numero non dipende dalla GPU: dipende
+dal fatto che il motore parla **la meta'** di Piper (8,4 car/s contro 18,3) e
+produce il 157% del parlato che la scena ha tempo di contenere. Su una 4090
+sarebbe identico, solo puntuale. Si comprerebbe una scheda per sentire la stessa
+voce schiacciata.
 
-**Le due leve sono state provate tutte e due, e insieme non bastano.** La prima e'
-che la voce e' una *descrizione*, quindi la fretta si puo' chiedere a parole
-(`FRETTA` in `speak/backends/qwen.py`); la seconda e' alzare il tetto di WSOLA.
-Sulla stessa scena:
+**Cosa resta, ed e' parecchio.** Lo streaming non era sprecato: il protocollo sta
+in `speak/base.py`, il mixer sa tenere una battuta **aperta** con il suo cuscino
+(`mix.prebuffer_ms`), la catena sa programmare prima di avere l'audio, e la
+verifica `streaming` gira su un motore finto. Chi montera' il prossimo motore
+autoregressivo eredita tutto invece di riscriverlo — e trova gia' scritto il
+difetto che il banco non puo' vedere: **una battuta non si comincia a suonare
+finche' non ha un cuscino di campioni pronti**, se no si sente a goccia.
 
-| | passo | parlato consegnato | WSOLA p50 | latenza p50 |
-|---|---|---|---|---|
-| qwen, com'era | 8,4 car/s | 62 s (125%) | 1,250 | 3,6-6,7 s |
-| + fretta a parole | 9,6 car/s | 54 s (110%) | 1,250 | 3,5 s |
-| + `rate_max=1,45` | 10,8 car/s | 42 s (86%) | **1,450** | 2,2 s |
-| *piper* | *18,3 car/s* | *33 s (66%)* | *1,024* | *533 ms* |
-
-Adesso **gira** — la coda rientra, 86% della scena — ma il criterio dichiarato
-prima della prova era «sopra 13-14 car/s il motore torna in gioco», e il motore
-sta a 10,8. Ci arriva solo con WSOLA a 1,45, cioe' ben oltre l'1,3 dove le
-consonanti spariscono, e quella e' compressione che si sente. **Il numero ha
-detto di no; se poi l'orecchio dice di si', comanda l'orecchio** — ma la
-differenza fra le due risposte va tenuta scritta, non fusa.
-
-Da notare per chi ci torna: «parla svelto» nella descrizione **non fa niente**
-(0,93x), come i tag `<laugh>`. A muovere il tempo e' una descrizione concreta di
-*come* si parla — sillabe fitte, nessuna pausa, urgenza — cioe' qualcosa che si
-puo' recitare. Un aggettivo il modello lo legge come stile e lo butta via.
-
-**Le descrizioni si scrivono in inglese, e il testo da dire resta italiano.** Sono
-le due cose che il modello riceve e vanno in due lingue diverse. Misurato
-contando il sesso che esce (`--voci`, f0 mediana per voce, soglia 165 Hz):
-**italiano 4-5 voci giuste su 8, inglese 7 su 8**, su due passate. In italiano le
-voci femminili uscivano a 159-164 Hz, cioe' maschili — **il difetto piu' udibile
-che ci sia, e nessun contatore lo prende**: la sintesi riesce, il pool assegna la
-voce promessa, e a schermo parla un uomo col nome di una donna. Il sesso va anche
-detto esplicitamente («male voice», non solo «man»).
-
-**E l'hardware che serve si e' rivelato una domanda con una risposta netta:
-banda di memoria.** Il decode a batch 1 non calcola, rilegge i pesi — **6,12 GB
-per ogni 80 ms di audio** — e il tempo si ripartisce fra gli stadi come i byte
-(33/67 contro 23/77), che e' la verifica che non sia overhead per chiamata. Su
-questa 4060 sono 59,9 ms per frame, 0,75x tempo reale, il 37% della banda di
-picco. Quindi si scala con la banda, e la 4060 e' la scheda con **meno** banda del
-suo listino. Serve ~670 GB/s in su e 16 GB: 4070 Ti SUPER / 4080 / 3090 e oltre.
-**A GPU occupata da un carico saturo il passo va a 768 ms per frame, 9,6x**: e' un
-limite superiore al danno, non una previsione, ma con il 25% di margine di questa
-scheda lo streaming non regge il gioco acceso. La tabella sta in
-`speak/backends/qwen.py`.
+E la lezione sul come si sceglie un motore: la domanda decisiva non era la
+latenza, era **quanto parlato produce per secondo di scena**. Quella si misura
+sul banco in un minuto, e avrebbe risparmiato tutto il resto.
 
 **Ma il riferimento vero e' il vivo, ed e' gia' in `runs/`.** Una quarantina di
 sessioni, rilette con `tools/reopen runs\<timestamp>` — quel comando legge le

@@ -185,7 +185,7 @@ class SilentTts:
 # I nomi che `tts.backend` accetta. Dichiarati qui perche' li usano sia la
 # factory sia gli `argparse` degli strumenti: due elenchi diverghevano gia'
 # (`tools/say.py` vietava SuperTonic con un `choices` rimasto indietro).
-BACKEND_NOTI = ("piper", "supertonic", "kokoro", "qwen", "tone", "silent")
+BACKEND_NOTI = ("piper", "supertonic", "kokoro", "tone", "silent")
 
 
 def make_tts(cfg, *, download: bool = True, preload: bool = True):
@@ -239,26 +239,6 @@ def make_tts(cfg, *, download: bool = True, preload: bool = True):
             device=cfg.device,
             download=download,
         )
-    elif nome == "qwen":
-        from speak.backends.qwen import QwenTts
-
-        # **Non fa streaming, quindi dal vivo non e' ancora utilizzabile**: la
-        # battuta intera costa ~3,5 s. Serve all'ascolto sul banco, dove si
-        # giudica se le voci descritte e l'italiano valgono il lavoro di
-        # streaming (che tocca il mixer e i tempi, non questo file).
-        tts = QwenTts(
-            samplerate=cfg.samplerate,
-            device=cfg.device,
-            blocco_iniziale=cfg.stream_first_frames,
-            blocco_massimo=cfg.stream_max_frames,
-            download=download,
-        )
-        if not cfg.stream:
-            # Spegnere lo streaming e' legittimo — serve a rimisurare il divario
-            # invece di ricordarselo — ma va **dichiarato**, perche' da li' in poi
-            # questo motore costa secondi a battuta e chi legge i tempi deve
-            # sapere quale dei due sta guardando.
-            tts.streaming = False
     else:
         raise ValueError(
             f"backend TTS sconosciuto: {cfg.backend!r} (noti: {', '.join(BACKEND_NOTI)})"

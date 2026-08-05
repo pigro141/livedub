@@ -28,12 +28,10 @@ supertonic==1.3.1           # dieci voci native, CPU
 kokoro-onnx==0.5.0          # richiede la GPU; tira espeakng-loader + phonemizer-fork
                             # per il g2p italiano (verificato su Windows: i binari
                             # espeak-ng arrivano col wheel, niente da installare a mano)
-# Serve al backend Qwen (`speak/backends/qwen.py`), e **al posto di
-# `transformers`**: lo script di riferimento del modello chiede `AutoTokenizer`,
-# ma di quel pacchetto usa solo `.encode()`. Un guscio su `tokenizers` legge lo
-# stesso `tokenizer.json` e tiene fuori dal venv un albero di dipendenze intero.
-# Era installato e non dichiarato: da un clone pulito il backend non partiva.
-tokenizers==0.23.1
+# `tokenizers` stava qui per il backend Qwen, che e' stato tolto: adesso non lo
+# importa piu' nessuno (`llama-cpp-python` porta il suo). Tolto anche da qui —
+# una dipendenza dichiarata e non usata fa reinstallare a ogni clone qualcosa che
+# non serve, e la prossima volta che la si legge nessuno sa piu' perche' c'era.
 
 # --- traduzione e correzione del testo (opzionali) ---------------------------
 # **Un solo modello locale per due lavori**: tradurre i sottotitoli e scegliere

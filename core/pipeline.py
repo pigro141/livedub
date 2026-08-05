@@ -944,8 +944,8 @@ class DubPipeline:
         # ricampionarli uno per uno lascerebbe a ogni giuntura una frazione di
         # campione: da 22050 a 48000 il rapporto non e' intero, e i resti si
         # sommano. Si ricampiona quindi **la battuta fin qui** e si consegna solo
-        # la coda nuova — la stessa forma che `QwenTts.stream` usa un piano piu'
-        # sotto, e per lo stesso motivo.
+        # la coda nuova — la stessa forma che deve usare qualunque backend che
+        # consegni a pezzi, e per lo stesso motivo.
         #
         # Saltare del tutto questa conversione non da' errore, ed e' il punto: la
         # prima versione lo faceva, versava campioni a 22050 in un mixer a 48000 e
@@ -1064,7 +1064,7 @@ class DubPipeline:
             # spostata fuori dal thread video sembrava valere -745 ms.
             #
             # Girando qui, l'audio prodotto e' esattamente quello del vivo (lo
-            # verifica `bench_qwen --pezzi`: i blocchi concatenati sono la battuta
+            # e' stato verificato che i blocchi concatenati siano la battuta
             # intera), e cio' che il banco smette di poter dire — il tempo al primo
             # campione — e' precisamente cio' che non saprebbe dire comunque.
             produci()

@@ -1,145 +1,34 @@
 # Cosa verificare a mano
 
 Lavoro fatto in autonomia. Qui sotto **solo le cose che io non ho potuto
-verificare**, in ordine di quanto costa sbagliarsi. La suite è verde (1039
+verificare**, in ordine di quanto costa sbagliarsi. La suite è verde (1087
 verifiche) ma la suite non sente niente: ogni difetto serio di questo progetto è
 stato trovato dall'orecchio, con la suite verde.
 
 ---
 
-## 0. La prova live di Qwen: un comando, e il criterio scritto PRIMA
+## Qwen: chiuso, e non c'e' piu' niente da verificare
 
-```powershell
-.\.venv\Scripts\python.exe -m tools.ui --profile live --loopback voicemeeter `
-    --set vision.ocr_backend=oneocr --set tts.backend=qwen `
-    --set tts.device=cuda --set timing.rate_max=1.45
-```
+La prova dal vivo l'abbiamo fatta due volte. La prima aveva dentro un difetto mio
+(la battuta partiva prima di essere generata) e non valeva; sistemato quello, la
+seconda ha sfondato tutte e tre le soglie dichiarate prima:
 
-Gioca cinque minuti con dialogo fitto, poi chiudi e mandami la cartella
-`runs\<timestamp>`.
-
-**Il criterio, dichiarato adesso perché una previsione scritta dopo non può
-perdere.** Qwen resta se e solo se, dal vivo su questa 4060:
-
-| numero | soglia | cosa vuol dire se sfora |
+| criterio | soglia | misurato |
 |---|---|---|
-| `mix.underrun` | **0** | sopra zero la voce si spezza a metà battuta: è il difetto che chiude la partita |
-| latenza p50 | **< 2,5 s** | sopra, il doppiaggio arriva quando la scena è cambiata |
-| `dub.rate_x1000` p50 | **< 1450** | al tetto significa che comprime sempre al massimo |
+| `mix.underrun` | 0 | **5415** |
+| latenza p50 | < 2,5 s | **26,7 s** al primo campione |
+| compressione | < 1450 | **1450 a ogni percentile** |
 
-**Se `mix.underrun` è > 0 su questa scheda**, la domanda diventa quella che hai
-posto tu: esiste hardware consumer che ce la fa? La risposta l'ho già misurata in
-parte — il costo è **banda di memoria**, 6,12 GB riletti per ogni 80 ms di audio,
-e il tempo segue i byte. Scalando: una 4070 Ti SUPER sta a ~0,30× tempo reale
-contro lo 0,75× di questa, una 3090/4090 a ~0,21×. Cioè il margine passa dal 25%
-al 70-79%, e **a quel punto il gioco acceso ci sta dentro**.
+Su 65 battute lette, 25 hanno prodotto audio. **Il backend e' stato tolto.**
 
-Quindi il piano è: se qui va male, non togliamo Qwen subito — la conclusione
-onesta è «serve una scheda da ~670 GB/s in su». Lo togliamo se anche su quella
-classe di hardware non regge, e per saperlo serve provarci sopra.
+Quello che resta e che non va buttato: il mixer sa tenere una battuta aperta col
+suo cuscino, la catena sa programmare prima di avere l'audio, e la verifica
+`streaming` gira su un motore finto. Il prossimo motore autoregressivo eredita
+tutto.
 
-## 1. Qwen dal vivo — **non l'ho mai provato dal vivo, e va detto per primo**
-
-Tutti i numeri di Qwen sono **di banco**. Sullo streaming c'è un motivo
-strutturale: con l'orologio virtuale il produttore non può consegnare in tempo,
-quindi sul banco gira dentro il thread. L'audio è identico; il tempo al primo
-campione lì non esiste.
-
-**Da fare**: una sessione dal vivo con `--set tts.backend=qwen`.
-
-**Cosa guardare**, in ordine:
-
-- `mix.underrun` nel riepilogo. **Se è maggiore di zero, lo streaming non sta
-  dietro** e la voce si interrompe a metà battuta. Me lo aspetto > 0: il modello
-  ha il 25% di margine su questa 4060 e il gioco gliene toglie di più.
-- la latenza in `speaker.jsonl` contro i ~2,2 s del banco.
-- **all'ascolto**: se la voce si spezza a metà parola, è l'underrun; se è
-  impastata ma continua, è WSOLA a 1,45.
-
-## 2. WSOLA a 1,45 — decide l'orecchio, non ho un numero
-
-Per far stare Qwen nella scena ho alzato il tetto della compressione a 1,45 in
-una prova (`--set timing.rate_max=1.45`), **ben oltre l'1,3 dove le consonanti
-spariscono**. Il default resta 1,25 e non l'ho toccato.
-
-**Da fare**: sentire l'MP4 che ti ho mandato. La domanda è una sola — a 1,45 la
-voce articola ancora o si mangia le parole?
-
-Se si mangia le parole, Qwen è chiuso e va lasciato spento: senza quel tetto non
-ci sta nella scena.
-
-## 3. Le voci di Qwen adesso sono in inglese e concitate
-
-Due cambiamenti che si sentono e che nessun numero giudica:
-
-- le descrizioni sono in **inglese** (il testo da dire resta italiano). Misurato:
-  il sesso della voce esce giusto 7 volte su 8 invece di 4-5;
-- tutte portano in coda «parla rapidissimo, sillabe fitte, nessuna pausa», che è
-  l'unica leva di velocità che quel modello ha. **Costo dichiarato**: tutti i
-  personaggi hanno una punta di concitazione che nell'originale non c'è.
-
-**Da fare**: dire se quella concitazione è accettabile o se preferisci voci
-naturali e Qwen fuori dai giochi.
-
-## 4. Il nome del parlante — **provato solo su testo finto**
-
-GTA V i nomi non li scrive, quindi le 31 verifiche girano su stringhe scritte da
-me. Dicono che il codice fa quello che dichiara, **non** che funzioni su un gioco.
-
-**Da fare**, quando hai una registrazione di un gioco che scrive i nomi:
-
-```powershell
-.\.venv\Scripts\python.exe -m tools.dub <video> --profile <gioco> `
-    --set label.enabled=true --set label.form="nome:" `
-    --set label.names="Nome1,Nome2,Nome3" --mp4
-```
-
-**Cosa guardare**:
-
-- `vision.label.hit` nel riepilogo. **Se è zero, il formato dichiarato non è
-  quello che il gioco scrive** — prova le altre forme (`[nome]`, `nome-`) o una
-  regex.
-- nell'MP4: il nome **non deve essere pronunciato**. Se senti «Franklin due punti
-  come va», la rimozione non ha funzionato su quel formato.
-- che due personaggi diversi prendano due voci diverse.
-- la latenza: dovrebbe scendere di ~500 ms rispetto alla stessa scena senza
-  etichetta. **È il motivo per cui la feature esiste**, ed è la cosa che vale la
-  pena misurare due volte.
-
-Compila sempre `label.names` se puoi: è la guardia che impedisce a un errore di
-OCR di diventare un personaggio e di bruciargli addosso una voce del pool.
-
-## 5. SuperTonic sui PC vecchi — cosa ho fatto, in parole semplici
-
-**Il problema**: la lista chiedeva se il programma rallenta su un PC vecchio, e
-c'era scritto «serve l'altro PC».
-
-**Cosa ho capito**: un PC vecchio è lento per due motivi diversi — ha **meno
-core**, e ogni core è **più lento**. Il primo si può simulare su questa macchina:
-dico a Windows «questo programma può usare solo 4 processori» e misuro. Il
-secondo no: non posso rendere lenti i core che ho.
-
-**Cosa ho fatto**: ho misurato quanto costa sintetizzare una battuta con 8, 6, 4
-e 2 core.
-
-**Cosa è venuto fuori**: SuperTonic passa da mezzo secondo a **1,3 secondi** a
-battuta su 4 core. Piper passa da 48 millisecondi a 261. Su un PC a 4 core,
-SuperTonic non è usabile e Piper sì.
-
-**Cosa NON ho provato**: core più lenti. Quindi i miei numeri sono il **caso
-migliore** — un PC vero, con core anche più lenti dei miei, va peggio di così.
-
-**Cosa ne faccio**: sotto i 6 core il programma dovrebbe usare Piper. Se hai
-davvero l'altro PC, la prova vera è farci girare una sessione.
-
-| core fisici | supertonic | piper |
-|---|---|---|
-| 8 (questa macchina) | 493-573 ms | ~48 ms |
-| 4 | **1315 ms** | 261 ms |
-| 2 | 3627 ms | 491 ms |
-
-**Conclusione**: sotto i 6 core, `tts.backend=piper`. Se hai davvero l'altro PC a
-disposizione, la verifica vera è una sessione lì.
+E la lezione da portarsi dietro quando si valuta il prossimo: **la domanda
+decisiva non e' la latenza, e' quanto parlato produce per secondo di scena.** Qwen
+ne produceva il 157%: nessuno scheduler e nessuna scheda video lo salvano.
 
 ## 4-bis. Il nome del parlante: cosa vuol dire «modulare», in concreto
 
@@ -263,10 +152,8 @@ dimensione ti sembra giusta (`translate.font_frac`, oggi 0,038 dell'altezza).
 
 ## Quello che invece è verificato e non richiede niente
 
-- lo streaming consegna **la stessa battuta** di `synthesize`, campione per
-  campione, e le giunture non aggiungono errore (`bench_qwen --pezzi`);
-- il ciclo autoregressivo srotolato è fedele all'originale (scarto: un passo di
-  quantizzazione a 16 bit, cioè solo la scrittura del WAV);
+- il cuscino non tocca i motori normali: aggregati identici con cuscino a 350 ms
+  e a 0, e il contatore `mix.prebuffer` resta a zero perché quel ramo non parte;
 - le guardie della correzione reggono anche con un correttore sconsiderato: una
   parola italiana non gli viene nemmeno proposta;
 - la sfocatura è applicata **solo** negli istanti dichiarati (ROI a 0,00 dentro,

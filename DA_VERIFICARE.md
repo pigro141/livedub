@@ -1,7 +1,7 @@
 # La tua prova, e cosa guardare
 
 Questo file e' il foglio della **prova d'ascolto**: come si accende, cosa
-guardare, e cosa mi serve nel tuo report. La suite e' verde (1112 verifiche) ma
+guardare, e cosa mi serve nel tuo report. La suite e' verde (1120 verifiche) ma
 la suite non sente niente: ogni difetto serio di questo progetto e' stato trovato
 dal tuo orecchio, con la suite verde.
 
@@ -38,43 +38,57 @@ vedrebbe — senza che niente lo dica.
 
 ---
 
-## 1. La grafica del sottotitolo tradotto — riscritta, e stavolta guardata
+## 1. La grafica — rifatta da capo, e stavolta l'ho guardata io in MP4
 
-Era il punto aperto: scritta e mai vista a schermo. **L'ho guardata**, mettendo
-un fotogramma della registrazione a tutto schermo e disegnandoci sopra l'overlay
-vero, e aveva un difetto che nessuna verifica poteva prendere:
+Avevi ragione su tutto, e il difetto peggiore l'hai trovato tu.
 
-> la finestra veniva dimensionata sul testo **originale**, e dentro ci si
-> disegnava quello **tradotto**. `"But if I had one, I'd want it to be like you,
-> and that is the whole point of it."` compariva come `"be like you, and that is
-> the"` — la riga di mezzo, tagliata sopra e sotto.
+**La nostra finestra finiva dentro la cattura.** La catena fotografa lo schermo
+30 volte al secondo per darlo all'OCR, e la finestra del tradotto **sta sullo
+schermo**: misurato, il 100% dei suoi pixel entrava nel fotogramma, con tutti e
+due i backend. L'OCR non leggeva piu' il gioco, leggeva noi — ed e' quello che ti
+saltava le righe. Adesso la finestra e' dichiarata **fuori dalla cattura** con la
+stessa funzione di Windows con cui le app nascondono le password dalla
+condivisione schermo. Rimisurato dopo: **0%**.
 
-Adesso la finestra e' il **massimo fra i due**: l'inchiostro vecchio (per
-coprirlo) e il testo nuovo (per leggerlo), e cresce verso l'alto restando
-appoggiata dov'era la riga vecchia. La sfocatura e' passata da un velo che
-lasciava leggere l'italiano sotto a una che lo cancella.
+**Si cancella la scrittina, non il riquadro.** Prima si spegneva una fascia larga
+mezzo schermo. Adesso si tocca **solo la riga che l'OCR ha letto**, e il resto
+della finestra e' un buco trasparente da cui si vede il gioco intatto. E non si
+sfoca: si **ricostruisce lo sfondo** al posto delle lettere (inpaint), perche' la
+domanda giusta non era «renderla illeggibile» ma «farla sembrare mai esistita» —
+sopra ci va la nostra, e due sottotitoli sovrapposti si vedono anche quando uno
+e' sfocato.
 
-**Cosa guardare a schermo:**
+**Il testo copia quello del gioco**: misura e colore si prendono dal sottotitolo
+che si sta coprendo, e sono il default. Su GTA V viene bianco della stessa taglia;
+su un gioco che colora i personaggi verrebbe del loro colore. Restano regolabili
+(`translate.font_frac`, `translate.color`), e l'interfaccia li esporra'.
 
-- il riquadro cade **sul** sottotitolo del gioco, non altrove;
-- dell'originale non si legge piu' niente, nemmeno ai lati del testo nuovo;
-- una battuta lunga si legge **tutta**, anche quando va a capo;
-- **dopo aver ridisegnato l'area con «Seleziona area»** il riquadro segue: era
-  rotto, la finestra restava dove stava la ROI di partenza;
-- che non dia fastidio giocando: non deve rubare i clic ne' il fuoco.
+**E un'altra cosa che si vedeva solo guardando**: la finestra spariva quando
+finiva la nostra voce, non quando spariva il sottotitolo del gioco — quindi per
+l'ultimo pezzo di battuta tornava a vedersi l'italiano. Adesso resta finche' resta
+l'originale.
 
-Puoi cambiare come copre senza toccare il codice:
+### Guardalo prima di accendere il gioco
 
-    --set translate.background_mode=blur       (default adesso, sfoca)
-    --set translate.background_mode=riquadro   (rettangolo pieno, stretto sul testo)
-    --set translate.background_mode=nessuno    (niente sfondo, si vede il gioco)
-    --set translate.blur_strength=20           (piu' alto = piu' sfocato)
-    --set translate.font_frac=0.045            (testo piu' grande)
+    .\.venv\Scripts\python.exe -m tools.overlay_mp4 testGameplayFattoDaMe.mp4 runs\<passata> `
+        --profile gtav --offset 1240 --start 1240 --end 1285 --out runs\ov\overlay.mp4
 
-**Se il riquadro cade nel posto sbagliato** dimmi *dove* cade rispetto al
-sottotitolo (sopra? spostato a destra? troppo largo?): la conversione ora passa
-dalle coordinate normalizzate e ha una verifica sua, quindi un errore li'
-significherebbe che la cattura non inquadra lo schermo intero.
+Questo monta un video con **lo stesso codice che disegna la finestra dal vivo**,
+quindi non e' un disegno: e' la grafica. Da adesso i giri di correzione li faccio
+qui e ti mando il video, invece di farti accendere tutto ogni volta.
+
+**Quello che il video non puo' dire**, e che resta da vedere a schermo: se la
+finestra ruba i clic, se sfarfalla quando si sposta, se il gioco la lascia sopra
+di se', e — la piu' importante — **se adesso l'OCR non salta piu' le righe**.
+
+Puoi cambiare come copre:
+
+    --set translate.background_mode=cancella   (default: la riga sparisce)
+    --set translate.background_mode=blur       (sfocata: resta una fascia grigia)
+    --set translate.background_mode=riquadro   (rettangolo pieno, stretto sulla riga)
+    --set translate.background_mode=nessuno    (non si cancella niente)
+    --set translate.font_frac=0.045            (forza la taglia invece di copiarla)
+    --set translate.color=#ffcc00              (forza il colore)
 
 ## 2. La compressione — alzata la scusa, e serve il tuo giro per chiuderla
 

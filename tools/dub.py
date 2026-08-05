@@ -276,7 +276,12 @@ def main(argv: list[str] | None = None) -> int:
                 cfg.translate, cfg.vision.roi,
             )
         blur = ""
-        if tradotti is not None and cfg.translate.background_mode.lower() == "blur":
+        # `cancella` dal vivo ricostruisce lo sfondo al posto dei glifi; ffmpeg
+        # non lo sa fare, e il piu' vicino che ha e' il blur. Trattarlo come un
+        # modo sconosciuto vorrebbe dire un MP4 con i due sottotitoli
+        # sovrapposti, che e' proprio la cosa che questi modi esistono per
+        # evitare.
+        if tradotti is not None and cfg.translate.background_mode.lower() in ("blur", "cancella"):
             blur = _filtro_blur(
                 args.mp4_width, cfg.vision.roi, cfg.translate.blur_strength, quando
             )
@@ -387,7 +392,12 @@ def scrivi_tradotti(righe: list, destinazione: Path, larghezza: int, cfg, roi):
         return None, []
 
     altezza = int(larghezza * 9 / 16)
-    corpo = max(12, int(altezza * cfg.font_frac))
+    # `font_frac` a zero vuol dire «come il gioco», e dal vivo si misura
+    # dall'altezza dei glifi originali. Qui ffmpeg non li ha: si dichiara il
+    # valore di ripiego invece di finire a 12 punti, che e' cio' che accadeva
+    # leggendo lo zero come una misura.
+    frazione = cfg.font_frac if cfg.font_frac > 0 else 0.038
+    corpo = max(12, int(altezza * frazione))
     # La ROI e' normalizzata (x, y, w, h): il margine dal basso e' quanto resta
     # sotto il suo bordo inferiore.
     x, y, w, h = roi
@@ -418,7 +428,7 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: dub,{cfg.font},{corpo},{_ass_colore(cfg.color)},{contorno},{sfondo},0,{bordo},{cfg.outline},0,2,{margine_l},{margine_r},{margine_v},1
+Style: dub,{cfg.font},{corpo},{_ass_colore(cfg.color or "#ffffff")},{contorno},{sfondo},0,{bordo},{cfg.outline},0,2,{margine_l},{margine_r},{margine_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Text

@@ -48,16 +48,17 @@ aspetta una misura:
 
 ## Le due cose che questa sessione ha cambiato
 
-**1. La grafica dell'overlay: guardata, rotta, riparata.** Era l'unico pezzo che
-nessuno aveva mai visto funzionare. Messa su un fotogramma a tutto schermo si
-vedeva al primo sguardo che la finestra veniva dimensionata sul testo
-**originale** mentre dentro ci si disegnava quello **tradotto** — una battuta di
-tre righe usciva come la sua riga di mezzo, tagliata. Più: il riquadro nasceva
-dall'ingombro grezzo della maschera invece che dalle righe lette dall'OCR, la
-sfocatura lasciava leggere l'originale, `background_mode`/`blur_strength` non li
-leggeva nessuno dal vivo, e il selettore d'area non spostava l'overlay. Tutto
-corretto, tutto guardato a schermo, e la geometria è ora una funzione pura
-(`ui.overlay.disposizione`) con il suo gruppo di verifiche.
+**1. La grafica dell'overlay: rifatta due volte, la seconda dopo che l'utente
+l'ha provata dal vivo.** Il difetto peggiore l'ha trovato lui e non era grafico:
+**la nostra finestra finiva dentro la cattura**. La catena fotografa lo schermo
+per darlo all'OCR, e la finestra sta sullo schermo — misurato, il 100% dei suoi
+pixel entrava nel fotogramma, con `mss` e con `dxcam`. L'OCR leggeva noi, e le
+righe sparivano. `WDA_EXCLUDEFROMCAPTURE` porta quel numero a 0%.
+E poi: si spegneva tutto il riquadro invece della sola riga, il carattere era
+scelto da noi ed enorme, la finestra spariva alla fine della nostra voce invece
+che alla fine del sottotitolo. Adesso si tocca solo la riga letta, si
+**ricostruisce lo sfondo** al posto dei glifi (inpaint), e **misura e colore si
+copiano dal sottotitolo del gioco**.
 
 **2. `accepted_delay_ms` da 250 a 1250, misurato.** La compressione restava a
 1250 su *tutti* i percentili con la scena piena a metà. Non era il passo: era la
@@ -83,7 +84,7 @@ staccarsi da 1250 nella prossima sessione dal vivo. È scritto in
 ## Il banco
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                    # 1112 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest                    # 1120 verifiche
 .\.venv\Scripts\python.exe -m tools.dub testGameplayFattoDaMe.mp4 --profile gtav `
     --start 1240 --end 1290 --set vision.ocr_backend=oneocr --mp4
 .\.venv\Scripts\python.exe -m tools.reopen runs\<cartella> [secondo]
@@ -99,12 +100,18 @@ powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci
 
 ## Le due lezioni di questa sessione
 
-**Un pezzo di codice che nessuno ha guardato non è "scritto", è "supposto" — e
-guardarlo costa venti minuti.** L'overlay è stato messo su un fotogramma a tutto
-schermo, fotografato e guardato: il difetto era il primo che si vedeva. Nessuna
-verifica lo prendeva perché **non esisteva nessuna verifica sull'overlay**, e la
-suite verde è stata scambiata per una conferma. Adesso la geometria è una
-funzione pura con un gruppo suo, e quel difetto farebbe rosso.
+**Un anello di reazione non lascia tracce nel pezzo che rompe.** L'overlay
+rientrava nella cattura che alimenta l'OCR: il programma leggeva il proprio
+testo, e il sintomo — righe saltate — sembrava un difetto dell'OCR. Nessun
+contatore poteva dirlo. La domanda che lo scioglie in un minuto è **«quello che
+scriviamo può rientrare da dove leggiamo?»**, e si risponde mettendo a schermo un
+colore che nel gioco non esiste e cercandolo nei pixel catturati.
+
+**Quando l'utente deve accendere il gioco per giudicare, lo strumento è
+sbagliato.** Ogni giro di correzione sulla grafica gli costava una sessione
+intera, e dopo due giri si consegna una cosa sbagliata perché nessuno ne fa un
+terzo. `tools/overlay_mp4.py` monta un video con **lo stesso pittore del vivo**:
+i giri si fanno da soli in trenta secondi, e all'utente si manda il video.
 
 **Una soglia va rimisurata quando cambia la catena, non quando cambia il
 sintomo.** `accepted_delay_ms = 250` era misurato bene, su una catena che costava

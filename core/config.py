@@ -1234,38 +1234,43 @@ class TranslateConfig:
     # riquadro si leggerebbero due testi sovrapposti, che e' peggio di nessuno
     # dei due.
     overlay: bool = True
-    # Come si copre il sottotitolo originale sotto quello tradotto:
+    # Come si copre il sottotitolo originale sotto quello tradotto. **In tutti e
+    # tre i casi si tocca solo l'inchiostro delle righe lette, non la ROI**:
+    # spegnere una fascia larga mezzo schermo per coprire una riga di testo era
+    # il difetto, non la soluzione.
     #
-    #   `riquadro` un rettangolo pieno del colore di `background`;
-    #   `blur`     si sfoca la ROI invece di coprirla — l'originale diventa
-    #              illeggibile ma il gioco resta visibile sotto, che a schermo e'
-    #              molto meno invadente di una macchia nera;
-    #   `nessuno`  niente sfondo, solo il contorno del testo. Si legge solo se
-    #              sotto c'e' poco, e sotto c'e' l'originale: da usare sapendolo.
-    #
-    # `blur` costa un filtro video in piu' e vale solo quando un sottotitolo
-    # tradotto e' a schermo: fuori da quegli istanti la ROI resta nitida.
-    #
-    # **Il default e' `blur` da quando lo si e' guardato a schermo.** Era
-    # `riquadro`, e dal vivo non lo leggeva nessuno: l'overlay sfocava sempre,
-    # qualunque cosa dicesse questo campo. Adesso lo legge — e fra i tre, sul
-    # gioco acceso, e' il blur quello che copre l'originale senza mettere una
-    # macchia nera in mezzo allo schermo.
-    background_mode: str = "blur"  # riquadro | blur | nessuno
-    # Quanto sfocare. Per l'MP4 e' il raggio di `boxblur` in pixel del video;
-    # dal vivo e' un raggio dichiarato **a 1080p** e riscalato con l'altezza del
-    # fotogramma, perche' a 1440p le lettere sono piu' grandi e una sfocatura in
-    # pixel fissi ne lascia leggere la forma. Verificato a schermo su una
-    # cattura 1920x1080 mostrata a 2560x1440: a 12 l'originale non si legge piu'.
+    #   `cancella` si **ricostruisce lo sfondo** al posto dei glifi (inpaint): la
+    #              riga originale sparisce e resta la scena. E' il default, ed e'
+    #              l'unico dei quattro che risponda alla domanda giusta — che non
+    #              e' «rendere illeggibile» ma «far sembrare che non ci sia mai
+    #              stato», visto che sopra ci va il nostro sottotitolo;
+    #   `blur`     si sfocano i glifi: illeggibili, ma resta una fascia grigia
+    #              che si vede. E' quello che fa ffmpeg per l'MP4;
+    #   `riquadro` un rettangolo pieno del colore di `background`, stretto sulla
+    #              riga;
+    #   `nessuno`  non si cancella niente: si scrive sopra e basta.
+    background_mode: str = "cancella"  # cancella | blur | riquadro | nessuno
+    # Quanto sfocare. Per l'MP4 e' il raggio di `boxblur` in pixel del video; dal
+    # vivo e' il raggio **su un inchiostro alto 40 px** (GTA V a 1080p) e segue
+    # l'altezza dei glifi, cosi' lo stesso numero cancella allo stesso modo a
+    # 1080p e a 1440p e su un gioco che scrive piu' grande.
     blur_strength: float = 12.0
-    # Altezza del carattere come frazione dell'altezza del fotogramma. In
-    # frazione e non in punti: la stessa configurazione deve valere a 1080p e a
-    # 1440p, e un numero in punti no.
-    font_frac: float = 0.038
+    # **Zero vuol dire «come il gioco», ed e' il default.** La misura del
+    # carattere si prende dall'altezza dei glifi del sottotitolo che si sta
+    # coprendo: cosi' la battuta tradotta si posa dove stava l'originale, della
+    # stessa taglia, e sembra il sottotitolo del gioco invece di un cartello
+    # appiccicato sopra. Un numero scelto da noi e' sbagliato per costruzione,
+    # perche' ogni gioco scrive i sottotitoli come vuole.
+    #
+    # Diverso da zero: altezza come **frazione dell'altezza dello schermo**, in
+    # frazione e non in punti, cosi' vale a 1080p e a 1440p.
+    font_frac: float = 0.0
     font: str = "Arial"
-    # Colori in formato `#rrggbb`. Il fondo copre l'originale, quindi la sua
-    # opacita' e' quello che decide se la sostituzione funziona davvero.
-    color: str = "#ffffff"
+    # **Vuoto vuol dire «come il gioco»**, per la stessa ragione della misura: si
+    # usa il colore medio dei glifi originali, riportato alla sua luminosita'
+    # vera. Su GTA V viene bianco; su un gioco che colora i personaggi, viene il
+    # colore del personaggio. Diverso da vuoto: `#rrggbb`, e vince.
+    color: str = ""
     background: str = "#000000"
     background_opacity: float = 1.0
     outline: float = 2.0

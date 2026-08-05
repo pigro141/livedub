@@ -44,6 +44,7 @@ from core.config import Config, load_profile  # noqa: E402
 from core.pipeline import DubPipeline  # noqa: E402
 from tools.live import costruisci_tts  # noqa: E402
 from tools.session import Session  # noqa: E402
+from ui.overlay import inchiostro  # noqa: E402
 
 
 class SelettoreArea:
@@ -135,6 +136,7 @@ class App:
                 font=self.cfg.translate.font,
                 font_frac=self.cfg.translate.font_frac,
                 opacita=self.cfg.translate.background_opacity,
+                contorno=self.cfg.translate.outline,
                 # **Due campi che nessuno leggeva.** `background_mode` e
                 # `blur_strength` valevano solo per l'MP4: dal vivo l'overlay
                 # sfocava sempre, qualunque cosa dicesse la config. E' lo stesso
@@ -216,9 +218,9 @@ class App:
                         tag=f"s{self.noti[sid]}",
                     )
                 elif tipo == "overlay":
-                    testo, fine, pezzo, box, rett = dato
+                    testo, fine, pezzo, bande, rett, inchiostro = dato
                     if self.overlay is not None:
-                        self.overlay.mostra(testo, pezzo, box, rett)
+                        self.overlay.mostra(testo, pezzo, bande, rett, inchiostro)
                         self._overlay_fino_a = fine
                 elif tipo == "stato":
                     self.l_stato.config(text=dato)
@@ -324,13 +326,23 @@ class App:
                         # se c'e' stata una traduzione — se no si coprirebbe il
                         # sottotitolo originale con sé stesso.
                         if self.overlay is not None and riga.text_original:
-                            fine = time.perf_counter() + max(riga.duration, 1.0)
+                            # **Quanto resta a schermo il tradotto: quanto il
+                            # sottotitolo del gioco, non quanto la nostra voce.**
+                            # La durata dell'audio doppiato e' quasi sempre piu'
+                            # corta della permanenza del sottotitolo: usando
+                            # quella, la finestra spariva mentre l'originale era
+                            # ancora li', e per l'ultimo pezzo di battuta si
+                            # tornava a vedere l'italiano. La permanenza prevista
+                            # e' `D = a + b*n`, che la catena stima gia' e corregge
+                            # mentre gira.
+                            resta = self.pipeline.timing.predict(riga.text)
+                            fine = time.perf_counter() + max(riga.duration, resta)
                             # **Il fotogramma ce l'abbiamo gia' in mano.** Serviva
                             # all'OCR; per sfocare il sottotitolo vecchio basta
                             # ritagliarlo, e non c'e' nessuna seconda cattura da
                             # pagare — cosa che avevo scritto e che era falsa.
                             self.coda.put(
-                                ("overlay", (riga.text, fine, *_inchiostro(g.frame, self.cfg)))
+                                ("overlay", (riga.text, fine, *inchiostro(g.frame, self.cfg)))
                             )
                     if n % 30 == 0:
                         p = len(self.pipeline.tracker) if self.pipeline.tracker else 0
@@ -395,70 +407,6 @@ class App:
 
     def run(self) -> None:
         self.root.mainloop()
-
-
-def _inchiostro(frame, cfg):
-    """Un pezzo del fotogramma attorno al sottotitolo, e dove sta l'inchiostro.
-
-    Serve all'overlay per due cose insieme: sfocare il sottotitolo vecchio, e
-    mettersi addosso a lui invece di stendere una fascia su mezzo schermo per una
-    battuta di due parole.
-
-    Torna `(pezzo, box, rett)`:
-
-    - `pezzo` e' una **copia** di una fascia del fotogramma, larga quanto la ROI
-      e alta abbastanza da contenere anche una traduzione di tre righe dove
-      l'originale ne aveva una. Copia e non vista: dxcam riusa il suo buffer, e
-      il pezzo viaggia in una coda e viene disegnato fino a un decimo di secondo
-      dopo;
-    - `box` e' il rettangolo dell'inchiostro **dentro il pezzo**, in pixel;
-    - `rett` e' dove sta il pezzo nel fotogramma, in coordinate normalizzate —
-      la stessa forma della ROI, che e' cio' che permette all'overlay di passare
-      ai pixel dello schermo senza supporre niente sulle proporzioni.
-
-    **Le righe sono quelle che l'OCR ha letto davvero** (`classify_lines`), non
-    l'ingombro della maschera: la maschera accesa da un riflesso in un angolo
-    della ROI allargherebbe il riquadro a tutto lo schermo, e le righe colorate —
-    che l'OCR scarta perche' non sono dialogo — lo allargherebbero verso pezzi di
-    HUD. Una seconda regola per la stessa cosa divergerebbe dalla prima, ed e' il
-    genere di doppione che questo progetto ha gia' pagato.
-
-    `(None, None, None)` se non si capisce dove sia il testo: l'overlay ricade sul
-    rettangolo pieno invece di piazzare un riquadro a caso.
-    """
-    try:
-        import numpy as np
-
-        from vision.lines import LineClass, classify_lines
-        from vision.roi import roi_pixels
-
-        h_f, w_f = frame.shape[:2]
-        rx, ry, rw, rh = roi_pixels(frame.shape, cfg.vision.roi)
-        roi = frame[ry : ry + rh, rx : rx + rw]
-        if roi.size == 0:
-            return None, None, None
-        righe = [r for r in classify_lines(roi, cfg.vision) if r.cls is not LineClass.COLORED]
-        if not righe:
-            return None, None, None
-
-        x0 = rx + min(r.x0 for r in righe)
-        x1 = rx + max(r.x1 for r in righe)
-        y0 = ry + min(r.top for r in righe)
-        y1 = ry + max(r.bottom for r in righe) + 1
-
-        # La fascia: larga quanto la ROI (e' li' che il gioco manda a capo) e
-        # alta quanto servirebbe a tre righe del carattere dichiarato, cosi'
-        # l'overlay ha da ritagliare anche quando la traduzione cresce.
-        alt_min = int(4.0 * cfg.translate.font_frac * h_f)
-        centro = (y0 + y1) // 2
-        meta = max((y1 - y0) // 2 + int(0.02 * rw), alt_min // 2)
-        ay0, ay1 = max(0, centro - meta), min(h_f, centro + meta)
-        pezzo = np.ascontiguousarray(frame[ay0:ay1, rx : rx + rw])
-        box = (x0 - rx, y0 - ay0, x1 - x0, y1 - y0)
-        rett = (rx / w_f, ay0 / h_f, rw / w_f, (ay1 - ay0) / h_f)
-        return pezzo, box, rett
-    except Exception:  # pragma: no cover - meglio nessun blur che nessuna battuta
-        return None, None, None
 
 
 def main(argv: list[str] | None = None) -> int:

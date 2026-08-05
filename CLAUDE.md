@@ -37,7 +37,7 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest              # 1112 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest              # 1120 verifiche
 .\.venv\Scripts\python.exe -m tools.selftest speaker pool # gruppi scelti
 .\.venv\Scripts\python.exe -m tools.selftest -v           # con i verdi in chiaro
 
@@ -54,6 +54,11 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 # modello) e la configurazione stampata: la riga sotto e' lunga otto opzioni, e
 # copiarla male non da' errore — da' una prova fatta con un'altra configurazione.
 powershell -ExecutionPolicy Bypass -File tools\prova.ps1 [-Traduci] [-Motore piper]
+
+# come si vedrebbe l'overlay, senza accendere il gioco: stesso pittore del vivo.
+# `--frames N` sputa N PNG invece del video, e si guardano subito.
+.\.venv\Scripts\python.exe -m tools.overlay_mp4 testGameplayFattoDaMe.mp4 runs\<passata> `
+    --profile gtav --offset 1240 --start 1240 --end 1285 --out runs\ov\overlay.mp4
 
 # dal vivo con traduzione, grafica e audio (serve `ollama serve` acceso)
 .\.venv\Scripts\python.exe -m tools.ui --profile live --loopback voicemeeter `
@@ -259,13 +264,31 @@ resto e' onomatopee, forme vere non elencate e frammenti di HUD).
 **`ui/overlay.py`** — il sottotitolo tradotto disegnato sopra il gioco. Dal vivo
 il fotogramma non passa da noi, quindi serve una finestra: senza bordi, sempre in
 primo piano, con i clic che la attraversano e senza rubare il fuoco — che in molti
-giochi vuol dire mettere in pausa. La finestra e' il **massimo fra due
-rettangoli**: l'inchiostro vecchio, che va coperto, e il testo nuovo, che va
-letto. Dimensionarla sul solo primo — cioe' sull'originale — e' esattamente il
-difetto che ci si e' trovati dentro: una battuta che in inglese occupa tre righe
-dove l'italiano ne occupava una usciva tagliata sopra e sotto. La geometria sta
-in `disposizione()`, funzione **pura e fuori da Tk apposta**: dentro un widget si
-verificherebbe solo guardandola, e infatti non era verificata affatto.
+giochi vuol dire mettere in pausa.
+
+**E fuori dalla cattura, che viene prima di tutto il resto.** La nostra finestra
+sta sullo schermo, e lo schermo e' cio' che diamo all'OCR: misurato, **il 100%**
+dei suoi pixel finiva nel fotogramma catturato, con `mss` e con `dxcam`. L'OCR
+smetteva di leggere il gioco per leggere noi, e le righe sparivano.
+`WDA_EXCLUDEFROMCAPTURE` porta quel numero a **0%**. Non e' una rifinitura: senza,
+niente di quello che c'e' a monte funziona, e il difetto sembra dell'OCR.
+
+**Si cancella la scrittina, non il riquadro.** Si tocca solo l'inchiostro delle
+righe che l'OCR ha letto, una per riga; tutto il resto della finestra e' un buco
+trasparente (colore-chiave) da cui si vede il gioco intatto. E la domanda giusta
+non era «rendere illeggibile» ma **«far sembrare che quel sottotitolo non ci sia
+mai stato»**, perche' sopra ci va il nostro: confrontati sulla stessa riga vera,
+sfocare la striscia lascia una fascia grigia, sfocare i soli glifi li lascia
+leggibili, il rettangolo e' una macchia — **ricostruire lo sfondo** (inpaint, il
+modo `cancella`) la fa sparire.
+
+**Misura e colore del testo si copiano dal gioco**: l'altezza della banda dice il
+corpo, il colore medio dell'inchiostro dice la tinta. `font_frac=0` e `color=""`
+vogliono dire «come il gioco», e sono i default. Un carattere scelto da noi e'
+sbagliato per costruzione, perche' ogni gioco scrive i sottotitoli come vuole.
+La misura si tiene **a memoria col massimo** (`MisuraCarattere`), perche' su un
+fotogramma solo segue la dissolvenza: 23 punti a meta' sfumatura contro 38 a
+piena opacita', misurati sulla stessa battuta.
 
 **`core/onnx.py`** — la porta unica per aprire una sessione ONNX, che esiste per
 la riga `preload_dlls()`. Si veda la regola piu' sotto.
@@ -570,6 +593,24 @@ Avevo scritto che dal vivo la sfocatura del sottotitolo era impossibile, perche'
 avrebbe richiesto una seconda cattura dello schermo. Falso: la catena cattura gia'
 il fotogramma a 30 Hz per darlo all'OCR. Quei pixel erano nostri, e prenderli
 costava un ritaglio.
+
+**Un anello di reazione non lascia tracce nel pezzo che rompe.** L'overlay dal
+vivo veniva catturato dallo screenshot che alimenta l'OCR: il programma leggeva
+il proprio testo, e il sintomo — righe saltate — sembrava a tutti gli effetti un
+difetto dell'OCR. Nessun contatore poteva dirlo, perche' per la catena quel
+fotogramma era un fotogramma. La domanda che lo scioglie in un minuto e'
+**«quello che scriviamo puo' rientrare da dove leggiamo?»**, e si risponde
+mettendo a schermo un colore che nel gioco non esiste e cercandolo nei pixel
+catturati.
+
+**Quando l'utente deve accendere il gioco per giudicare, lo strumento e'
+sbagliato.** Ogni giro di correzione sulla grafica costava a lui una sessione
+intera — Voicemeeter, la selezione dell'area, la partita — e dopo due giri si
+consegna una cosa sbagliata perche' nessuno ne fa un terzo. `tools/overlay_mp4.py`
+monta un video con **lo stesso pittore** che usa la finestra dal vivo, quindi
+la grafica si guarda da soli in trenta secondi. Un MP4 disegnato da ffmpeg no:
+sarebbe un secondo disegnatore, e mostrerebbe una cosa mentre il vivo ne fa
+un'altra — che e' esattamente com'era nato il difetto.
 
 **Un pezzo che nessuno ha guardato non e' «scritto», e' «supposto».** L'overlay
 e' stato consegnato verde e con gli import a posto; messo su un fotogramma a

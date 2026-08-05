@@ -22,6 +22,7 @@ from __future__ import annotations
 import re
 import sys
 import tempfile
+import time
 import traceback
 from pathlib import Path
 
@@ -2209,74 +2210,167 @@ def test_traduzione(c: Check) -> None:
 
 
 def test_overlay(c: Check) -> None:
-    """La geometria del sottotitolo tradotto disegnato sopra il gioco.
+    """Il sottotitolo tradotto disegnato sopra il gioco.
 
     **Questo gruppo non c'era, ed e' il motivo per cui l'overlay e' arrivato in
-    mano all'utente con un difetto che si vedeva al primo sguardo.** La suite era
-    verde perche' non guardava: la finestra veniva dimensionata sul testo
-    *originale* e dentro ci si disegnava quello *tradotto*, quindi una battuta
-    piu' lunga usciva tagliata sopra e sotto. Il calcolo sta ora in
-    `disposizione()`, che e' pura e non tocca Tk apposta: cosi' si verifica senza
-    aprire una finestra, e il difetto avrebbe fatto rosso invece che verde.
+    mano all'utente rotto due volte con la suite verde.** La prima versione
+    dimensionava la finestra sul testo originale e ci disegnava dentro quello
+    tradotto; la seconda sfocava un rettangolo largo quanto la ROI e scriveva con
+    un carattere scelto da noi. Nessuna delle due poteva fallire una verifica,
+    perche' verifiche non ce n'erano.
+
+    Qui si controlla senza aprire nessuna finestra: `dipingi` e' pura e torna
+    un'immagine, e un'immagine si misura.
     """
     c.group("overlay")
-    from ui.overlay import disposizione
+    import cv2
+    from PIL import Image, ImageDraw
 
-    schermo = (2560, 1440)
-    # Un pezzo largo quanto la ROI del profilo gtav, preso da una cattura 1080p.
-    rett = (0.204, 0.846, 0.592, 0.152)
-    pezzo = (1136, 164)
-    sx = rett[2] * schermo[0] / pezzo[0]  # 1,333 px di schermo per px di frame
-
-    # -- una battuta corta: la finestra si stringe sull'inchiostro ----------
-    box = (350, 67, 436, 31)
-    _, (w, h, x, y) = disposizione(schermo, rett, pezzo, box, (300, 60))
-    c.ok(w < 0.5 * rett[2] * schermo[0],
-         f"su due parole la finestra non copre mezza ROI ({w} px su "
-         f"{int(rett[2] * schermo[0])})")
-    centro_box = rett[0] * schermo[0] + (box[0] + box[2] / 2) * sx
-    c.ok(abs((x + w / 2) - centro_box) <= 2,
-         f"ed e' centrata sull'inchiostro vecchio ({x + w // 2} contro "
-         f"{int(centro_box)})")
-
-    # -- la stessa battuta tradotta lunga: la finestra cresce --------------
-    # E' il difetto trovato a schermo: 'But if I had one, ...' su tre righe
-    # dentro una finestra alta una riga.
-    _, (w2, h2, x2, y2) = disposizione(schermo, rett, pezzo, box, (1400, 190))
-    c.ok(w2 >= 1400, f"un testo largo 1400 px non viene stretto in {w2}")
-    c.ok(h2 >= 190, f"ne alto 190 px schiacciato in {h2}")
-    c.ok(y2 + h2 <= schermo[1], "e la finestra resta dentro lo schermo")
-    c.ok(y2 < y, "cresce verso l'alto: sotto c'e' il bordo dello schermo")
-    c.ok(abs((y2 + h2) - (y + h)) <= 4,
-         "restando appoggiata dov'era la riga vecchia, che e' dove guarda l'occhio")
-
-    # -- il ritaglio dello sfondo segue la finestra ------------------------
-    (tx0, ty0, tx1, ty1), (w3, h3, _, _) = disposizione(
-        schermo, rett, pezzo, box, (300, 60)
+    from ui.overlay import (
+        CHIAVE_RGB, carica_font, colore_del_gioco, corpo_del_gioco, dipingi,
+        inchiostro, su_chiave,
     )
-    c.ok(0 <= tx0 < tx1 <= pezzo[0] and 0 <= ty0 < ty1 <= pezzo[1],
-         f"il ritaglio sta dentro il pezzo ({tx0},{ty0})-({tx1},{ty1})")
-    c.ok(abs((tx1 - tx0) * sx - w3) <= 3,
-         "e ha le proporzioni della finestra, se no lo sfondo si sposta")
 
-    # -- **la conversione non suppone proporzioni uguali** -----------------
-    # Era il sospetto numero uno scritto in DA_VERIFICARE: due rettangoli di cui
-    # si assumeva il rapporto. Passando per le coordinate normalizzate non c'e'
-    # piu' niente da assumere, e una cattura di forma diversa dallo schermo lo
-    # dimostra: la finestra deve restare sulla stessa **frazione** di schermo.
-    _, (_, _, xa, _) = disposizione(schermo, rett, (1136, 164), box, (300, 60))
-    _, (_, _, xb, _) = disposizione(schermo, rett, (2272, 328), (700, 134, 872, 62), (300, 60))
-    c.ok(abs(xa - xb) <= 2,
-         f"la stessa scena catturata al doppio della risoluzione cade nello "
-         f"stesso posto ({xa} contro {xb})")
+    # -- il colore si prende dal gioco, e si rialza ------------------------
+    # La media sui pixel mascherati comprende i bordi scuri dei glifi: un bianco
+    # misurato 180 e' un bianco 255 con dentro l'antialiasing.
+    c.eq(colore_del_gioco((180, 180, 180)), (255, 255, 255),
+         "un grigio da antialiasing torna il bianco che era")
+    giallo = colore_del_gioco((200, 160, 20))
+    c.ok(giallo[0] == 255 and giallo[1] < 255 and giallo[2] < giallo[1],
+         f"e un giallo resta giallo invece di diventare bianco ({giallo})")
+    c.eq(colore_del_gioco((0, 0, 0)), (255, 255, 255),
+         "un inchiostro nero (niente da misurare) ricade sul bianco")
 
-    # -- niente di quello che esce puo' essere assurdo ---------------------
-    for prova in ((0, 0, 1, 1), (0, 0, 1136, 164), (1130, 160, 6, 4)):
-        (a0, b0, a1, b1), (pw, ph, px, py) = disposizione(
-            schermo, rett, pezzo, prova, (900, 120)
-        )
-        c.ok(a1 > a0 and b1 > b0 and pw > 0 and ph > 0 and px >= 0 and py >= 0,
-             f"box {prova} non produce una geometria degenere")
+    # -- la misura si prende dal gioco ------------------------------------
+    for alta in (24, 33, 48):
+        corpo = corpo_del_gioco([(0, 0, 100, alta)], 1.0, "Arial")
+        x0, y0, x1, y1 = carica_font("Arial", corpo).getbbox("Ag")
+        c.ok(abs((y1 - y0) - alta) <= 2,
+             f"un inchiostro alto {alta} px da' un corpo che ne occupa "
+             f"{y1 - y0} (corpo {corpo})")
+    # **La mediana, non il massimo**: due righe saldate in una banda sola
+    # farebbero scrivere la traduzione al doppio della taglia.
+    normale = corpo_del_gioco([(0, 0, 100, 33)], 1.0, "Arial")
+    con_saldata = corpo_del_gioco(
+        [(0, 0, 100, 33), (0, 40, 100, 73), (0, 80, 100, 160)], 1.0, "Arial"
+    )
+    c.ok(abs(con_saldata - normale) <= 2,
+         f"una banda doppia non gonfia il carattere ({con_saldata} contro {normale})")
+    c.ok(corpo_del_gioco([(0, 0, 100, 33)], 2.0, "Arial") > normale * 1.5,
+         "e su uno schermo il doppio piu' fitto il carattere raddoppia")
+
+    # -- un fotogramma finto, con dentro un sottotitolo vero --------------
+    cfg = Config()
+    cfg.vision.roi = (0.1, 0.80, 0.8, 0.08)
+    cfg.vision.use_local_contrast = False
+    tela = Image.new("RGB", (960, 540), (40, 30, 60))
+    d = ImageDraw.Draw(tela)
+    f = carica_font("Arial", 26)
+    d.text((240, 432), "Ciao, Lamar!", font=f, fill=(250, 250, 250))
+    d.text((210, 462), "Come stai, fratello?", font=f, fill=(250, 250, 250))
+    frame = np.array(tela)[:, :, ::-1].copy()  # RGB -> BGR, come la cattura
+
+    pezzo, bande, rett, tinta = inchiostro(frame, cfg)
+    c.ok(pezzo is not None and len(bande) == 2,
+         f"si trovano tutte e due le righe ({0 if bande is None else len(bande)})")
+    # **La fascia e' piu' alta della ROI**: la ROI e' tarata su dove *leggere*, e
+    # su GTA V taglia la riga di sopra dei sottotitoli su due righe. Cancellare
+    # meta' riga lascia meta' riga.
+    c.ok(rett[3] > cfg.vision.roi[3] * 1.5,
+         f"e si guarda piu' in alto della ROI ({rett[3]:.3f} contro {cfg.vision.roi[3]})")
+    c.ok(all(x1 - x0 < pezzo.shape[1] for x0, _, x1, _ in bande),
+         "ogni banda e' larga quanto la sua riga, non quanto la ROI")
+
+    # -- si cancella la riga, e lo si **verifica** ------------------------
+    # La regola di metodo del progetto: prima di leggere il risultato di un
+    # trattamento, controllare che il trattamento sia stato applicato. Si misura
+    # `_cancella` da sola: dentro `dipingi` sopra la riga cancellata ci va gia'
+    # il nostro testo, e allora il contrasto lo rialzerebbe lui — la misura non
+    # potrebbe piu' esprimere la risposta.
+    # Su una striscia con **una riga sola**: con due righe vicine il margine
+    # dell'una contiene l'altra, e il residuo che si misurerebbe sarebbe la riga
+    # che non si stava cancellando.
+    from ui.overlay import _cancella
+
+    sola = Image.new("RGB", (420, 60), (40, 30, 60))
+    ImageDraw.Draw(sola).text((16, 14), "Ciao, Lamar!", font=f, fill=(250, 250, 250))
+    striscia = np.array(sola)[:, :, ::-1].copy()
+    prima = striscia[:, :, :3].mean(axis=2)
+    dopo = _cancella(striscia)[:, :, :3].mean(axis=2)
+    c.ok(dopo.std() < prima.std() * 0.25,
+         f"la riga sparisce davvero: deviazione {prima.std():.1f} -> {dopo.std():.1f}")
+
+    x0, y0, x1, y1 = bande[0]
+
+    fatto = dipingi(pezzo, bande, "Hi, Lamar!", scala=1.0, modo="cancella",
+                    inchiostro_rgb=tinta)
+    c.ok(fatto is not None, "si disegna qualcosa")
+    img, (ox, oy) = fatto
+    arr = np.array(img)
+
+    # -- e fuori dalle righe **non si tocca niente** ----------------------
+    # E' la richiesta dell'utente, testuale: si cancella la scrittina, non il
+    # riquadro. La si verifica sul fotogramma, non sulla tela: si sovrappone e si
+    # contano i pixel cambiati fuori dalle bande.
+    from tools.overlay_mp4 import componi
+
+    cfg.translate.background_mode = "cancella"
+    dipinto = frame.copy()
+    c.ok(componi(dipinto, cfg, "Hi, Lamar! How are you?"), "il fotogramma viene dipinto")
+    cambiati = np.any(dipinto != frame, axis=2)
+    ry = int(round(rett[1] * frame.shape[0]))
+    rx = int(round(rett[0] * frame.shape[1]))
+    c.ok(cambiati.mean() < 0.08,
+         f"si tocca il {cambiati.mean() * 100:.1f}% del fotogramma, non una fascia")
+    c.ok(not cambiati[: ry - 4, :].any(),
+         "sopra la fascia dei sottotitoli il fotogramma e' identico")
+
+    # E la **cancellatura** — che e' cio' che l'utente ha chiesto di limitare —
+    # non esce dalle righe del gioco di un pixel. Si misura senza testo: con il
+    # testo sopra i pixel cambiati fuori dalle bande sono le nostre lettere, che
+    # e' proprio quello che devono fare, e la misura non distinguerebbe le due
+    # cose.
+    cfg.translate.background_mode = "riquadro"
+    solo_fondo = frame.copy()
+    componi(solo_fondo, cfg, " ")
+    tocco = np.any(solo_fondo != frame, axis=2)
+    consentito = np.zeros_like(tocco)
+    for bx0, by0, bx1, by1 in bande:
+        mm = max(4, int(0.45 * (by1 - by0))) + 1
+        consentito[ry + by0 - mm : ry + by1 + mm, rx + bx0 - mm : rx + bx1 + mm] = True
+    c.ok(not (tocco & ~consentito).any(),
+         f"la cancellatura non esce dalle righe del gioco "
+         f"({int((tocco & ~consentito).sum())} pixel fuori)")
+    cfg.translate.background_mode = "cancella"
+
+    # -- `nessuno` non cancella, `riquadro` copre di tinta unita ----------
+    coperto = float((arr[:, :, 3] > 0).mean())
+    senza = np.array(dipingi(pezzo, bande, "Hi", scala=1.0, modo="nessuno",
+                             inchiostro_rgb=tinta)[0])
+    c.ok(float((senza[:, :, 3] > 0).mean()) < coperto,
+         "con `nessuno` la tela e' piu' vuota: non si cancella niente")
+    quadro = np.array(dipingi(pezzo, bande, "", scala=1.0, modo="riquadro",
+                              inchiostro_rgb=tinta, fondo_rgb=(0, 0, 0))[0])
+    banda = quadro[y0 - oy + 4 : y1 - oy - 4, x0 - ox + 4 : x1 - ox - 4, :3]
+    c.ok(banda.size > 0 and int(banda.max()) <= 20,
+         f"con `riquadro` la riga e' coperta di tinta unita (max {0 if not banda.size else banda.max()})")
+
+    # -- il colore-chiave non apre buchi nel testo ------------------------
+    tinto = Image.new("RGBA", (8, 8), (*CHIAVE_RGB, 255))
+    piatta = np.array(su_chiave(tinto))
+    c.ok(not np.all(piatta == np.array(CHIAVE_RGB)),
+         "un pixel opaco che vale esattamente il colore-chiave viene spostato, "
+         "se no si aprirebbe un buco nel mezzo di una lettera")
+
+    # -- il costo, perche' gira nel thread video --------------------------
+    t0 = time.perf_counter()
+    for _ in range(5):
+        dipingi(pezzo, bande, "Hi, Lamar! How are you doing today?", scala=1.0,
+                modo="cancella", inchiostro_rgb=tinta)
+    ms = (time.perf_counter() - t0) / 5 * 1000
+    c.ok(ms < 60.0, f"dipingere costa {ms:.1f} ms, e sta nel thread video")
+    del cv2
 
 
 def test_template(c: Check) -> None:

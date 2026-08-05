@@ -227,11 +227,25 @@ che si sono chiuse con un "no".)*
     → **E il selettore d'area non spostava l'overlay**: si ridisegnava il rettangolo col
     mouse — che è il modo dichiarato di usare il programma — e la finestra del tradotto
     restava dov'era la ROI di partenza.
-    → La geometria sta ora in `ui.overlay.disposizione()`, funzione **pura**, con un
-    gruppo di verifiche suo (`selftest overlay`): prima non c'era nessuna verifica
-    sull'overlay, ed è il motivo per cui è arrivato in mano all'utente rotto con la suite
-    verde. La conversione fotogramma → schermo passa dalle coordinate normalizzate, quindi
-    non assume più che due rettangoli siano proporzionali (era il sospetto numero uno).
+    → **Poi l'utente l'ha provata dal vivo e aveva ancora tutto storto**, e la sua lista
+    era giusta punto per punto. Il peggiore: **la finestra finiva dentro la cattura** —
+    misurato, il 100% dei suoi pixel entrava nel fotogramma dato all'OCR, con `mss` e con
+    `dxcam` — quindi l'OCR leggeva il nostro testo invece del sottotitolo, e le righe
+    sparivano. `WDA_EXCLUDEFROMCAPTURE` porta quel numero a 0%: senza, niente di quello
+    che sta a monte funziona, e il difetto sembra dell'OCR.
+    → E poi: si sfocava **tutto il riquadro** invece della sola riga; il carattere era
+    scelto da noi ed enorme; la finestra spariva alla fine della nostra voce invece che
+    alla fine del sottotitolo. Adesso si tocca **solo la riga letta**, si **ricostruisce
+    lo sfondo** al posto dei glifi (inpaint: sfocare lascia una fascia grigia, e due
+    sottotitoli sovrapposti si vedono anche quando uno è sfocato), e **misura e colore si
+    copiano dal sottotitolo del gioco** — `font_frac=0` e `color=""` vogliono dire «come
+    il gioco», e sono i default.
+    → **E lo strumento era sbagliato quanto il codice**: per giudicare la grafica serviva
+    che l'utente accendesse il gioco, quindi ogni giro costava una sessione a lui.
+    `tools/overlay_mp4.py` monta un video con **lo stesso pittore del vivo**
+    (`ui.overlay.dipingi`), quindi i giri si fanno da soli in trenta secondi.
+    → Il gruppo `selftest overlay` (21 verifiche) copre taglia, colore, che la riga sparisca
+    davvero e che **la cancellatura non esca dalle righe del gioco di un pixel**.
   * \[ ]  UI interfaccia chiara e funzionale
   * \[x]  possibilità di modificare i sottotitoli tradotti colore dimensione
     → `translate.color`, `background`, `background_opacity`, `background_mode`,

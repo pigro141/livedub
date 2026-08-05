@@ -115,7 +115,7 @@ che si sono chiuse con un "no".)*
 
     | traduttore | registro tenuto | p50 | dove |
     |---|---|---|---|
-    | **google** | **6/6** | 1002 ms | rete |
+    | **google** | **6/6** | **64 ms** | rete |
     | translategemma:4b + `preserve_register` | 2-3/6 | 643 ms | locale |
     | translategemma:4b, template puro | **0/6** | 621 ms | locale |
     | translategemma:12b, template puro | **0/6** | 1734 ms | locale |
@@ -132,6 +132,11 @@ che si sono chiuse con un "no".)*
     → **Il template di TranslateGemma va rispettato alla lettera**, due righe vuote
     comprese: sbagliarlo non dà errore, dà una traduzione peggiore, e si finirebbe per
     incolpare il modello.
+    → **E il «secondo» di Google non era di Google: era mio.** Aprivo una connessione
+    HTTPS nuova a ogni battuta. Separando la preparazione dalla domanda: connessione
+    nuova ogni volta **337 ms** p50 (fra 107 e 1095, instabile), connessione tenuta
+    aperta **64 ms** (fra 42 e 91, stabile), stretta di mano 94 ms una volta sola. Un
+    numero stava per essere archiviato come proprietà del servizio.
     → **L'ordine conta**: si traduce **prima** di stimare i tempi. `chars_per_second` e
     `D = a + b*n` sono misurati sull'italiano e vanno applicati al testo che verrà
     *detto*: «I've never had a black son» sta in 26 caratteri, la traduzione in 30.

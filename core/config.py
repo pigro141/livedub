@@ -1181,6 +1181,11 @@ class TranslateConfig:
     # Oltre questo tempo la traduzione e' comunque usata ma **contata come
     # lenta**: sta sulla strada critica, e se succede spesso quel backend non e'
     # adatto. Vale anche da timeout di rete per `google`.
+    #
+    # 400 ms sono larghi per Google, che a connessione aperta risponde in **64 ms**
+    # di mediana (misurato). L'apertura invece ha un tetto suo, molto piu' largo:
+    # la prima stretta di mano di una sessione e' arrivata a 1304 ms, e con questo
+    # tetto la prima battuta sarebbe uscita non tradotta.
     timeout_ms: float = 400.0
     local_model: str = ""
 

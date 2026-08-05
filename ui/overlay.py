@@ -277,6 +277,23 @@ def inchiostro(frame, cfg):
     if not righe:
         return None, None, None, None
     bande = [(r.x0, r.top, r.x1, r.bottom + 1) for r in righe]
+    # **Solo le righe che stanno col gruppo.** `classify_lines` scarta le righe
+    # colorate ma non un dito chiaro contro una camicia scura: quello entra come
+    # riga acromatica, e la cancellatura ci lascia sopra una toppa — vista a
+    # schermo, accanto al testo. La riga di sottotitolo piu' larga e' il
+    # sottotitolo; cio' che non le sta accanto in orizzontale non e' testo suo.
+    # L'ancora e' la riga che passa per il **centro** della ROI, non la piu'
+    # larga: i sottotitoli sono centrati, e un braccio chiaro puo' benissimo
+    # essere piu' largo della riga di testo — prendendolo come ancora si
+    # scarterebbe il testo e si terrebbe il braccio.
+    centro = pezzo.shape[1] // 2
+    passanti = [b for b in bande if b[0] <= centro <= b[2]]
+    larga = max(passanti or bande, key=lambda b: b[2] - b[0])
+    bande = [
+        b for b in bande
+        if min(b[2], larga[2]) - max(b[0], larga[0])
+        >= 0.3 * min(b[2] - b[0], larga[2] - larga[0])
+    ]
     peso = float(sum(r.x1 - r.x0 for r in righe)) or 1.0
     canali = [sum(r.rgb[i] * (r.x1 - r.x0) for r in righe) / peso for i in range(3)]
     rett = (rx / w_f, ay0 / h_f, rw / w_f, (ay1 - ay0) / h_f)
@@ -459,7 +476,22 @@ class Sostituzione:
         limite = su(w_pezzo) - 8
         if larghezza_schermo:
             limite = min(limite, larghezza_schermo - 16)
-        self.righe = _righe(misura, (testo or "").strip(), self.font, max(80, limite))
+        limite = max(80, limite)
+
+        # **Una traduzione lunga va a capo, e se non basta rimpicciolisce.**
+        # Nell'ordine, perche' l'ordine e' quello che tiene la resa piu' vicina
+        # all'originale: prima si mandano a capo le parole (il gioco fa lo
+        # stesso), e solo se cosi' occuperebbe piu' di `righe_max` si stringe il
+        # carattere. Non c'e' un terzo passo perche' non serve: a quel punto ci
+        # sta. Quello che **non** si fa mai e' lasciarla uscire dai lati o
+        # tagliarla — un sottotitolo illeggibile e' peggio di uno un po' piccolo.
+        testo = (testo or "").strip()
+        righe_max = 3
+        self.righe = _righe(misura, testo, self.font, limite)
+        while len(self.righe) > righe_max and self.corpo > 10:
+            self.corpo = max(10, int(self.corpo * 0.92))
+            self.font = carica_font(nome_font, self.corpo)
+            self.righe = _righe(misura, testo, self.font, limite)
         self.passo = int(round(self.corpo * 1.22))
         largh = int(max(misura.textlength(r, font=self.font) for r in self.righe))
         alt = self.passo * len(self.righe)
@@ -479,6 +511,47 @@ class Sostituzione:
         self.larg = max(1, su(w_pezzo))
         self.alt = max(1, max(su(h_pezzo), self.ty0 + alt + pad) - self.oy)
         self.misura = misura
+
+    def _compatibili(self, bande):
+        """Le righe di adesso che possono essere **la nostra**, e nessun'altra.
+
+        Al rinfresco arrivano le bande del fotogramma corrente, e li' dentro puo'
+        esserci di tutto: un dito chiaro, una camicia, un tratto di asfalto al
+        sole. Cancellare quelle vuol dire spegnere pezzi di scena a caso —
+        guardato nel video dell'utente, una toppa rettangolare chiara in mezzo
+        alla strada — e non e' un difetto estetico: e' la cancellatura che ha
+        perso di vista cosa stava cancellando.
+
+        Una banda e' la nostra se sta **dove stava la nostra**: si sovrappone in
+        verticale a una di quelle di partenza per almeno meta' della sua altezza,
+        e non e' alta piu' del doppio. La posizione di un sottotitolo non cambia
+        mentre e' a schermo; se cambia, non e' piu' lui.
+
+        Nessuna compatibile vuol dire **non cancellare niente**, non «cancellare
+        dove capita»: se il sottotitolo del gioco se n'e' andato, sotto di noi non
+        c'e' piu' niente da togliere.
+        """
+        fuori = []
+        for b in bande:
+            h = b[3] - b[1]
+            if h <= 0 or h > 2.0 * self.alta:
+                continue
+            for o in self.bande:
+                alto = max(b[1], o[1])
+                basso = min(b[3], o[3])
+                if basso - alto < 0.5 * min(h, o[3] - o[1]):
+                    continue
+                # **E anche in orizzontale.** La sola altezza non basta: un
+                # pollice chiaro a sinistra dello schermo sta alla stessa
+                # altezza della riga e passerebbe, lasciando una toppa scura
+                # accanto al testo — vista a schermo. Una riga di sottotitolo
+                # sta dove stava la nostra, su tutti e due gli assi.
+                sx = max(b[0], o[0])
+                dx = min(b[2], o[2])
+                if dx - sx >= 0.3 * min(b[2] - b[0], o[2] - o[0]):
+                    fuori.append(b)
+                    break
+        return fuori
 
     # -- i pixel, che invece si rifanno ------------------------------------
 
@@ -522,9 +595,7 @@ class Sostituzione:
             tela.paste(Image.fromarray(np.ascontiguousarray(arr)), (0, 0))
         else:
             tela = Image.new("RGBA", (self.larg, self.alt), (0, 0, 0, 0))
-        scelte = self.bande
-        if bande:
-            scelte = [b for b in bande if (b[3] - b[1]) <= 2.0 * self.alta] or self.bande
+        scelte = self.bande if bande is None else self._compatibili(bande)
         if self.modo != "nessuno":
             for x0, y0, x1, y1 in scelte:
                 # Un filo di margine attorno alla riga: i glifi hanno un contorno
@@ -628,6 +699,7 @@ class Overlay:
         self.colore = self._rgb(colore) if colore else None
         self.misura = MisuraCarattere()
         self.sost = None     # la battuta a schermo adesso, con la sua geometria
+        self.t_on = -1.0     # quale sottotitolo del gioco sta traducendo
         self._vuoti = 0      # giri di seguito senza inchiostro del gioco
         # L'ultima tela disegnata e dove sta sullo schermo. La legge la
         # telecamera virtuale: **gli stessi pixel** che sono a schermo, non
@@ -870,6 +942,7 @@ class Overlay:
     def nascondi(self) -> None:
         self.sost = None
         self.ultima = None
+        self.t_on = -1.0
         if self._visibile:
             self.top.withdraw()
             self._visibile = False

@@ -326,6 +326,18 @@ class DubPipeline:
 
         self.spoken: list[SpokenLine] = []
         self.closed: list[SubtitleEvent] = []
+        # **Quali sottotitoli sono a schermo adesso**, per `t_on` — che e'
+        # l'identita' stabile di una battuta: il testo puo' migliorare mentre e'
+        # a schermo (`TrackerOutput.updated`), l'istante in cui e' comparsa no.
+        #
+        # Serve a chi disegna sopra il gioco. Senza, la finestra del tradotto
+        # vive di un timer suo e resta appesa: misurato sul video dell'utente,
+        # **diciotto secondi** con la stessa frase inglese mentre il gioco era
+        # gia' a tre battute dopo, e la cancellatura che intanto spegneva pezzi
+        # di asfalto perche' cercava inchiostro dove non ce n'era piu'. Il
+        # lettore di sottotitoli sa gia' quando una battuta sparisce: bastava
+        # che qualcuno gliel'avesse chiesto.
+        self._a_schermo: set[float] = set()
         self._free_at = 0.0  # quando la voce torna libera
         self.timing = DurationModel(cfg.timing)
         # **Quanto in fretta parla questa voce quando non le si chiede niente.**
@@ -452,10 +464,26 @@ class DubPipeline:
 
     # -- dominio video -----------------------------------------------------
 
+    def a_schermo(self, t_on: float) -> bool:
+        """Il sottotitolo comparso a `t_on` e' ancora a schermo?
+
+        E' la domanda che l'overlay deve fare a ogni fotogramma, e la risposta
+        ce l'ha solo il lettore. Chiederla ai pixel — «c'e' ancora dell'inchiostro
+        li' sotto?» — sembra equivalente e non lo e': su una scena luminosa
+        l'inchiostro si trova sempre, e il sottotitolo tradotto non se ne va piu'.
+        """
+        return t_on in self._a_schermo
+
     def on_frame(self, frame: np.ndarray | None) -> list[SpokenLine]:
         """Un frame in ingresso. Restituisce le battute doppiate in questa passata."""
         out = self.reader.run(frame)
         self.closed.extend(out.closed)
+        # Chi e' a schermo, e chi non c'e' piu'. `updated` non tocca `t_on`,
+        # quindi un testo che migliora non fa sparire e ricomparire niente.
+        for ev in out.opened:
+            self._a_schermo.add(ev.t_on)
+        for ev in out.closed:
+            self._a_schermo.discard(ev.t_on)
         # Una battuta che sparisce e' una durata vera: il predittore impara da
         # quelle, e sono l'unica forma in cui la calibrazione del tempo si
         # aggiorna mentre la sessione gira.

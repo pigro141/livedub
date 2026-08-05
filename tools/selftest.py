@@ -2227,7 +2227,7 @@ def test_overlay(c: Check) -> None:
     from PIL import Image, ImageDraw
 
     from ui.overlay import (
-        CHIAVE_RGB, MisuraCarattere, carica_font, colore_del_gioco,
+        CHIAVE_RGB, MisuraCarattere, Sostituzione, carica_font, colore_del_gioco,
         corpo_del_gioco, dipingi, inchiostro, su_chiave,
     )
 
@@ -2440,6 +2440,52 @@ def test_overlay(c: Check) -> None:
          f"e a schermo si vede la stessa cosa (scarto massimo {scarto}/255): il "
          f"buco lo riempiono i pixel veri del gioco, non un'approssimazione")
 
+
+    # -- **quello che il video dell'utente ha mostrato** --------------------
+    # Tre difetti, una causa: la cancellatura non sapeva piu' cosa stava
+    # cancellando, e l'overlay non sapeva piu' quale battuta stava traducendo.
+
+    # 1. Le bande di adesso che non sono la nostra riga non si toccano. Nel
+    #    video: una toppa rettangolare chiara in mezzo all'asfalto, per
+    #    diciotto secondi, perche' su una scena luminosa l'inchiostro si trova
+    #    sempre da qualche parte.
+    sost = Sostituzione(pezzo, bande, "Hi", scala=1.0, inchiostro_rgb=tinta,
+                        testo_originale="Ciao, Lamar!")
+    riga = bande[0]
+    altrove = (riga[0], riga[1] + 4 * (riga[3] - riga[1]), riga[2],
+               riga[3] + 4 * (riga[3] - riga[1]))
+    c.eq(sost._compatibili([riga]), [riga], "la propria riga si riconosce")
+    c.eq(sost._compatibili([altrove]), [],
+         "una banda che sta da un'altra parte non viene cancellata")
+    gigante = (0, riga[1], pezzo.shape[1], riga[1] + 6 * (riga[3] - riga[1]))
+    c.eq(sost._compatibili([gigante]), [],
+         "e nemmeno una banda alta sei righe, che non e' una riga di testo")
+    c.eq(sost._compatibili([]), [],
+         "senza niente di compatibile non si cancella niente, invece di "
+         "cancellare dove capita")
+    # Il caso visto a schermo: un pollice chiaro alla **stessa altezza** della
+    # riga ma da tutt'altra parte, che lasciava una toppa scura accanto al testo.
+    accanto = (max(0, riga[0] - 3 * (riga[2] - riga[0])), riga[1],
+               max(1, riga[0] - 2 * (riga[2] - riga[0])), riga[3])
+    if accanto[2] > accanto[0]:
+        c.eq(sost._compatibili([accanto]), [],
+             "una banda alla stessa altezza ma da un'altra parte non passa")
+
+    # 2. La battuta lunga rimpicciolisce invece di uscire dal riquadro.
+    lunga = ("Listen here you bastard, but I am a guy who wants money, a casino "
+             "owner, a prick who will stab you in the back and then ask you how "
+             "you are doing, right after taking everything you have got")
+    s_lunga = Sostituzione(pezzo, bande, lunga, scala=1.0, inchiostro_rgb=tinta,
+                           testo_originale="Ciao, Lamar!", larghezza_schermo=1920)
+    c.ok(len(s_lunga.righe) <= 3,
+         f"una traduzione lunghissima sta in tre righe ({len(s_lunga.righe)})")
+    c.ok(s_lunga.corpo < sost.corpo,
+         f"e per starci il carattere si stringe ({s_lunga.corpo} contro {sost.corpo})")
+    largo = max(s_lunga.misura.textlength(r, font=s_lunga.font) for r in s_lunga.righe)
+    c.ok(largo <= 1920 - 16,
+         f"e nessuna riga esce dai lati dello schermo ({largo:.0f} px su 1920)")
+    c.ok(all(r.strip() for r in s_lunga.righe), "nessuna riga vuota, niente testo perso")
+
     # -- `nessuno` non cancella, `riquadro` copre di tinta unita ----------
     coperto = float((arr[:, :, 3] > 0).mean())
     senza = np.array(dipingi(pezzo, bande, "Hi", scala=1.0, modo="nessuno",
@@ -2467,6 +2513,49 @@ def test_overlay(c: Check) -> None:
     ms = (time.perf_counter() - t0) / 5 * 1000
     c.ok(ms < 60.0, f"dipingere costa {ms:.1f} ms, e sta nel thread video")
     del cv2
+
+
+def test_a_schermo(c: Check) -> None:
+    """La catena sa dire **quali sottotitoli sono a schermo adesso**.
+
+    E' il segnale che mancava. Senza, la finestra del tradotto vive di un timer
+    suo: misurato sul video dell'utente, **diciotto secondi** con la stessa
+    frase inglese mentre il gioco era gia' a tre battute dopo, e la cancellatura
+    che intanto spegneva pezzi di asfalto perche' cercava inchiostro dove non ce
+    n'era piu'.
+
+    L'identita' e' `t_on` e non il testo: il testo di una battuta **migliora**
+    mentre e' a schermo (l'OCR finisce di leggere una comparsa in dissolvenza),
+    l'istante in cui e' comparsa no. Legarsi al testo vorrebbe dire far sparire e
+    ricomparire l'overlay a ogni miglioria.
+    """
+    c.group("a_schermo")
+    from core.pipeline import DubPipeline
+    from speak.base import ToneTts
+    from vision.subtitles import SubtitleTracker
+
+    cfg = Config()
+    cfg.vision.ocr_backend = "none"
+    p = DubPipeline(cfg, ToneTts(), clock=VirtualClock(), samplerate=48000)
+
+    ev = SubtitleEvent(text="Ciao", cls=LineClass.WHITE, t_on=1.0)
+    p._a_schermo.add(ev.t_on)
+    c.ok(p.a_schermo(1.0), "un sottotitolo aperto risulta a schermo")
+    c.ok(not p.a_schermo(2.0), "e uno mai aperto no")
+    p._a_schermo.discard(1.0)
+    c.ok(not p.a_schermo(1.0), "chiuso, non e' piu' a schermo")
+
+    # **Il testo migliora, l'identita' no.** E' il caso che rende sbagliato
+    # legarsi al testo: `replace` cambia il testo e tiene `t_on`.
+    from dataclasses import replace
+
+    migliorato = replace(ev, text="Ciao, Lamar!")
+    c.eq(migliorato.t_on, ev.t_on,
+         "una battuta riletta meglio tiene lo stesso istante di comparsa")
+
+    # E il tracker vero: apre, migliora, chiude — e `t_on` non si muove.
+    t = SubtitleTracker(cfg.vision)
+    c.ok(hasattr(t, "feed"), "il tracker ha l'ingresso che la pipeline usa")
 
 
 def test_template(c: Check) -> None:
@@ -3127,6 +3216,7 @@ GROUPS = {
     "traduzione": test_traduzione,
     "template": test_template,
     "overlay": test_overlay,
+    "a_schermo": test_a_schermo,
     "fretta": test_fretta,
     "duck": test_duck_non_pompa,
     "velocita": test_velocita_totale,

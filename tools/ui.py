@@ -367,10 +367,20 @@ class App:
                         tag=f"s{self.noti[sid]}",
                     )
                 elif tipo == "overlay":
-                    testo, originale, fine, pezzo, bande, rett, tinta = dato
+                    testo, originale, fine, t_on, pezzo, bande, rett, tinta = dato
                     if self.overlay is not None:
-                        self.overlay.mostra(testo, pezzo, bande, rett, tinta, originale)
-                        self._overlay_fino_a = fine
+                        # **Non si mostra una battuta gia' sparita.** Fra la
+                        # lettura e la voce passa piu' di un secondo e mezzo: se
+                        # in quel tempo il sottotitolo se n'e' andato, farlo
+                        # comparire adesso vuol dire un lampo su una scena a cui
+                        # non appartiene piu'.
+                        viva = (self.pipeline is None
+                                or self.pipeline.a_schermo(t_on))
+                        if viva:
+                            self.overlay.mostra(testo, pezzo, bande, rett, tinta,
+                                                originale)
+                            self.overlay.t_on = t_on
+                            self._overlay_fino_a = fine
                         # **La riga che divide in due il problema.** Se qui c'e'
                         # scritto un riquadro e a schermo non si vede niente, il
                         # difetto e' di Windows (finestra) e non nostro
@@ -381,6 +391,9 @@ class App:
                             f"{'visibile' if self.overlay._visibile else 'NASCOSTO'}",
                             tag="nota",
                         )
+                elif tipo == "spegni":
+                    if self.overlay is not None:
+                        self.overlay.nascondi()
                 elif tipo == "aggiorna":
                     if self.overlay is not None:
                         self.overlay.aggiorna(dato)
@@ -477,6 +490,18 @@ class App:
                         time.sleep(min(0.002, prossimo - ora))
                         continue
                     prossimo += periodo
+                    # **Se si e' rimasti indietro, si riparte da adesso.**
+                    # Sommando il periodo e basta, un giro lento lascia
+                    # `prossimo` nel passato: il ciclo smette di dormire e gira a
+                    # tutta velocita' per rimettersi in pari, prendendosi la CPU
+                    # che serve al thread audio. Misurato nella sessione
+                    # dell'utente: `speaker.ring_lag` a 4674 ms, cioe' quasi
+                    # cinque secondi di campioni mai arrivati, e il riconoscimento
+                    # di chi parla che lavorava su audio vecchio di secondi.
+                    # Saltare i giri arretrati costa qualche fotogramma; non
+                    # saltarli costa l'audio.
+                    if prossimo < ora:
+                        prossimo = ora + periodo
                     g = schermo.grab()
                     if not g.ok:
                         # **`None` vuol dire due cose diverse, e si distinguono
@@ -532,6 +557,7 @@ class App:
                             self.coda.put(
                                 ("overlay",
                                  (riga.text, riga.text_original, fine,
+                                  riga.t_subtitle,
                                   *inchiostro(g.frame, self.cfg)))
                             )
                     # **La cancellatura segue la scena, la geometria no.** Il
@@ -540,16 +566,21 @@ class App:
                     # una toppa di immagine vecchia in mezzo allo schermo. A
                     # 10 Hz invece che a 30 perche' ogni giro rifa' la bitmap di
                     # Tk, e su una macchia sfocata l'occhio non distingue le due.
-                    if (self.overlay is not None and n % 3 == 0
-                            and time.perf_counter() < self._overlay_fino_a):
-                        self.coda.put(("aggiorna", g.frame.copy()))
-                        # Il tetto resta, ma non e' piu' lui a decidere: e' una
-                        # previsione, e una previsione sbagliata in difetto fa
-                        # sparire il tradotto con l'originale ancora a schermo.
-                        # Chi decide e' l'inchiostro, dentro `Overlay.aggiorna`.
-                        self._overlay_fino_a = max(
-                            self._overlay_fino_a, time.perf_counter() + 0.5
-                        ) if self.overlay._visibile else self._overlay_fino_a
+                    # **Chi decide se il tradotto resta a schermo e' il
+                    # lettore, non un orologio e nemmeno i pixel.** Il timer
+                    # `_overlay_fino_a` resta come tetto di sicurezza, ma la
+                    # domanda vera e' se il sottotitolo che abbiamo tradotto e'
+                    # ancora li'. Prima si prolungava il timer finche' la
+                    # finestra era visibile — un anello chiuso su se' stesso —
+                    # e la finestra non spariva piu': misurato, diciotto
+                    # secondi con la stessa frase.
+                    if self.overlay is not None and self.overlay._visibile:
+                        if self.pipeline.a_schermo(self.overlay.t_on):
+                            self._overlay_fino_a = time.perf_counter() + 0.4
+                            if n % 3 == 0:
+                                self.coda.put(("aggiorna", g.frame.copy()))
+                        elif time.perf_counter() >= self._overlay_fino_a:
+                            self.coda.put(("spegni", None))
                     if n % 30 == 0:
                         p = len(self.pipeline.tracker) if self.pipeline.tracker else 0
                         self.coda.put(("stato",

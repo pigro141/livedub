@@ -1,7 +1,7 @@
 # La tua prova, e cosa guardare
 
 Questo file e' il foglio della **prova d'ascolto**: come si accende, cosa
-guardare, e cosa mi serve nel tuo report. La suite e' verde (1137 verifiche) ma
+guardare, e cosa mi serve nel tuo report. La suite e' verde (1129 verifiche) ma
 la suite non sente niente: ogni difetto serio di questo progetto e' stato trovato
 dal tuo orecchio, con la suite verde.
 
@@ -125,30 +125,35 @@ Puoi cambiare come copre:
     --set translate.font_frac=0.045            (forza la taglia invece di copiarla)
     --set translate.color=#ffcc00              (forza il colore)
 
-## 2. Recording: la telecamera virtuale per OBS — **fatta**
+## 2. Adesso si cattura **la finestra del gioco**, non lo schermo
 
-Serve per una ragione che e' figlia della cura di sopra: l'overlay e' fuori dalla
-cattura, quindi **anche OBS non lo vede**. Chi registra con «Cattura schermo»
-avrebbe il gioco senza il sottotitolo tradotto — si sente e non si legge.
+E' il cambiamento piu' grosso, ed e' anche la spiegazione piu' probabile del
+«non vedo la traduzione».
 
-```powershell
-powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci -Avvia -Recording
-```
+Catturando lo schermo intero, la nostra finestra del tradotto finiva dentro il
+fotogramma che davamo all'OCR — misurato, il 100% dei suoi pixel. Per impedirlo
+l'avevo dichiarata **fuori da ogni cattura**, e quella cura aveva due prezzi che
+si pagavano insieme: non la vedeva chi registra, e non era piu' fotografabile,
+quindi non era piu' nemmeno diagnosticabile.
 
-In OBS: *Sorgenti* → **+** → *Dispositivo di acquisizione video* → *OBS Virtual
-Camera*. Dentro c'e' il gioco con il sottotitolo tradotto sopra, sfocatura e
-tutto, in diretta.
+Scegliendo la finestra, il problema non si cura: **non esiste**. Verificato due
+volte: una finestra rossa messa sopra a quella catturata non entra nel fotogramma
+(0,000 dei suoi pixel), e con la catena intera l'OCR ha letto zero righe che
+fossero nostre su quattro. Quindi l'overlay torna una finestra normale.
 
-**L'ho verificata rileggendola come farebbe OBS**: aperta come «OBS Virtual
-Camera», riletta con OpenCV, il fotogramma che torna e' quello mandato con una
-differenza media di **0,9 su 255**. Quello che resta da vedere e' come si
-comporta con OBS vero acceso insieme al gioco, che e' materia tua.
+Nella finestra di livedub: **Scegli finestra** -> il gioco -> *Seleziona area* ->
+*Avvia*. Il primo della lista e' quasi sempre quello giusto. Se il gioco si
+sposta, il sottotitolo lo segue da solo.
 
-Vuole **OBS Studio installato** (e' lui che registra la telecamera in Windows).
-Senza, il programma lo scrive nel log e va avanti senza registrare. Si manda a
-1280 px di larghezza (`record.width`) per non pesare sul ciclo video.
+**Se ancora non lo vedi**, nel log della finestra ci sono le due righe che
+dividono il problema in due:
 
-## 3. La compressione — alzata la scusa, e serve il tuo giro per chiuderla
+- `cattura: finestra` (o `mss`/`dxcam`) — dice **cosa** stiamo catturando;
+- `overlay 1516x221+522+1213 visibile` — dice che il programma **crede** di
+  averlo disegnato. Se questa riga c'e' e a schermo non vedi niente, prova
+  `-Opaco`: toglie il colore trasparente e la finestra diventa normale.
+
+## 3. La compressione## 3. La compressione — alzata la scusa, e serve il tuo giro per chiuderla
 
 `dub.rate_x1000` restava a **1250 su tutti i percentili**: ogni battuta
 schiacciata al massimo, con il parlato che riempiva meta' scena.

@@ -129,7 +129,92 @@ class MssSource(ScreenSource):
             pass
 
 
-def make_screen(backend: str = "auto", monitor: int = 1, region=None) -> ScreenSource:
+class FinestraSource(ScreenSource):
+    """Windows Graphics Capture su **una finestra sola**.
+
+    E' il modo giusto, e la ragione non e' la velocita': catturando lo schermo
+    intero, dentro il fotogramma che diamo all'OCR finisce **tutto quello che
+    sta davanti al gioco** — comprese le nostre finestre. Misurato: l'overlay
+    del tradotto ci entrava al 100%, e l'OCR leggeva il nostro testo invece del
+    sottotitolo. Con `CreateForWindow` il contenuto e' quello della finestra
+    scelta e basta; verificato mettendole sopra una finestra rossa che la copriva
+    a meta', nella cattura ne e' arrivato lo **0,000**.
+
+    Da qui discendono tre cose che prima erano problemi separati: l'overlay non
+    ha piu' bisogno di essere escluso dalla cattura (e quindi puo' tornare una
+    finestra normale, che OBS vede); la ROI e' relativa alla **finestra**, quindi
+    se il gioco si sposta il sottotitolo lo segue; e non c'e' piu' niente da
+    ritagliare.
+
+    **Il modello e' a spinta, la nostra interfaccia e' a strappo.** WGC chiama
+    noi quando ha un fotogramma; `grab()` viene chiamato dal ciclo video quando
+    vuole lui. Si tiene quindi l'ultimo arrivato — e **lo si riconsegna anche se
+    non e' cambiato**, che e' l'opposto di quello che fa dxcam e va spiegato.
+
+    Con una scena ferma WGC non manda niente: misurato, un fotogramma su 119 su
+    una pagina in pausa. Rispondendo «niente» il ciclo video salterebbe quei
+    giri, e il lettore di sottotitoli e' costruito su frame **consecutivi**: un
+    sottotitolo rimasto a schermo su una scena immobile smetterebbe di essere
+    visto proprio perche' non si muove. Si riconsegna quindi l'ultimo, e a dire
+    se e' nuovo ci pensa `fresh` — chi vuole saltare il lavoro inutile ha gia'
+    `vision.diff`, che confronta i fotogrammi e non si fida di nessuno.
+    """
+
+    name = "finestra"
+
+    def __init__(self, hwnd: int) -> None:
+        import threading
+
+        from windows_capture import WindowsCapture
+
+        self.hwnd = int(hwnd)
+        self._lock = threading.Lock()
+        self._ultimo: np.ndarray | None = None
+        self._nuovo = False
+        self._chiusa = False
+        self._cattura = WindowsCapture(
+            cursor_capture=False,  # il puntatore non e' contenuto del gioco
+            draw_border=False,  # niente cornice gialla attorno al gioco
+            window_hwnd=self.hwnd,
+        )
+
+        @self._cattura.event
+        def on_frame_arrived(frame, control):  # noqa: ANN001
+            # Copia e non vista: il buffer torna a WGC appena questa funzione
+            # rientra, e il ciclo video lo leggerebbe mentre viene riscritto.
+            dati = np.ascontiguousarray(frame.frame_buffer[:, :, :3])
+            with self._lock:
+                self._ultimo = dati
+                self._nuovo = True
+
+        @self._cattura.event
+        def on_closed():
+            self._chiusa = True
+
+        self._ctrl = self._cattura.start_free_threaded()
+
+    def grab(self) -> Grab:
+        t0 = time.perf_counter()
+        with self._lock:
+            frame, nuovo = self._ultimo, self._nuovo
+            self._nuovo = False
+        if frame is None:
+            return Grab(frame=None, t=t0, fresh=False)
+        return Grab(frame=frame, t=t0, fresh=nuovo)
+
+    @property
+    def chiusa(self) -> bool:
+        """Il gioco e' stato chiuso. Va detto, non dedotto dal silenzio."""
+        return self._chiusa
+
+    def close(self) -> None:
+        try:
+            self._ctrl.stop()
+        except Exception:  # pragma: no cover
+            pass
+
+
+def make_screen(backend: str = "auto", monitor: int = 1, region=None, hwnd: int | None = None) -> ScreenSource:
     """Costruisce la sorgente chiesta.
 
     `auto` prova dxcam e ripiega su mss **dicendolo al chiamante** tramite
@@ -142,10 +227,12 @@ def make_screen(backend: str = "auto", monitor: int = 1, region=None) -> ScreenS
     backend — un errore che non da' errore, da' il monitor sbagliato.
     """
     scelta = (backend or "auto").lower()
-    if scelta == "wgc":
-        raise ValueError(
-            "backend 'wgc' non ancora implementato: serve per il fullscreen esclusivo"
-        )
+    # **Se c'e' una finestra scelta, quella vince su tutto**, anche su `auto`:
+    # averla scelta e' gia' la risposta alla domanda «cosa catturo».
+    if hwnd or scelta in ("finestra", "wgc"):
+        if not hwnd:
+            raise ValueError("il backend 'finestra' vuole l'hwnd della finestra da catturare")
+        return FinestraSource(hwnd)
     if scelta in ("auto", "dxcam"):
         try:
             return DxcamSource(monitor=max(0, monitor - 1), region=region)

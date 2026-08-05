@@ -28,7 +28,8 @@ param(
     [string]$Profilo = 'live',
     [string]$Loopback = 'voicemeeter',
     [switch]$Avvia,                         # non aspetta il tasto: parte da solo
-    [switch]$Recording,                     # telecamera virtuale per OBS
+    [switch]$Opaco,                         # niente colore trasparente: finestra normale
+    [switch]$Catturabile,                   # l'overlay entra negli screenshot (per fotografarlo)
     [switch]$Prova                          # dice cosa farebbe e non parte
 )
 
@@ -109,7 +110,8 @@ $opzioni = @(
 )
 if ($Motore -eq 'kokoro') { $opzioni += @('--set', 'tts.device=cuda') }
 if ($Avvia) { $opzioni += '--avvia' }
-if ($Recording) { $opzioni += '--recording' }
+if ($Opaco) { $opzioni += @('--set', 'translate.transparent=false') }
+if ($Catturabile) { $opzioni += '--overlay-catturabile' }
 if ($Traduci) {
     $opzioni += @(
         '--set', 'translate.enabled=true',
@@ -122,7 +124,8 @@ if ($Traduci) {
 Write-Host ""
 Write-Host "  motore      $Motore"
 Write-Host "  profilo     $Profilo"
-if ($Recording) { Write-Host "  recording   telecamera virtuale accesa (sorgente OBS Virtual Camera)" }
+if ($Opaco) { Write-Host "  overlay     finestra opaca (niente colore trasparente)" }
+if ($Catturabile) { Write-Host "  overlay     catturabile: entra negli screenshot, e l'OCR lo legge" -ForegroundColor Yellow }
 if ($Traduci) {
     Write-Host "  traduzione  $Da -> $A, la riga originale viene cancellata"
 } else {
@@ -133,7 +136,7 @@ if ($Avvia) {
     Write-Host "  Parte da sola con l'area del profilo. Se non e' quella giusta:"
     Write-Host "  'Ferma' -> 'Seleziona area' -> 'Avvia'."
 } else {
-    Write-Host "  Nella finestra:  'Seleziona area' sui sottotitoli  ->  'Avvia'."
+    Write-Host "  Nella finestra:  'Scegli finestra' -> 'Seleziona area' -> 'Avvia'."
 }
 Write-Host "  Alla fine 'Ferma': la sessione finisce in runs\<data-ora>." -ForegroundColor Yellow
 Write-Host ""

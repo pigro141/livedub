@@ -11,8 +11,10 @@ altre due spuntate — colore/dimensione dei sottotitoli e scelta delle lingue �
 sono fatte **come meccanismo**: i parametri esistono e si regolano da `--set`.
 Quello che manca è la UI che li espone.
 
-La voce nuova è **recording** (la telecamera virtuale per OBS), chiesta
-dall'utente e chiusa nella stessa sessione.
+La voce nuova è la **cattura della finestra del gioco** invece dello schermo,
+chiesta dall'utente come correzione di rotta. La telecamera virtuale per OBS,
+aggiunta e poi tolta nella stessa sessione, non serve più: esisteva solo perché
+l'overlay era nascosto a tutte le catture.
 
 **E il cancello è aperto**: `tools\prova.ps1` accende la catena con i controlli
 fatti prima (venv, scheda di cattura, Ollama e il suo modello) e stampa la
@@ -249,30 +251,26 @@ che si sono chiuse con un "no".)*
     (`ui.overlay.dipingi`), quindi i giri si fanno da soli in trenta secondi.
     → Il gruppo `selftest overlay` (21 verifiche) copre taglia, colore, che la riga sparisca
     davvero e che **la cancellatura non esca dalle righe del gioco di un pixel**.
-  * \[x]  **recording: telecamera virtuale per OBS**
-    → **Chiesto dall'utente**, e nasce da una cura di questa stessa sessione. L'overlay
-    dal vivo è dichiarato **fuori dalla cattura** (`WDA_EXCLUDEFROMCAPTURE`), perché se no
-    rientra nel fotogramma dato all'OCR e il programma legge il proprio testo — misurato,
-    il 100% dei suoi pixel. Ma «fuori dalla cattura» vale per **tutte** le catture: uno
-    streamer che mette «Cattura schermo» in OBS vedrebbe il gioco **senza** il sottotitolo
-    tradotto, cioè un doppiaggio che si sente e non si legge.
-    → `record.enabled` espone una sorgente che OBS vede come una webcam: dentro c'è il
-    fotogramma catturato con sopra **la stessa tela** che sta a schermo in quell'istante,
-    non una seconda composizione. Sincronizzato per costruzione — sono gli stessi pixel,
-    e due strade di disegno divergerebbero al primo ritocco.
-    → In OBS: *Sorgenti* → *Dispositivo di acquisizione video* → *OBS Virtual Camera*.
-    → **Verificato rileggendola come farebbe OBS**: aperta come «OBS Virtual Camera»,
-    riletta con OpenCV, il fotogramma che torna è quello mandato con una differenza media
-    di **0,9 su 255**. Non basta che `send()` non sollevi: la domanda era cosa vede chi
-    guarda.
-    → **Vuole OBS Studio installato** (è lui che registra la telecamera virtuale in
-    Windows) più `pyvirtualcam`. Senza, il programma **lo dice** e va avanti senza
-    registrare: una funzione accesa apposta che non funziona in silenzio è il difetto
-    peggiore da diagnosticare.
-    → Si manda a 1280 px di larghezza (`record.width`): un 2560x1440 in RGB sono 330 MB/s
-    dentro il thread video, dove in questo progetto un costo non si somma, si amplifica.
-    → Spenta di default: espone una sorgente video, e una cosa del genere non si accende
-    da sola. Si accende con `-Recording` in `tools\prova.ps1` o `--recording`.
+  * \[x]  **cattura della finestra del gioco, non dello schermo**
+    → **Correzione di rotta chiesta dall'utente**, e chiude alla radice il difetto piu'
+    grave della sessione. Catturando lo schermo intero, nel fotogramma dato all'OCR
+    finiva anche la nostra finestra del tradotto — misurato, il 100% dei suoi pixel — e
+    il programma leggeva se stesso: da li' le righe saltate.
+    → Windows Graphics Capture con `CreateForWindow`, come fa la repo di riferimento
+    (`GraphicsCaptureService.cs`). Verificato due volte: una finestra rossa messa sopra a
+    quella catturata **non entra** nel fotogramma (0,000 dei suoi pixel), e con la catena
+    intera l'OCR ha letto **zero** righe che fossero nostre su quattro.
+    → Selettore delle finestre nella UI (`capture/finestre.py`, `EnumWindows` in ctypes,
+    nessuna dipendenza). Si scartano le finestre *cloaked*: senza, la prima della lista
+    era «Esperienza input di Windows», invisibile e grande quanto lo schermo.
+    → Il rettangolo e' quello **cliente** e non quello della finestra: WGC consegna il
+    contenuto senza bordi, e i sette pixel di differenza sono di quanto l'overlay
+    cadrebbe spostato rispetto al sottotitolo.
+    → **La telecamera virtuale per OBS e' stata tolta del tutto** (`ui/record.py`,
+    `pyvirtualcam`, la sezione `record`): esisteva per rimettere il tradotto in una
+    sorgente video, visto che l'overlay era nascosto a tutte le catture. Non essendo piu'
+    nascosto, non serve piu' — la cura giusta era togliere la causa, non aggiungere una
+    seconda cura.
   * \[ ]  UI interfaccia chiara e funzionale
   * \[x]  possibilità di modificare i sottotitoli tradotti colore dimensione
     → `translate.color`, `background`, `background_opacity`, `background_mode`,

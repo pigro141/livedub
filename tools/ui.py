@@ -97,6 +97,79 @@ class SelettoreArea:
         self.al_termine((x0 / self.w, y0 / self.h, (x1 - x0) / self.w, (y1 - y0) / self.h))
 
 
+class SelettoreFinestra:
+    """L'elenco delle finestre aperte, per scegliere **cosa** catturare.
+
+    E' la scelta che viene prima di tutte le altre. Catturando lo schermo
+    intero, nel fotogramma che va all'OCR finisce anche cio' che sta davanti al
+    gioco — comprese le nostre finestre — e il programma finisce per leggere se
+    stesso. Scegliendo la finestra, la cattura contiene quella e basta:
+    verificato mettendo sopra alla finestra catturata una finestra rossa che la
+    copriva a meta', nel fotogramma ne e' arrivato lo **0,000**.
+
+    L'elenco e' ordinato per area perche' il gioco e' quasi sempre la finestra
+    piu' grande: la risposta giusta e' in cima nove volte su dieci.
+    """
+
+    def __init__(self, root, al_termine) -> None:
+        import tkinter as tk
+
+        from capture.finestre import elenco
+
+        self.al_termine = al_termine
+        self.top = tk.Toplevel(root)
+        self.top.title("Scegli la finestra da tradurre")
+        self.top.geometry("760x380")
+        self.top.attributes("-topmost", True)
+        self.finestre = elenco()
+
+        tk.Label(
+            self.top, anchor="w", fg="#666",
+            text="Il gioco e' quasi sempre il primo della lista. "
+                 "Deve stare in finestra o senza bordi, non a schermo intero esclusivo.",
+        ).pack(fill="x", padx=10, pady=(8, 4))
+        cornice = tk.Frame(self.top)
+        cornice.pack(fill="both", expand=True, padx=10)
+        barra = tk.Scrollbar(cornice)
+        barra.pack(side="right", fill="y")
+        self.lista = tk.Listbox(
+            cornice, font=("Consolas", 10), yscrollcommand=barra.set, activestyle="none"
+        )
+        self.lista.pack(fill="both", expand=True)
+        barra.config(command=self.lista.yview)
+        for f in self.finestre:
+            self.lista.insert("end", f"  {f.larghezza:>5}x{f.altezza:<5} {f.processo:<22} {f.titolo}")
+        if self.finestre:
+            self.lista.selection_set(0)
+        self.lista.bind("<Double-Button-1>", lambda e: self.scegli())
+
+        piede = tk.Frame(self.top)
+        piede.pack(fill="x", padx=10, pady=8)
+        tk.Button(piede, text="Aggiorna", command=self.aggiorna).pack(side="left")
+        tk.Button(piede, text="Usa questa", command=self.scegli, width=14).pack(side="right")
+        tk.Button(piede, text="Tutto lo schermo", command=self.schermo).pack(side="right", padx=6)
+
+    def aggiorna(self) -> None:
+        from capture.finestre import elenco
+
+        self.finestre = elenco()
+        self.lista.delete(0, "end")
+        for f in self.finestre:
+            self.lista.insert("end", f"  {f.larghezza:>5}x{f.altezza:<5} {f.processo:<22} {f.titolo}")
+
+    def schermo(self) -> None:
+        self.top.destroy()
+        self.al_termine(None)
+
+    def scegli(self) -> None:
+        sel = self.lista.curselection()
+        if not sel:
+            return
+        f = self.finestre[sel[0]]
+        self.top.destroy()
+        self.al_termine(f)
+
+
 class App:
     def __init__(self, args) -> None:
         import tkinter as tk
@@ -110,12 +183,13 @@ class App:
         )
         if args.tts:
             self.cfg.tts.backend = args.tts
-        if getattr(args, "recording", False):
-            self.cfg.record.enabled = True
         self.coda: queue.Queue = queue.Queue()
         self.stop = threading.Event()
         self.threads: list[threading.Thread] = []
         self.pipeline: DubPipeline | None = None
+        # La finestra scelta. `None` = tutto lo schermo, che e' il vecchio modo
+        # e resta possibile: su un gioco in fullscreen esclusivo e' l'unico.
+        self.finestra = None
         self.sessione: Session | None = None
 
         self.root = tk.Tk()
@@ -147,13 +221,17 @@ class App:
                 # configurazione diversa da quella che si crede.
                 modo=self.cfg.translate.background_mode,
                 blur=self.cfg.translate.blur_strength,
+                trasparente=self.cfg.translate.transparent,
+                escludi_cattura=not getattr(args, "overlay_catturabile", False),
             )
             self.overlay.vision = self.cfg.vision
 
         barra = tk.Frame(self.root)
         barra.pack(fill="x", padx=8, pady=6)
+        self.b_finestra = tk.Button(barra, text="Scegli finestra", command=self.scegli_finestra)
+        self.b_finestra.pack(side="left")
         self.b_area = tk.Button(barra, text="Seleziona area", command=self.scegli_area)
-        self.b_area.pack(side="left")
+        self.b_area.pack(side="left", padx=6)
         self.b_start = tk.Button(barra, text="Avvia", command=self.avvia, width=10)
         self.b_start.pack(side="left", padx=6)
         self.b_stop = tk.Button(barra, text="Ferma", command=self.ferma, width=10, state="disabled")
@@ -185,6 +263,50 @@ class App:
     def _testo_roi(self) -> str:
         x, y, w, h = self.cfg.vision.roi
         return f"ROI  x{x:.3f}  y{y:.3f}  w{w:.3f}  h{h:.3f}"
+
+    def scegli_finestra(self) -> None:
+        SelettoreFinestra(self.root, self._applica_finestra)
+
+    def _applica_finestra(self, finestra) -> None:
+        from capture.finestre import rettangolo_client
+
+        self.finestra = finestra
+        if finestra is None:
+            self.scrivi("cattura: tutto lo schermo", tag="nota")
+            if self.overlay is not None:
+                self.overlay.aggancia(None)
+                # Catturando lo schermo l'overlay ci rientra: va nascosto alla
+                # cattura, e il prezzo e' che non lo vede nemmeno chi registra.
+                self.overlay.esclusione(True)
+                self.scrivi("  (l'overlay resta fuori dagli screenshot e da OBS)", tag="nota")
+        else:
+            self.scrivi(f"cattura: {finestra}", tag="nota")
+            if self.overlay is not None:
+                self.overlay.aggancia(rettangolo_client(finestra.hwnd))
+                # Catturando la sola finestra del gioco l'overlay **non** ci
+                # rientra: misurato, zero righe lette che fossero nostre. Quindi
+                # torna una finestra normale, e chi registra lo vede.
+                self.overlay.esclusione(False)
+        self.l_roi.config(text=self._testo_roi())
+        if self.pipeline is not None:
+            self.scrivi("(vale dalla prossima partenza)", tag="nota")
+
+    def _segui_finestra(self) -> None:
+        """Il gioco si sposta, e il sottotitolo deve seguirlo.
+
+        Una finestra spostata senza che l'overlay la segua e' un sottotitolo
+        tradotto in mezzo al desktop. Costa una chiamata a Windows, e si fa
+        insieme allo svuotamento della coda invece che a ogni fotogramma.
+        """
+        if self.finestra is None or self.overlay is None:
+            return
+        from capture.finestre import rettangolo_client, viva
+
+        if not viva(self.finestra.hwnd):
+            return
+        r = rettangolo_client(self.finestra.hwnd)
+        if r and r != self.overlay.ancora:
+            self.overlay.aggancia(r)
 
     def scegli_area(self) -> None:
         SelettoreArea(self.root, self._applica_roi)
@@ -225,6 +347,16 @@ class App:
                     if self.overlay is not None:
                         self.overlay.mostra(testo, pezzo, bande, rett, tinta, originale)
                         self._overlay_fino_a = fine
+                        # **La riga che divide in due il problema.** Se qui c'e'
+                        # scritto un riquadro e a schermo non si vede niente, il
+                        # difetto e' di Windows (finestra) e non nostro
+                        # (traduzione, OCR, geometria). Senza, le due ipotesi si
+                        # confondono e si cerca per ore dalla parte sbagliata.
+                        self.scrivi(
+                            f"overlay  {self.overlay.top.geometry()}  "
+                            f"{'visibile' if self.overlay._visibile else 'NASCOSTO'}",
+                            tag="nota",
+                        )
                 elif tipo == "aggiorna":
                     if self.overlay is not None:
                         self.overlay.aggiorna(dato)
@@ -236,6 +368,7 @@ class App:
             pass
         # **Il sottotitolo tradotto sparisce da solo.** Una banda perenne in
         # mezzo allo schermo e' peggio dell'originale che copriva.
+        self._segui_finestra()
         if self.overlay is not None and time.perf_counter() >= self._overlay_fino_a:
             self.overlay.nascondi()
         self.root.after(100, self._svuota_coda)
@@ -249,6 +382,7 @@ class App:
         self.b_start.config(state="disabled")
         self.b_stop.config(state="normal")
         self.b_area.config(state="disabled")
+        self.b_finestra.config(state="disabled")
         threading.Thread(target=self._prepara, daemon=True).start()
 
     def _prepara(self) -> None:
@@ -304,24 +438,11 @@ class App:
             def ciclo_video() -> None:
                 # La sorgente si apre **nel thread che la usa**: dxcam sta su COM,
                 # e creata altrove non solleva — restituisce `None` a ogni grab.
-                schermo = make_screen(self.args.backend, monitor=self.args.monitor)
-                self.coda.put(("nota", f"cattura schermo: {schermo.name}"))
-                # **La telecamera virtuale sta qui e non altrove**: il fotogramma
-                # da mandare a OBS e' quello appena catturato, e portarlo su un
-                # altro thread vorrebbe dire copiarlo trenta volte al secondo per
-                # niente.
-                camera = None
-                if self.cfg.record.enabled:
-                    from ui.record import apri_o_spiega
-
-                    camera = apri_o_spiega(self.cfg.record, self.coda)
-                    if camera is not None:
-                        self.coda.put((
-                            "nota",
-                            f"telecamera virtuale accesa ({self.cfg.record.width} px "
-                            f"di larghezza): in OBS aggiungi la sorgente «Dispositivo "
-                            f"di acquisizione video» -> «OBS Virtual Camera»",
-                        ))
+                hwnd = self.finestra.hwnd if self.finestra is not None else None
+                schermo = make_screen(
+                    self.args.backend, monitor=self.args.monitor, hwnd=hwnd
+                )
+                self.coda.put(("nota", f"cattura: {schermo.name}"))
                 pronto.wait(timeout=10.0)
                 periodo = 1.0 / max(1e-6, self.cfg.capture.fps)
                 prossimo = time.perf_counter()
@@ -343,7 +464,8 @@ class App:
                         # non finisce mai, e senza questo ripiego la finestra
                         # resta li' a non fare niente **senza dire perche'**.
                         vuoti += 1
-                        if n == 0 and vuoti > 2 * self.cfg.capture.fps and schermo.name != "mss":
+                        if (n == 0 and vuoti > 2 * self.cfg.capture.fps
+                                and schermo.name == "dxcam"):
                             schermo.close()
                             schermo = make_screen("mss", monitor=self.args.monitor)
                             self.coda.put((
@@ -404,23 +526,11 @@ class App:
                         self._overlay_fino_a = max(
                             self._overlay_fino_a, time.perf_counter() + 0.5
                         ) if self.overlay._visibile else self._overlay_fino_a
-                    # **Si manda la tela che c'e' gia'**, non una seconda
-                    # composizione: cosi' quello che si vede sul monitor e quello
-                    # che finisce in OBS sono gli stessi pixel, e non c'e' modo
-                    # che divergano.
-                    if camera is not None:
-                        ult = self.overlay.ultima if self.overlay is not None else None
-                        if ult is None:
-                            camera.manda(g.frame)
-                        else:
-                            camera.manda(g.frame, ult[0], ult[1], ult[2])
                     if n % 30 == 0:
                         p = len(self.pipeline.tracker) if self.pipeline.tracker else 0
                         self.coda.put(("stato",
                                        f"in corso  |  {n} frame  |  {len(self.pipeline.spoken)} battute"
                                        f"  |  {p} personaggi  |  {len(self.pipeline.pool)} voci"))
-                if camera is not None:
-                    camera.chiudi()
 
             for f in (ciclo_audio, ciclo_video):
                 t = threading.Thread(target=f, daemon=True)
@@ -435,6 +545,7 @@ class App:
         self.b_start.config(state="normal")
         self.b_stop.config(state="disabled")
         self.b_area.config(state="normal")
+        self.b_finestra.config(state="normal")
         self.threads.clear()
 
     def ferma(self) -> None:
@@ -491,11 +602,6 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--monitor", type=int, default=1)
     ap.add_argument("--tts", default=None)
     ap.add_argument("--no-save", action="store_true")
-    ap.add_argument(
-        "--recording",
-        action="store_true",
-        help="espone una telecamera virtuale con il gioco e il sottotitolo tradotto (per OBS)",
-    )
     ap.add_argument(
         "--avvia",
         action="store_true",

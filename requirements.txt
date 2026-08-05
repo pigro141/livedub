@@ -78,7 +78,8 @@ numpy==2.4.6
 huggingface_hub==1.25.1     # scarica Piper, ECAPA e Kokoro dentro models/
 imageio-ffmpeg==0.6.0       # il montaggio degli MP4 di prova (tools/dub.py --mp4)
 
-# La telecamera virtuale per OBS (`record.enabled`). Il pacchetto da solo
-# non basta: la telecamera la registra **OBS Studio** installandosi, e senza
-# di lui non c'e' nessun ricevitore. Il programma lo dice invece di tacere.
-pyvirtualcam
+# Windows Graphics Capture: la cattura di **una finestra sola**.
+# Non e' una comodita': catturando lo schermo, nel fotogramma che va
+# all'OCR finisce anche cio' che sta davanti al gioco — comprese le
+# nostre finestre — e il programma legge se stesso.
+windows-capture

@@ -1250,6 +1250,24 @@ class TranslateConfig:
     #              riga;
     #   `nessuno`  non si cancella niente: si scrive sopra e basta.
     background_mode: str = "cancella"  # cancella | blur | riquadro | nessuno
+    # **Come si ottiene il "buco" attorno al testo, e non e' un dettaglio di
+    # gusto: e' l'unica cosa che puo' rendere l'overlay invisibile.**
+    #
+    #   `true`   il buco e' un **colore-chiave** dichiarato trasparente da
+    #            Windows. E' la resa migliore — il gioco si vede vivo attraverso
+    #            la finestra — ma richiede una finestra *layered*, e una finestra
+    #            layered col colore-chiave **piu'** l'esclusione dalla cattura
+    #            sono due modi diversi di dire al compositore «questa finestra e'
+    #            speciale»: insieme, su alcune configurazioni, la finestra non
+    #            compare affatto;
+    #   `false`  la finestra e' **opaca** e il buco lo riempiono i pixel del
+    #            gioco, che la catena ha gia' in mano. Piu' rozzo (la scena
+    #            dietro resta ferma fra un rinfresco e l'altro, un decimo di
+    #            secondo) ma **si vede sempre**, perche' e' una finestra normale.
+    #
+    # Se il sottotitolo tradotto non compare a schermo, questa e' la prima cosa
+    # da spegnere.
+    transparent: bool = True
     # Quanto sfocare. Per l'MP4 e' il raggio di `boxblur` in pixel del video; dal
     # vivo e' il raggio **su un inchiostro alto 40 px** (GTA V a 1080p) e segue
     # l'altezza dei glifi, cosi' lo stesso numero cancella allo stesso modo a
@@ -1277,37 +1295,6 @@ class TranslateConfig:
 
 
 @dataclass
-class RecordConfig:
-    """**La telecamera virtuale**: il gioco col sottotitolo tradotto sopra, per OBS.
-
-    Nasce da una cura. L'overlay dal vivo e' dichiarato *fuori dalla cattura*
-    perche' se no rientra nel fotogramma che diamo all'OCR e il programma legge
-    il proprio testo (misurato: il 100% dei suoi pixel). Ma «fuori dalla
-    cattura» vale per **tutte** le catture: uno streamer che mette «Cattura
-    schermo» in OBS vedrebbe il gioco senza il sottotitolo tradotto — il
-    doppiaggio si sente e non si legge.
-
-    Accendendola, il programma espone una sorgente che OBS vede come una webcam,
-    con dentro il fotogramma catturato e sopra **la stessa tela** che sta a
-    schermo in quell'istante. Non una seconda composizione: gli stessi pixel,
-    quindi sincronizzati per costruzione.
-
-    **Vuole OBS installato**, che e' chi registra la telecamera virtuale in
-    Windows. Senza, il programma lo dice e va avanti senza registrare: una
-    funzione accesa apposta che non funziona in silenzio e' il difetto peggiore
-    da diagnosticare.
-    """
-
-    enabled: bool = False
-    # Larghezza a cui si manda. Un 2560x1440 in RGB pesa 11 MB a fotogramma,
-    # cioe' 330 MB/s a 30 Hz **dentro il thread video**, dove in questo progetto
-    # un costo non si somma ma si amplifica. OBS riscala comunque, e fra 1280 e
-    # 2560 su un sottotitolo non si vede la differenza.
-    width: int = 1280
-    fps: float = 30.0
-
-
-@dataclass
 class Config:
     profile: str = "gtav"
     capture: CaptureConfig = field(default_factory=CaptureConfig)
@@ -1324,7 +1311,6 @@ class Config:
     timing: TimingConfig = field(default_factory=TimingConfig)
     mix: MixConfig = field(default_factory=MixConfig)
     ui: UiConfig = field(default_factory=UiConfig)
-    record: RecordConfig = field(default_factory=RecordConfig)
 
     # -- override ----------------------------------------------------------
 

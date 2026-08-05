@@ -37,7 +37,7 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest              # 1137 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest              # 1129 verifiche
 .\.venv\Scripts\python.exe -m tools.selftest speaker pool # gruppi scelti
 .\.venv\Scripts\python.exe -m tools.selftest -v           # con i verdi in chiaro
 
@@ -49,6 +49,7 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 .\.venv\Scripts\python.exe -m tools.reopen runs\<cartella> [secondo]
 .\.venv\Scripts\python.exe -m tools.recluster runs\<cartella>\speaker.jsonl --profile gtav
 .\.venv\Scripts\python.exe -m tools.ui --profile live --loopback voicemeeter --set vision.ocr_backend=oneocr
+# Nella finestra: **Scegli finestra** (il gioco) -> Seleziona area -> Avvia.
 
 # la prova d'ascolto, con i controlli fatti prima (venv, cattura, Ollama e il suo
 # modello) e la configurazione stampata: la riga sotto e' lunga otto opzioni, e
@@ -261,6 +262,23 @@ generare. Spento, e con ragione misurata: il guadagno massimo e' **una parola su
 settanta** (delle 1230 fuori dal lessico su 19146, 527 sono nomi propri e il
 resto e' onomatopee, forme vere non elencate e frammenti di HUD).
 
+**`capture/finestre.py` + il backend `finestra`** — si cattura **una finestra
+sola**, non lo schermo. E' la scelta che viene prima di tutte le altre:
+catturando lo schermo, nel fotogramma che va all'OCR finisce anche cio' che sta
+davanti al gioco — comprese le nostre finestre — e il programma legge se stesso
+(misurato: il 100% dei pixel dell'overlay). Con `CreateForWindow` no: verificato
+mettendo sopra alla finestra catturata una finestra rossa che la copriva a
+meta', nel fotogramma ne e' arrivato lo **0,000**; e con la catena intera, zero
+righe lette che fossero nostre su quattro.
+
+Da qui discendono tre cose che prima erano problemi separati: l'overlay non ha
+piu' bisogno di essere nascosto alle catture (quindi **chi registra lo vede**);
+la ROI e' relativa alla finestra, quindi se il gioco si sposta il sottotitolo lo
+segue; e non c'e' niente da ritagliare. Il rettangolo e' quello **cliente**
+(`GetClientRect` + `ClientToScreen`) e non quello della finestra: WGC consegna il
+contenuto senza bordi, e i sette pixel di differenza sono di quanto l'overlay
+cadrebbe spostato.
+
 **`ui/overlay.py`** — il sottotitolo tradotto disegnato sopra il gioco. Dal vivo
 il fotogramma non passa da noi, quindi serve una finestra: senza bordi, sempre in
 primo piano, con i clic che la attraversano e senza rubare il fuoco — che in molti
@@ -321,16 +339,6 @@ posizione e a-capo si decidono all'inizio; la cancellatura si rifa' a 10 Hz, e l
 tela copre **tutta la fascia** perche' mentre la nostra battuta e' a schermo il
 gioco e' spesso gia' passato alla riga dopo (la voce arriva un secondo e mezzo
 dopo il sottotitolo, sempre).
-
-**`ui/record.py`** — la telecamera virtuale, e **nasce da una cura**. L'overlay
-e' fuori dalla cattura per non rientrare nell'OCR; ma «fuori dalla cattura» vale
-per tutte le catture, e uno streamer che mette «Cattura schermo» in OBS vedrebbe
-il gioco **senza** il sottotitolo tradotto — un doppiaggio che si sente e non si
-legge. `record.enabled` espone una sorgente che OBS vede come una webcam, con
-dentro il fotogramma catturato e sopra **la stessa tela** che sta a schermo: non
-una seconda composizione, gli stessi pixel, quindi sincronizzati per costruzione.
-Verificata rileggendola come farebbe OBS: differenza media **0,9 su 255** dal
-fotogramma mandato. Vuole OBS installato, e senza lo dichiara.
 
 **`core/onnx.py`** — la porta unica per aprire una sessione ONNX, che esiste per
 la riga `preload_dlls()`. Si veda la regola piu' sotto.
@@ -654,14 +662,15 @@ la grafica si guarda da soli in trenta secondi. Un MP4 disegnato da ffmpeg no:
 sarebbe un secondo disegnatore, e mostrerebbe una cosa mentre il vivo ne fa
 un'altra — che e' esattamente com'era nato il difetto.
 
-**Una cura puo' rompere qualcosa che nessuno stava guardando.** Escludere
-l'overlay dalla cattura era giusto e necessario — senza, l'OCR legge noi. Ma
-«fuori dalla cattura» non e' una proprieta' che si possa dare a meta': vale
-anche per OBS, e la stessa riga che ripara il riconoscimento toglie i
-sottotitoli a chi registra. Il difetto non era nel codice nuovo, era nel **giro
-di conseguenze** che nessuna verifica poteva percorrere. Quando una modifica
-cambia cosa un'altra applicazione puo' vedere, l'elenco di chi guarda va fatto a
-mano.
+**Una cura puo' rompere qualcosa che nessuno stava guardando, e a volte la cura
+giusta e' non averne bisogno.** L'overlay veniva nascosto a *tutte* le catture
+per non rientrare nell'OCR: giusto, e con due prezzi — non lo vedeva nemmeno chi
+registra, e non era piu' fotografabile, quindi nemmeno diagnosticabile. La
+risposta non era una seconda cura (una telecamera virtuale che rimettesse il
+tradotto in una sorgente video): era **togliere la causa**. Catturando la sola
+finestra del gioco l'overlay non rientra affatto, e la cura — con i suoi due
+prezzi — si puo' buttare. Prima di curare un difetto, chiedersi se esiste per
+una scelta che si puo' disfare.
 
 **Un ottimo algoritmo nel posto sbagliato e' un difetto.** `inpaint` cancellava
 la riga meglio di tutto il resto, e per questo e' stato scelto: 16 ms sembravano

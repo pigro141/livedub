@@ -2242,22 +2242,40 @@ def test_overlay(c: Check) -> None:
     c.eq(colore_del_gioco((0, 0, 0)), (255, 255, 255),
          "un inchiostro nero (niente da misurare) ricade sul bianco")
 
-    # -- la misura si prende dal gioco, **sulla larghezza** ---------------
-    # Confrontare l'altezza della banda con l'altezza di `Ag` chiedeva un
-    # carattere alto quanto una riga intera per ottenere delle sole maiuscole:
-    # circa il 40% troppo grande. La larghezza invece si confronta con se'
-    # stessa, sul testo che l'OCR ha letto.
+    # -- la misura si prende dal gioco, su **larghezza e altezza** ---------
+    # Prima si confrontava la sola altezza della banda con l'altezza di `Ag`:
+    # chiedeva un carattere alto quanto una riga intera per ottenere delle sole
+    # maiuscole, il 40% di troppo. Poi la sola larghezza: giusta di lunghezza e
+    # piu' alta dell'originale, perche' il carattere del gioco e' stretto e
+    # Arial no. Adesso si cerca il corpo che sbaglia meno su **tutti e due**.
+    #
+    # **Andata e ritorno**: si costruisce la banda disegnando davvero il testo a
+    # un corpo noto, e si deve ritrovare quel corpo. E' l'unica prova che non si
+    # possa superare per caso — se il numero che esce non e' quello che e'
+    # entrato, la formula sbaglia e basta.
     from PIL import Image as _Im, ImageDraw as _Dr
 
     reg = _Dr.Draw(_Im.new("L", (1, 1)))
-    for testo, larga in (("Ciao, Lamar!", 300), ("Come stai, fratello mio?", 700)):
-        corpo = corpo_del_gioco([(0, 0, larga, 30)], testo, 1.0, "Arial")
-        w = reg.textlength(testo, font=carica_font("Arial", corpo))
-        c.ok(abs(w - larga) <= max(4, 0.02 * larga),
-             f"'{testo}' largo {larga} px da' un corpo che ne occupa {w:.0f} "
-             f"(corpo {corpo})")
+    for testo, vero in (("Ciao, Lamar!", 26), ("Come stai, fratello mio?", 44),
+                        ("Andiamo.", 62)):
+        f_vero = carica_font("Arial", vero)
+        larga = int(reg.textlength(testo, font=f_vero))
+        _, y0v, _, y1v = f_vero.getbbox("Ag")
+        corpo = corpo_del_gioco([(0, 0, larga, y1v - y0v)], testo, 1.0, "Arial")
+        c.ok(abs(corpo - vero) <= 1,
+             f"'{testo}' scritto a {vero} punti si rimisura {corpo}")
+
+    # E il compromesso non deve mai gonfiare il testo oltre la riga che copre.
+    for larga, alta in ((300, 30), (700, 30), (400, 55)):
+        corpo = corpo_del_gioco([(0, 0, larga, alta)], "Ciao, Lamar!", 1.0, "Arial")
+        f = carica_font("Arial", corpo)
+        _, ya, _, yb = f.getbbox("Ag")
+        c.ok((yb - ya) <= alta * 1.35,
+             f"su una banda {larga}x{alta} l'inchiostro scelto e' alto {yb - ya}, "
+             f"non sfonda la riga")
+
     alto = corpo_del_gioco([(0, 0, 300, 30)], "Ciao, Lamar!", 1.0, "Arial")
-    c.ok(corpo_del_gioco([(0, 0, 600, 30)], "Ciao, Lamar!", 2.0, "Arial")
+    c.ok(corpo_del_gioco([(0, 0, 600, 60)], "Ciao, Lamar!", 2.0, "Arial")
          > alto * 1.5,
          "e su uno schermo il doppio piu' fitto il carattere raddoppia")
 
@@ -2395,6 +2413,33 @@ def test_overlay(c: Check) -> None:
          f"({int((tocco & ~consentito).sum())} pixel fuori)")
     cfg.translate.background_mode = "cancella"
 
+    # -- la finestra **opaca**, che e' il ripiego quando non si vede -------
+    # Il colore-chiave e' una finestra layered, e layered + esclusione dalla
+    # cattura sono due modi diversi di dire al compositore «questa finestra e'
+    # speciale»: insieme puo' non comparire affatto. Il ripiego riempie il buco
+    # con i pixel del gioco, e deve dare **lo stesso identico risultato** —
+    # altrimenti sarebbe una seconda resa, cioe' un'altra cosa da tenere in riga.
+    op, (oxo, oyo) = dipingi(pezzo, bande, "Hi, Lamar!", scala=1.0, modo="cancella",
+                             inchiostro_rgb=tinta, testo_originale="Ciao, Lamar!",
+                             opaco=True)
+    c.eq((op.size, oxo, oyo), (img.size, ox, oy),
+         "la finestra opaca ha la stessa geometria di quella trasparente")
+    c.eq(int(np.array(op)[:, :, 3].min()), 255, "ed e' opaca dappertutto")
+    v1 = frame.copy()
+    v2 = frame.copy()
+    rxx = int(round(rett[0] * frame.shape[1]))
+    ryy = int(round(rett[1] * frame.shape[0]))
+    _incolla(v1, img, rxx + ox, ryy + oy)
+    _incolla(v2, op, rxx + oxo, ryy + oyo)
+    # Lo scarto ammesso e' l'arrotondamento della composizione alfa (float ->
+    # uint8) sui bordi antialiasati del testo: chiedere zero vorrebbe dire
+    # chiedere a due strade diverse di sbagliare l'arrotondamento allo stesso
+    # modo, che non e' la domanda.
+    scarto = int(np.abs(v1.astype(np.int16) - v2.astype(np.int16)).max())
+    c.ok(scarto <= 2,
+         f"e a schermo si vede la stessa cosa (scarto massimo {scarto}/255): il "
+         f"buco lo riempiono i pixel veri del gioco, non un'approssimazione")
+
     # -- `nessuno` non cancella, `riquadro` copre di tinta unita ----------
     coperto = float((arr[:, :, 3] > 0).mean())
     senza = np.array(dipingi(pezzo, bande, "Hi", scala=1.0, modo="nessuno",
@@ -2422,87 +2467,6 @@ def test_overlay(c: Check) -> None:
     ms = (time.perf_counter() - t0) / 5 * 1000
     c.ok(ms < 60.0, f"dipingere costa {ms:.1f} ms, e sta nel thread video")
     del cv2
-
-
-def test_record(c: Check) -> None:
-    """La telecamera virtuale: il gioco col tradotto sopra, per OBS.
-
-    **Non si apre la telecamera vera.** Aprirla occupa una risorsa di sistema e
-    su una macchina senza OBS fallirebbe per una ragione che non e' un difetto
-    del codice: la suite direbbe rosso dove non c'e' niente di rotto. Si verifica
-    quindi cio' che e' nostro — la composizione e la consegna — con un ricevitore
-    finto, e si lascia alla prova a mano il resto.
-
-    Che la telecamera vera funzioni e' stato misurato una volta e va scritto qui
-    perche' non si ripeta il dubbio: aperta come «OBS Virtual Camera», riletta
-    con OpenCV come farebbe OBS, il fotogramma che torna e' quello mandato con
-    una differenza media di **0,9 su 255**.
-    """
-    c.group("record")
-    from ui.record import TelecameraVirtuale, _incolla
-
-    cfg = Config()
-    c.ok(hasattr(cfg, "record") and not cfg.record.enabled,
-         "la sezione `record` esiste ed e' **spenta** di default: espone una "
-         "sorgente video, e una cosa del genere non si accende da sola")
-    c.ok(cfg.record.width < 1920,
-         f"e si manda ridimensionata ({cfg.record.width} px): un 2560x1440 in RGB "
-         f"e' 330 MB/s dentro il thread video")
-
-    # -- la sovrapposizione rispetta l'alfa --------------------------------
-    fondo = np.full((40, 60, 3), 10, np.uint8)
-    tela = np.zeros((10, 10, 4), np.uint8)
-    tela[:, :, 0] = 255  # rosso pieno, in RGBA
-    tela[:, :, 3] = 255
-    _incolla(fondo, tela, 5, 5)
-    c.eq(tuple(int(v) for v in fondo[6, 6]), (0, 0, 255),
-         "dove la tela e' opaca si vede la tela (e RGBA diventa BGR)")
-    c.eq(tuple(int(v) for v in fondo[30, 50]), (10, 10, 10),
-         "e dove e' trasparente resta il gioco")
-
-    # Fuori dai bordi non deve esplodere: la finestra puo' stare a cavallo del
-    # bordo dello schermo, e un ritaglio negativo qui e' un crollo dal vivo.
-    for pos in ((-8, -8), (55, 35), (1000, 1000), (-100, 20)):
-        prima = fondo.copy()
-        _incolla(fondo, tela, *pos)
-        c.ok(fondo.shape == prima.shape, f"tela in {pos} non rompe niente")
-
-    # -- la consegna, con un ricevitore finto ------------------------------
-    class Finta(TelecameraVirtuale):
-        def _apri(self, w, h):
-            self.mandati = []
-            self.cam = type("C", (), {"send": lambda _s, f: self.mandati.append(f)})()
-            self._forma = (w, h)
-            self.attiva = True
-            return True
-
-    cam = Finta(larghezza=320, fps=30.0)
-    frame = np.zeros((1440, 2560, 3), np.uint8)
-    frame[:, :, 2] = 200  # rosso, in BGR
-    c.ok(cam.manda(frame), "la consegna riesce")
-    f = cam.mandati[-1]
-    c.eq(f.shape[:2][::-1], (320, 180), "si manda alla larghezza chiesta, proporzioni tenute")
-    c.ok(f.shape[0] % 2 == 0, "e con l'altezza pari, che molti ricevitori pretendono")
-    c.eq(tuple(int(v) for v in f[10, 10]), (200, 0, 0),
-         "e in RGB: mandarlo in BGR darebbe una diretta con i colori scambiati, "
-         "che nessun contatore mostra")
-
-    # Cambiando forma la telecamera si riapre invece di mandare una misura
-    # sbagliata a un ricevitore aperto su un'altra.
-    cam.manda(np.zeros((720, 720, 3), np.uint8))
-    c.eq(cam._forma, (320, 320), "cambiando le proporzioni del gioco si riapre")
-
-    # -- e senza telecamera si **dichiara** ---------------------------------
-    class Senza(TelecameraVirtuale):
-        def _apri(self, w, h):
-            self.errore = "niente ricevitore"
-            return False
-
-    muta = Senza()
-    c.ok(not muta.manda(np.zeros((100, 100, 3), np.uint8)),
-         "senza ricevitore la consegna dice di no")
-    c.ok(muta.errore, "e lascia scritto perche': una funzione accesa apposta che "
-                      "non funziona in silenzio e' il difetto peggiore da diagnosticare")
 
 
 def test_template(c: Check) -> None:
@@ -3163,7 +3127,6 @@ GROUPS = {
     "traduzione": test_traduzione,
     "template": test_template,
     "overlay": test_overlay,
-    "record": test_record,
     "fretta": test_fretta,
     "duck": test_duck_non_pompa,
     "velocita": test_velocita_totale,

@@ -123,6 +123,7 @@ def corpo_del_gioco(bande, testo_originale: str, scala: float, nome_font: str) -
     il rapporto fra inchiostro maiuscolo e corpo invece di far finta che sia 1.
     """
     larghezza = sum(x1 - x0 for x0, _, x1, _ in bande) * scala
+    altezza = max(y1 - y0 for _, y0, _, y1 in bande) * scala
     testo = " ".join((testo_originale or "").split())
     if not testo or larghezza <= 0:
         import statistics
@@ -133,6 +134,26 @@ def corpo_del_gioco(bande, testo_originale: str, scala: float, nome_font: str) -
     from PIL import Image, ImageDraw
 
     misura = ImageDraw.Draw(Image.new("L", (1, 1)))
+
+    def errore(corpo: int) -> float:
+        """Quanto quel corpo sbaglia, **su tutti e due i lati**.
+
+        La sola larghezza basterebbe se il carattere fosse quello del gioco, e
+        non lo e': GTA V ne usa uno stretto, Arial no. Con la sola larghezza il
+        testo viene giusto di lunghezza e **piu' alto** dell'originale; con la
+        sola altezza viene giusto di altezza e molto piu' lungo. Si cerca quindi
+        il corpo che sbaglia meno su entrambi, con l'altezza pesata la meta'
+        perche' la larghezza e' misurata su una riga intera e l'altezza su un
+        glifo — la prima e' la misura piu' affidabile delle due.
+        """
+        f = carica_font(nome_font, corpo)
+        w = misura.textlength(testo, font=f)
+        a, b, cx, d = f.getbbox("Ag")
+        h = max(1, d - b)
+        return abs(w - larghezza) / larghezza + 0.5 * abs(h - altezza) / max(1.0, altezza)
+
+    # Si parte dalla stima sulla sola larghezza — poche iterazioni, converge —
+    # e poi si cerca il minimo attorno, che e' dove i due lati si accordano.
     corpo = max(8, int(larghezza / max(1, len(testo)) * 2.0))
     for _ in range(10):
         w = misura.textlength(testo, font=carica_font(nome_font, corpo))
@@ -141,7 +162,20 @@ def corpo_del_gioco(bande, testo_originale: str, scala: float, nome_font: str) -
         if abs(w - larghezza) <= max(2.0, 0.01 * larghezza):
             break
         corpo = max(8, int(round(corpo * larghezza / w)))
-    return corpo
+    # **Un tetto duro sull'altezza, e non e' pignoleria.** Il compromesso e' un
+    # minimo, e un minimo su una banda dalle proporzioni impossibili — dodici
+    # lettere larghe 700 px e alte 30, cioe' non il testo che dice di essere —
+    # puo' cadere su un carattere alto il triplo della riga che deve coprire. A
+    # schermo si vede un sottotitolo gonfio, che e' il difetto da cui e' partito
+    # tutto questo. Sopra la riga si puo' sconfinare di un filo, non di piu'.
+    def sta_dentro(corpo: int) -> bool:
+        a, b, cc, d = carica_font(nome_font, corpo).getbbox("Ag")
+        return (d - b) <= altezza * 1.35
+
+    candidati = [c for c in range(max(8, corpo - 8), corpo + 9) if sta_dentro(c)]
+    if not candidati:
+        candidati = [max(8, int(round(altezza / 0.72)))]
+    return min(candidati, key=errore)
 
 
 class MisuraCarattere:
@@ -448,7 +482,7 @@ class Sostituzione:
 
     # -- i pixel, che invece si rifanno ------------------------------------
 
-    def disegna(self, pezzo, bande=None):
+    def disegna(self, pezzo, bande=None, opaco: bool = False):
         """La tela RGBA di adesso, con la geometria di sempre.
 
         `bande` diverse da quelle di partenza servono a inseguire il sottotitolo
@@ -458,8 +492,36 @@ class Sostituzione:
         import numpy as np
         from PIL import Image, ImageDraw
 
-        tela = Image.new("RGBA", (self.larg, self.alt), (0, 0, 0, 0))
         h_pezzo, w_pezzo = pezzo.shape[:2]
+        if opaco:
+            # **Il buco riempito col gioco invece che con il colore-chiave.**
+            # Il colore-chiave e' una finestra *layered*, e su Windows una
+            # finestra layered col colore-chiave **piu'** l'esclusione dalla
+            # cattura puo' non comparire affatto: sono due modi diversi di dire
+            # al compositore «questa finestra e' speciale», e insieme non e'
+            # detto che si parlino. Qui la finestra torna una finestra normale e
+            # opaca, e il posto di cio' che dovrebbe essere trasparente lo
+            # prendono i pixel veri del gioco — che abbiamo gia' in mano.
+            fondo = Image.fromarray(
+                np.ascontiguousarray(pezzo[:, :, :3][:, :, ::-1])
+            ).resize((self.su(w_pezzo), self.su(h_pezzo)))
+            arr = np.array(fondo)
+            # La tela puo' sporgere sopra o sotto la fascia — il testo tradotto
+            # su tre righe dove l'originale ne aveva una — e li' pixel del gioco
+            # non ne abbiamo. Si replica il bordo invece di lasciare nero: una
+            # striscia nera in mezzo allo schermo si vede, la continuazione di
+            # cio' che c'e' gia' no.
+            su_ = max(0, -self.oy)
+            giu = max(0, self.alt - su_ - arr.shape[0])
+            sx = max(0, -self.ox)
+            dx = max(0, self.larg - sx - arr.shape[1])
+            if su_ or giu or sx or dx:
+                arr = np.pad(arr, ((su_, giu), (sx, dx), (0, 0)), mode="edge")
+            arr = arr[: self.alt, : self.larg]
+            tela = Image.new("RGBA", (self.larg, self.alt), (0, 0, 0, 255))
+            tela.paste(Image.fromarray(np.ascontiguousarray(arr)), (0, 0))
+        else:
+            tela = Image.new("RGBA", (self.larg, self.alt), (0, 0, 0, 0))
         scelte = self.bande
         if bande:
             scelte = [b for b in bande if (b[3] - b[1]) <= 2.0 * self.alta] or self.bande
@@ -500,11 +562,11 @@ class Sostituzione:
         return tela, (self.ox, self.oy)
 
 
-def dipingi(pezzo, bande, testo: str, **kw):
+def dipingi(pezzo, bande, testo: str, opaco: bool = False, **kw):
     """Decide e disegna in un colpo solo. `None` se non c'e' niente da coprire."""
     if not bande:
         return None
-    return Sostituzione(pezzo, bande, testo, **kw).disegna(pezzo)
+    return Sostituzione(pezzo, bande, testo, **kw).disegna(pezzo, opaco=opaco)
 
 
 def su_chiave(tela):
@@ -544,6 +606,7 @@ class Overlay:
         blur: float = 12.0,
         contorno: float = 2.0,
         escludi_cattura: bool = True,
+        trasparente: bool = True,
     ) -> None:
         self.blur = max(0.0, blur)
         # **Spegnerla serve solo a fotografarla.** La finestra e' esclusa dalla
@@ -552,6 +615,10 @@ class Overlay:
         # guardarlo si spegne, e si riaccende — non e' un'opzione da config,
         # perche' spenta l'OCR ricomincia a leggere noi.
         self.escludi_cattura = escludi_cattura
+        # `trasparente` = il buco e' un colore-chiave. Spento, la finestra e'
+        # opaca e il buco lo riempiono i pixel del gioco: piu' rozzo (la scena
+        # dietro e' ferma fra un rinfresco e l'altro) ma **si vede sempre**.
+        self.trasparente = trasparente
         self.modo = (modo or "cancella").lower()
         self.nome_font = font
         self.contorno = contorno
@@ -572,6 +639,12 @@ class Overlay:
         self.font_frac = font_frac
         self._foto = None
         self.schermo = (root.winfo_screenwidth(), root.winfo_screenheight())
+        # **Dove sta il gioco.** Catturando una finestra, le coordinate del
+        # fotogramma sono le sue, non quelle dello schermo: senza questo
+        # rettangolo l'overlay cadrebbe sulla stessa *frazione* di schermo
+        # invece che sulla stessa frazione di finestra, cioe' quasi sempre
+        # altrove. `None` = si cattura lo schermo intero, ed e' come prima.
+        self.ancora = None
 
         self.top = tk.Toplevel(root)
         self.top.overrideredirect(True)
@@ -597,13 +670,22 @@ class Overlay:
         return tuple(int(s[i : i + 2], 16) for i in (0, 2, 4))
 
     def _geom_roi(self, roi) -> tuple[int, int, int, int]:
-        sw, sh = self.schermo
+        ax, ay, aw, ah = self.ancora or (0, 0, *self.schermo)
         x, y, w, h = roi
-        return (max(1, int(sw * w)), max(1, int(sh * h)), int(sw * x), int(sh * y))
+        return (max(1, int(aw * w)), max(1, int(ah * h)), ax + int(aw * x), ay + int(ah * y))
 
     def riposiziona(self, roi) -> None:
         """La ROI e' cambiata (il selettore d'area): il ripiego deve seguirla."""
         self.geom = self._geom_roi(roi)
+
+    def aggancia(self, rett_px) -> None:
+        """Il gioco sta li'. Si richiama quando la finestra si sposta.
+
+        Costa una chiamata a Windows e va rifatta spesso: una finestra che si
+        sposta senza che l'overlay la segua e' un sottotitolo tradotto in mezzo
+        al desktop.
+        """
+        self.ancora = tuple(int(v) for v in rett_px) if rett_px else None
 
     def _passante(self) -> None:
         """Tre proprieta' di Windows, e nessuna e' una rifinitura.
@@ -645,23 +727,47 @@ class Overlay:
             stile | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
         )
         # Il colore che sparisce. Va messo **dopo** WS_EX_LAYERED.
-        try:
-            self.top.attributes("-transparentcolor", CHIAVE)
-        except tk.TclError:  # pragma: no cover
-            print("overlay: colore trasparente non disponibile", file=sys.stderr)
+        if self.trasparente:
+            try:
+                self.top.attributes("-transparentcolor", CHIAVE)
+            except tk.TclError:  # pragma: no cover
+                print("overlay: colore trasparente non disponibile", file=sys.stderr)
+        self._dichiara_esclusione()
+
+    def esclusione(self, attiva: bool) -> None:
+        """Accende o spegne l'esclusione dalla cattura, a finestra gia' aperta.
+
+        **Serve solo a chi cattura lo schermo intero.** Li' la nostra finestra
+        rientra nel fotogramma dato all'OCR — misurato, il 100% dei suoi pixel —
+        e va nascosta. Scegliendo la finestra del gioco non rientra affatto
+        (misurato: zero righe lette che fossero nostre su quattro), e allora
+        nascondere l'overlay a **tutte** le catture e' un prezzo pagato per
+        niente: e' quello che lo rende invisibile anche a OBS, e sospettato di
+        renderlo invisibile e basta quando si somma al colore-chiave.
+
+        Si rimette a `WDA_NONE` invece di omettere la chiamata: l'affinita' e'
+        una proprieta' della finestra, e ometterla lascia quella di prima.
+        """
+        self.escludi_cattura = bool(attiva)
+        if sys.platform != "win32":
+            return
+        import ctypes
+
+        WDA_EXCLUDEFROMCAPTURE = 0x00000011
+        u32 = ctypes.windll.user32
+        hwnd = u32.GetParent(self.top.winfo_id()) or self.top.winfo_id()
+        u32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE if attiva else 0)
+
+    def _dichiara_esclusione(self) -> None:
+        """Applica l'esclusione decisa alla nascita, e dice se non ci riesce.
+
+        Un ripiego che non si dichiara e' peggio di un errore: senza esclusione,
+        chi cattura lo schermo ci legge, e il difetto sembra dell'OCR.
+        """
+        self.esclusione(self.escludi_cattura)
         if not self.escludi_cattura:
-            # Si **rimette** a WDA_NONE, non si omette la chiamata: l'affinita'
-            # e' una proprieta' della finestra, e ometterla lascia quella di
-            # prima. Provandolo, lo screenshot continuava a non vedere la
-            # finestra e sembrava che l'overlay non venisse disegnato affatto.
-            u32.SetWindowDisplayAffinity(hwnd, 0)
-            print("overlay: esclusione dalla cattura SPENTA (solo per fotografarlo): "
-                  "l'OCR leggera' anche il testo tradotto", file=sys.stderr)
-        elif not u32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE):
-            # Un ripiego che non si dichiara e' peggio di un errore: senza
-            # esclusione l'OCR legge noi, e il difetto sembrerebbe dell'OCR.
-            print("overlay: ATTENZIONE, la finestra non e' esclusa dalla cattura: "
-                  "l'OCR leggera' anche il testo tradotto", file=sys.stderr)
+            print("overlay: non escluso dalla cattura — giusto se si cattura una "
+                  "finestra, sbagliato se si cattura lo schermo", file=sys.stderr)
 
     # -- uso ---------------------------------------------------------------
 
@@ -710,7 +816,7 @@ class Overlay:
             return
         try:
             bande = bande_veloci(pezzo, self.vision) if self.vision is not None else []
-            tela, _ = self.sost.disegna(pezzo, bande)
+            tela, _ = self.sost.disegna(pezzo, bande, opaco=not self.trasparente)
         except Exception:  # pragma: no cover - meglio una toppa vecchia che un crollo
             return
         # **Sparisce quando sparisce il sottotitolo del gioco, non quando lo dice
@@ -727,7 +833,9 @@ class Overlay:
                 return
         from PIL import ImageTk
 
-        self._foto = ImageTk.PhotoImage(su_chiave(tela), master=self.top)
+        self._foto = ImageTk.PhotoImage(
+            su_chiave(tela) if self.trasparente else tela.convert("RGB"), master=self.top
+        )
         self.etichetta.configure(image=self._foto)
         self.ultima = (tela, self.top.winfo_x(), self.top.winfo_y())
 
@@ -735,8 +843,9 @@ class Overlay:
         from PIL import ImageTk
 
         sw, sh = self.schermo
+        ax, ay, aw, ah = self.ancora or (0, 0, sw, sh)
         h_pezzo, w_pezzo = pezzo.shape[:2]
-        scala = (rett[2] * sw) / max(1, w_pezzo)
+        scala = (rett[2] * aw) / max(1, w_pezzo)
         corpo = (int(sh * self.font_frac) if self.font_frac > 0
                  else self.misura.aggiorna(bande, originale, scala, self.nome_font))
         self.sost = Sostituzione(
@@ -744,15 +853,15 @@ class Overlay:
             scala=scala, nome_font=self.nome_font, colore=self.colore,
             corpo=corpo, contorno=self.contorno, blur=self.blur,
             inchiostro_rgb=inchiostro, modo=self.modo, fondo_rgb=self.fondo_rgb,
-            testo_originale=originale, larghezza_schermo=sw,
+            testo_originale=originale, larghezza_schermo=min(aw, sw),
         )
         self.rett = rett
         self._vuoti = 0
-        tela, (ox, oy) = self.sost.disegna(pezzo)
-        piatta = su_chiave(tela)
+        tela, (ox, oy) = self.sost.disegna(pezzo, opaco=not self.trasparente)
+        piatta = su_chiave(tela) if self.trasparente else tela.convert("RGB")
         foto = ImageTk.PhotoImage(piatta, master=self.top)
-        x = int(rett[0] * sw) + ox
-        y = int(rett[1] * sh) + oy
+        x = ax + int(rett[0] * aw) + ox
+        y = ay + int(rett[1] * ah) + oy
         geom = (piatta.width, piatta.height,
                 max(0, min(sw - piatta.width, x)), max(0, min(sh - piatta.height, y)))
         self.ultima = (tela, geom[2], geom[3])

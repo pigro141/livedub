@@ -2181,6 +2181,22 @@ def test_traduzione(c: Check) -> None:
     c.eq(len({v.gender for v in en}), 2, "e alternano maschile e femminile")
     c.eq(FONEMI_LINGUA["en"], "en-us", "l'inglese si fonemizza con le regole inglesi")
 
+    # **E il passo cambia con la lingua.** Usare quello italiano sull'inglese
+    # faceva credere ogni battuta piu' lunga di quanto fosse: budget stretto,
+    # WSOLA al tetto su *tutti* i percentili, e il parlato che riempiva appena
+    # meta' scena. Compressione autoinflitta da una stima sbagliata.
+    from speak.backends.kokoro import PASSO_LINGUA, KokoroTts
+
+    c.ok(PASSO_LINGUA["en"] > PASSO_LINGUA["it"],
+         f"l'inglese e' piu' svelto dell'italiano ({PASSO_LINGUA['en']} contro "
+         f"{PASSO_LINGUA['it']} car/s, misurati tutti e due)")
+    k_it = KokoroTts(lingua="it", download=False)
+    k_en = KokoroTts(lingua="en", download=False)
+    c.close(k_it.chars_per_second, PASSO_LINGUA["it"], "il motore dichiara il passo italiano", tol=1e-6)
+    c.close(k_en.chars_per_second, PASSO_LINGUA["en"], "e quello inglese quando parla inglese", tol=1e-6)
+    c.eq(KokoroTts(lingua="en-us", download=False).lingua_base, "en",
+         "un codice regionale ricade sulla lingua base")
+
     # La catena prende la lingua **di arrivo**, non quella del gioco.
     cfg_en = Config()
     cfg_en.vision.ocr_backend = "none"

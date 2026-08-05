@@ -158,6 +158,32 @@ DEFAULT_SPEED = 1.0
 # 17,4 di config rimasto sbagliato per anni.
 PASSO_PER_UNITA = 12.9
 
+# **E il passo cambia con la lingua, che non era ovvio e si e' sentito.**
+#
+# Il 12,9 qui sopra e' misurato sull'italiano. Traducendo in inglese, la catena
+# continuava a usarlo: `stima = n / 12,9` faceva credere ogni battuta piu' lunga
+# di quanto fosse, il budget usciva stretto, e WSOLA comprimeva **al tetto** —
+# `dub.rate_x1000` a 1250 su tutti i percentili — mentre il parlato riempiva
+# appena il 49% della scena. Compressione autoinflitta da una stima sbagliata:
+# c'era tutto il tempo del mondo e la voce correva lo stesso.
+#
+# Misurato in due modi che concordano nel verso:
+#
+#     banco, 10 frasi x 2 voci   14,37 car/s   (13,73 michael, 15,00 heart)
+#     sessione dal vivo, 18 battute   16,73 car/s
+#
+# Si dichiara il valore del banco, che e' il piu' controllato e il piu' basso dei
+# due: una previsione corta si paga piu' cara di una lunga, perche' porta a
+# comprimere invece che a lasciare respiro.
+#
+# **Chi aggiunge una lingua misuri la sua**, con `spoken_length()` e dopo
+# `taglia_silenzio`: un numero preso da un'altra lingua e' esattamente il difetto
+# che questa tabella esiste per chiudere.
+PASSO_LINGUA = {
+    "it": 12.9,
+    "en": 14.37,
+}
+
 
 def model_path(quale: str = DEFAULT_PESI, download: bool = True) -> Path:
     """Percorso del set di pesi, scaricandolo alla prima richiesta.
@@ -287,7 +313,8 @@ class KokoroTts:
         # traduce, e' quella di arrivo. Fonemizzare l'inglese con le regole
         # italiane da' parlato comprensibile a meta' e sembra un difetto del
         # modello.
-        self.lingua = FONEMI_LINGUA.get(lingua, lingua)
+        self.lingua_base = (lingua or "it").split("-")[0]
+        self.lingua = FONEMI_LINGUA.get(self.lingua_base, lingua)
         self.download = download
         self._k = None
         self._provider = "?"
@@ -304,7 +331,9 @@ class KokoroTts:
         catena gli chiedera' fretta piu' spesso. E' il motivo per cui il tetto
         misurato a 1,30 conta piu' qui che altrove.
         """
-        return PASSO_PER_UNITA * self.speed
+        # **Per lingua**: si veda `PASSO_LINGUA`. Usare il numero italiano
+        # sull'inglese faceva comprimere al tetto una scena piena a meta'.
+        return PASSO_LINGUA.get(self.lingua_base, PASSO_PER_UNITA) * self.speed
 
     # -- caricamento -------------------------------------------------------
 

@@ -52,6 +52,16 @@ prima di impacchettare.
 | **supertonic** | 313 ms | CPU. A 4 core costa 1315 ms: non usabile |
 | ~~qwen~~ | — | **tolto**, e la ragione sta in `CLAUDE.md` |
 
+## LEGGI PRIMA `DA_VERIFICARE.md`
+
+La sessione precedente si e' chiusa con il PC spento e non e' piu' riapribile.
+Tutto quello che andava detto sta nei file, e l'ordine giusto e':
+
+1. **`DA_VERIFICARE.md`** — cosa non e' stato provato e come provarlo. La prima
+   voce e' la grafica dell'overlay, **scritta e mai vista a schermo**.
+2. **`SviluppoProgetto.md`** — la lista, con l'esito di ogni voce.
+3. Questo file, per il contesto.
+
 ## Le due cose che l'ultima sessione ha lasciato aperte
 
 **1. La prova dal vivo con traduzione, giudicata a orecchio.** I numeri dicono
@@ -63,6 +73,19 @@ suonava** — in particolare se l'overlay cade sul sottotitolo e non dà fastidi
 **2. La correzione OCR resta spenta**, ed è una decisione già presa con i numeri
 in mano: `translategemma:4b` fa 5 su 8, ma **1784 ms per parola**, contro un
 guadagno massimo di una parola su settanta. Buona per il banco, non per il vivo.
+
+## Le tre cose da fare per prime, in ordine
+
+1. **Guardare l'overlay a schermo.** E' l'unico pezzo di codice di quella sessione
+   che nessuno ha mai visto funzionare. `DA_VERIFICARE.md` dice dove guardare se
+   cade nel posto sbagliato.
+2. **Alzare `accepted_delay_ms` e rimisurare.** La compressione resta al tetto
+   (1250 su *tutti* i percentili) con il parlato che riempie il 41% della scena:
+   non e' il passo, e' la traduzione sulla strada critica che mangia il budget.
+   La cura e' quel campo — che esiste apposta per «la parte che torna identica a
+   ogni battuta» — ma la tabella di `fuse/timing.py` va rifatta a traduzione
+   accesa, perche' quella dice 250 ms misurati **senza**.
+3. **Poi la UI**, che e' l'unico blocco rimasto prima del cancello dell'utente.
 
 ## Il banco
 

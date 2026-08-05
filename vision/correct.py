@@ -282,7 +282,7 @@ def candidati(parola: str, lexicon, max_distanza: int = 2, tetto: int = 30) -> l
     return [w for _, w in fuori[:tetto]]
 
 
-def make_correttore(cfg):
+def make_correttore(cfg, traduzione=None):
     """Il correttore richiesto. Un nome sconosciuto **solleva**.
 
     Come `make_tts` e `make_ocr`: ripiegare in silenzio su "nessuno" vorrebbe dire
@@ -293,16 +293,10 @@ def make_correttore(cfg):
     if nome in ("", "nessuno", "none"):
         return NessunCorrettore()
     if nome == "llm":
-        # **Misurato, e per il vivo la risposta e' no.** Su Gemma 3 1B: una
-        # giusta su sei casi veri, p50 **1564 ms**, e gli errori sono quelli
-        # peggiori — `oulldozer -> bulldozers` (forma sbagliata),
-        # `ciassico -> biascico` (una parola rara al posto di quella ovvia),
-        # `uice -> ice` dove doveva astenersi. Contro un guadagno massimo di una
-        # parola su settanta, e un secondo e mezzo su ogni battuta che ne ha una.
-        #
-        # Resta montato perche' il costo di tenerlo e' zero e perche' con un
-        # modello piu' grande il numero va rifatto — ma acceso, oggi, peggiora il
-        # doppiaggio invece di migliorarlo.
+        # **Il peggiore dei tre, misurato.** Su otto casi veri: una giusta, con
+        # gli errori peggiori possibili — `oulldozer -> bulldozers`,
+        # `ciassico -> biascico`, `uice -> ice` dove doveva astenersi. Chi vuole
+        # correggere usi `ollama`.
         from translate.llm import CorrettoreLlm
         from vision.lexicon import carica
 
@@ -312,4 +306,37 @@ def make_correttore(cfg):
         return CorrettoreLlm(
             modello=cfg.llm_model, lexicon=carica(), max_ms=cfg.llm_max_ms
         )
-    raise ValueError(f"correttore sconosciuto: {cfg.backend!r} (noti: nessuno, llm)")
+    if nome == "ollama":
+        # **Il migliore dei tre, e non di poco.** Su otto casi veri presi dalle
+        # sessioni archiviate:
+        #
+        #     translategemma:4b     5/8   p50 1784 ms
+        #     translategemma:12b    5/8   p50 2451 ms
+        #     gemma-3-1b            1/8   p50 1892 ms
+        #
+        # Il 12b non aggiunge niente e costa il 40% in piu': si resta sul 4b.
+        #
+        # **Ma 1784 ms per parola restano tanti**, e la correzione sta sul thread
+        # video dove il costo si amplifica. Quindi: buono per il banco
+        # (`tools/dub.py`), da lasciare spento dal vivo — che e' anche il motivo
+        # per cui questa sezione ha `nessuno` come default.
+        #
+        # **Lo stesso modello che traduce**, come chiesto: se una sessione
+        # traduce e corregge, Ollama ne tiene caricato uno solo. I default
+        # ricadono sulla sezione `translate` proprio per non poterli disallineare
+        # — due sorgenti per lo stesso numero sono la garanzia che prima o poi
+        # divergano, e a divergere e' sempre quella che nessuno legge.
+        from translate.ollama import CorrettoreOllama
+        from vision.lexicon import carica
+
+        modello = cfg.ollama_model or getattr(traduzione, "ollama_model", "translategemma:4b")
+        host = cfg.ollama_host or getattr(
+            traduzione, "ollama_host", "http://127.0.0.1:11434"
+        )
+        return CorrettoreOllama(
+            modello=modello, host=host, lexicon=carica(),
+            timeout_s=max(1.0, cfg.llm_max_ms / 1000.0 * 20),
+        )
+    raise ValueError(
+        f"correttore sconosciuto: {cfg.backend!r} (noti: nessuno, llm, ollama)"
+    )

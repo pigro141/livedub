@@ -177,6 +177,80 @@ class TraduttoreOllama:
         return fuori or None
 
 
+class CorrettoreOllama:
+    """Sceglie fra i candidati usando **lo stesso modello che traduce**.
+
+    Implementa il protocollo di `vision/correct.py`: propone, non decide. Le
+    guardie restano tutte a valle — una parola italiana non gli viene nemmeno
+    mostrata, i nomi propri nemmeno, e la proposta deve essere una parola del
+    lessico.
+
+    **Non genera, sceglie.** Gli si danno le parole italiane vicine e gli si
+    chiede quale ci sta: cosi' non puo' inventare una non-parola, e la fiducia
+    esce dall'aver scelto dentro l'elenco invece di essere un numero inventato.
+
+    Un modello solo per due lavori vuol dire una sola attesa e una sola memoria
+    occupata; con Ollama vuol dire anche che il modello sta **fuori dal venv** e
+    si cambia senza reinstallare niente.
+    """
+
+    name = "ollama"
+
+    def __init__(
+        self,
+        modello: str = "translategemma:4b",
+        host: str = "http://127.0.0.1:11434",
+        lexicon=None,
+        timeout_s: float = 10.0,
+    ) -> None:
+        self._tr = TraduttoreOllama(modello=modello, host=host, timeout_s=timeout_s)
+        self.lexicon = lexicon
+        self.n_scelte = 0
+        self.n_astensioni = 0
+
+    def proponi(self, parola: str, contesto: list[str]):
+        from vision.correct import Proposta, candidati
+
+        if self.lexicon is None:
+            return None
+        opzioni = candidati(parola, self.lexicon)
+        if not opzioni:
+            return None
+        if len(opzioni) == 1:
+            # Un candidato solo: non c'e' niente da scegliere e il modello non
+            # serve. `oulldozer -> bulldozer` sta qui, e costa zero.
+            return Proposta(opzioni[0], 0.95)
+
+        prima = "\n".join(contesto[-10:])
+        istruzione = (
+            "Un sistema OCR ha letto male una parola nei sottotitoli di un "
+            "videogioco.\n"
+            + (f"Battute precedenti:\n{prima}\n\n" if prima else "")
+            + f"La parola letta male e': {parola}\n"
+            f"Le parole italiane possibili sono: {', '.join(opzioni[:12])}\n\n"
+            "Rispondi SOLO con la parola corretta scelta da quell'elenco. "
+            "Se nessuna e' chiaramente giusta, rispondi NON_SO."
+        )
+        try:
+            r = _ripulisci(self._tr._genera(istruzione, max_token=16) or "")
+        except Exception:
+            self.n_astensioni += 1
+            return None
+
+        scelta = r.strip().strip(".,;:!?'\"").lower()
+        if not scelta or scelta.upper().startswith("NON_SO"):
+            self.n_astensioni += 1
+            return None
+        if scelta not in {o.lower() for o in opzioni}:
+            # Ha risposto qualcosa che non era fra le opzioni: non si prende. E'
+            # il caso in cui un modello "aiuta" inventando, ed e' il difetto che
+            # tutta questa impalcatura esiste per impedire.
+            self.n_astensioni += 1
+            return None
+        self.n_scelte += 1
+        return Proposta(scelta, 0.95)
+
+
 def _ripulisci(s: str) -> str:
     s = (s or "").strip()
     for p in ("Translation:", "Traduzione:", "Output:"):

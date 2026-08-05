@@ -2,11 +2,8 @@
 
 ## Dove siamo
 
-**Feature: 13 fatte su 14.** L'unica aperta:
-
-| resta | cosa la sblocca |
-|---|---|
-| LLM per gli artefatti OCR | **l'impalcatura è fatta e misurata; manca scegliere il modello**, ed è una decisione sull'ambiente (disco, e contesa per la GPU) |
+**Feature: 14 su 14.** Tutte chiuse, comprese quelle che si sono chiuse con un
+"no" misurato (i tag del TTS, la correzione automatica per distanza di edit, Qwen).
 
 **Step finali: 2 su 17.** Le due spuntate — colore/dimensione dei sottotitoli e
 scelta delle lingue — sono fatte **come meccanismo**: i parametri esistono e si
@@ -83,30 +80,23 @@ che si sono chiuse con un "no".)*
   * \[x]  chiedere se sul testo viene fatto un controllo di grammatica
     → **sì**, filtro di lingua (`vision/lexicon.py`). **Correggere è stato provato e
     rifiutato di proposito**: 2 giuste su 8, e gli errori erano `rapinato` → `rovinato`.
-  * \[ ]  implementazione di un llm leggerissimo per rimuovere artefatti OCR
-    → **l'impalcatura è fatta e misurata; manca il modello, ed è una decisione tua.**
-    → **Prima misura, e cambia la domanda** (`tools/bench_correct.py --censimento`, su
-    4280 battute archiviate, 19146 parole): fuori dal lessico ce ne sono 1230 (6,4%), ma
-    **527 sono nomi propri** e altre sono onomatopee (`toc`, 118 volte), forme italiane
-    vere non elencate (`trascinarti`, `sposartelo`) e frammenti di HUD (`scorriqeaccount`).
-    Gli errori veri sono **circa una parola su settanta**. Quindi il guadagno massimo è
-    piccolo, e un correttore che sbaglia una volta su dieci è in perdita.
-    → **`vision/correct.py`**: il correttore propone, il `Revisore` decide. Guardie: una
-    parola italiana non si tocca **mai** (uccide `rapinato → rovinato` alla radice, per
-    costruzione e non per bravura del modello); i nomi propri nemmeno; la proposta deve
-    essere una parola del lessico e vicina; sotto la fiducia dichiarata ci si **astiene**,
-    e l'astensione si conta. Spento di default.
-    → **Si sceglie fra candidati, non si genera**: `candidati()` dà le parole italiane
-    vicine, così un modello non può inventare una non-parola e la fiducia esce dal
-    distacco fra i primi due invece di essere un numero inventato.
-    → **E qui si vede perché serve il contesto**: `farto` ha **sedici** candidati italiani
-    veri (`fatto`, `parto`, `farlo`, `furto`, `sarto`…) e la distanza di edit non può
-    sceglierne uno. `oulldozer` invece ne ha uno solo (`bulldozer`) e lì non serve nessun
-    modello. È l'argomento a favore dell'LLM, adesso misurato.
-    → **Cosa manca**: un modello locale che **ordini i candidati** dato il contesto. Non
-    l'ho scelto io perché è una decisione sull'ambiente — peso su disco, e soprattutto
-    **contesa per la GPU**, che abbiamo appena misurato essere la risorsa scarsa — e la
-    correzione sta sul thread video, dove il costo si amplifica invece di sommarsi.
+  * \[x]  implementazione di un llm leggerissimo per rimuovere artefatti OCR
+    → **fatto, con lo stesso modello che traduce** (`correct.backend=ollama`), e lasciato
+    **opzionale e spento**. Misurato su otto casi veri presi dalle sessioni archiviate:
+
+    | correttore | giuste | p50 |
+    |---|---|---|
+    | **translategemma:4b** | **5/8** | 1784 ms |
+    | translategemma:12b | 5/8 | 2451 ms |
+    | gemma-3-1b (in-process) | 1/8 | 1892 ms |
+
+    → Il 12b non aggiunge niente e costa il 40% in più: si resta sul 4b. Un solo modello
+    caricato serve traduzione e correzione insieme.
+    → **Ma 1784 ms per parola sono tanti** e la correzione sta sul thread video, dove il
+    costo si amplifica: buono per il banco (`tools/dub.py`), da lasciare spento dal vivo.
+    → Le guardie restano tutte: una parola italiana non gli viene **nemmeno mostrata**,
+    i nomi propri nemmeno, la proposta deve essere una parola del lessico e vicina, e si
+    sceglie **fra candidati** invece di generare — così non può inventare una non-parola.
   * \[x]  implementazione di traduzione con sostituzione grafica
     → **fatta** (`translate/`, sezione `translate` di config, spenta di default: su GTA V
     si tradurrebbe l'italiano in italiano).
@@ -217,6 +207,7 @@ che si sono chiuse con un "no".)*
   * \[ ]  selettore delle tecnologie da usare
   * \[ ]  impostazioni avanzate con regolazione di tutti i parametri con vicino un icona a ogni settings che spiega bene cosa fa e cosa succede se viene cambiato rischi ecc (davvero tuti anche la regolazione delle frequenze maschio femmina)
   * \[ ] cambiamento live dei settings e applicazione live
+  * \[ ] selettore aree multiple di traduzioni solo testo e poi quella testo e audio, (attenzione se le aree si sovrappongono non lavorare due volte in quel punto)
   * PRIMA DI INIZIARE LA FASE SEGUENTE FAMMI FARE UNA PROVA e ti faccio un report dettagliato di cosa va e cosa no
   * \[ ]  rendere il tutto facilmente installabile plug and play
   * \[ ]  fare exe

@@ -1085,7 +1085,12 @@ class CorrectConfig:
     dieci fa piu' danno di quanto ripari.
     """
 
-    backend: str = "nessuno"  # nessuno | llm
+    # `nessuno` | `llm` (Gemma in-process) | `ollama` (**lo stesso modello che
+    # traduce**: una sola attesa, una sola memoria occupata, e il modello sta
+    # fuori dal venv).
+    backend: str = "nessuno"
+    ollama_model: str = ""  # vuoto = quello di `translate.ollama_model`
+    ollama_host: str = ""  # vuoto = quello di `translate.ollama_host`
     # Sotto questa fiducia non si corregge. Alta di proposito: la domanda non e'
     # "e' probabile che sia questa" ma "sono disposto a farlo dire alla voce".
     min_confidence: float = 0.90

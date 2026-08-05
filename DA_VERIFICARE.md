@@ -30,7 +30,25 @@ E la lezione da portarsi dietro quando si valuta il prossimo: **la domanda
 decisiva non e' la latenza, e' quanto parlato produce per secondo di scena.** Qwen
 ne produceva il 157%: nessuno scheduler e nessuna scheda video lo salvano.
 
-## 4-bis. Il nome del parlante: cosa vuol dire «modulare», in concreto
+## Il nome del parlante — **controllato**, come chiesto
+
+Le sette forme provate su testo di gioco realistico, con l'elenco dei personaggi
+dichiarato: prendono tutte il nome giusto e lo tolgono dal testo da pronunciare.
+
+    nome:        'MICHAEL: Ti avevo detto di non tornare.'  -> Michael
+    nome:        'Franklin : Come va, bello?'               -> Franklin
+    -nome:       '- Lamar: Toc toc!'                        -> Lamar
+    [nome]       '[Trevor] Sono un uomo cambiato.'          -> Trevor
+    nome-        'Simeon - Il dipendente del mese.'         -> Simeon
+    nome>>       'Lamar >> Andiamo, negro.'                 -> Lamar
+    nome(nota):  'Michael (urlando): Vattene!'              -> Michael
+
+Piu' le 42 verifiche del gruppo `etichetta`, che coprono i falsi positivi e la
+voce stabile fra sessioni. **Resta vero che non esiste materiale di un gioco che
+scriva i nomi**: quando ce l'avrai, il contatore `vision.label.hit` dice subito se
+il formato dichiarato e' quello giusto.
+
+### Come si configura, in concreto
 
 Te l'avevo spiegato male. In concreto adesso puoi dire al programma **come quel
 gioco scrive chi parla**, scegliendo fra sei forme già pronte:
@@ -99,44 +117,23 @@ modello più grande la risposta può cambiare — ma va rimisurata, non ereditat
 Su CPU costerebbe ~4 volte il tempo, quindi per il **vivo** è già escluso; avrebbe
 senso solo se un giorno la correzione la facessimo fuori dalla catena.
 
-## 7. La traduzione — funziona, ma **non l'ho mai provata con un traduttore vero**
+## 7. La traduzione — **adesso provata sul materiale vero**
 
-Ho verificato tutto quello che sta *intorno* alla traduzione con un traduttore
-finto (`translate.backend=prova`, che rimanda il testo in maiuscolo): il riquadro
-che copre l'originale, la sfocatura, i tempi ricalcolati sulla lunghezza nuova.
-**Nessuno dei due traduttori veri è mai stato eseguito**, per due motivi
-deliberati: `locale` vuole un pacchetto e un modello che non ho installato senza
-di te, e `google` avrebbe mandato i tuoi sottotitoli a Google.
+Tradotti i sottotitoli **italiani** di GTA V in **inglese** con TranslateGemma via
+Ollama: **28 battute su 28**, con la sostituzione grafica (blur sull'originale,
+testo nuovo sopra). L'MP4 e' quello che ti ho mandato.
 
-**Il traduttore LLM invece l'ho provato**: 254 ms p50, qualità da modello piccolo
-ma sensata («Oggi recuperiamo veicoli comprati da idioti a tassi esorbitanti»).
-Sta sulla strada critica, quindi quei 254 ms si sommano a ogni battuta nuova — la
-cache li paga una volta sola per battuta. Si accende con
-`--set translate.backend=llm`.
+Esempi: `'Ma domani'` -> `'But tomorrow'`, `'Saremo insieme!'` ->
+`"We'll stick together!"`, `'ma se ne avessi uno vorrei che fosse come te.'` ->
+`"But if I had one, I'd want it to be like you."`
 
-**Per provare quello leggero (Argos)**:
+**Cosa guardare nell'MP4**: che il blur cada **sul** sottotitolo del gioco e che
+il testo inglese lo copra bene; e che la voce dica l'inglese. Se il riquadro cade
+altrove, la ROI del profilo non e' tarata per quel setup.
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install argostranslate
-.\.venv\Scripts\python.exe -m translate.locale --scarica en it
-.\.venv\Scripts\python.exe -m tools.dub <video-inglese> --profile <gioco> `
-    --set translate.enabled=true --set translate.backend=locale `
-    --set translate.source=en --set translate.target=it `
-    --set translate.background_mode=blur --mp4
-```
-
-**Cosa guardare**:
-
-- che il riquadro/la sfocatura cada **sul** sottotitolo del gioco. Se cade
-  altrove, la ROI del profilo non è tarata per quel gioco: si rifà con
-  `tools/calibrate.py`.
-- che la voce dica il **tradotto** e non l'originale.
-- il tempo: la traduzione sta sulla strada critica e ogni battuta ne paga il
-  costo la prima volta. Se la latenza sale molto, quel backend non è adatto lì.
-
-Prova anche `--set translate.background_mode=riquadro` per confrontare a occhio:
-il blur è meno invadente ma copre meno; il riquadro copre tutto ma mette una
-macchia in mezzo al gioco. **Non c'è un numero che lo decida.**
+**Quello che resta non provato**: Argos (`translate.backend=locale`), che vuole
+`pip install argostranslate` e il pacchetto della coppia di lingue. Google invece
+e' misurato (64 ms, 6/6 sul registro volgare).
 
 ## 8. Il filtro blur — verificato, ma su GTA V è un caso degenere
 

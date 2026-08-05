@@ -234,6 +234,21 @@ class DubPipeline:
         # si veda `LabelConfig`, dove sta anche il perche' non si indovina.
         self.label = LabelReader(cfg.label) if cfg.label.enabled else None
         self._cast = _Cast(cfg.label, self.pool) if cfg.label.enabled else None
+        # Il correttore degli artefatti dell'OCR. `None` quando e' spento — che e'
+        # il default — cosi' la catena non paga nemmeno una chiamata per battuta.
+        self.revisore = None
+        if (cfg.correct.backend or "nessuno").lower() not in ("", "nessuno", "none"):
+            from vision.correct import Revisore, make_correttore
+            from vision.lexicon import carica
+
+            self.revisore = Revisore(
+                carica(),
+                make_correttore(cfg.correct, cfg.translate),
+                min_fiducia=cfg.correct.min_confidence,
+                max_distanza=cfg.correct.max_distance,
+                contesto_battute=cfg.correct.context_lines,
+                nomi=tuple(cfg.label.names),
+            )
         # La traduzione, con cache e tetto di tempo. `None` quando e' spenta, cosi'
         # la catena non paga nemmeno una chiamata a vuoto per battuta.
         self.traduci = (
@@ -346,6 +361,9 @@ class DubPipeline:
         # corrisponde a quello che il gioco scrive — ed e' l'unico modo di
         # accorgersene senza stare a guardare i sottotitoli a uno a uno.
         self._n_etichette = self.metrics.counter("vision.label.hit")
+        # Parole che il correttore ha davvero sostituito. Se resta a zero con il
+        # correttore acceso, si sta pagando il modello senza ricavarne niente.
+        self._n_corrette = self.metrics.counter("vision.corrette")
         self._t_backlog = self.metrics.timer("dub.backlog")
         self._t_rate = self.metrics.timer("dub.rate_x1000")
         self._t_hurry = self.metrics.timer("dub.hurry_x1000")
@@ -515,6 +533,15 @@ class DubPipeline:
         # silenzio di SuperTonic e lo si chiamava parlato.
         #
         # Dopo l'etichetta e non prima: il nome del personaggio non si traduce.
+        # **Si corregge prima di tradurre**, e prima dei tempi. Tradurre una
+        # parola sbagliata la traduce sbagliata, e nessuna delle due cose a valle
+        # se ne accorgerebbe.
+        if self.revisore is not None:
+            r = self.revisore.rivedi(event.text)
+            if r.cambiato:
+                self._n_corrette.inc(len(r.cambi))
+                event = replace(event, text=r.testo)
+
         originale = event.text
         if self.traduci is not None:
             t = self.traduci(event.text)
@@ -813,6 +840,13 @@ class DubPipeline:
                 "t_on": round(event.t_on, 3),
                 "t_off": None if event.t_off is None else round(event.t_off, 3),
                 "text": event.text,
+                # Il testo **letto a schermo**, quando traduzione o correzione
+                # l'hanno cambiato. Vuoto se e' lo stesso. Senza, la traccia per
+                # battuta non permette di distinguere "ha letto male" da "ha
+                # tradotto male" — che e' la prima domanda quando una battuta
+                # suona sbagliata, e mi ha appena fatto leggere "zero tradotte"
+                # su una passata in cui erano tradotte tutte.
+                "originale": originale if originale != event.text else "",
                 "cls": event.cls.value,
                 # chi parla
                 "speaker": speaker_id,
@@ -1086,6 +1120,13 @@ class DubPipeline:
                 "t_on": round(event.t_on, 3),
                 "t_off": None if event.t_off is None else round(event.t_off, 3),
                 "text": event.text,
+                # Il testo **letto a schermo**, quando traduzione o correzione
+                # l'hanno cambiato. Vuoto se e' lo stesso. Senza, la traccia per
+                # battuta non permette di distinguere "ha letto male" da "ha
+                # tradotto male" — che e' la prima domanda quando una battuta
+                # suona sbagliata, e mi ha appena fatto leggere "zero tradotte"
+                # su una passata in cui erano tradotte tutte.
+                "originale": originale if originale != event.text else "",
                 "cls": event.cls.value,
                 "speaker": decisione.speaker_id,
                 "anonima": bool(decisione.anonima),

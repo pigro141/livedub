@@ -7,29 +7,27 @@ stato trovato dall'orecchio, con la suite verde.
 
 ---
 
+## 1. La prova dal vivo con traduzione — **e' l'unica cosa che resta da giudicare**
+
+I numeri dicono che va: 18 battute, **zero underrun**, sintesi 198 ms, voci
+inglesi assegnate, traduzione pulita (`'Ehi, come va, Simeon?'` ->
+`"Hey, how's it going, Simeon?"`).
+
+Nella prima passata `dub.rate_x1000` stava a 1250 su tutti i percentili — ogni
+battuta compressa al tetto — con il parlato che riempiva appena il **49%** della
+scena. Era il passo dell'italiano applicato all'inglese: corretto, e l'ultima
+passata gira con 14,37 car/s invece di 12,9.
+
+**Cosa devi dirmi, perche' nessun contatore lo dice:**
+
+- **l'overlay**: cade sul sottotitolo del gioco? lo copre? da' fastidio mentre
+  giochi? Il rettangolo e' pieno — dal vivo il blur non si puo' fare, servirebbe
+  una seconda cattura dello schermo solo per quello. Se e' invadente si regolano
+  `translate.color`, `translate.background`, `translate.background_opacity`;
+- **la voce inglese**: articola, o si sente ancora compressa?
+- **il tempo**: la battuta arriva mentre il sottotitolo e' ancora a schermo?
+
 ## Qwen: chiuso, e non c'e' piu' niente da verificare
-
-La prova dal vivo l'abbiamo fatta due volte. La prima aveva dentro un difetto mio
-(la battuta partiva prima di essere generata) e non valeva; sistemato quello, la
-seconda ha sfondato tutte e tre le soglie dichiarate prima:
-
-| criterio | soglia | misurato |
-|---|---|---|
-| `mix.underrun` | 0 | **5415** |
-| latenza p50 | < 2,5 s | **26,7 s** al primo campione |
-| compressione | < 1450 | **1450 a ogni percentile** |
-
-Su 65 battute lette, 25 hanno prodotto audio. **Il backend e' stato tolto.**
-
-Quello che resta e che non va buttato: il mixer sa tenere una battuta aperta col
-suo cuscino, la catena sa programmare prima di avere l'audio, e la verifica
-`streaming` gira su un motore finto. Il prossimo motore autoregressivo eredita
-tutto.
-
-E la lezione da portarsi dietro quando si valuta il prossimo: **la domanda
-decisiva non e' la latenza, e' quanto parlato produce per secondo di scena.** Qwen
-ne produceva il 157%: nessuno scheduler e nessuna scheda video lo salvano.
-
 ## Il nome del parlante — **controllato**, come chiesto
 
 Le sette forme provate su testo di gioco realistico, con l'elenco dei personaggi

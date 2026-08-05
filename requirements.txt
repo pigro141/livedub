@@ -35,6 +35,29 @@ kokoro-onnx==0.5.0          # richiede la GPU; tira espeakng-loader + phonemizer
 # Era installato e non dichiarato: da un clone pulito il backend non partiva.
 tokenizers==0.23.1
 
+# --- traduzione e correzione del testo (opzionali) ---------------------------
+# **Un solo modello locale per due lavori**: tradurre i sottotitoli e scegliere
+# la parola giusta fra i candidati quando l'OCR ha letto male. Gira su **CPU**,
+# di proposito: la GPU serve alla sintesi, e la prova hardware di Qwen ha
+# misurato quanto poco margine ci sia.
+#
+# **La ruota va presa gia' compilata.** Da sorgente il build sbatte sul limite di
+# lunghezza dei percorsi di Windows (fallisce dentro `vendor/llama.cpp/tools/ui`),
+# quindi:
+#
+#   .\.venv\Scripts\python.exe -m pip install llama-cpp-python `
+#       --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu `
+#       --only-binary :all:
+#
+# Il modello (`gemma-3-1b-it-Q4_K_M.gguf`, ~800 MB) si scarica da solo in
+# `models/llm/` alla prima chiamata.
+llama-cpp-python==0.3.34
+
+# La traduzione **leggera** in locale, per chi non vuole spendere calcolo. Non e'
+# installata di default: `pip install argostranslate`, poi
+# `python -m translate.locale --scarica en it`.
+# argostranslate
+
 # --- visione e riconoscimento ------------------------------------------------
 rapidocr-onnxruntime==1.4.4
 opencv-python==5.0.0.93

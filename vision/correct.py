@@ -293,11 +293,23 @@ def make_correttore(cfg):
     if nome in ("", "nessuno", "none"):
         return NessunCorrettore()
     if nome == "llm":
-        raise NotImplementedError(
-            "il correttore LLM non e' ancora montato. Serve un modello locale che "
-            "sappia **ordinare i candidati** di `candidati()` dato il contesto — non "
-            "generare testo libero — e la scelta del modello e' una decisione "
-            "sull'ambiente (peso su disco e contesa per la GPU), non un dettaglio: "
-            "si veda la nota in PROSSIMA_SESSIONE.md."
+        # **Misurato, e per il vivo la risposta e' no.** Su Gemma 3 1B: una
+        # giusta su sei casi veri, p50 **1564 ms**, e gli errori sono quelli
+        # peggiori — `oulldozer -> bulldozers` (forma sbagliata),
+        # `ciassico -> biascico` (una parola rara al posto di quella ovvia),
+        # `uice -> ice` dove doveva astenersi. Contro un guadagno massimo di una
+        # parola su settanta, e un secondo e mezzo su ogni battuta che ne ha una.
+        #
+        # Resta montato perche' il costo di tenerlo e' zero e perche' con un
+        # modello piu' grande il numero va rifatto — ma acceso, oggi, peggiora il
+        # doppiaggio invece di migliorarlo.
+        from translate.llm import CorrettoreLlm
+        from vision.lexicon import carica
+
+        # **Lo stesso modello che traduce.** `MotoreLlm.condiviso` restituisce
+        # l'istanza gia' caricata: un gigabyte in RAM e un'attesa di caricamento
+        # valgono per tutti e due i lavori, non uno ciascuno.
+        return CorrettoreLlm(
+            modello=cfg.llm_model, lexicon=carica(), max_ms=cfg.llm_max_ms
         )
     raise ValueError(f"correttore sconosciuto: {cfg.backend!r} (noti: nessuno, llm)")

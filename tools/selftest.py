@@ -1870,6 +1870,75 @@ def test_etichetta(c: Check) -> None:
     muto = DubPipeline(Config(), ToneTts(), clock=VirtualClock(), samplerate=48000)
     c.ok(muto.label is None, "spenta di default: nessun gioco e' uguale a un altro")
 
+    # -- le altre forme pronte ---------------------------------------------
+    for forma, riga in (
+        ("-nome:", "- Franklin: Come va"),
+        ("nome>>", "Franklin >> Come va"),
+        ("nome>>", "Franklin » Come va"),
+        ("nome(nota):", "Franklin (arrabbiato): Come va"),
+        ("NOME", "FRANKLIN Come va, bello?"),
+    ):
+        e = LabelReader(LabelConfig(enabled=True, form=forma, names=("Franklin",))).dal_testo(riga)
+        c.ok(e is not None and e.nome == "Franklin" and "Come va" in e.testo,
+             f"forma {forma}: {riga!r} -> {None if e is None else (e.nome, e.testo)}")
+
+    # -- **sempre la stessa voce, anche fra sessioni diverse** --------------
+    # Senza questo, la voce non e' del personaggio: e' del turno. Chi apre la
+    # scena prende la prima voce del pool, quindi riaprendo il gioco da un altro
+    # punto lo stesso personaggio ne prende un'altra.
+    import json as _json
+
+    cartella = Path(tempfile.mkdtemp())
+    cast = cartella / "cast.json"
+
+    cfg2 = Config()
+    cfg2.vision.ocr_backend = "none"
+    cfg2.label.enabled = True
+    cfg2.label.names = ("Franklin", "Lamar")
+    cfg2.label.cast_file = str(cast)
+
+    def parla(cfg, chi: str, testo: str):
+        pp = DubPipeline(cfg, ToneTts(), clock=VirtualClock(), samplerate=48000)
+        pp.start_live(warmup=False)
+        r = pp._speak(SubtitleEvent(text=f"{chi}: {testo}", cls=LineClass.WHITE, t_on=0.0))
+        pp._cast.salva()
+        return r.voice_id
+
+    # Prima sessione: parla solo Lamar. Seconda: parla solo Franklin — cioe' il
+    # caso in cui ognuno, da solo, prenderebbe la prima voce libera del pool.
+    v_lamar = parla(cfg2, "Lamar", "Toc toc!")
+    v_franklin = parla(cfg2, "Franklin", "Come va, bello?")
+    ricordo = _json.loads(cast.read_text(encoding="utf-8"))
+    c.ok("Lamar" in ricordo and "Franklin" in ricordo,
+         f"il file ricorda chi ha quale voce: {ricordo}")
+    # **La verifica che conta.** Senza prenotare le voci ricordate all'avvio,
+    # qui finivano tutti e due su `riccardo` — ognuno primo nella sua sessione —
+    # e il file archiviava la collisione come se fosse giusta.
+    c.ok(v_lamar != v_franklin,
+         f"due personaggi non finiscono sulla stessa voce solo perche' hanno "
+         f"parlato in sessioni diverse ({v_lamar} / {v_franklin})")
+    c.eq(parla(cfg2, "Lamar", "Un'altra volta."), v_lamar,
+         "Lamar ha la stessa voce anche in una sessione nuova")
+    c.eq(parla(cfg2, "Franklin", "Anche io."), v_franklin, "e Franklin la sua")
+
+    # -- e la mappa scritta a mano vince su tutto --------------------------
+    cfg3 = Config()
+    cfg3.vision.ocr_backend = "none"
+    cfg3.label.enabled = True
+    cfg3.label.names = ("Franklin",)
+    cfg3.label.cast_file = str(cast)
+    voluta = DubPipeline(cfg3, ToneTts(), clock=VirtualClock(), samplerate=48000).pool.voices[3]
+    cfg3.label.voices = {"Franklin": voluta.voice_id}
+    c.eq(parla(cfg3, "Franklin", "Come va."), voluta.voice_id,
+         "la voce dichiarata a mano vince sul ricordo e sull'automatico")
+
+    cfg3.label.voices = {"Franklin": "voce-che-non-esiste"}
+    p4 = DubPipeline(cfg3, ToneTts(), clock=VirtualClock(), samplerate=48000)
+    p4.start_live(warmup=False)
+    r4 = p4._speak(SubtitleEvent(text="Franklin: Ciao", cls=LineClass.WHITE, t_on=0.0))
+    c.ok(r4.voice_id in {v.voice_id for v in p4.pool.voices},
+         "una voce inesistente in config non zittisce nessuno: si dichiara e si prosegue")
+
 
 def test_correzione(c: Check) -> None:
     """Il correttore puo' agire solo dove non puo' fare danni.

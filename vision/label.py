@@ -57,15 +57,31 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
-# Le forme pronte. `nome` e `testo` sono i due gruppi che la pipeline usa; una
-# regex personalizzata deve dichiararli uguali.
+# **Le forme pronte.** Sono i modi in cui i giochi scrivono chi parla: si sceglie
+# la propria con `label.form`, e se il gioco ne usa un'altra c'e' `label.regex`.
+# `nome` e `testo` sono i due gruppi che la pipeline usa; una regex
+# personalizzata deve dichiararli uguali.
 FORME: dict[str, str] = {
-    # `Franklin: come va` — la piu' diffusa. Anche `FRANKLIN:` e `Franklin :`.
+    # `Franklin: come va` — di gran lunga la piu' diffusa. Prende anche
+    # `FRANKLIN:` e `Franklin :`.
     "nome:": r"^\s*(?P<nome>[^\s:][^:]{0,%(max)d}?)\s*:\s*(?P<testo>\S.*)$",
     # `[Franklin] come va`, `(Franklin) come va`, `<Franklin> come va`.
     "[nome]": r"^\s*[\[(<]\s*(?P<nome>[^\])>]{1,%(max)d})\s*[\])>]\s*(?P<testo>\S.*)$",
     # `Franklin - come va`, con trattino, mezza lineetta o lineetta.
     "nome-": r"^\s*(?P<nome>[^\s\-–—][^\-–—]{0,%(max)d}?)\s*[-–—]\s*(?P<testo>\S.*)$",
+    # `- Franklin: come va` — il trattino di dialogo davanti al nome, comune nei
+    # sottotitoli tradotti e nei giochi europei.
+    "-nome:": r"^\s*[-–—]\s*(?P<nome>[^\s:][^:]{0,%(max)d}?)\s*:\s*(?P<testo>\S.*)$",
+    # `Franklin >> come va`, `Franklin » come va`.
+    "nome>>": r"^\s*(?P<nome>[^\s>»]{1,%(max)d}?)\s*(?:>>|»|>)\s*(?P<testo>\S.*)$",
+    # `FRANKLIN come va` — il nome tutto maiuscolo senza separatore, che alcuni
+    # giochi usano. **E' la piu' fragile di tutte** e va usata solo con
+    # `label.names` pieno: senza, qualunque parola maiuscola iniziale diventa un
+    # personaggio, e una frase che comincia con un'esclamazione ne inventa uno.
+    "NOME": r"^\s*(?P<nome>[A-ZÀ-Ý][A-ZÀ-Ý' .]{1,%(max)d}?)\s+(?P<testo>[A-ZÀ-Ýa-zà-ÿ].*)$",
+    # `Franklin (arrabbiato): come va` — nome piu' annotazione fra parentesi. La
+    # nota si butta: non e' ne' il nome ne' il testo da dire.
+    "nome(nota):": r"^\s*(?P<nome>[^\s:(]{1,%(max)d}?)\s*\([^)]*\)\s*:\s*(?P<testo>\S.*)$",
 }
 
 # Punteggiatura che dentro un nome non ci sta: se c'e', quello non e' un nome ma

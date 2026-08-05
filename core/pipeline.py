@@ -27,6 +27,7 @@ import sys
 import threading
 import time
 import unicodedata
+from pathlib import Path
 from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
 
@@ -62,6 +63,94 @@ def _lettere(testo: str) -> str:
     """
     piatto = unicodedata.normalize("NFKD", testo.lower())
     return re.sub(r"[^a-z0-9]", "", piatto)
+
+
+class _Cast:
+    """Chi ha quale voce, e se la tiene fra una sessione e l'altra.
+
+    Vale **solo per i personaggi con un nome dichiarato dal gioco**, e non e' una
+    limitazione: un'identita' trovata dall'audio si chiama `S3` e quel numero
+    dipende dall'ordine in cui la gente ha parlato, quindi ricordarselo fra due
+    sessioni non vorrebbe dire niente. Un nome invece e' lo stesso ieri e domani.
+
+    Due sorgenti, in ordine: la mappa scritta a mano in `label.voices` — che vince
+    su tutto — e il file delle sessioni passate. Il file si riscrive a fine
+    sessione con quello che si e' imparato.
+    """
+
+    def __init__(self, cfg, pool) -> None:
+        self.cfg = cfg
+        self.pool = pool
+        self.mappa: dict[str, str] = {}
+        self.percorso = Path(cfg.cast_file) if cfg.cast_file else None
+        if self.percorso is not None and self.percorso.exists():
+            try:
+                self.mappa.update(json.loads(self.percorso.read_text(encoding="utf-8")))
+            except Exception as e:  # pragma: no cover - file scritto a mano
+                print(f"cast: {self.percorso} illeggibile: {e!r}", file=sys.stderr)
+        # La mappa dichiarata a mano vince sul ricordo: e' una decisione, non
+        # un'abitudine.
+        for nome, voce in (cfg.voices or {}).items():
+            self.mappa[str(nome)] = str(voce)
+        # **Si salva all'uscita e non a fine sessione**, perche' "fine sessione"
+        # dal vivo vuol dire che l'utente ha chiuso la finestra: non c'e' un punto
+        # del codice in cui passare. `atexit` copre tutti i modi di finire —
+        # banco, vivo, interruzione — invece di coprirne uno e ricordarsi gli
+        # altri, che e' la forma in cui `preload_dlls()` e' andata storta due volte.
+        if self.percorso is not None:
+            import atexit
+
+            atexit.register(self.salva)
+
+        # **Le voci ricordate si prenotano subito, anche per chi in questa scena
+        # non parlera' mai.** Senza, il difetto torna da un'altra porta: chi apre
+        # la scena riceve la prima voce libera del pool — che magari e' quella
+        # promessa a un altro — e alla sessione dopo si trovano due personaggi
+        # con la stessa voce. Misurato scrivendo la verifica: in due sessioni
+        # separate Lamar e Franklin finivano tutti e due su `riccardo`, e il file
+        # lo archiviava come se fosse giusto.
+        #
+        # Prenotare consuma il pool anche per chi tace, ed e' il prezzo: con piu'
+        # personaggi che voci qualcuno la condividera' comunque, ma almeno la
+        # condivisione e' stabile invece di cambiare a ogni partita.
+        for nome in list(self.mappa):
+            self.applica(f"L-{nome}")
+
+    def applica(self, speaker_id: str, t: float = 0.0) -> None:
+        if self.pool.known(speaker_id):
+            return
+        nome = speaker_id[2:] if speaker_id.startswith("L-") else speaker_id
+        voce = self.mappa.get(nome)
+        if not voce:
+            return
+        if self.pool.fissa(speaker_id, voce, t) is None:
+            print(
+                f"cast: la voce {voce!r} per {nome!r} non sta nel pool "
+                f"({', '.join(v.voice_id for v in self.pool.voices)}): ignorata.",
+                file=sys.stderr,
+            )
+
+    def salva(self) -> None:
+        """Scrive chi ha preso quale voce, per la sessione dopo."""
+        if self.percorso is None:
+            return
+        nuovo = dict(self.mappa)
+        for a in self.pool.assignments:
+            # Solo chi ha davvero parlato: le prenotazioni fatte all'avvio hanno
+            # `lines` a zero, e riscriverle qui sarebbe ricopiare il ricordo su
+            # se' stesso — innocuo, ma nasconderebbe che un nome nel file non
+            # corrisponde a nessun personaggio visto.
+            if a.speaker_id.startswith("L-") and a.lines > 0:
+                nuovo[a.speaker_id[2:]] = a.voice.voice_id
+        if nuovo == self.mappa and self.percorso.exists():
+            return
+        try:
+            self.percorso.parent.mkdir(parents=True, exist_ok=True)
+            self.percorso.write_text(
+                json.dumps(nuovo, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except Exception as e:  # pragma: no cover - dipende dal disco
+            print(f"cast: non salvato: {e!r}", file=sys.stderr)
 
 
 @dataclass
@@ -144,6 +233,7 @@ class DubPipeline:
         # Chi parla scritto dal gioco, se il gioco lo scrive. Spento di default:
         # si veda `LabelConfig`, dove sta anche il perche' non si indovina.
         self.label = LabelReader(cfg.label) if cfg.label.enabled else None
+        self._cast = _Cast(cfg.label, self.pool) if cfg.label.enabled else None
         # La traduzione, con cache e tetto di tempo. `None` quando e' spenta, cosi'
         # la catena non paga nemmeno una chiamata a vuoto per battuta.
         self.traduci = (
@@ -1125,6 +1215,11 @@ class DubPipeline:
         etichetta = self._etichetta(event)
         if etichetta is not None:
             self._n_etichette.inc()
+            if self._cast is not None:
+                # La voce di questo personaggio, se gia' decisa da te o da una
+                # sessione precedente. Va fatto **prima** che il pool ne assegni
+                # una a caso: dopo, sarebbe una voce cambiata a meta' partita.
+                self._cast.applica(f"L-{etichetta.nome}", event.t_on)
             return Decisione(f"L-{etichetta.nome}", 1.0)
         if self.tracker is None:
             return Decisione("S-grey" if event.cls is LineClass.GREY else "S-white", 0.0)

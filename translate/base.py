@@ -172,6 +172,10 @@ def make_traduttore(cfg):
         from translate.locale import TraduttoreLocale
 
         return TraduttoreLocale(modello=cfg.local_model)
+    if nome == "llm":
+        from translate.llm import TraduttoreLlm
+
+        return TraduttoreLlm(modello=cfg.llm_model, contesto=cfg.context_lines)
     if nome == "google":
         from translate.google import TraduttoreGoogle
 

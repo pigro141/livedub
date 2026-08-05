@@ -1052,6 +1052,23 @@ class LabelConfig:
     colors: dict = field(default_factory=dict)
     color_tolerance: float = 60.0
 
+    # **Chi ha quale voce, deciso da te.** `{"Franklin": "riccardo"}`. Vince su
+    # tutto: nessuna assegnazione automatica puo' toglierla.
+    voices: dict = field(default_factory=dict)
+    # **E chi non l'hai deciso tu, se la tiene comunque per sempre.** Quando un
+    # personaggio ha un nome dichiarato dal gioco, la voce che gli tocca alla
+    # prima battuta viene scritta qui e riletta alla sessione dopo — cosi'
+    # Franklin ha la stessa voce oggi e domani.
+    #
+    # Senza questo file, l'ordine in cui i personaggi parlano decide chi prende
+    # quale voce: chi apre la scena prende la prima voce del pool. Riaprendo il
+    # gioco da un altro punto, lo stesso personaggio ne prende un'altra — cioe'
+    # la voce non e' del personaggio, e' del turno. Con i nomi dal gioco quel
+    # difetto si puo' togliere del tutto, e senza nomi non si potrebbe.
+    #
+    # Vuoto = non si ricorda niente fra una sessione e l'altra.
+    cast_file: str = "runs/cast.json"
+
 
 @dataclass
 class CorrectConfig:
@@ -1100,7 +1117,39 @@ class TranslateConfig:
     """
 
     enabled: bool = False
-    backend: str = "locale"  # locale | google | nessuno
+    # **Tre livelli, dal piu' leggero al piu' pesante**, piu' il servizio esterno:
+    #
+    #   `locale`  Argos/CTranslate2. Leggero, veloce, qualita' da traduttore
+    #             automatico. Per PC senza potenza di calcolo da spendere.
+    #   `llm`     Gemma 3 1B in locale su CPU. Piu' lento e piu' pesante, ma
+    #             tiene il **contesto** delle battute precedenti — e lo stesso
+    #             modello serve anche a ripulire l'OCR (`correct.backend=llm`),
+    #             quindi si carica una volta e lavora per due.
+    #   `google`  Nessun costo di calcolo, ma **i sottotitoli escono dalla
+    #             macchina**. E' l'opzione per chi non ha potenza da spendere e
+    #             accetta il baratto.
+    backend: str = "locale"  # locale | llm | google | nessuno
+    llm_model: str = ""  # vuoto = `models/llm/gemma-3-1b-it-Q4_K_M.gguf`
+    # **Quante battute precedenti dare al modello. Zero, e non e' pigrizia: e'
+    # una misura contraria a quello che ci si aspettava.**
+    #
+    # L'idea era che il contesto permettesse di tradurre meglio. Provata con il
+    # caso nullo giusto — stesse frasi, stesso modello, unica differenza il
+    # contesto — su Gemma 3 1B:
+    #
+    #     traduzione   senza contesto 254 ms p50   con contesto 457 ms
+    #     "Knock knock!"      senza -> "Chi e'?"   con -> "Knock knock!"
+    #     "Are you kidding me?"           con -> ripete la traduzione di due
+    #                                            battute prima, parola per parola
+    #
+    # Su nove confronti (cinque di traduzione, quattro di correzione) il contesto
+    # non ha migliorato **nessun** caso e ne ha peggiorati due. Un modello da un
+    # miliardo di parametri, con dieci righe davanti, ricopia invece di ragionare.
+    #
+    # Resta il campo, perche' con un modello piu' grande la risposta puo' essere
+    # un'altra e va rimisurata invece che ereditata. Ma il default segue la
+    # misura, non l'intenzione.
+    context_lines: int = 0
     # `auto` lo capisce solo Google: i modelli offline sono **di** una coppia di
     # lingue, quindi con `locale` un `auto` diventa `en` e viene detto.
     source: str = "auto"

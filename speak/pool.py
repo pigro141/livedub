@@ -381,6 +381,37 @@ class VoicePool:
         )
         return voice
 
+    def fissa(self, speaker_id: str, voice_id: str, t: float = 0.0) -> VoiceSpec | None:
+        """Dichiara che questo personaggio ha **questa** voce, e basta.
+
+        Serve a due cose, tutte e due possibili solo quando il nome arriva dal
+        gioco (`vision/label.py`): la mappa scritta a mano in `label.voices`, e il
+        ricordo delle sessioni precedenti (`label.cast_file`).
+
+        **Senza, la voce non e' del personaggio: e' del turno.** L'assegnazione
+        automatica da' le voci nell'ordine in cui i personaggi parlano, quindi chi
+        apre la scena prende la prima del pool. Riaprendo il gioco da un altro
+        punto, lo stesso personaggio ne prende un'altra. Con un nome stabile quel
+        difetto si puo' togliere del tutto — ed e' il motivo per cui vale la pena
+        leggere i nomi anche al di la' del mezzo secondo di latenza.
+
+        Restituisce la voce fissata, o `None` se quel `voice_id` non sta nel pool
+        — perche' un nome di voce sbagliato in configurazione dev'essere visibile,
+        non silenziosamente ignorato.
+        """
+        speaker_id = self.risolvi(speaker_id)
+        voce = next((v for v in self.voices if v.voice_id == voice_id), None)
+        if voce is None:
+            return None
+        gia = self._by_speaker.get(speaker_id)
+        self._by_speaker[speaker_id] = VoiceAssignment(
+            speaker_id=speaker_id,
+            voice=voce,
+            first_seen=gia.first_seen if gia else t,
+            lines=gia.lines if gia else 0,
+        )
+        return voce
+
     def known(self, speaker_id: str) -> bool:
         return self.risolvi(speaker_id) in self._by_speaker
 

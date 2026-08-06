@@ -376,6 +376,32 @@ def ritaglia(frame, rett):
     return np.ascontiguousarray(fetta) if fetta.size else None
 
 
+@lru_cache(maxsize=32)
+def _sfumatura(w: int, h: int, quota: float = 0.18):
+    """La maschera che fa **sfumare i lati** della macchia sfocata.
+
+    Un rettangolo di immagine sfocata incollato su immagine nitida si vede per
+    i suoi bordi, non per il suo contenuto: e' una discontinuita' netta dove la
+    scena non ne ha nessuna, e l'occhio la trova subito. Sfumando il bordo la
+    sfocatura si fonde con quello che c'e' attorno e resta solo l'effetto —
+    l'originale illeggibile — senza la cornice che lo denuncia.
+
+    La sfumatura e' una **quota** del lato corto, non un numero di pixel: su un
+    sottotitolo grande dev'essere piu' larga, se no si vede lo stesso.
+    """
+    import numpy as np
+    from PIL import Image
+
+    b = max(2, int(quota * min(w, h)))
+    gx = np.minimum(np.arange(w), np.arange(w)[::-1]).astype(np.float32)
+    gy = np.minimum(np.arange(h), np.arange(h)[::-1]).astype(np.float32)
+    mx = np.clip(gx / b, 0.0, 1.0)
+    my = np.clip(gy / b, 0.0, 1.0)
+    # Il prodotto e non il minimo: negli angoli le due sfumature si sommano, ed
+    # e' li' che un bordo netto si nota di piu'.
+    return Image.fromarray((255.0 * mx[None, :] * my[:, None]).astype(np.uint8), "L")
+
+
 def _righe(disegno, testo: str, font, larghezza_max: int) -> list[str]:
     """Il testo mandato a capo alla larghezza del sottotitolo del gioco."""
     parole, righe, corrente = testo.split(), [], ""
@@ -428,6 +454,7 @@ class Sostituzione:
         testo_originale: str = "",
         larghezza_schermo: int = 0,
         centra: bool | None = None,
+        sfuma: float = 0.18,
     ) -> None:
         from PIL import Image, ImageDraw
 
@@ -442,6 +469,7 @@ class Sostituzione:
         self.blur = blur
         self.fondo_rgb = tuple(int(v) for v in fondo_rgb)
         self.scala = scala
+        self.sfuma = max(0.0, min(0.45, sfuma))
         self.forma = pezzo.shape[:2]
         h_pezzo, w_pezzo = self.forma
 
@@ -481,52 +509,73 @@ class Sostituzione:
             self.righe = _righe(misura, testo, self.font, limite)
         self.passo = int(round(self.corpo * 1.22))
         largh = int(max(misura.textlength(r, font=self.font) for r in self.righe))
-        alt = self.passo * len(self.righe)
 
-        # **Un rettangolo solo, quello che circoscrive il sottotitolo.**
-        # Prima la tela era larga quanto tutta la fascia e dentro si cancellava
-        # riga per riga, inseguendo l'inchiostro fotogramma per fotogramma. Da
-        # li' venivano tutti i difetti visti a schermo: toppe accanto al testo,
-        # macchie sull'asfalto, righe cancellate che non erano righe. Il
-        # rettangolo si calcola **una volta**, alla comparsa, e non si muove
-        # piu': e' l'ingombro delle righe che l'OCR ha letto, piu' un margine.
-        pad = self.contorno + 3
-        m = max(4, int(0.35 * self.alta))
-        rx0 = max(0, min(b[0] for b in bande) - m)
-        ry0 = max(0, min(b[1] for b in bande) - m)
-        rx1 = min(w_pezzo, max(b[2] for b in bande) + m)
-        ry1 = min(h_pezzo, max(b[3] for b in bande) + m)
-        self.taglio = (rx0, ry0, rx1, ry1)  # nel pezzo, pixel del fotogramma
-
-        # La tela e' l'unione fra quel rettangolo e il testo tradotto: se la
-        # traduzione e' piu' lunga dell'originale deve starci, e se e' piu'
-        # corta il rettangolo resta comunque coperto.
-        sx0, sy0, sx1, sy1 = (su(rx0), su(ry0), su(rx1), su(ry1))
-        # **Il testo si centra dove il gioco centra i suoi, non su cio' che
-        # l'OCR e' riuscito a leggere.** Se la lettura e' parziale — succede, e
-        # nel log si vede: `Recupe`, `that youTL` — il rettangolo dell'inchiostro
-        # e' stretto e spostato, e centrandoci sopra la traduzione finisce
-        # decentrata rispetto al sottotitolo vero. Il centro dell'area scelta
-        # dall'utente e' invece stabile per costruzione: e' li' che il gioco
-        # scrive.
+        # -- dove va scritto, e la risposta e' «dove c'e' scritto» -----------
         #
-        # Ci si centra solo se l'inchiostro **e' effettivamente centrato** li'
-        # attorno: un gioco che allinea i sottotitoli a sinistra esiste, e in
-        # quel caso comanda l'inchiostro.
+        # **Il testo tradotto si sovrappone a quello originale, riga su riga.**
+        # Sembra ovvio e per due giri non lo era: si calcolava il centro di un
+        # rettangolo e ci si metteva dentro il blocco di testo, e lo scarto fra
+        # le due cose e' quello che si vedeva come «decentrato, si sposta».
+        #
+        # Lo scarto piu' grosso non era nemmeno nel calcolo: e' che `text()`
+        # posiziona il testo dalla **linea tipografica**, non dall'inchiostro.
+        # Fra il punto che si passa e la prima riga di pixel accesi ci sono gli
+        # ascendenti, che per un carattere da 40 punti sono una decina di pixel
+        # — sempre nella stessa direzione, quindi il tradotto stava
+        # sistematicamente piu' in basso dell'originale. Si disegna adesso con
+        # `anchor="mm"`, cioe' passando il **centro** dell'inchiostro: e' l'unico
+        # modo di dire «qui in mezzo» senza dover sapere come e' fatto il font.
+        rett_b = [(su(x0), su(y0), su(x1), su(y1)) for x0, y0, x1, y1 in bande]
+        bx0 = min(r[0] for r in rett_b)
+        by0 = min(r[1] for r in rett_b)
+        bx1 = max(r[2] for r in rett_b)
+        by1 = max(r[3] for r in rett_b)
+
         centro_roi = su(w_pezzo) // 2
-        centro_letto = (sx0 + sx1) // 2
+        centro_letto = (bx0 + bx1) // 2
         if centra is None:
-            # Senza memoria si decide sulla sola battuta: si centra se cio' che
-            # si e' letto e' gia' li' attorno.
             centra = abs(centro_letto - centro_roi) <= 0.18 * su(w_pezzo)
         self.cx = centro_roi if centra else centro_letto
-        cy = (sy0 + sy1) // 2
-        self.ty0 = cy - alt // 2
-        tx0, tx1 = self.cx - largh // 2 - pad, self.cx + largh // 2 + pad
-        self.ox = min(sx0, tx0)
-        self.oy = min(sy0, self.ty0 - pad)
-        self.larg = max(1, max(sx1, tx1) - self.ox)
-        self.alt = max(1, max(sy1, self.ty0 + alt + pad) - self.oy)
+
+        # I centri verticali. Se le righe tradotte sono tante quante quelle
+        # lette, ognuna si posa **sulla sua**; se no si distribuisce il blocco
+        # sul centro di quello originale, che e' il meglio che si possa fare
+        # quando il gioco ne scrive due e la traduzione ne chiede una.
+        if len(self.righe) == len(rett_b):
+            ordinate = sorted((r[1] + r[3]) // 2 for r in rett_b)
+        else:
+            cy = (by0 + by1) // 2
+            n = len(self.righe)
+            primo = cy - (n - 1) * self.passo // 2
+            ordinate = [primo + i * self.passo for i in range(n)]
+        self.centri = [(self.cx, y) for y in ordinate]
+
+        # -- il rettangolo da sfocare: l'originale **e** il tradotto ---------
+        #
+        # Non solo l'inchiostro vecchio: anche l'area dove finira' il nostro.
+        # Una traduzione piu' lunga sborda dal rettangolo dell'originale, e li'
+        # si troverebbe a scrivere su pixel nitidi — il contorno regge, ma il
+        # testo si legge peggio e si vede che e' appiccicato.
+        pad = self.contorno + 3
+        m = max(4, int(0.35 * su(self.alta)))
+        alt_testo = self.passo * len(self.righe)
+        tx0 = self.cx - largh // 2 - pad
+        tx1 = self.cx + largh // 2 + pad
+        ty0 = min(ordinate) - alt_testo // (2 * len(self.righe)) - pad
+        ty1 = max(ordinate) + alt_testo // (2 * len(self.righe)) + pad
+
+        kx0 = max(0, min(bx0 - m, tx0))
+        ky0 = max(0, min(by0 - m, ty0))
+        kx1 = min(su(w_pezzo), max(bx1 + m, tx1))
+        ky1 = min(su(h_pezzo), max(by1 + m, ty1))
+        self.taglio = (max(0, int(kx0 / scala)), max(0, int(ky0 / scala)),
+                       min(w_pezzo, int(kx1 / scala) + 1),
+                       min(h_pezzo, int(ky1 / scala) + 1))
+
+        self.ox = int(kx0)
+        self.oy = int(min(ky0, ty0))
+        self.larg = max(1, int(max(kx1, tx1)) - self.ox)
+        self.alt = max(1, int(max(ky1, ty1)) - self.oy)
         self.misura = misura
 
     # -- i pixel, che invece si rifanno ------------------------------------
@@ -555,42 +604,60 @@ class Sostituzione:
         tela = Image.new("RGBA", (self.larg, self.alt),
                          (0, 0, 0, 255) if opaco else (0, 0, 0, 0))
         if opaco:
-            # Senza colore-chiave il buco lo riempiono i pixel veri del gioco.
-            fondo = np.array(Image.fromarray(
-                np.ascontiguousarray(pezzo[:, :, :3][:, :, ::-1])
-            ).resize((self.su(w_pezzo), self.su(h_pezzo))))
-            su_, sx_ = max(0, -self.oy), max(0, -self.ox)
-            giu = max(0, self.alt - su_ - fondo.shape[0])
-            dx = max(0, self.larg - sx_ - fondo.shape[1])
-            if su_ or giu or sx_ or dx:
-                fondo = np.pad(fondo, ((su_, giu), (sx_, dx), (0, 0)), mode="edge")
-            tela.paste(Image.fromarray(
-                np.ascontiguousarray(fondo[: self.alt, : self.larg])), (0, 0))
+            # **Il buco riempito col gioco invece che con il colore-chiave.**
+            # Serve quando la finestra non puo' essere trasparente: il posto di
+            # cio' che sarebbe trasparente lo prendono i pixel veri, che
+            # abbiamo. Si prende dal pezzo la porzione che corrisponde alla
+            # tela, replicando il bordo dove la tela sporge — una striscia nera
+            # in mezzo allo schermo si vede, la continuazione di cio' che c'e'
+            # gia' no.
+            a = max(0, int(self.ox / self.scala))
+            b = max(0, int(self.oy / self.scala))
+            c_ = min(w_pezzo, a + int(self.larg / self.scala) + 1)
+            d_ = min(h_pezzo, b + int(self.alt / self.scala) + 1)
+            sotto = np.ascontiguousarray(pezzo[b:d_, a:c_, :3][:, :, ::-1])
+            if sotto.size:
+                sotto = np.array(Image.fromarray(sotto).resize(
+                    (max(1, int(round((c_ - a) * self.scala))),
+                     max(1, int(round((d_ - b) * self.scala))))))
+                giu = max(0, self.alt - sotto.shape[0])
+                dx = max(0, self.larg - sotto.shape[1])
+                if giu or dx:
+                    sotto = np.pad(sotto, ((0, giu), (0, dx), (0, 0)), mode="edge")
+                tela.paste(Image.fromarray(
+                    np.ascontiguousarray(sotto[: self.alt, : self.larg])), (0, 0))
 
         if self.modo != "nessuno" and x1 > x0 and y1 > y0:
             fetta = np.ascontiguousarray(pezzo[y0:y1, x0:x1, :3])
-            w = max(1, self.su(x1) - self.su(x0))
-            h = max(1, self.su(y1) - self.su(y0))
+            w = max(1, int(round((x1 - x0) * self.scala)))
+            h = max(1, int(round((y1 - y0) * self.scala)))
             if self.modo == "riquadro":
                 patch = Image.new("RGB", (w, h), self.fondo_rgb)
             else:
                 # **Il raggio segue l'altezza dei glifi.** `blur_strength` e'
                 # dichiarato su un inchiostro alto 40 px (GTA V a 1080p): cosi'
                 # lo stesso numero rende illeggibile una riga a 1080p, a 1440p e
-                # su un gioco che scrive piu' grande. Sotto una certa forza il
-                # sottotitolo vecchio si legge ancora attraverso il nostro.
+                # su un gioco che scrive piu' grande.
                 raggio = max(2.0, self.blur * self.alta / 40.0)
                 fetta = cv2.GaussianBlur(fetta, (0, 0), sigmaX=raggio, sigmaY=raggio)
-                patch = Image.fromarray(np.ascontiguousarray(fetta[:, :, ::-1]))
-                patch = patch.resize((w, h))
-            tela.paste(patch, (self.su(x0) - self.ox, self.su(y0) - self.oy))
+                patch = Image.fromarray(
+                    np.ascontiguousarray(fetta[:, :, ::-1])).resize((w, h))
+            # La sfumatura vale anche con la finestra opaca: li' sotto c'e' il
+            # pezzo vero, quindi fondersi con lui da' lo stesso risultato che
+            # fondersi col gioco. Applicarla in un caso e non nell'altro
+            # significherebbe due rese diverse della stessa cosa.
+            tela.paste(patch, (int(self.su(x0)) - self.ox,
+                               int(self.su(y0)) - self.oy),
+                       _sfumatura(w, h, self.sfuma))
 
         d = ImageDraw.Draw(tela)
-        for i, riga in enumerate(self.righe):
-            w = self.misura.textlength(riga, font=self.font)
-            x = self.cx - int(w) // 2 - self.ox
-            y = self.ty0 + i * self.passo - self.oy
-            d.text((x, y), riga, font=self.font, fill=(*self.colore, 255),
+        for riga, (cx, cy) in zip(self.righe, self.centri):
+            # `anchor="mm"` = il punto passato e' il **centro** del testo, in
+            # orizzontale e in verticale. E' l'unico modo di posarlo esattamente
+            # dove stava l'altro senza dover sapere dove il font mette la linea
+            # di base.
+            d.text((cx - self.ox, cy - self.oy), riga, font=self.font,
+                   fill=(*self.colore, 255), anchor="mm",
                    stroke_width=self.contorno, stroke_fill=(0, 0, 0, 255))
         return tela, (self.ox, self.oy)
 

@@ -153,6 +153,29 @@ class _Cast:
             print(f"cast: non salvato: {e!r}", file=sys.stderr)
 
 
+def geometria_lette(event) -> tuple[tuple[tuple[int, int, int, int], ...],
+                                    tuple[float, float, float]]:
+    """I rettangoli e la tinta delle righe lette, dall'evento del sottotitolo.
+
+    La tinta e' la media **pesata sulla larghezza** delle righe: una riga lunga
+    dice del colore del sottotitolo piu' di una corta, e su due righe di
+    lunghezza diversa la media semplice sposta il risultato verso la piu' corta.
+
+    I canali escono nell'ordine in cui li vuole chi disegna (`ui.overlay`): le
+    bande li tengono nell'ordine del fotogramma, che dalla cattura di Windows e'
+    BGRA. Invertirli qui, una volta, invece che in tre punti a valle.
+    """
+    righe = tuple(getattr(event, "lines", ()) or ())
+    if not righe:
+        return (), (0.0, 0.0, 0.0)
+    boxes = tuple(tuple(int(v) for v in r.bbox) for r in righe)
+    peso = float(sum(max(1, r.bbox[2]) for r in righe)) or 1.0
+    canali = [
+        sum(r.rgb[i] * max(1, r.bbox[2]) for r in righe) / peso for i in range(3)
+    ]
+    return boxes, (canali[2], canali[1], canali[0])
+
+
 @dataclass
 class SpokenLine:
     """Una battuta effettivamente doppiata, con tutti i tempi per il log."""
@@ -171,6 +194,20 @@ class SpokenLine:
     # distingue "ha tradotto male" da "ha letto male", che e' la stessa domanda
     # per cui l'MP4 esiste.
     text_original: str = ""
+    # **Dove stava scritto, e di che colore.** I rettangoli delle righe che l'OCR
+    # ha letto (`x, y, w, h` dentro la ROI) e la tinta media del loro inchiostro,
+    # presi sul fotogramma in cui il sottotitolo **c'era**.
+    #
+    # Non e' un doppione di cio' che sa gia' l'overlay: fra la lettura e la voce
+    # passano piu' di due secondi (misurato dal vivo: 2310 ms), e chi disegna
+    # ricercava l'inchiostro sul fotogramma di *adesso*, dove la scena si e'
+    # mossa e l'originale spesso non c'e' piu'. Cercando testo dove non ce n'e'
+    # si trova scenario, e il riquadro finiva a coprire l'intera fascia. Queste
+    # due righe fanno arrivare a valle la geometria gia' validata — sono le
+    # stesse bande che il riconoscitore ha accettato come dialogo e su cui ha
+    # letto delle parole.
+    boxes: tuple[tuple[int, int, int, int], ...] = ()
+    ink: tuple[float, float, float] = (0.0, 0.0, 0.0)
 
     @property
     def latency_ms(self) -> float:
@@ -837,6 +874,7 @@ class DubPipeline:
         else:
             self._n_empty.inc()
 
+        boxes_lette, tinta_letta = geometria_lette(event)
         line = SpokenLine(
             text=event.text,
             speaker_id=speaker_id,
@@ -848,6 +886,8 @@ class DubPipeline:
             duration=len(audio) / self.samplerate if audio.size else 0.0,
             text_original=originale if originale != event.text else "",
             rate=rate,
+            boxes=boxes_lette,
+            ink=tinta_letta,
         )
         self._t_latency.add(line.latency_ms)
         self._t_live.add(line.live_latency_ms)
@@ -992,6 +1032,7 @@ class DubPipeline:
             durata_attesa=stima,
         )
 
+        boxes_lette, tinta_letta = geometria_lette(event)
         line = SpokenLine(
             text=event.text,
             speaker_id=decisione.speaker_id,
@@ -1003,6 +1044,8 @@ class DubPipeline:
             duration=stima / rate,
             text_original=originale if originale != event.text else "",
             rate=rate,
+            boxes=boxes_lette,
+            ink=tinta_letta,
         )
 
         # **La frequenza del motore non e' quella del mixer**, e in streaming la

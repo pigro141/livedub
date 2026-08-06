@@ -37,12 +37,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.config import Config, load_profile  # noqa: E402
 from ui.overlay import (  # noqa: E402
-    MisuraCarattere, Sostituzione, inchiostro, ritaglia,
+    MisuraCarattere, Sostituzione, inchiostro, inchiostro_da_box, ritaglia,
 )
 
 
 
-def prepara(frame, cfg, testo, originale, misura):
+def prepara(frame, cfg, testo, originale, misura, boxes=(), ink=None):
     """Dipinge **una volta** il sottotitolo tradotto. `None` se non c'e' testo.
 
     Torna la `Sostituzione`, che tiene **la geometria decisa una volta**: taglia,
@@ -60,7 +60,18 @@ def prepara(frame, cfg, testo, originale, misura):
     il video avrebbe smesso di dire la verita' sulla finestra senza che nessun
     numero lo mostrasse.
     """
-    pezzo, bande, rett, tinta = inchiostro(frame, cfg)
+    # **La stessa fonte di geometria del vivo, e questo e' il punto.** Prima
+    # l'MP4 ricercava l'inchiostro da se' mentre dal vivo lo ricercava un'altra
+    # chiamata su un altro fotogramma: due rilevatori per lo stesso lavoro, che
+    # e' esattamente la forma di difetto per cui questo strumento esiste. I box
+    # scritti in `events.jsonl` sono quelli che il lettore ha validato, e adesso
+    # li usano tutti e due. `inchiostro()` resta il ripiego per le passate
+    # vecchie, che quei campi non li hanno.
+    pezzo = bande = rett = tinta = None
+    if boxes:
+        pezzo, bande, rett, tinta = inchiostro_da_box(frame, cfg, boxes, ink)
+    if pezzo is None:
+        pezzo, bande, rett, tinta = inchiostro(frame, cfg)
     if pezzo is None:
         return None
     rx = int(round(rett[0] * frame.shape[1]))
@@ -111,7 +122,11 @@ def battute(cartella: Path):
         if r.strip():
             e = json.loads(r)
             if e.get("text"):
-                righe.append((e["t_subtitle"], e["text"], e.get("text_original", "")))
+                righe.append((
+                    e["t_subtitle"], e["text"], e.get("text_original", ""),
+                    tuple(tuple(b) for b in e.get("boxes") or ()),
+                    tuple(e.get("ink") or ()) or None,
+                ))
     return righe
 
 
@@ -174,7 +189,8 @@ def main(argv=None) -> int:
         if attiva is None:
             corrente = None
         elif corrente is None or corrente[0] != attiva[0]:
-            fatto = prepara(frame, cfg, attiva[1], attiva[2], misura)
+            fatto = prepara(frame, cfg, attiva[1], attiva[2], misura,
+                            attiva[3], attiva[4])
             corrente = (attiva[0], *fatto) if fatto else None
         if corrente is not None:
             _, sost, rett, rx, ry = corrente

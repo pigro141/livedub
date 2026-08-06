@@ -1306,6 +1306,31 @@ class TranslateConfig:
     background: str = "#000000"
     background_opacity: float = 1.0
     outline: float = 2.0
+    # **Quanti giri di seguito senza sottotitolo prima di spegnere l'overlay.**
+    #
+    # L'OCR perde una riga per qualche fotogramma — una dissolvenza, una scena
+    # troppo chiara, un frame saltato — e quella riga torna subito dopo. Chi
+    # spegne al primo giro vuoto fa lampeggiare il tradotto; a 30 Hz otto giri
+    # sono circa un quarto di secondo, cioe' piu' di qualunque buco visto nelle
+    # letture e molto meno della pausa fra due battute.
+    #
+    # Si contano i **giri**, non i millisecondi: quello che deve sopravvivere e'
+    # un buco di letture, e se il ciclo video rallenta rallentano anche le
+    # letture — un timer a muro invece si accorcerebbe proprio quando il buco si
+    # allunga.
+    overlay_hold_frames: int = 8
+    # **Quanto sta a schermo, come minimo, una battuta arrivata tardi.**
+    #
+    # Fra la lettura e la voce passano piu' di due secondi, e in quel tempo il
+    # sottotitolo originale puo' essersene gia' andato. Prima quella traduzione
+    # veniva **buttata**: nel log di una sessione dal vivo dell'utente si vede
+    # `NASCOSTO` accanto a una battuta tradotta che non e' mai comparsa. Un buco
+    # e' peggio di un ritardo — il giocatore ha letto quella riga un secondo fa e
+    # sta ancora ascoltando la voce che la dice.
+    #
+    # Non si mostra comunque: solo se non e' **piu' vecchia** di quella gia' a
+    # schermo, se no due battute si accavallerebbero.
+    overlay_min_s: float = 1.2
 
 
 @dataclass

@@ -2227,8 +2227,8 @@ def test_overlay(c: Check) -> None:
     from PIL import Image, ImageDraw
 
     from ui.overlay import (
-        CHIAVE_RGB, MisuraCarattere, Sostituzione, carica_font, colore_del_gioco,
-        corpo_del_gioco, dipingi, inchiostro, su_chiave,
+        CHIAVE_RGB, MisuraCarattere, Sostituzione, _fascia, carica_font,
+        colore_del_gioco, corpo_del_gioco, dipingi, inchiostro, su_chiave,
     )
 
     # -- il colore si prende dal gioco, e si rialza ------------------------
@@ -2581,6 +2581,132 @@ def test_overlay(c: Check) -> None:
                 modo="blur", inchiostro_rgb=tinta, testo_originale="Ciao, Lamar!")
     ms = (time.perf_counter() - t0) / 5 * 1000
     c.ok(ms < 60.0, f"dipingere costa {ms:.1f} ms, e sta nel thread video")
+
+    # -- **il blur non esce dal sottotitolo**, e questa e' la verifica che
+    #    mancava del tutto -------------------------------------------------
+    #
+    # Misurato nel log di una sessione dal vivo dell'utente: su una scena chiara
+    # il riquadro passava da `1233x60` a **`1515x390`**, cioe' dall'altezza di una
+    # riga all'intera striscia d'analisi, e il raggio della sfocatura da 12 a
+    # 55,8. La causa: `classify_lines` apre una banda alta 186 px sull'auto
+    # bianca al sole, e il filtro guardava **solo** la sovrapposizione
+    # orizzontale — che una banda alta e larga supera per definizione.
+    #
+    # Si rifa' lo stesso accostamento: il sottotitolo, e sopra una macchia chiara
+    # larga e alta come la carrozzeria di un'auto.
+    sporco = frame.copy()
+    sporco[300:420, 120:900] = 235          # la macchia: alta 120, molto larga
+    p_s, b_s, r_s, t_s = inchiostro(sporco, cfg)
+    c.ok(p_s is not None and b_s, "con una macchia chiara sopra si legge lo stesso")
+    if b_s:
+        piu_alta = max(y1 - y0 for _, y0, _, y1 in b_s)
+        c.ok(piu_alta <= 60,
+             f"e nessuna banda tenuta e' alta come la macchia "
+             f"({piu_alta} px: la macchia ne misura 120)")
+        s_s = Sostituzione(p_s, b_s, "Hi, Lamar!", scala=1.0, inchiostro_rgb=t_s,
+                           modo="blur", testo_originale="Ciao, Lamar!")
+        c.ok(s_s.alt <= 0.5 * p_s.shape[0],
+             f"il riquadro copre {s_s.alt} px dei {p_s.shape[0]} della fascia, "
+             f"non tutta la fascia")
+        raggio = max(2.0, s_s.blur * s_s.alta / 40.0)
+        c.ok(raggio <= 3.0 * s_s.blur,
+             f"e il raggio della sfocatura resta {raggio:.1f}, non esplode "
+             f"con l'altezza della macchia")
+
+    # **Il tetto duro regge anche se il filtro sbaglia.** Il filtro e'
+    # un'euristica; una guardia che dipende da un'euristica non e' una guardia.
+    # Si passano a mano delle bande impossibili — una riga vera e una alta come
+    # mezza fascia — e il riquadro deve limitarsi lo stesso.
+    #
+    # La fascia dev'essere **alta**, come quella che si ottiene tirando l'area
+    # col mouse (nella sessione dell'utente: 391 px per una riga da 45). Su una
+    # fascia stretta non ci sarebbe niente da tagliare e la verifica passerebbe
+    # senza poter fallire.
+    p_alto = np.zeros((420, 900, 3), np.uint8)
+    p_alto[:, :, 1] = 80
+    riga_vera = (100, 330, 800, 360)      # una riga di testo: 30 px
+    macchia = (90, 20, 820, 320)          # scenario: 300 px, larga uguale
+    unione = 360 - 20
+    # Il corpo si passa, com'e' nel vivo: lo tiene `MisuraCarattere` da una
+    # battuta all'altra, quindi non lo decide il fotogramma sporco.
+    s_f = Sostituzione(p_alto, [riga_vera, macchia], "Hi", scala=1.0, corpo=40,
+                       inchiostro_rgb=(255, 255, 255), modo="blur",
+                       testo_originale="Ciao")
+    c.ok(s_f.alta <= 60,
+         f"con una macchia alta 300 fra i piedi l'altezza di riferimento resta "
+         f"{s_f.alta} px: la limita il corpo del carattere, che non guarda "
+         f"l'altezza delle bande")
+    c.ok(s_f.alt <= 0.6 * unione,
+         f"e il riquadro resta {s_f.alt} px contro i {unione} dell'unione "
+         f"delle bande: il tetto morde")
+    raggio_f = max(2.0, s_f.blur * s_f.alta / 40.0)
+    c.ok(raggio_f <= 2.0 * s_f.blur,
+         f"e il raggio resta {raggio_f:.1f}, non i "
+         f"{s_f.blur * 300 / 40:.0f} dell'altezza della macchia")
+
+    # -- **la geometria arriva dal fotogramma giusto** ---------------------
+    #
+    # Dal vivo fra la lettura del sottotitolo e la battuta doppiata passano piu'
+    # di due secondi (misurato: 2310 ms), e la geometria si ricercava alla fine
+    # di quell'attesa — su una scena gia' cambiata, dove al posto del testo c'e'
+    # scenario. `inchiostro_da_box` prende invece i rettangoli che il lettore
+    # aveva gia' validato.
+    #
+    # **Andata e ritorno sulle coordinate**, che e' l'unica parte che puo'
+    # sbagliare in silenzio: le bande stanno in coordinate del *pezzo*, i box in
+    # coordinate della *ROI*, e fra i due sistemi c'e' uno scarto verticale. Se
+    # la conversione sbaglia, il riquadro cade spostato e nessun contatore lo
+    # dice — si vedrebbe solo a schermo.
+    from ui.overlay import inchiostro_da_box
+
+    _, _, dy, _ = _fascia(frame, cfg)
+    c.ok(dy > 0, f"la fascia comincia {dy} px sopra la ROI, quindi la conversione "
+                 f"non e' l'identita' e la verifica puo' fallire")
+    box = [(x0, y0 - dy, x1 - x0, y1 - y0) for x0, y0, x1, y1 in bande]
+    p_b, b_b, r_b, t_b = inchiostro_da_box(frame, cfg, box, tinta)
+    c.eq(b_b, bande, "i box del lettore ritornano le stesse bande del pezzo")
+    c.eq(r_b, rett, "e lo stesso rettangolo della fascia")
+    c.ok(p_b is not None and p_b.shape == pezzo.shape,
+         "e un pezzo della stessa forma, se no il rinfresco della sfocatura "
+         "si spegne in silenzio")
+    c.eq(inchiostro_da_box(frame, cfg, [], tinta)[0], None,
+         "senza box si risponde None, e chi chiama torna a cercare l'inchiostro")
+
+    # **Il colore non lo si rimisura sui pixel di adesso**: se il sottotitolo se
+    # n'e' andato, li' non c'e' piu' inchiostro da guardare.
+    c.eq(tuple(t_b), tuple(tinta), "la tinta e' quella misurata quando il "
+                                   "sottotitolo c'era, non quella di adesso")
+
+    # -- **il testo non esce mai dai lati** --------------------------------
+    #
+    # `text()` con `anchor="mm"` disegna meta' riga a sinistra del centro: con il
+    # centro dell'inchiostro vicino al bordo dell'area e una traduzione piu'
+    # lunga dell'originale, quella meta' finiva a coordinate negative e veniva
+    # tagliata dalla tela.
+    # Il sottotitolo corto sta **appiccicato al bordo sinistro**, e la
+    # traduzione e' molto piu' larga di lui: e' il caso peggiore.
+    stretta = [(2, 40, 200, 70)]
+    lunga = ("A very long translated subtitle line that is much wider than the "
+             "short original it has to cover")
+    # `modo="nessuno"` perche' cosi' l'alfa della tela e' accesa **solo** dove
+    # abbiamo disegnato il testo: con la sfocatura sopra, la misura non potrebbe
+    # distinguere l'inchiostro dalla toppa, cioe' non potrebbe esprimere la
+    # risposta.
+    s_l = Sostituzione(pezzo, stretta, lunga, scala=1.0, inchiostro_rgb=tinta,
+                       modo="nessuno", testo_originale="Ciao")
+    attesa = (max(int(s_l.misura.textlength(r, font=s_l.font)) for r in s_l.righe)
+              + 2 * s_l.contorno)
+    tela_l, _ = s_l.disegna(pezzo)
+    a_l = np.array(tela_l)
+    colonne = np.flatnonzero(a_l[:, :, 3].max(axis=0))
+    reso = int(colonne[-1] - colonne[0] + 1) if colonne.size else 0
+    # **Si misura la larghezza resa, non la posizione.** Un testo tagliato dalla
+    # tela e' semplicemente piu' stretto di quanto dovrebbe: e' la stessa
+    # domanda, ma posta a una quantita' che il taglio cambia per forza.
+    c.ok(reso >= attesa - 2,
+         f"la riga tradotta esce intera: {reso} px resi su {attesa} attesi")
+    c.ok(s_l.larg >= attesa,
+         f"e la tela e' larga abbastanza per contenerla ({s_l.larg} >= {attesa})")
     del cv2
 
 

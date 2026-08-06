@@ -340,6 +340,35 @@ tela copre **tutta la fascia** perche' mentre la nostra battuta e' a schermo il
 gioco e' spesso gia' passato alla riga dopo (la voce arriva un secondo e mezzo
 dopo il sottotitolo, sempre).
 
+**Dove sta scritto il sottotitolo lo dice il lettore, non chi disegna.** Il
+riquadro si ricercava nei pixel (`inchiostro()`) **nell'istante in cui esce la
+battuta doppiata**, cioe' 2310 ms dopo la lettura: la scena si e' mossa e
+l'originale spesso non c'e' piu'. Cercando testo dove non ce n'e' si trova
+scenario, e nel log dell'utente il riquadro passava da `1233x60` a **`1515x390`**
+— l'intera fascia d'analisi per una riga da 45 px — col raggio della sfocatura a
+55,8 invece di 12. Adesso `SpokenLine.boxes`/`ink` portano a valle i rettangoli e
+la tinta delle righe **che l'OCR ha letto**, misurati sul fotogramma in cui il
+sottotitolo c'era; `inchiostro_da_box()` li usa e `inchiostro()` resta il ripiego.
+Gli stessi campi finiscono in `events.jsonl`, quindi **vivo e MP4 prendono la
+geometria dalla stessa fonte** invece di avere ognuno il suo rilevatore.
+
+**E una riga di testo si salda a cio' che ha attorno.** Su una scena chiara
+`find_bands` non affianca la riga al chiaro vicino: ci si fonde — misurato, una
+banda alta **186 px che conteneva** un sottotitolo da 45. Da qui tre cose. La
+banda ancora si sceglie per **vicinanza al centro dell'area** e non per larghezza
+(elegge la macchia) ne' per altezza minima (scarta il sottotitolo e tiene il
+riflesso: provato, riquadro stretto messo dove il testo non c'era). L'altezza di
+riferimento — da cui escono raggio, margine e tetto del riquadro — e' la mediana
+delle bande tenute **limitata dal corpo del carattere**, che si ricava dalla
+larghezza e quindi non guarda l'altezza: cosi' una saldatura alza il riquadro ma
+non il raggio. E il tetto sul riquadro e' duro, perche' una guardia che dipende
+da un'euristica non e' una guardia.
+
+**Ma la causa a monte e' l'area disegnata a mano.** Con `respiro = 0.6*rh`, un
+rettangolo alto un sesto dello schermo da' una fascia di 391 px per una riga da
+45, e in quello spazio ci sta mezza scena. Nessun filtro disfa una saldatura;
+stringere l'area si' — la UI adesso lo dice sopra 0,12.
+
 **`core/onnx.py`** — la porta unica per aprire una sessione ONNX, che esiste per
 la riga `preload_dlls()`. Si veda la regola piu' sotto.
 
@@ -637,6 +666,20 @@ voci inglesi, quello vecchio — con dentro le sole due italiane — e' rimasto
 «buono» agli occhi di quella funzione, e la prima voce inglese e' morta con un
 `KeyError` dentro la libreria, lontanissimo da dove stava il difetto. Chi mette
 qualcosa in cache controlli **cosa** c'e' dentro, non che ci sia.
+
+**Un rimedio che stringe puo' stringere sul posto sbagliato, e sembra comunque un
+progresso.** Il riquadro sfocato passava da 1516x391 a 670x108: tutti i numeri
+miglioravano. Guardando il fotogramma dipinto, quel riquadro stava **dove il
+sottotitolo non c'era** e l'italiano era rimasto scoperto sotto — cioe' peggio di
+prima, perche' prima almeno lo copriva. Nessuna delle misure che stavo guardando
+(altezza, larghezza, raggio) poteva dirlo: sono tutte misure di *quanto*, e lo
+sbaglio era *dove*. Su una correzione geometrica, la verifica e' l'immagine.
+
+**E il modo per non dipendere dall'occhio e' avere una posizione vera con cui
+confrontarsi.** Le tre ancore candidate si sono decise in un minuto mettendo in
+tabella la distanza di ciascuna banda dal punto dove il sottotitolo sta davvero —
+la `row_band` della calibrazione, che era gia' scritta nel profilo e non l'aveva
+mai riletta nessuno: la banda giusta a 13 e 17 px, le altre a 117 e 180.
 
 **Prima di dire che una cosa non si puo' fare, guardare cosa si ha gia' in mano.**
 Avevo scritto che dal vivo la sfocatura del sottotitolo era impossibile, perche'

@@ -44,7 +44,7 @@ from core.config import Config, load_profile  # noqa: E402
 from core.pipeline import DubPipeline  # noqa: E402
 from tools.live import costruisci_tts  # noqa: E402
 from tools.session import Session  # noqa: E402
-from ui.overlay import inchiostro, ritaglia  # noqa: E402
+from ui.overlay import inchiostro, inchiostro_da_box, ritaglia  # noqa: E402
 
 
 class SelettoreArea:
@@ -351,6 +351,19 @@ class App:
                     self.scrivi("! l'area che hai tirato esce dalla finestra scelta: "
                                 "l'ho tagliata al suo bordo", tag="nota")
         self.cfg.vision.roi = roi
+        # **Un'area alta e' il difetto che si vede di piu', e non sembra suo.**
+        # La fascia d'analisi e' l'area piu' un respiro proporzionale a lei:
+        # tirandola alta un sesto dello schermo diventa 391 px per una riga da
+        # 45, e in quello spazio ci finisce la scena. Su un fondo chiaro la riga
+        # di testo si **salda** a cio' che ha attorno — misurato, una banda alta
+        # 186 px che conteneva un sottotitolo da 45 — e il riquadro sfocato
+        # cresce con lei. Nessun filtro puo' disfare una saldatura; stringere
+        # l'area si'.
+        if roi[3] > 0.12:
+            self.scrivi(
+                f"! l'area e' alta {roi[3]:.3f} dello schermo: tirala stretta "
+                f"attorno alla riga dei sottotitoli (0,06-0,10), se no il blur "
+                f"si allarga su quello che le sta intorno", tag="nota")
         self.l_roi.config(text=self._testo_roi())
         # **L'overlay deve seguire l'area, e non la seguiva.** Il selettore e' il
         # modo dichiarato di usare questo programma; senza questa riga la
@@ -393,17 +406,27 @@ class App:
                 elif tipo == "overlay":
                     testo, originale, fine, t_on, pezzo, bande, rett, tinta = dato
                     if self.overlay is not None:
-                        # **Non si mostra una battuta gia' sparita.** Fra la
-                        # lettura e la voce passa piu' di un secondo e mezzo: se
-                        # in quel tempo il sottotitolo se n'e' andato, farlo
-                        # comparire adesso vuol dire un lampo su una scena a cui
-                        # non appartiene piu'.
-                        viva = (self.pipeline is None
-                                or self.pipeline.a_schermo(t_on))
-                        if viva:
+                        # **Una battuta arrivata tardi si mostra lo stesso, per
+                        # un minimo.** Prima si mostrava solo se il sottotitolo
+                        # originale era ancora a schermo, e se no la traduzione
+                        # veniva buttata senza dirlo: nel log dell'utente sta
+                        # scritto `NASCOSTO` accanto a una battuta tradotta mai
+                        # comparsa. Il giocatore quella riga l'ha letta un
+                        # secondo fa e sta ascoltando la voce che la dice: un
+                        # buco e' peggio di un ritardo.
+                        #
+                        # L'unica cosa che non si fa mai e' **tornare
+                        # indietro**: una battuta piu' vecchia di quella gia' a
+                        # schermo si accavallerebbe alla nuova, che e' il
+                        # difetto peggiore — due sottotitoli insieme.
+                        if t_on >= self.overlay.t_on:
                             self.overlay.mostra(testo, pezzo, bande, rett, tinta,
                                                 originale)
                             self.overlay.t_on = t_on
+                            if not (self.pipeline is None
+                                    or self.pipeline.a_schermo(t_on)):
+                                fine = max(fine, time.perf_counter()
+                                           + self.cfg.translate.overlay_min_s)
                             self._overlay_fino_a = fine
                         # **La riga che divide in due il problema.** Se qui c'e'
                         # scritto un riquadro e a schermo non si vede niente, il
@@ -432,8 +455,18 @@ class App:
         # **Il sottotitolo tradotto sparisce da solo.** Una banda perenne in
         # mezzo allo schermo e' peggio dell'originale che copriva.
         self._segui_finestra()
-        if self.overlay is not None and time.perf_counter() >= self._overlay_fino_a:
-            self.overlay.nascondi()
+        # **Anche qui si aspetta il conto dei giri vuoti.** Questa riga spegneva
+        # sul solo orologio, quindi scavalcava l'isteresi del ciclo video e la
+        # rendeva inutile: il tradotto spariva lo stesso al primo buco di
+        # letture. Il ritardo di due secondi e' la rete per il caso in cui il
+        # ciclo video si sia fermato — li' i giri vuoti non arrivano piu', e una
+        # finestra che non si spegne resta in mezzo allo schermo.
+        if self.overlay is not None and self.overlay._visibile:
+            scaduto = time.perf_counter() >= self._overlay_fino_a
+            fermo = time.perf_counter() >= self._overlay_fino_a + 2.0
+            if fermo or (scaduto and self.overlay._vuoti
+                         >= self.cfg.translate.overlay_hold_frames):
+                self.overlay.nascondi()
         self.root.after(self.PASSO_UI, self._svuota_coda)
 
     # -- avvio e arresto ---------------------------------------------------
@@ -580,11 +613,23 @@ class App:
                             # all'OCR; per sfocare il sottotitolo vecchio basta
                             # ritagliarlo, e non c'e' nessuna seconda cattura da
                             # pagare — cosa che avevo scritto e che era falsa.
+                            # **La geometria viene dal fotogramma in cui il
+                            # sottotitolo c'era, non da questo.** Fra la lettura
+                            # e adesso sono passati piu' di due secondi: qui
+                            # `inchiostro()` cercava l'inchiostro su una scena
+                            # gia' cambiata, e cio' che trovava era scenario.
+                            # `riga.boxes` sono le bande che il riconoscitore ha
+                            # accettato allora. `inchiostro()` resta come
+                            # ripiego, per i profili senza box.
+                            trovato = inchiostro_da_box(
+                                g.frame, self.cfg, riga.boxes, riga.ink
+                            )
+                            if trovato[0] is None:
+                                trovato = inchiostro(g.frame, self.cfg)
                             self.coda.put(
                                 ("overlay",
                                  (riga.text, riga.text_original, fine,
-                                  riga.t_subtitle,
-                                  *inchiostro(g.frame, self.cfg)))
+                                  riga.t_subtitle, *trovato))
                             )
                     # **Il blur e' un filtro dal vivo, a ogni fotogramma.**
                     # A 10 Hz si vedeva: la scena scorre e la macchia sfocata
@@ -598,15 +643,30 @@ class App:
                     # timer finche' la finestra era visibile — un anello chiuso
                     # su se' stesso — e la finestra non spariva piu'.
                     if self.overlay is not None and self.overlay._visibile:
+                        # **I pixel si rinfrescano finche' la finestra e' a
+                        # schermo**, anche nei giri in cui il lettore non vede il
+                        # sottotitolo. Prima il rinfresco stava dentro il ramo
+                        # `a_schermo`: durante il buco di letture la toppa si
+                        # congelava, cioe' diventava un rettangolo di immagine
+                        # vecchia proprio nei fotogrammi in cui si stava
+                        # decidendo se spegnerla.
+                        pezzo = ritaglia(g.frame, self.overlay.rett)
+                        if pezzo is not None:
+                            self.coda.put(("aggiorna", (pezzo, time.perf_counter())))
+                        # **Si contano i giri vuoti, non si guarda l'orologio.**
+                        # L'OCR perde una riga per qualche fotogramma e la
+                        # ritrova subito: spegnere al primo giro vuoto fa
+                        # lampeggiare il tradotto. Si spegne quando il buco e'
+                        # abbastanza lungo da essere una sparizione vera.
                         if self.pipeline.a_schermo(self.overlay.t_on):
+                            self.overlay._vuoti = 0
                             self._overlay_fino_a = time.perf_counter() + 0.4
-                            pezzo = ritaglia(g.frame, self.overlay.rett)
-                            if pezzo is not None:
-                                self.coda.put(
-                                    ("aggiorna", (pezzo, time.perf_counter()))
-                                )
-                        elif time.perf_counter() >= self._overlay_fino_a:
-                            self.coda.put(("spegni", None))
+                        else:
+                            self.overlay._vuoti += 1
+                            if (self.overlay._vuoti
+                                    >= self.cfg.translate.overlay_hold_frames
+                                    and time.perf_counter() >= self._overlay_fino_a):
+                                self.coda.put(("spegni", None))
                     if n % 30 == 0:
                         p = len(self.pipeline.tracker) if self.pipeline.tracker else 0
                         self.coda.put(("stato",

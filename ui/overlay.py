@@ -129,7 +129,14 @@ def corpo_del_gioco(bande, testo_originale: str, scala: float, nome_font: str) -
     il rapporto fra inchiostro maiuscolo e corpo invece di far finta che sia 1.
     """
     larghezza = sum(x1 - x0 for x0, _, x1, _ in bande) * scala
-    altezza = max(y1 - y0 for _, y0, _, y1 in bande) * scala
+    # **La banda piu' bassa, non la piu' alta.** Da qui esce il tetto
+    # sull'altezza dell'inchiostro (`sta_dentro`), che e' l'unica cosa che
+    # impedisce a un compromesso mal posto di scegliere un carattere gonfio.
+    # Prendendo il massimo, una banda che non e' testo alzava il tetto insieme a
+    # se' stessa: la guardia si allargava proprio nel caso per cui esiste.
+    # Su righe vere le due misure coincidono — le righe di una battuta sono alte
+    # uguale — quindi la scelta si vede solo quando c'e' qualcosa da togliere.
+    altezza = min(y1 - y0 for _, y0, _, y1 in bande) * scala
     testo = " ".join((testo_originale or "").split())
     if not testo or larghezza <= 0:
         import statistics
@@ -331,6 +338,117 @@ def colore_del_gioco(rgb) -> tuple[int, int, int]:
     return tuple(int(min(255, round(v * k))) for v in (r, g, b))
 
 
+def _sembra_testo(r) -> bool:
+    """La banda ha l'inchiostro distribuito come una riga di testo?
+
+    Due misure sui pixel **gia' mascherati** (`LineBand.crop`), quindi gratis:
+
+    - **il riempimento**: quanta parte del riquadro della banda e' inchiostro.
+      Una riga di glifi ne ha una frazione; una banda aperta da qualche pixel di
+      scenario quasi niente;
+    - **le righe piene**: su quante delle sue righe-pixel c'e' inchiostro. I
+      glifi attraversano la banda da cima a fondo, quindi il testo ne accende
+      quasi tutte; un bordo di scenario ne accende poche e lascia il resto vuoto.
+
+    Le soglie vengono dai fotogrammi di una sessione dal vivo dell'utente. Bande
+    di sottotitolo: riempimento 0,036-0,27, righe piene 0,48-0,94. Bande di
+    scenario: riempimento 0,014-0,015, righe piene 0,06-0,13.
+
+    **Non separa tutto, e va detto**: una banda di scenario alta 186 px misurava
+    righe piene 0,484, cioe' dentro l'intervallo del testo. A togliere quella e'
+    l'altezza (`_gruppo_di_righe`), non questa funzione. Qui cadono le bande
+    sottili e sparse, che sono le piu' numerose.
+    """
+    crop = getattr(r, "crop", None)
+    if crop is None or crop.size == 0:
+        return True  # senza pixel non si giudica: decide chi guarda l'altezza
+    import numpy as np
+
+    acceso = crop > 0
+    riempimento = float(acceso.mean())
+    prof = acceso.sum(axis=1)
+    righe_piene = float((prof > 0.02 * crop.shape[1]).mean())
+    return riempimento >= 0.025 and righe_piene >= 0.30
+
+
+def _gruppo_di_righe(righe, larghezza: int, centro_roi: int):
+    """Fra le bande trovate, quelle che sono **il sottotitolo**.
+
+    `classify_lines` risponde a "dove c'e' del chiaro che stacca dal fondo", che
+    su una scena luminosa e' molto piu' del sottotitolo: misurato sui fotogrammi
+    dell'utente, un'auto bianca al sole apriva una banda alta **186 px** accanto
+    a una riga di testo alta 64.
+
+    Il filtro che c'era guardava **solo la sovrapposizione orizzontale** con la
+    banda piu' larga. Una banda alta e larga la supera per definizione, quindi
+    passava — e da li' il riquadro si allargava a tutta la fascia (misurato nel
+    log dell'utente: `1515x390`, cioe' l'intera striscia d'analisi per una riga
+    da 45 px) e il raggio della sfocatura saliva a 55,8 invece di 12.
+
+    Si aggiungono le due guardie che mancavano, le stesse che usa
+    `BlockDetectionManager` di RSTGameTranslation: **somiglianza di altezza** e
+    **vicinanza verticale**. Le righe di una battuta sono alte uguale e stanno
+    attaccate; cio' che non lo e' non e' testo suo.
+
+    L'**ancora e' la banda piu' vicina al centro dell'area**, e ci sono volute
+    tre risposte sbagliate per arrivarci. La piu' larga (com'era) elegge proprio
+    la macchia, che e' larga per definizione. La piu' bassa di statura sbaglia
+    all'opposto: su una scena chiara la riga di testo si **salda** al chiaro che
+    ha attorno — misurato, una banda alta 186 px che *conteneva* il sottotitolo —
+    e scartarla per la sua altezza vuol dire scartare il sottotitolo e tenere il
+    riflesso sul tetto dell'auto. A schermo si vedeva: riquadro stretto, messo
+    dove il testo non c'era, e l'italiano rimasto scoperto sotto.
+
+    Il centro dell'area invece e' una cosa che **si sa**: l'area la disegna
+    l'utente attorno ai sottotitoli, quindi e' la dichiarazione di dove stanno.
+    Verificato contro la posizione vera del sottotitolo (la `row_band` della
+    calibrazione) su due fotogrammi dell'utente: la banda giusta e' a 13 e 17 px
+    dal centro dell'area, le altre a 117 e 180.
+    """
+    if not righe:
+        return []
+    candidate = [r for r in righe if _sembra_testo(r)] or list(righe)
+    larga = max(r.x1 - r.x0 for r in candidate)
+    # Le schegge non fanno testo: una banda molto piu' stretta della piu' larga
+    # e' una macchia, e non deve poter fare da ancora.
+    grosse = [r for r in candidate if (r.x1 - r.x0) >= 0.25 * larga] or candidate
+    centro = larghezza // 2
+    passanti = [r for r in grosse if r.x0 <= centro <= r.x1] or grosse
+    ancora = min(passanti, key=lambda r: abs((r.top + r.bottom) // 2 - centro_roi))
+    h = max(1, ancora.height)
+
+    # **La finestra e' stretta perche' le righe vere sono alte uguale.** Misurato
+    # su una battuta a due righe dell'utente: 35 e 42 px, cioe' un rapporto di
+    # 1,2. Tenendo 0,6-1,6 passava anche una banda da 22 accanto a una da 36, e
+    # bastava lei ad abbassare l'altezza di riferimento — quindi il raggio della
+    # sfocatura — fino a lasciare leggibile l'italiano sotto.
+    tenute = [
+        r for r in candidate
+        if 0.7 * h <= r.height <= 1.5 * h
+        and min(r.x1, ancora.x1) - max(r.x0, ancora.x0)
+        >= 0.3 * min(r.x1 - r.x0, ancora.x1 - ancora.x0)
+    ]
+    if ancora not in tenute:
+        tenute.append(ancora)
+    # **La vicinanza si misura sul gruppo che cresce, non sull'ancora.** Una
+    # battuta su tre righe ha la terza a due altezze dalla prima: chiedendo la
+    # distanza dall'ancora si perderebbe proprio la riga piu' lontana.
+    tenute.sort(key=lambda r: r.top)
+    i = tenute.index(ancora)
+    gruppo = [ancora]
+    for r in reversed(tenute[:i]):
+        if gruppo[0].top - r.bottom <= 1.5 * h:
+            gruppo.insert(0, r)
+        else:
+            break
+    for r in tenute[i + 1:]:
+        if r.top - gruppo[-1].bottom <= 1.5 * h:
+            gruppo.append(r)
+        else:
+            break
+    return gruppo
+
+
 def inchiostro(frame, cfg):
     """Dove sta il sottotitolo del gioco in questo fotogramma.
 
@@ -360,9 +478,40 @@ def inchiostro(frame, cfg):
     Tutto `None` se non si capisce dove sia il testo: si rinuncia a disegnare,
     invece di piazzare un riquadro a caso.
     """
+    from vision.lines import LineClass, classify_lines
+
+    pezzo, rett, dy, rh = _fascia(frame, cfg)
+    if pezzo.size == 0:
+        return None, None, None, None
+    righe = [r for r in classify_lines(pezzo, cfg.vision) if r.cls is not LineClass.COLORED]
+    if not righe:
+        return None, None, None, None
+    # **Solo le righe che sono il sottotitolo**: somiglianza di altezza e
+    # vicinanza verticale, oltre alla sovrapposizione orizzontale che c'era gia'.
+    righe = _gruppo_di_righe(righe, pezzo.shape[1], dy + rh // 2)
+    if not righe:
+        return None, None, None, None
+    bande = [(r.x0, r.top, r.x1, r.bottom + 1) for r in righe]
+    # **Il colore si media sulle sole righe tenute.** Prima si mediava su tutte
+    # quelle trovate, scenario compreso: la tinta dell'inchiostro veniva tirata
+    # verso il colore di cio' che si era appena deciso di non coprire, e il
+    # tradotto usciva di un colore che nel sottotitolo non c'era.
+    peso = float(sum(r.x1 - r.x0 for r in righe)) or 1.0
+    canali = [sum(r.rgb[i] * (r.x1 - r.x0) for r in righe) / peso for i in range(3)]
+    return pezzo, bande, rett, (canali[2], canali[1], canali[0])
+
+
+def _fascia(frame, cfg):
+    """La fascia attorno ai sottotitoli e dove sta nel fotogramma.
+
+    Un posto solo a deciderla, perche' la usano in due — `inchiostro()`, che
+    cerca l'inchiostro da se', e `inchiostro_da_box()`, che se lo fa dire — e
+    devono ritagliare **esattamente** la stessa cosa: `ritaglia()` e
+    `Overlay.aggiorna()` confrontano la forma del pezzo con quella salvata, e uno
+    scarto di un pixel spegne il rinfresco della sfocatura senza dire niente.
+    """
     import numpy as np
 
-    from vision.lines import LineClass, classify_lines
     from vision.roi import roi_pixels
 
     h_f, w_f = frame.shape[:2]
@@ -370,33 +519,49 @@ def inchiostro(frame, cfg):
     respiro = int(max(0.6 * rh, 0.03 * h_f))
     ay0, ay1 = max(0, ry - respiro), min(h_f, ry + rh + respiro)
     pezzo = np.ascontiguousarray(frame[ay0:ay1, rx : rx + rw])
+    rett = (rx / w_f, ay0 / h_f, rw / w_f, (ay1 - ay0) / h_f)
+    return pezzo, rett, ry - ay0, rh
+
+
+def inchiostro_da_box(frame, cfg, boxes, ink):
+    """Come `inchiostro()`, ma i rettangoli sono **quelli che l'OCR ha letto**.
+
+    E' la differenza fra chiedere "dov'e' il testo?" a dei pixel vecchi di due
+    secondi e saperlo gia'. Dal vivo passano piu' di due secondi fra la lettura
+    del sottotitolo e la battuta doppiata (misurato: 2310 ms); `inchiostro()`
+    veniva chiamata alla **fine** di quell'attesa, su un fotogramma in cui la
+    scena si e' mossa e l'originale spesso e' gia' sparito. Cercando testo dove
+    non ce n'e' si trova scenario — ed e' cosi' che il riquadro finiva a coprire
+    l'intera fascia.
+
+    Qui i rettangoli arrivano da `SpokenLine.boxes`, cioe' dalle bande che il
+    riconoscitore aveva accettato come dialogo e su cui aveva letto delle parole,
+    sul fotogramma in cui il sottotitolo **c'era**. Il colore idem: si porta
+    dietro la tinta misurata allora, invece di rimisurarla su pixel in cui il
+    sottotitolo non e' piu'.
+
+    Dei pixel di **adesso** resta cio' che deve essere di adesso: il `pezzo` da
+    sfocare, che e' la scena viva sotto la toppa.
+
+    `None` se non ci sono rettangoli: chi chiama torna a `inchiostro()`.
+    """
+    if not boxes:
+        return None, None, None, None
+    pezzo, rett, dy, _rh = _fascia(frame, cfg)
     if pezzo.size == 0:
         return None, None, None, None
-    righe = [r for r in classify_lines(pezzo, cfg.vision) if r.cls is not LineClass.COLORED]
-    if not righe:
+    h_pezzo, w_pezzo = pezzo.shape[:2]
+    bande = []
+    for x, y, w, h in boxes:
+        # I box sono in coordinate della ROI; la fascia comincia `dy` pixel
+        # sopra di lei.
+        x0, y0 = max(0, int(x)), max(0, int(y) + dy)
+        x1, y1 = min(w_pezzo, x0 + int(w)), min(h_pezzo, y0 + int(h))
+        if x1 > x0 and y1 > y0:
+            bande.append((x0, y0, x1, y1))
+    if not bande:
         return None, None, None, None
-    bande = [(r.x0, r.top, r.x1, r.bottom + 1) for r in righe]
-    # **Solo le righe che stanno col gruppo.** `classify_lines` scarta le righe
-    # colorate ma non un dito chiaro contro una camicia scura: quello entra come
-    # riga acromatica, e la cancellatura ci lascia sopra una toppa — vista a
-    # schermo, accanto al testo. La riga di sottotitolo piu' larga e' il
-    # sottotitolo; cio' che non le sta accanto in orizzontale non e' testo suo.
-    # L'ancora e' la riga che passa per il **centro** della ROI, non la piu'
-    # larga: i sottotitoli sono centrati, e un braccio chiaro puo' benissimo
-    # essere piu' largo della riga di testo — prendendolo come ancora si
-    # scarterebbe il testo e si terrebbe il braccio.
-    centro = pezzo.shape[1] // 2
-    passanti = [b for b in bande if b[0] <= centro <= b[2]]
-    larga = max(passanti or bande, key=lambda b: b[2] - b[0])
-    bande = [
-        b for b in bande
-        if min(b[2], larga[2]) - max(b[0], larga[0])
-        >= 0.3 * min(b[2] - b[0], larga[2] - larga[0])
-    ]
-    peso = float(sum(r.x1 - r.x0 for r in righe)) or 1.0
-    canali = [sum(r.rgb[i] * (r.x1 - r.x0) for r in righe) / peso for i in range(3)]
-    rett = (rx / w_f, ay0 / h_f, rw / w_f, (ay1 - ay0) / h_f)
-    return pezzo, bande, rett, (canali[2], canali[1], canali[0])
+    return pezzo, bande, rett, tuple(ink or (255.0, 255.0, 255.0))
 
 
 def ritaglia(frame, rett):
@@ -535,7 +700,6 @@ class Sostituzione:
         # chiaro contro una camicia scura e' passato per una riga di testo, e la
         # cancellatura ci e' passata sopra lasciando un rettangolo grigio. Una
         # riga di sottotitolo e' alta quanto le altre; il resto no.
-        self.alta = max(1, max(y1 - y0 for _, y0, _, y1 in bande))
         self.modo = (modo or "blur").lower()
         self.blur = blur
         self.fondo_rgb = tuple(int(v) for v in fondo_rgb)
@@ -545,6 +709,38 @@ class Sostituzione:
         h_pezzo, w_pezzo = self.forma
 
         self.corpo = corpo or corpo_del_gioco(bande, testo_originale, scala, nome_font)
+
+        # -- quanto e' alta **una riga**, e non e' l'altezza delle bande -------
+        #
+        # Da qui escono il raggio della sfocatura (`blur * alta / 40`), il
+        # margine del riquadro e il suo tetto: sbagliarla per eccesso vuol dire
+        # una fascia sfocata in mezzo al gioco.
+        #
+        # Si prende la **mediana** delle bande tenute: le righe di una battuta
+        # sono alte uguale, quindi su un gruppo pulito mediana, minimo e massimo
+        # sono lo stesso numero. La mediana e' quella che regge se una banda
+        # sbagliata si infila nel gruppo — il minimo la seguirebbe verso il
+        # basso (e un raggio troppo piccolo lascia leggibile l'italiano sotto),
+        # il massimo verso l'alto.
+        #
+        # **Ma nessuna statistica sulle altezze basta, e il perche' e' il difetto
+        # piu' istruttivo di
+        # questa sessione.** Su una scena chiara la riga non si affianca al
+        # chiaro che ha intorno: ci si **salda**. Misurato sul fotogramma
+        # dell'utente, una banda sola alta 186 px che *conteneva* il sottotitolo
+        # da 45. Non c'e' nessun minimo da prendere — la banda giusta e' anche
+        # quella sbagliata.
+        #
+        # Il tetto viene allora da una misura che **non guarda l'altezza**: il
+        # corpo del carattere, che si ricava dalla larghezza dell'inchiostro
+        # confrontata col testo che l'OCR ha letto. Un carattere da `c` punti
+        # non fa righe di inchiostro piu' alte di ~1,3·c, discendenti compresi.
+        # Cosi' una banda saldata alza il riquadro ma non il raggio.
+        import statistics
+
+        tipica = statistics.median(y1 - y0 for _, y0, _, y1 in bande)
+        tetto = max(1, int(round(self.corpo * 1.3 / max(1e-6, scala))))
+        self.alta = max(1, min(int(round(tipica)), tetto))
         self.colore = colore or colore_del_gioco(inchiostro_rgb or (255, 255, 255))
         self.font = carica_font(nome_font, self.corpo)
         self.contorno = max(1, int(round(contorno * scala)))
@@ -621,6 +817,18 @@ class Sostituzione:
         self.cx = (int(round(asse * su(w_pezzo)))
                    if (sospetta and asse is not None) else centro_letto)
 
+        # **E dentro i bordi, sempre.** `text()` con `anchor="mm"` disegna meta'
+        # riga a sinistra di `cx`: se il centro dell'inchiostro sta vicino al
+        # bordo dell'area e la traduzione e' piu' larga dell'originale, quella
+        # meta' finisce a coordinate negative e viene **tagliata dalla tela**.
+        # Spostare la finestra dopo non rimedia — sposta anche il testo, che si
+        # scollerebbe dal sottotitolo. Si rientra qui, prima di decidere
+        # qualunque geometria: una battuta un po' fuori asse si legge, una
+        # battuta tagliata no.
+        mezza = largh // 2 + self.contorno + 3
+        limite_dx = max(mezza, su(w_pezzo) - mezza)
+        self.cx = max(mezza, min(limite_dx, self.cx))
+
         # I centri verticali. Se le righe tradotte sono tante quante quelle
         # lette, ognuna si posa **sulla sua**; se no si distribuisce il blocco
         # sul centro di quello originale, che e' il meglio che si possa fare
@@ -652,6 +860,29 @@ class Sostituzione:
         ky0 = max(0, min(by0 - m, ty0))
         kx1 = min(su(w_pezzo), max(bx1 + m, tx1))
         ky1 = min(su(h_pezzo), max(by1 + m, ty1))
+
+        # **Un tetto duro, perche' il filtro a monte puo' sempre sbagliare.**
+        # Il riquadro serve a coprire delle righe di testo: piu' alto di quanto
+        # quelle righe occupano, sta sfocando scena. Il filtro di
+        # `_gruppo_di_righe` toglie quasi tutto, ma una guardia che dipende da
+        # un'euristica non e' una guardia — e il difetto che questo tetto
+        # impedisce e' il piu' visibile del prodotto: una fascia sfocata larga
+        # mezzo schermo in mezzo al gioco.
+        #
+        # Si contano le righe **tradotte** oltre a quelle lette: la traduzione
+        # puo' occuparne piu' dell'originale, e li' il nostro testo va scritto su
+        # pixel sfocati come gli altri.
+        # Il tetto non puo' mai tagliare **il nostro** testo: sotto ci va
+        # scritta la traduzione, e scriverla su pixel nitidi si legge peggio.
+        # Quindi si prende il piu' grande fra quanto serve alle righe lette e
+        # quanto serve a quelle tradotte.
+        n_righe = max(len(bande), len(self.righe))
+        serve = max(float(ty1 - ty0), n_righe * su(self.alta) * 1.6)
+        alt_max = int(round(serve)) + 2 * pad
+        if ky1 - ky0 > alt_max:
+            centro_y = (min(by0, ty0) + max(by1, ty1)) // 2
+            ky0 = max(0, centro_y - alt_max // 2)
+            ky1 = min(su(h_pezzo), ky0 + alt_max)
         self.taglio = (max(0, int(kx0 / scala)), max(0, int(ky0 / scala)),
                        min(w_pezzo, int(kx1 / scala) + 1),
                        min(h_pezzo, int(ky1 / scala) + 1))

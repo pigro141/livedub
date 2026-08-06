@@ -32,7 +32,14 @@ param(
     [switch]$Avvia,                         # non aspetta il tasto: parte da solo
     [switch]$Opaco,                         # niente colore trasparente: finestra normale
     [switch]$Catturabile,                   # l'overlay entra negli screenshot (per fotografarlo)
-    [switch]$Prova                          # dice cosa farebbe e non parte
+    [switch]$Prova,                         # dice cosa farebbe e non parte
+    # Opzioni libere, nella forma `sezione.campo=valore`. Servono a provare una
+    # variante senza riscrivere a mano la riga intera — che e' proprio cio' che
+    # questo script esiste per evitare. Vengono **stampate** insieme al resto,
+    # se no si torna a non sapere con che configurazione e' stata fatta la prova.
+    #
+    #   -Set translate.background_mode=riquadro
+    [string[]]$Set = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -138,6 +145,7 @@ if ($Traduci) {
         '--set', "translate.target=$A"
     )
 }
+foreach ($s in $Set) { $opzioni += @('--set', $s) }
 
 Write-Host ""
 Write-Host "  motore      $Motore"
@@ -149,6 +157,7 @@ if ($Traduci) {
 } else {
     Write-Host "  traduzione  spenta (i sottotitoli sono gia' italiani)"
 }
+foreach ($s in $Set) { Write-Host "  opzione     $s" -ForegroundColor Cyan }
 Write-Host ""
 if ($Avvia) {
     Write-Host "  Parte da sola con l'area del profilo. Se non e' quella giusta:"

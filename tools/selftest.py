@@ -2474,6 +2474,64 @@ def test_overlay(c: Check) -> None:
     c.ok(np.any(np.array(t_a) != np.array(t_b)),
          "ma i pixel sfocati dentro sono quelli del fotogramma nuovo")
 
+
+    # -- **i due difetti visti dal vivo con Google acceso** ----------------
+    # «a volte diventa grandissimo quando sono due righe» e «quando e' breve
+    # mette la scritta decentrata». Erano la stessa cosa: una lettura parziale
+    # dell'OCR fa saltare sia la taglia sia il centro.
+
+    # 1. Una lettura parziale non deve spostare la taglia gia' stabilita.
+    m2 = MisuraCarattere(bastano=4)
+    for _ in range(4):
+        buona = m2.aggiorna([(0, 0, 300, 30)], "Ciao, Lamar!", 1.0, "Arial")
+    c.ok(m2.bloccata, f"dopo quattro stime d'accordo la taglia si blocca ({buona})")
+    # `Recupe`: sei caratteri su tutta la larghezza di una riga -> stima enorme
+    dopo_sporca = m2.aggiorna([(0, 0, 300, 30)], "Recupe", 1.0, "Arial")
+    c.eq(dopo_sporca, buona, "e una riga letta a meta' non la sposta piu'")
+
+    m3 = MisuraCarattere(bastano=99)  # non si blocca mai: si prova solo il filtro
+    for _ in range(3):
+        base = m3.aggiorna([(0, 0, 300, 30)], "Ciao, Lamar!", 1.0, "Arial")
+    sporca = m3.aggiorna([(0, 0, 900, 30)], "Recupe", 1.0, "Arial")
+    c.ok(abs(sporca - base) <= max(1, int(0.1 * base)),
+         f"una stima assurda viene scartata invece di entrare nella mediana "
+         f"({sporca} contro {base})")
+
+    # 2. Il testo si centra sull'area, non su cio' che l'OCR ha letto.
+    #    Una lettura parziale a sinistra non deve tirarsi dietro la traduzione.
+    largo = pezzo.shape[1]
+    meta = largo // 2
+    intera = [(meta - 300, 30, meta + 300, 60)]
+    parziale = [(meta - 300, 30, meta - 150, 60)]  # letto solo l'inizio
+    # Il gioco centra: glielo si insegna con tre battute intere, come dal vivo.
+    mem = MisuraCarattere()
+    for _ in range(3):
+        mem.guarda_allineamento(intera, largo)
+    c.ok(mem.centra, "tre battute centrate bastano a dire che il gioco centra")
+    s_int = Sostituzione(pezzo, intera, "Hello there", scala=1.0,
+                         inchiostro_rgb=tinta, testo_originale="Ciao, Lamar!",
+                         centra=mem.centra)
+    s_par = Sostituzione(pezzo, parziale, "Hello there", scala=1.0,
+                         inchiostro_rgb=tinta, testo_originale="Ciao",
+                         centra=mem.centra)
+    c.eq(s_par.cx, s_int.cx,
+         "la traduzione resta centrata anche se l'OCR ha letto meta' riga")
+
+    # E un gioco che allinea a sinistra non impara mai a centrare.
+    mem_sx = MisuraCarattere()
+    for _ in range(5):
+        mem_sx.guarda_allineamento([(10, 30, 220, 60)], largo)
+    c.ok(not mem_sx.centra,
+         "cinque battute allineate a sinistra non fanno credere che centri")
+
+    # Ma un gioco che allinea a sinistra comanda lui: l'inchiostro lontano dal
+    # centro non viene ricentrato d'ufficio.
+    a_sinistra = [(10, 30, 220, 60)]
+    s_sx = Sostituzione(pezzo, a_sinistra, "Hello", scala=1.0,
+                        inchiostro_rgb=tinta, testo_originale="Ciao")
+    c.ok(s_sx.cx < meta - 100,
+         f"un sottotitolo allineato a sinistra non viene tirato al centro ({s_sx.cx})")
+
     # 2. La battuta lunga rimpicciolisce invece di uscire dal riquadro.
     lunga = ("Listen here you bastard, but I am a guy who wants money, a casino "
              "owner, a prick who will stab you in the back and then ask you how "

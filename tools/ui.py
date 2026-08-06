@@ -44,7 +44,7 @@ from core.config import Config, load_profile  # noqa: E402
 from core.pipeline import DubPipeline  # noqa: E402
 from tools.live import costruisci_tts  # noqa: E402
 from tools.session import Session  # noqa: E402
-from ui.overlay import inchiostro  # noqa: E402
+from ui.overlay import inchiostro, ritaglia  # noqa: E402
 
 
 class SelettoreArea:
@@ -559,25 +559,23 @@ class App:
                                   riga.t_subtitle,
                                   *inchiostro(g.frame, self.cfg)))
                             )
-                    # **La cancellatura segue la scena, la geometria no.** Il
-                    # riquadro resta dove e' comparso; sotto, i pixel si
-                    # rinfrescano — se no, mentre la telecamera si muove, resta
-                    # una toppa di immagine vecchia in mezzo allo schermo. A
-                    # 10 Hz invece che a 30 perche' ogni giro rifa' la bitmap di
-                    # Tk, e su una macchia sfocata l'occhio non distingue le due.
-                    # **Chi decide se il tradotto resta a schermo e' il
-                    # lettore, non un orologio e nemmeno i pixel.** Il timer
-                    # `_overlay_fino_a` resta come tetto di sicurezza, ma la
-                    # domanda vera e' se il sottotitolo che abbiamo tradotto e'
-                    # ancora li'. Prima si prolungava il timer finche' la
-                    # finestra era visibile — un anello chiuso su se' stesso —
-                    # e la finestra non spariva piu': misurato, diciotto
-                    # secondi con la stessa frase.
+                    # **Il blur e' un filtro dal vivo, a ogni fotogramma.**
+                    # A 10 Hz si vedeva: la scena scorre e la macchia sfocata
+                    # resta indietro di un decimo, che su una panoramica sono
+                    # decine di pixel. Costa poco perche' non si manda tutto lo
+                    # schermo — 11 MB a giro — ma **solo il ritaglio** attorno al
+                    # sottotitolo, che e' mezzo megabyte.
+                    #
+                    # E chi decide se il tradotto resta a schermo e' il lettore,
+                    # non un orologio e nemmeno i pixel: prima si prolungava il
+                    # timer finche' la finestra era visibile — un anello chiuso
+                    # su se' stesso — e la finestra non spariva piu'.
                     if self.overlay is not None and self.overlay._visibile:
                         if self.pipeline.a_schermo(self.overlay.t_on):
                             self._overlay_fino_a = time.perf_counter() + 0.4
-                            if n % 3 == 0:
-                                self.coda.put(("aggiorna", g.frame.copy()))
+                            pezzo = ritaglia(g.frame, self.overlay.rett)
+                            if pezzo is not None:
+                                self.coda.put(("aggiorna", pezzo))
                         elif time.perf_counter() >= self._overlay_fino_a:
                             self.coda.put(("spegni", None))
                     if n % 30 == 0:

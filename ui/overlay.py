@@ -189,35 +189,88 @@ class MisuraCarattere:
 
     Un gioco scrive i sottotitoli sempre della stessa taglia, quindi una taglia
     che cambia da una battuta all'altra e' rumore della misura, non un fatto — e
-    a schermo si vede benissimo. Le fonti del rumore sono due, misurate: la
-    dissolvenza con cui GTA V fa comparire il sottotitolo (a meta' sfumatura la
-    maschera prende solo il cuore dei glifi) e l'OCR che legge una parola in piu'
-    o in meno di quelle che ci sono.
+    a schermo si vede benissimo.
 
-    Si tiene quindi la **mediana** delle misure viste, non l'ultima e nemmeno la
-    piu' grande: la mediana e' insensibile a entrambe le code, e dopo poche
-    battute non si muove piu'. Fino ad allora si muove poco.
+    Le fonti del rumore sono tre, tutte viste dal vivo:
+
+    - la **dissolvenza** con cui il sottotitolo compare: a meta' sfumatura la
+      maschera prende solo il cuore dei glifi;
+    - l'OCR che legge **una parte** della riga (`RecupeSenti, amico`): pochi
+      caratteri su molti pixel di inchiostro, e la stima esplode;
+    - le battute su **due righe**, dove basta che il testo letto sia di una riga
+      sola perche' il rapporto salti del doppio.
+
+    Da qui due regole. La prima: si scartano le stime **incoerenti**, cioe'
+    quelle troppo lontane da quanto si e' gia' visto. La seconda: dopo un po' di
+    stime d'accordo fra loro **la taglia si blocca** e non si muove piu'. Un
+    sottotitolo non cambia corpo a meta' partita, e continuare a rimisurarlo puo'
+    solo peggiorare una risposta che si e' gia' avuta.
     """
 
-    def __init__(self, quante: int = 25) -> None:
+    def __init__(self, quante: int = 25, bastano: int = 6) -> None:
         self.viste: list[int] = []
         self.quante = quante
+        self.bastano = bastano
         self.corpo = 0
+        self.bloccata = False
+        # **Questo gioco centra i sottotitoli?** Si impara, non si decide su una
+        # battuta sola. Una lettura parziale — `Recupe`, `that youTL` — e' stretta
+        # e spostata, e centrandoci sopra la traduzione finisce decentrata; ma un
+        # gioco che allinea a sinistra esiste, e ricentrare d'ufficio sarebbe
+        # sbagliato per lui. Chi risponde e' la maggioranza delle battute viste.
+        self._centrati = 0
+        self._totali = 0
 
     def azzera(self) -> None:
         self.viste.clear()
         self.corpo = 0
+        self.bloccata = False
+        self._centrati = self._totali = 0
+
+    @property
+    def centra(self) -> bool:
+        """Il gioco scrive i sottotitoli centrati? Si risponde da tre battute."""
+        return self._totali >= 3 and self._centrati >= 0.7 * self._totali
+
+    def guarda_allineamento(self, bande, larghezza: int) -> None:
+        """Registra se questa battuta stava al centro dell'area.
+
+        Si guarda **prima** di sapere se la lettura e' parziale, perche' una
+        lettura parziale e' comunque centrata quando il gioco centra: e' larga
+        meta' e sta in mezzo. Quelle davvero decentrate sono i giochi che
+        allineano, ed e' proprio quello che si vuole distinguere.
+        """
+        if not bande or larghezza <= 0:
+            return
+        cx = (min(b[0] for b in bande) + max(b[2] for b in bande)) / 2.0
+        self._totali += 1
+        if abs(cx - larghezza / 2.0) <= 0.12 * larghezza:
+            self._centrati += 1
 
     def aggiorna(self, bande, testo_originale, scala: float, nome_font: str) -> int:
+        if self.bloccata:
+            return self.corpo
         c = corpo_del_gioco(bande, testo_originale, scala, nome_font)
-        if c > 0:
-            self.viste.append(c)
-            del self.viste[: -self.quante]
-        if not self.viste:
+        if c <= 0:
             return self.corpo or 8
+        # **Una stima molto lontana dalle altre non e' una taglia nuova, e' una
+        # lettura sbagliata.** Senza questa riga, una riga letta a meta' fa
+        # scrivere la battuta successiva al doppio.
+        if self.corpo and not (0.6 * self.corpo <= c <= 1.6 * self.corpo):
+            return self.corpo
+        self.viste.append(c)
+        del self.viste[: -self.quante]
+
         import statistics
 
         self.corpo = int(round(statistics.median(self.viste)))
+        # Bloccata quando ci sono abbastanza stime **e sono d'accordo**: se
+        # ballano ancora, il gioco non e' quello che si crede e si continua a
+        # guardare.
+        if len(self.viste) >= self.bastano:
+            recenti = self.viste[-self.bastano:]
+            if max(recenti) - min(recenti) <= max(1, int(0.12 * self.corpo)):
+                self.bloccata = True
         return self.corpo
 
 
@@ -374,6 +427,7 @@ class Sostituzione:
         fondo_rgb=(0, 0, 0),
         testo_originale: str = "",
         larghezza_schermo: int = 0,
+        centra: bool | None = None,
     ) -> None:
         from PIL import Image, ImageDraw
 
@@ -448,7 +502,25 @@ class Sostituzione:
         # traduzione e' piu' lunga dell'originale deve starci, e se e' piu'
         # corta il rettangolo resta comunque coperto.
         sx0, sy0, sx1, sy1 = (su(rx0), su(ry0), su(rx1), su(ry1))
-        self.cx, cy = (sx0 + sx1) // 2, (sy0 + sy1) // 2
+        # **Il testo si centra dove il gioco centra i suoi, non su cio' che
+        # l'OCR e' riuscito a leggere.** Se la lettura e' parziale — succede, e
+        # nel log si vede: `Recupe`, `that youTL` — il rettangolo dell'inchiostro
+        # e' stretto e spostato, e centrandoci sopra la traduzione finisce
+        # decentrata rispetto al sottotitolo vero. Il centro dell'area scelta
+        # dall'utente e' invece stabile per costruzione: e' li' che il gioco
+        # scrive.
+        #
+        # Ci si centra solo se l'inchiostro **e' effettivamente centrato** li'
+        # attorno: un gioco che allinea i sottotitoli a sinistra esiste, e in
+        # quel caso comanda l'inchiostro.
+        centro_roi = su(w_pezzo) // 2
+        centro_letto = (sx0 + sx1) // 2
+        if centra is None:
+            # Senza memoria si decide sulla sola battuta: si centra se cio' che
+            # si e' letto e' gia' li' attorno.
+            centra = abs(centro_letto - centro_roi) <= 0.18 * su(w_pezzo)
+        self.cx = centro_roi if centra else centro_letto
+        cy = (sy0 + sy1) // 2
         self.ty0 = cy - alt // 2
         tx0, tx1 = self.cx - largh // 2 - pad, self.cx + largh // 2 + pad
         self.ox = min(sx0, tx0)
@@ -764,17 +836,19 @@ class Overlay:
             self.top.attributes("-topmost", True)
             self._visibile = True
 
-    def aggiorna(self, frame) -> None:
-        """Rifa' **solo la cancellatura** sui pixel nuovi, senza muovere niente.
+    def aggiorna(self, pezzo) -> None:
+        """Rifa' **la sfocatura** sui pixel nuovi, senza muovere niente.
 
-        La scena dietro il sottotitolo si muove; una toppa congelata al primo
-        fotogramma diventa un rettangolo di immagine vecchia in mezzo allo
-        schermo. Costa 0,15 ms a riga apposta per poterlo fare.
+        Arriva gia' ritagliato: mandare tutto il fotogramma trenta volte al
+        secondo vorrebbe dire copiare 11 MB a giro per usarne mezzo.
+
+        La geometria non si tocca — se no il sottotitolo balla — ma i pixel
+        sotto sono quelli di adesso, se no la macchia sfocata resta indietro
+        rispetto alla scena che scorre.
         """
-        if self.sost is None or not self._visibile:
+        if self.sost is None or not self._visibile or pezzo is None:
             return
-        pezzo = ritaglia(frame, self.rett)
-        if pezzo is None or pezzo.shape[:2] != self.sost.forma:
+        if pezzo.shape[:2] != self.sost.forma:
             return
         try:
             tela, _ = self.sost.disegna(pezzo, opaco=not self.trasparente)
@@ -795,6 +869,7 @@ class Overlay:
         ax, ay, aw, ah = self.ancora or (0, 0, sw, sh)
         h_pezzo, w_pezzo = pezzo.shape[:2]
         scala = (rett[2] * aw) / max(1, w_pezzo)
+        self.misura.guarda_allineamento(bande, pezzo.shape[1])
         corpo = (int(sh * self.font_frac) if self.font_frac > 0
                  else self.misura.aggiorna(bande, originale, scala, self.nome_font))
         self.sost = Sostituzione(
@@ -803,6 +878,7 @@ class Overlay:
             corpo=corpo, contorno=self.contorno, blur=self.blur,
             inchiostro_rgb=inchiostro, modo=self.modo, fondo_rgb=self.fondo_rgb,
             testo_originale=originale, larghezza_schermo=min(aw, sw),
+            centra=self.misura.centra or None,
         )
         self.rett = rett
         self._vuoti = 0

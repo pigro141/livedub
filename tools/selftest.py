@@ -3370,6 +3370,52 @@ def test_non_ripetere(c: Check) -> None:
     c.ok(dici2("Dove credi di andare, amico?", 74.0) is not None,
          "e una lunga diversa non viene mangiata dal contenimento")
 
+    # -- **e con la traduzione accesa, dove il cancello era morto** ---------
+    #
+    # Questo gruppo era verde mentre dal vivo uscivano doppioni identici, e la
+    # ragione e' che provava una catena che **non traduce**. Traducendo,
+    # `_gia_detta` riceve l'evento prima di `_speak`, quindi con l'italiano
+    # letto a schermo; ma le battute gia' dette lo conservano in inglese. Si
+    # confrontava `abbracciami` con `hugme`: il cancello non poteva scattare
+    # **mai**. Nella sessione dell'utente, `dub.repeated` a 0 con due doppioni
+    # identici a schermo.
+    #
+    # Il traduttore finto non e' un dettaglio: dev'essere una funzione che
+    # **cambia davvero** il testo, se no le due lingue coincidono e la verifica
+    # torna a non poter fallire — che e' esattamente com'era prima.
+    tr = Config()
+    tr.vision.ocr_backend = "none"
+    tr.speaker.backend = "none"
+    tr.translate.enabled = True
+    tr.translate.backend = "nessuno"
+    orologio_t = VirtualClock()
+    t_p = DubPipeline(tr, ToneTts(), clock=orologio_t, samplerate=48000)
+    t_p.start_live(warmup=False)
+    # Un traduttore che mette il testo **al contrario**: nessuna sottosequenza
+    # in comune con l'originale, cioe' il caso peggiore sia per il rapporto sia
+    # per il contenimento. Con `nessuno` il testo resterebbe identico e le due
+    # lingue coinciderebbero, che e' proprio la condizione in cui il difetto non
+    # si vede.
+    from translate.base import Traduzione
+
+    t_p.traduci = lambda testo: Traduzione(
+        testo=testo[::-1], originale=testo, backend="rovescio"
+    )
+
+    def dici3(testo: str, t: float):
+        orologio_t.set(t)
+        ev = SubtitleEvent(text=testo, cls=LineClass.WHITE, t_on=t)
+        return None if t_p._gia_detta(ev) else t_p._speak(ev)
+
+    prima = dici3("Abbracciami, amico mio", 100.0)
+    c.ok(prima is not None, "traducendo, la prima volta si dice")
+    c.ok(prima.text != prima.text_original and prima.text_original,
+         f"e la battuta esce davvero tradotta ({prima.text_original!r} -> {prima.text!r}): "
+         f"se no questa verifica non potrebbe fallire")
+    c.ok(dici3("Abbracciami, amico mio", 100.4) is None,
+         "e la stessa battuta italiana subito dopo resta zitta anche se "
+         "quella gia' detta e' in un'altra lingua")
+
     # Spegnendolo si torna al comportamento di prima, che e' l'unico modo di
     # distinguere un difetto suo da un difetto a monte.
     muto = Config()

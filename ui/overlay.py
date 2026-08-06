@@ -685,7 +685,7 @@ class Sostituzione:
         blur: float = 12.0,
         inchiostro_rgb=None,
         modo: str = "cancella",
-        fondo_rgb=(0, 0, 0),
+        fondo_rgb=None,   # None = si campiona dalla scena, e non puo' invecchiare
         testo_originale: str = "",
         larghezza_schermo: int = 0,
         asse: float | None = None,
@@ -702,7 +702,7 @@ class Sostituzione:
         # riga di sottotitolo e' alta quanto le altre; il resto no.
         self.modo = (modo or "blur").lower()
         self.blur = blur
-        self.fondo_rgb = tuple(int(v) for v in fondo_rgb)
+        self.fondo_rgb = None if fondo_rgb is None else tuple(int(v) for v in fondo_rgb)
         self.scala = scala
         self.sfuma = max(0.0, min(0.45, sfuma))
         self.forma = pezzo.shape[:2]
@@ -947,7 +947,22 @@ class Sostituzione:
             w = max(1, int(round((x1 - x0) * self.scala)))
             h = max(1, int(round((y1 - y0) * self.scala)))
             if self.modo == "riquadro":
-                patch = Image.new("RGB", (w, h), self.fondo_rgb)
+                # **Il colore si prende dalla scena, se non e' stato imposto.**
+                # Un riquadro non puo' andare in ritardo — non ha struttura da
+                # mostrare in ritardo — ma un rettangolo nero in mezzo al gioco
+                # si vede da un chilometro. Prendendo la **mediana** dei pixel
+                # che sta coprendo, la toppa e' del colore di cio' che c'era, si
+                # aggiorna a ogni fotogramma come il blur, e non puo' mai
+                # sembrare vecchia: un colore piatto non ha niente da datare.
+                # La mediana e non la media: la riga di testo bianca tirerebbe la
+                # media verso il chiaro proprio perche' e' cio' che si vuole
+                # togliere.
+                if self.fondo_rgb is None:
+                    med = np.median(fetta.reshape(-1, 3), axis=0)
+                    tinta = tuple(int(v) for v in med[::-1])  # BGR -> RGB
+                else:
+                    tinta = self.fondo_rgb
+                patch = Image.new("RGB", (w, h), tinta)
             else:
                 # **Il raggio segue l'altezza dei glifi.** `blur_strength` e'
                 # dichiarato su un inchiostro alto 40 px (GTA V a 1080p): cosi'
@@ -1052,7 +1067,9 @@ class Overlay:
         self.ultima = None
         self.vision = None   # le soglie con cui ritrovare l'inchiostro
         self.rett = None
-        self.fondo_rgb = self._rgb(fondo) if fondo else (0, 0, 0)
+        # Vuoto = «come la scena», e adesso e' il default: si campiona il colore
+        # sotto la toppa a ogni rinfresco. Un `#rrggbb` esplicito vince.
+        self.fondo_rgb = self._rgb(fondo) if fondo else None
         self.font_frac = font_frac
         self._foto = None
         self.schermo = (root.winfo_screenwidth(), root.winfo_screenheight())

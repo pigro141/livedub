@@ -1263,13 +1263,30 @@ class DubPipeline:
         cfg = self.cfg.repeat
         if not cfg.enabled:
             return False
+        # **Le due frasi si confrontano nella stessa lingua, e per un po' non e'
+        # stato cosi'.** Questo cancello riceve l'evento **prima** che `_speak`
+        # lo traduca, quindi `event.text` e' l'italiano letto a schermo; ma
+        # `SpokenLine.text` e' cio' che si e' **detto**, che tradducendo e'
+        # inglese. Si confrontava `abbracciami` con `hugme`: rapporto quasi zero,
+        # contenimento zero, e il cancello non poteva scattare **mai** con la
+        # traduzione accesa. Nella sessione dell'utente, `dub.repeated` a 0 con
+        # due doppioni identici a schermo.
+        #
+        # E' la quinta volta in questo progetto che due numeri giusti vengono
+        # confrontati in unita' diverse — dopo `chars_per_second`,
+        # `merge_similarity`, il passo di un motore applicato a un altro e i
+        # car/s dell'italiano applicati all'inglese. Qui l'unita' era la lingua.
+        # Il cancello era stato misurato su una catena che non traduceva, e ha
+        # smesso di funzionare senza che nessuno lo toccasse.
         chiave = _lettere(event.text)
         if not chiave:
             return False
         for riga in reversed(self.spoken):
             if event.t_on - riga.t_subtitle > cfg.window_s:
                 break  # `spoken` e' in ordine di tempo: piu' indietro e' solo piu' vecchio
-            altra = _lettere(riga.text)
+            # `text_original` e' vuoto quando non si traduce: li' la lingua e'
+            # gia' la stessa e vale `text`.
+            altra = _lettere(riga.text_original or riga.text)
             if not altra:
                 continue
             if SequenceMatcher(None, chiave, altra).ratio() >= cfg.similarity:

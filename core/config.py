@@ -1303,7 +1303,23 @@ class TranslateConfig:
     # vera. Su GTA V viene bianco; su un gioco che colora i personaggi, viene il
     # colore del personaggio. Diverso da vuoto: `#rrggbb`, e vince.
     color: str = ""
-    background: str = "#000000"
+    # **Il fondo di `background_mode="riquadro"`. Vuoto = «come la scena».**
+    #
+    # E' la modalita' che il ritardo non ce l'ha **per costruzione**: una tinta
+    # piatta non ha struttura, quindi non puo' mostrarla in ritardo. Il blur
+    # invece fa vedere pixel del gioco, e farli vedere vuol dire copiarli —
+    # cattura, processo, Tk, compositore — con un pavimento di due o tre
+    # fotogrammi che nessuna ottimizzazione toglie. Verificato che il
+    # compositore non lo puo' fare al posto nostro: su Windows 11 26200
+    # `ACCENT_ENABLE_BLURBEHIND` e `ACCENT_ENABLE_ACRYLICBLURBEHIND` **tingono e
+    # basta** — misurato con un fondo a righe da un pixel piu' uno scalino
+    # chiaro/scuro, lo scalino passa da 99,9 a 3,8 e 9,5, cioe' la struttura
+    # dietro non arriva.
+    #
+    # Con il campo vuoto la tinta si prende dalla **mediana dei pixel coperti**,
+    # a ogni rinfresco: la toppa e' del colore di cio' che c'era, si aggiorna
+    # come il blur e non puo' sembrare vecchia. Un `#rrggbb` esplicito vince.
+    background: str = ""
     background_opacity: float = 1.0
     outline: float = 2.0
     # **Quanti giri di seguito senza sottotitolo prima di spegnere l'overlay.**

@@ -89,7 +89,11 @@ def prepara(frame, cfg, testo, originale, misura, boxes=(), ink=None):
         blur=cfg.translate.blur_strength,
         inchiostro_rgb=tinta,
         modo=cfg.translate.background_mode,
-        fondo_rgb=_rgb(cfg.translate.background)[::-1],
+        # Vuoto = si campiona dalla scena, come dal vivo. E **non** invertito:
+        # `_rgb` legge gia' `#rrggbb` in RGB, e `Sostituzione` lo usa come RGB —
+        # lo scambio qui dava a un fondo colorato il colore sbagliato, invisibile
+        # finche' il default e' stato il nero.
+        fondo_rgb=_rgb(cfg.translate.background) if cfg.translate.background else None,
         testo_originale=originale,
         larghezza_schermo=frame.shape[1],
     )

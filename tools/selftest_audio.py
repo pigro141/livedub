@@ -1006,6 +1006,31 @@ def test_speaker(c) -> None:
         stretto.impara(voce(100 + s), t=float(s))
     c.eq(len(stretto), 3, "non si superano i max_speakers")
 
+    # **E «attaccarsi al migliore» dev'essere una battuta contata, non solo un
+    # id restituito.** Questa verifica esisteva a meta': controllava che il
+    # tetto tenesse, non che il ramo facesse il suo lavoro. Il ramo restituiva
+    # il nome del migliore senza toccarlo — niente battuta, niente centroide,
+    # niente fusione — quindi a pool pieno nessuno arrivava piu' a due battute,
+    # nessuno diventava `confermato`, e la porta veloce non aveva piu' nessuno
+    # fra cui scegliere: punteggio esattamente zero e voce neutra per il resto
+    # della sessione.
+    #
+    # Misurato sulla scena dell'utente, 130 battute imparate: 16 identita' tutte
+    # con **una** battuta e zero confermate; dopo, 10 confermate su 16 e le voci
+    # neutre da 115 su 115 a 54. Lo spazzamento di `merge_similarity` da 0,35 a
+    # 0,90 non muoveva un solo numero — il segno che il difetto stava a monte
+    # della soglia che si stava tarando.
+    c.ok(sum(p.battute for p in stretto.attivi) >= 10,
+         f"a pool pieno le battute si contano lo stesso "
+         f"({sum(p.battute for p in stretto.attivi)} su 10 imparate)")
+    c.ok(any(p.confermato for p in stretto.attivi),
+         "e qualcuno arriva a due battute, cioe' diventa confermato: se no la "
+         "porta veloce resta senza nessuno fra cui scegliere")
+    pieno = stretto.scegli(voce(100), t=99.0)
+    c.ok(pieno.confidence > 0.0,
+         f"quindi a pool pieno la porta veloce sa ancora rispondere "
+         f"(punteggio {pieno.confidence:.3f}, non esattamente zero)")
+
     # 6. Un tracker vuoto non esplode, e il primo che parla apre il primo posto.
     vuoto = SpeakerTracker(cfg)
     d = vuoto.scegli(voce(7), t=0.0)

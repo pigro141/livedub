@@ -351,8 +351,35 @@ class SpeakerTracker:
         if attivi and len(attivi) >= self.cfg.max_speakers:
             # Il pool e' pieno. Si attacca al migliore invece di rifiutare: due
             # personaggi con la stessa voce sono brutti, un personaggio muto no.
+            #
+            # **E «attaccare» vuol dire contarla, non solo nominarla.** Prima di
+            # qui si restituiva l'id del migliore senza toccarlo: niente
+            # battuta, niente centroide, niente f0, nessun tentativo di fusione.
+            # Il pool si riempie con le prime `max_speakers` battute, e da li' in
+            # poi **ogni riga passava di qua**: nessuna identita' arrivava mai a
+            # due battute, quindi nessuna diventava `confermato`, quindi `noti`
+            # restava vuoto per sempre e la porta veloce restituiva zero. Voce
+            # neutra su tutto, per il resto della sessione.
+            #
+            # Misurato sulla scena dell'utente (115 battute, 130 imparate): 16
+            # identita' tutte con **una** battuta, zero confermate, punteggio
+            # esattamente 0,000 su 114 chiamate su 114. E lo spazzamento di
+            # `merge_similarity` da 0,35 a 0,90 non muoveva **un solo numero** —
+            # il segno che la soglia non era la variabile e che il difetto stava
+            # a monte.
             k = int(np.argmax(punteggi))
-            return Decisione(attivi[k].speaker_id, float(punteggi[k]))
+            p = attivi[k]
+            p.somma = p.somma + embedding
+            p.battute += 1
+            p.ultima_volta = t
+            if f0 > 0:
+                p.f0_valori.append(f0)
+            # La fusione si tenta anche qui, ed e' l'unica via d'uscita: a pool
+            # pieno non si aprono piu' personaggi, quindi l'unico modo di fare
+            # posto e' accorgersi che due erano lo stesso.
+            fusione = self._fondi(p)
+            return Decisione(self.risolvi(p.speaker_id), float(punteggi[k]),
+                             merged=fusione)
         return self._apri(embedding, t, f0=f0)
 
     # -- interno -----------------------------------------------------------

@@ -28,6 +28,20 @@ Separando le due cose:
 una proprieta' del servizio. Da qui la connessione persistente — con la riapertura
 al primo errore, perche' il server la chiude quando vuole e una connessione morta
 non deve diventare una battuta persa.
+
+## Ma quei 64 ms sono con la rete ferma, e il caso d'uso non lo e'
+
+Misurati a riposo. Nel caso d'uso vero il gioco o il video sono in riproduzione
+e si prendono la banda: con un video YouTube in corso la stessa chiamata impiega
+**300-550 ms**. Con il tetto tarato sui 64 ms — 400 di margine, che sembravano
+larghi — **una battuta su tre restava in italiano**: la traduzione riusciva,
+arrivava tardi e veniva buttata via dal timeout del socket, e la catena teneva
+l'originale senza dire niente.
+
+E' la stessa forma di errore che questo progetto ha gia' pagato tre volte: una
+soglia misurata su una distribuzione e applicata a un'altra. Il tetto di rete e'
+adesso un numero suo (`translate.net_timeout_ms`), separato dalla soglia che
+dice soltanto «questa e' stata lenta».
 """
 
 from __future__ import annotations
@@ -46,7 +60,7 @@ class TraduttoreGoogle:
 
     name = "google"
 
-    def __init__(self, timeout_s: float = 0.4) -> None:
+    def __init__(self, timeout_s: float = 2.0) -> None:
         self.timeout_s = timeout_s
         self._conn: http.client.HTTPSConnection | None = None
         # La traduzione avviene nel thread video, ma il lucchetto costa nulla e
@@ -62,11 +76,9 @@ class TraduttoreGoogle:
                     # **Aprire costa piu' che chiedere, quindi ha un tetto suo.**
                     # Misurato: la stretta di mano vale ~94 ms a caldo ma la
                     # primissima, con il DNS ancora da risolvere, e' arrivata a
-                    # 1304 ms. Con il tetto della richiesta (400 ms) la **prima
-                    # battuta di ogni sessione** sarebbe fallita, e sarebbe
-                    # uscita nella lingua originale senza che nessuno capisse
-                    # perche'. Il tetto stretto serve al regime, dove la
-                    # connessione e' gia' aperta e la risposta arriva in 64 ms.
+                    # 1304 ms: piu' del tetto della richiesta, quindi la **prima
+                    # battuta di ogni sessione** sarebbe fallita e sarebbe uscita
+                    # nella lingua originale senza che nessuno capisse perche'.
                     self._conn = http.client.HTTPSConnection(
                         HOST, timeout=max(self.timeout_s, 5.0)
                     )

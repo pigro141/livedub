@@ -1226,6 +1226,23 @@ class TranslateConfig:
     # la prima stretta di mano di una sessione e' arrivata a 1304 ms, e con questo
     # tetto la prima battuta sarebbe uscita non tradotta.
     timeout_ms: float = 400.0
+    # **Il tetto della rete, che e' un'altra cosa e per due sessioni e' stato la
+    # stessa.** `timeout_ms` dice «oltre questo tempo la traduzione e' lenta» e
+    # non scarta niente; questo dice «oltre questo tempo si rinuncia», e scarta.
+    # Erano lo stesso numero, e il risultato e' che con 400 ms di tetto **una
+    # battuta su tre restava in italiano**: la traduzione riusciva, arrivava a
+    # 500 ms e veniva buttata via da un timeout di socket.
+    #
+    # E i 64 ms su cui i 400 erano stati tarati vengono da una misura fatta con
+    # la rete ferma. Nel caso d'uso vero la rete **non** e' ferma: il gioco o il
+    # video sono in riproduzione e si prendono la banda. Misurato con un video
+    # YouTube in corso, Google risponde in 300-550 ms — cioe' proprio a cavallo
+    # del tetto che avevamo messo.
+    #
+    # Due secondi sono larghi per la rete e stretti per il thread video, dove
+    # questa chiamata sta: oltre, meglio la battuta in italiano che il lettore
+    # di sottotitoli fermo.
+    net_timeout_ms: float = 2000.0
     local_model: str = ""
 
     # -- come si vede a schermo -------------------------------------------

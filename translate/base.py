@@ -195,7 +195,7 @@ def make_traduttore(cfg):
             "`--set translate.backend=locale`.",
             file=sys.stderr,
         )
-        return TraduttoreGoogle(timeout_s=max(0.05, cfg.timeout_ms / 1000.0))
+        return TraduttoreGoogle(timeout_s=max(0.2, cfg.net_timeout_ms / 1000.0))
     raise ValueError(
         f"traduttore sconosciuto: {cfg.backend!r} (noti: locale, google, nessuno)"
     )

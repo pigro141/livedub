@@ -218,36 +218,76 @@ class MisuraCarattere:
         # e spostata, e centrandoci sopra la traduzione finisce decentrata; ma un
         # gioco che allinea a sinistra esiste, e ricentrare d'ufficio sarebbe
         # sbagliato per lui. Chi risponde e' la maggioranza delle battute viste.
-        self._centrati = 0
-        self._totali = 0
+        # **Dove sta l'asse dei sottotitoli**, in frazione della larghezza del
+        # pezzo. Si impara dalle battute viste e non si prende dalla ROI: la ROI
+        # la disegna l'utente col mouse e non e' centrata sul testo del gioco.
+        # Misurato su un fotogramma vero: centrando sulla ROI il tradotto
+        # finiva **72 pixel** a destra del sottotitolo (95 sullo schermo
+        # dell'utente), sistematicamente, sempre dalla stessa parte.
+        self._assi: list[float] = []
 
     def azzera(self) -> None:
         self.viste.clear()
         self.corpo = 0
         self.bloccata = False
-        self._centrati = self._totali = 0
+        self._assi.clear()
+
+    def _non_torna(self, bande, testo_originale, scala, nome_font) -> bool:
+        """La lettura non torna: c'e' molto piu' inchiostro del testo letto.
+
+        **Non lo si chiede alla taglia**, e la ragione e' istruttiva: la taglia
+        ha gia' un tetto sull'altezza che la rende robusta, quindi su una riga
+        letta a meta' non esplode piu' — e proprio per questo non si accorge di
+        niente. Una misura resa robusta smette di essere un rivelatore.
+
+        Lo si chiede invece al confronto diretto: quanto e' largo l'inchiostro a
+        schermo, contro quanto sarebbe largo il testo che l'OCR dice di aver
+        letto, scritto alla taglia gia' nota. Se la banda e' il doppio, meta'
+        riga non e' stata letta — e allora anche il **centro** di quella banda
+        non e' il centro della battuta.
+        """
+        if not self.corpo or not bande:
+            return False
+        testo = " ".join((testo_originale or "").split())
+        if not testo:
+            return False
+        from PIL import Image, ImageDraw
+
+        misura = ImageDraw.Draw(Image.new("L", (1, 1)))
+        atteso = misura.textlength(testo, font=carica_font(nome_font, self.corpo))
+        visto = sum(x1 - x0 for x0, _, x1, _ in bande) * scala
+        if atteso <= 1 or visto <= 1:
+            return False
+        return not (0.7 <= visto / atteso <= 1.45)
 
     @property
-    def centra(self) -> bool:
-        """Il gioco scrive i sottotitoli centrati? Si risponde da tre battute."""
-        return self._totali >= 3 and self._centrati >= 0.7 * self._totali
+    def asse(self) -> float | None:
+        """Dove il gioco scrive i suoi sottotitoli, in frazione del pezzo.
 
-    def guarda_allineamento(self, bande, larghezza: int) -> None:
-        """Registra se questa battuta stava al centro dell'area.
+        La **mediana** dei centri visti, non l'ultimo e non il centro dell'area:
+        una lettura parziale sposta il proprio centro ma non la mediana di tutte
+        le altre, e la ROI non c'entra niente — e' un rettangolo tirato a mano,
+        largo a piacere e non centrato su nulla in particolare.
 
-        Si guarda **prima** di sapere se la lettura e' parziale, perche' una
-        lettura parziale e' comunque centrata quando il gioco centra: e' larga
-        meta' e sta in mezzo. Quelle davvero decentrate sono i giochi che
-        allineano, ed e' proprio quello che si vuole distinguere.
+        `None` finche' non ci sono abbastanza battute: prima di allora comanda
+        cio' che si e' letto adesso, che e' l'unica cosa che si ha.
         """
+        if len(self._assi) < 3:
+            return None
+        import statistics
+
+        return statistics.median(self._assi)
+
+    def guarda_asse(self, bande, larghezza: int) -> None:
+        """Registra dove stava il centro di questa battuta."""
         if not bande or larghezza <= 0:
             return
         cx = (min(b[0] for b in bande) + max(b[2] for b in bande)) / 2.0
-        self._totali += 1
-        if abs(cx - larghezza / 2.0) <= 0.12 * larghezza:
-            self._centrati += 1
+        self._assi.append(cx / larghezza)
+        del self._assi[: -self.quante]
 
     def aggiorna(self, bande, testo_originale, scala: float, nome_font: str) -> int:
+        self.sospetta = self._non_torna(bande, testo_originale, scala, nome_font)
         if self.bloccata:
             return self.corpo
         c = corpo_del_gioco(bande, testo_originale, scala, nome_font)
@@ -458,7 +498,8 @@ class Sostituzione:
         fondo_rgb=(0, 0, 0),
         testo_originale: str = "",
         larghezza_schermo: int = 0,
-        centra: bool | None = None,
+        asse: float | None = None,
+        sospetta: bool = False,
         sfuma: float = 0.18,
     ) -> None:
         from PIL import Image, ImageDraw
@@ -536,11 +577,24 @@ class Sostituzione:
         bx1 = max(r[2] for r in rett_b)
         by1 = max(r[3] for r in rett_b)
 
-        centro_roi = su(w_pezzo) // 2
+        # **Il testo va dove sta il testo, e basta.**
+        #
+        # Ci sono voluti tre tentativi. Centrare sul rettangolo dell'area lo
+        # spostava di quanto l'area e' disassata — 72 pixel misurati, sempre
+        # dalla stessa parte, perche' l'area la disegna l'utente col mouse e non
+        # e' centrata su niente. Centrare sulla mediana dei centri visti azzerava
+        # l'errore su una battuta e lo lasciava a 72 sulla successiva, perche'
+        # una mediana e' giusta in media e sbagliata su ognuna.
+        #
+        # La verita' e' il centro dell'inchiostro **di questa battuta**: e' li'
+        # che il giocatore vede la riga da coprire. L'asse imparato serve a una
+        # cosa sola — quando la lettura e' **sospetta**, cioe' quando dai suoi
+        # pixel esce una taglia che non torna con quelle gia' viste. Li' non e'
+        # il centro a essere sbagliato: e' tutta la lettura, e conviene
+        # appoggiarsi a dove il gioco scrive di solito.
         centro_letto = (bx0 + bx1) // 2
-        if centra is None:
-            centra = abs(centro_letto - centro_roi) <= 0.18 * su(w_pezzo)
-        self.cx = centro_roi if centra else centro_letto
+        self.cx = (int(round(asse * su(w_pezzo)))
+                   if (sospetta and asse is not None) else centro_letto)
 
         # I centri verticali. Se le righe tradotte sono tante quante quelle
         # lette, ognuna si posa **sulla sua**; se no si distribuisce il blocco
@@ -942,7 +996,7 @@ class Overlay:
         ax, ay, aw, ah = self.ancora or (0, 0, sw, sh)
         h_pezzo, w_pezzo = pezzo.shape[:2]
         scala = (rett[2] * aw) / max(1, w_pezzo)
-        self.misura.guarda_allineamento(bande, pezzo.shape[1])
+        self.misura.guarda_asse(bande, pezzo.shape[1])
         corpo = (int(sh * self.font_frac) if self.font_frac > 0
                  else self.misura.aggiorna(bande, originale, scala, self.nome_font))
         self.sost = Sostituzione(
@@ -951,7 +1005,7 @@ class Overlay:
             corpo=corpo, contorno=self.contorno, blur=self.blur,
             inchiostro_rgb=inchiostro, modo=self.modo, fondo_rgb=self.fondo_rgb,
             testo_originale=originale, larghezza_schermo=min(aw, sw),
-            centra=self.misura.centra or None,
+            asse=self.misura.asse, sospetta=self.misura.sospetta,
         )
         self.rett = rett
         self._vuoti = 0

@@ -2483,6 +2483,81 @@ def test_overlay(c: Check) -> None:
          "un pixel opaco che vale esattamente il colore-chiave viene spostato, "
          "se no si aprirebbe un buco nel mezzo di una lettera")
 
+    # -- **dove finisce il testo, in pixel** ------------------------------
+    #
+    # E' la verifica che mancava, ed e' l'unica che poteva prendere il difetto.
+    # Tutte le altre guardano un pezzo della catena — la taglia, il rettangolo,
+    # il colore — ma fra il fotogramma catturato e lo schermo ci sono tre
+    # conversioni (pezzo -> fotogramma -> finestra -> schermo) e nessuna le
+    # percorreva tutte insieme. Il difetto stava li': centrando sul rettangolo
+    # dell'area, il tradotto finiva **95 pixel** a destra del sottotitolo,
+    # sempre dalla stessa parte, e a guardare le singole parti tornava tutto.
+    #
+    # Si provano le due geometrie che contano: la finestra grande quanto lo
+    # schermo (il banco, scala 1) e una finestra con una scala diversa da 1 —
+    # che e' il caso dell'utente, dove il difetto si vedeva e sul banco no.
+    W0, H0 = frame.shape[1], frame.shape[0]
+    for nome, (ax, ay, aw, ah) in (("finestra=schermo", (0, 0, W0, H0)),
+                                   ("finestra scalata", (0, 0, 1280, 719))):
+        sc = (rett[2] * aw) / pezzo.shape[1]
+        s_pos = Sostituzione(pezzo, bande, "Hello there my friend", scala=sc,
+                             inchiostro_rgb=tinta, asse=None, sospetta=False,
+                             testo_originale="Ciao, Lamar! Come stai, fratello?")
+        if len(s_pos.centri) != len(bande):
+            continue
+        peggio = 0.0
+        for (cx, cy), (x0, y0, x1, y1) in zip(s_pos.centri,
+                                              sorted(bande, key=lambda b: b[1])):
+            vero_x = (rett[0] * W0 + (x0 + x1) / 2) * aw / W0
+            vero_y = (rett[1] * H0 + (y0 + y1) / 2) * ah / H0
+            peggio = max(peggio,
+                         abs(int(rett[0] * aw) + cx - vero_x),
+                         abs(int(rett[1] * ah) + cy - vero_y))
+        c.ok(peggio <= 2,
+             f"{nome}: il tradotto si posa sul sottotitolo entro {peggio:.0f} px")
+
+    # -- l'asse imparato, che serve solo quando la lettura non torna -------
+    largo = pezzo.shape[1]
+    meta = largo // 2
+    intera = [(meta - 300, 30, meta + 300, 60)]
+    parziale = [(meta - 300, 30, meta - 150, 60)]
+    mem = MisuraCarattere()
+    for _ in range(4):
+        mem.guarda_asse(intera, largo)
+    c.ok(mem.asse is not None and abs(mem.asse - 0.5) < 0.02,
+         f"quattro battute centrate insegnano l'asse ({mem.asse})")
+    c.ok(MisuraCarattere().asse is None,
+         "e senza abbastanza battute non si inventa un asse")
+    dritto = Sostituzione(pezzo, parziale, "Hi", scala=1.0, inchiostro_rgb=tinta,
+                          testo_originale="Ciao", asse=mem.asse, sospetta=False)
+    storto = Sostituzione(pezzo, parziale, "Hi", scala=1.0, inchiostro_rgb=tinta,
+                          testo_originale="Ciao", asse=mem.asse, sospetta=True)
+    c.ok(dritto.cx != storto.cx,
+         "su una lettura sospetta si usa l'asse, su una buona comanda l'inchiostro")
+
+    # -- la taglia si blocca, e una lettura a meta' non la sposta ---------
+    m2 = MisuraCarattere(bastano=4)
+    for _ in range(4):
+        buona = m2.aggiorna([(0, 0, 300, 30)], "Ciao, Lamar!", 1.0, "Arial")
+    c.ok(m2.bloccata, f"dopo quattro stime d'accordo la taglia si blocca ({buona})")
+    c.eq(m2.aggiorna([(0, 0, 300, 30)], "Recupe", 1.0, "Arial"), buona,
+         "e una riga letta a meta' non la sposta piu'")
+    c.ok(m2.sospetta, "ma la lettura viene **dichiarata** sospetta, e il centro lo sa")
+
+    # -- una traduzione lunghissima resta leggibile e dentro lo schermo ---
+    lunga = ("Listen here you bastard, but I am a guy who wants money, a casino "
+             "owner, a prick who will stab you in the back and then ask you how "
+             "you are doing, right after taking everything you have got")
+    s_lunga = Sostituzione(pezzo, bande, lunga, scala=1.0, inchiostro_rgb=tinta,
+                           testo_originale="Ciao, Lamar!", larghezza_schermo=1920)
+    c.ok(len(s_lunga.righe) <= 3,
+         f"una traduzione lunghissima sta in tre righe ({len(s_lunga.righe)})")
+    largo_max = max(s_lunga.misura.textlength(r, font=s_lunga.font)
+                    for r in s_lunga.righe)
+    c.ok(largo_max <= 1920 - 16,
+         f"e nessuna riga esce dai lati dello schermo ({largo_max:.0f} px)")
+    c.ok(all(r.strip() for r in s_lunga.righe), "niente righe vuote, niente testo perso")
+
     # -- il costo, perche' gira nel thread video --------------------------
     t0 = time.perf_counter()
     for _ in range(5):

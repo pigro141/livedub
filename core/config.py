@@ -156,8 +156,37 @@ class VisionConfig:
     # colorata tolta. `vision.lines.color_word` conta quante volte scatta, cosi'
     # la prossima sessione lo dice invece di lasciarlo dedurre.
     #
+    # **Tutto quanto sopra e' stato misurato con la corsa rotta, e va riletto
+    # sapendolo.** `_corsa_piu_lunga` girava sulle colonne colorate **grezze**,
+    # e fra una lettera e l'altra c'e' del fondo: misurava la lettera piu' larga,
+    # non la parola. Su «Raggiungi la destinazione» con `destinazione` colorata
+    # la quota valeva 0,043 contro una soglia di 0,15 — il criterio non poteva
+    # scattare per **nessuna** parola, di nessuna lunghezza. Cio' che scattava
+    # 957 volte nella sessione dal vivo del 7 agosto erano macchie piene:
+    # scenario e HUD, non parole. Ecco perche' lo spazzamento non trovava
+    # altopiano — a 0,06 pescava scenario perche' era l'unica cosa che quella
+    # misura sapesse vedere.
+    #
+    # Quello che passava, e che l'utente ha sentito pronunciare: `'Raggiungi i'`,
+    # `'Sali sul'`, `'Aspetta'`. Righe di missione **troncate** proprio dove
+    # comincia la parola colorata, perche' i pixel saturi vengono tolti dal
+    # ritaglio e l'OCR legge il moncone bianco che resta.
+    #
+    # Adesso le lettere si saldano prima (`_chiudi_buchi`) e la quota misura la
+    # parola. **La soglia va quindi ritarata**: 0,15 era una frazione di una
+    # quantita' diversa, ed e' la sesta volta che questo progetto paga per una
+    # soglia riusata su un'altra distribuzione.
+    #
     # A zero il criterio e' spento e resta la sola quota `sat_ink_max`.
     min_color_word_frac: float = 0.15
+    # Quanto vuoto si chiude fra due colonne colorate perche' contino come la
+    # stessa parola, in quote dell'altezza della banda. Misurato su Arial
+    # grassetto a 20, 34 e 60 punti: **0,16-0,205** fra due lettere della stessa
+    # parola, **0,375-0,438** fra due parole. In mezzo c'e' un altopiano largo, e
+    # 0,28 ci sta dentro con un fattore due da tutte e due le parti — chiude le
+    # lettere senza saldare le parole. A zero i buchi non si chiudono e si torna
+    # a misurare la lettera.
+    color_word_gap: float = 0.28
     white_min_luma: int = 200  # bianco pieno
     grey_min_luma: int = 110  # sotto questa soglia non e' testo
     # Il testo di gioco e' bordato di nero: non e' luminoso in assoluto, e'

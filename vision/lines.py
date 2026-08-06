@@ -158,6 +158,41 @@ def _estensione(colonne: np.ndarray) -> int:
     return int(accese[-1] - accese[0] + 1) if accese.size else 0
 
 
+def _chiudi_buchi(colonne: np.ndarray, max_buco: int) -> np.ndarray:
+    """Riempie i vuoti stretti fra colonne accese. Una parola torna un tratto solo.
+
+    **Serve perche' una parola non e' contigua, e crederlo ha spento il
+    criterio.** Fra una lettera e l'altra c'e' del fondo, quindi la corsa piu'
+    lunga di colonne colorate non misurava la parola: misurava **la lettera piu'
+    larga**. Su «Raggiungi la destinazione» con `destinazione` colorata la corsa
+    valeva 17-21 px su 415 di riga — quota 0,04 contro una soglia di 0,15 — e il
+    criterio non poteva scattare mai, per nessuna parola, di nessuna lunghezza.
+    Restava in piedi la sola quota `sat_ink_max`, che vede la riga solo quando il
+    colorato e' almeno un quarto dell'inchiostro: le righe di missione con una
+    parola corta evidenziata passavano, e venivano lette.
+
+    Il vuoto da chiudere si misura in **quote dell'altezza della banda**, che e'
+    l'unica unita' che non dipende dalla risoluzione ne' da quanto grande scrive
+    il gioco. Misurato su Arial grassetto a 20, 34 e 60 punti:
+
+    | vuoto | quota dell'altezza |
+    |---|---|
+    | fra due lettere della stessa parola | 0,16 - 0,205 |
+    | fra due parole (lo spazio) | 0,375 - 0,438 |
+
+    In mezzo c'e' un altopiano largo, e `color_word_gap` ci sta dentro con un
+    fattore due da tutte e due le parti: chiude le lettere, non salda le parole.
+    """
+    if max_buco <= 0 or colonne.size == 0 or not colonne.any():
+        return colonne
+    accese = np.flatnonzero(colonne)
+    fuori = colonne.copy()
+    salti = np.flatnonzero(np.diff(accese) - 1 <= max_buco)
+    for i in salti:
+        fuori[accese[i] : accese[i + 1]] = True
+    return fuori
+
+
 def _corsa_piu_lunga(colonne: np.ndarray) -> int:
     """La corsa contigua piu' lunga di colonne accese, in pixel.
 
@@ -165,6 +200,9 @@ def _corsa_piu_lunga(colonne: np.ndarray) -> int:
     scenario che entra nella ROI lascia macchie e puntini; una parola lascia un
     tratto continuo largo quanto lei. Contarli tutti insieme, come faceva la
     quota, mette le due cose nello stesso numero.
+
+    Va chiamata su colonne gia' passate da `_chiudi_buchi`: da sola misura una
+    lettera, non una parola.
     """
     if colonne.size == 0 or not colonne.any():
         return 0
@@ -273,7 +311,10 @@ def classify_lines(roi: np.ndarray, cfg: VisionConfig) -> list[LineBand]:
         colonne_ink = band_ink.any(axis=0)
         colonne_calde = (band_ink & (band_sat_img > cfg.sat_max)).any(axis=0)
         estensione = _estensione(colonne_ink)
-        corsa = _corsa_piu_lunga(colonne_calde)
+        # **Le lettere si saldano prima di misurare la corsa**, se no si misura
+        # la lettera piu' larga e il criterio non scatta per nessuna parola.
+        corsa = _corsa_piu_lunga(_chiudi_buchi(
+            colonne_calde, int(round(cfg.color_word_gap * (bottom - top + 1)))))
         parola_colorata = (
             cfg.min_color_word_frac > 0.0
             and estensione > 0

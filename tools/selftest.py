@@ -2447,6 +2447,23 @@ def test_overlay(c: Check) -> None:
     # dappertutto, se no il colore-chiave riaprirebbe i buchi che il ripiego
     # esiste per chiudere.
 
+    # -- **niente alfa parziale dove c'e' la sfocatura** ------------------
+    # La finestra e' trasparente per *colore-chiave*, che e' binario: un pixel o
+    # vale esattamente la chiave e sparisce, o non la vale e si vede. Un'opacita'
+    # intermedia non esiste — diventa un pixel quasi-nero. Sfumando l'alfa ai
+    # bordi della macchia, a schermo compariva una **cornice nera** attorno al
+    # sottotitolo: l'opposto di quello che la sfumatura doveva fare. Adesso si
+    # sfuma fra sfocato e nitido e la patch resta opaca; questa verifica esiste
+    # perche' il difetto non possa tornare da una strada diversa.
+    tela_s, (os0, os1) = sost0.disegna(pezzo)
+    a_s = np.array(tela_s)
+    zx0, zy0, zx1, zy1 = sost0.taglio
+    alfa_patch = a_s[zy0 - os1 + 2 : zy1 - os1 - 2, zx0 - os0 + 2 : zx1 - os0 - 2, 3]
+    c.ok(alfa_patch.size > 0 and int(alfa_patch.min()) == 255,
+         f"la macchia sfocata e' opaca dappertutto (alfa minima "
+         f"{0 if not alfa_patch.size else alfa_patch.min()}): con il colore-chiave "
+         f"un'opacita' intermedia diventa una cornice nera")
+
     # -- `nessuno` non cancella, `riquadro` copre di tinta unita ----------
     coperto = float((arr[:, :, 3] > 0).mean())
     senza = np.array(dipingi(pezzo, bande, "Hi", scala=1.0, modo="nessuno",

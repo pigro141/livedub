@@ -377,29 +377,34 @@ def ritaglia(frame, rett):
 
 
 @lru_cache(maxsize=32)
-def _sfumatura(w: int, h: int, quota: float = 0.18):
-    """La maschera che fa **sfumare i lati** della macchia sfocata.
+def _peso_bordo(w: int, h: int, quota: float = 0.18):
+    """Quanto vale la sfocatura in ogni punto: 1 al centro, 0 sul bordo.
 
-    Un rettangolo di immagine sfocata incollato su immagine nitida si vede per
-    i suoi bordi, non per il suo contenuto: e' una discontinuita' netta dove la
-    scena non ne ha nessuna, e l'occhio la trova subito. Sfumando il bordo la
-    sfocatura si fonde con quello che c'e' attorno e resta solo l'effetto —
-    l'originale illeggibile — senza la cornice che lo denuncia.
+    **La sfumatura non si fa sull'opacita', e il perche' e' costato una prova
+    dal vivo.** La finestra e' trasparente per *colore-chiave*, che e' binario:
+    un pixel o vale esattamente la chiave e sparisce, o non la vale e si vede.
+    Un'opacita' intermedia non esiste — diventa un pixel quasi-nero, e il
+    risultato a schermo era una **cornice nera** attorno al sottotitolo, cioe'
+    l'opposto esatto di quello che la sfumatura doveva fare.
 
-    La sfumatura e' una **quota** del lato corto, non un numero di pixel: su un
-    sottotitolo grande dev'essere piu' larga, se no si vede lo stesso.
+    Si sfuma invece **fra due immagini**: al centro i pixel sfocati, sul bordo i
+    pixel del gioco cosi' come sono. La patch resta opaca dappertutto — niente
+    alfa parziale, niente cornice — e ai bordi e' identica a cio' che c'e'
+    sotto, quindi non si vede il punto in cui finisce.
+
+    La sfumatura e' una **quota** del lato corto e non un numero di pixel: su un
+    sottotitolo grande dev'essere piu' larga, se no si nota lo stesso.
     """
     import numpy as np
-    from PIL import Image
 
-    b = max(2, int(quota * min(w, h)))
+    b = max(2.0, quota * min(w, h))
     gx = np.minimum(np.arange(w), np.arange(w)[::-1]).astype(np.float32)
     gy = np.minimum(np.arange(h), np.arange(h)[::-1]).astype(np.float32)
     mx = np.clip(gx / b, 0.0, 1.0)
     my = np.clip(gy / b, 0.0, 1.0)
     # Il prodotto e non il minimo: negli angoli le due sfumature si sommano, ed
-    # e' li' che un bordo netto si nota di piu'.
-    return Image.fromarray((255.0 * mx[None, :] * my[:, None]).astype(np.uint8), "L")
+    # e' li' che uno stacco si nota di piu'.
+    return (mx[None, :] * my[:, None])[:, :, None]
 
 
 def _righe(disegno, testo: str, font, larghezza_max: int) -> list[str]:
@@ -639,16 +644,17 @@ class Sostituzione:
                 # lo stesso numero rende illeggibile una riga a 1080p, a 1440p e
                 # su un gioco che scrive piu' grande.
                 raggio = max(2.0, self.blur * self.alta / 40.0)
-                fetta = cv2.GaussianBlur(fetta, (0, 0), sigmaX=raggio, sigmaY=raggio)
+                sfocato = cv2.GaussianBlur(fetta, (0, 0), sigmaX=raggio, sigmaY=raggio)
+                # Al centro lo sfocato, sul bordo il gioco com'e': la macchia
+                # finisce senza che si veda dove.
+                peso = _peso_bordo(fetta.shape[1], fetta.shape[0], self.sfuma)
+                misto = (sfocato.astype(np.float32) * peso
+                         + fetta.astype(np.float32) * (1.0 - peso))
                 patch = Image.fromarray(
-                    np.ascontiguousarray(fetta[:, :, ::-1])).resize((w, h))
-            # La sfumatura vale anche con la finestra opaca: li' sotto c'e' il
-            # pezzo vero, quindi fondersi con lui da' lo stesso risultato che
-            # fondersi col gioco. Applicarla in un caso e non nell'altro
-            # significherebbe due rese diverse della stessa cosa.
+                    np.ascontiguousarray(misto.astype(np.uint8)[:, :, ::-1])
+                ).resize((w, h))
             tela.paste(patch, (int(self.su(x0)) - self.ox,
-                               int(self.su(y0)) - self.oy),
-                       _sfumatura(w, h, self.sfuma))
+                               int(self.su(y0)) - self.oy))
 
         d = ImageDraw.Draw(tela)
         for riga, (cx, cy) in zip(self.righe, self.centri):

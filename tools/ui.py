@@ -171,13 +171,16 @@ class SelettoreFinestra:
 
 
 class App:
-    # **Ogni quanto la finestra guarda la coda, in millisecondi.** Erano 100, e
-    # si vedeva: la macchia sfocata restava indietro fino a un decimo di secondo
-    # rispetto alla scena, che su una panoramica sono decine di pixel. Allineato
-    # alla cattura (30 Hz) il ritardo scende a un fotogramma, che e' il minimo
-    # possibile senza disegnare dal thread video — dove non si puo', perche'
-    # Tkinter non e' rientrante da un thread qualunque.
-    PASSO_UI = 33
+    # **Ogni quanto la finestra guarda la coda, in millisecondi.** Erano 100, poi
+    # 33 per allinearsi alla cattura. Ma questo passo e' un **ritardo aggiunto**:
+    # un ritaglio che arriva subito dopo il giro aspetta un giro intero prima di
+    # essere disegnato.
+    #
+    # Misurato il costo del ridisegno sul percorso vero (disegna + colore-chiave
+    # + PhotoImage, sulla fascia della sessione dell'utente): **10,5 ms** nel
+    # caso peggiore. A 16 ms ci sta con un terzo di margine, e il ritardo che
+    # questo passo aggiunge si dimezza.
+    PASSO_UI = 16
 
     def __init__(self, args) -> None:
         import tkinter as tk
@@ -583,6 +586,23 @@ class App:
                             vuoti = 0
                         continue
                     n += 1
+                    # **Il ritaglio per la sfocatura parte subito, prima
+                    # dell'OCR.** Stava in fondo al giro, dopo `on_frame`, e
+                    # quindi pagava tutto il costo del riconoscimento prima di
+                    # essere spedito: misurato nella sessione dell'utente,
+                    # `vision.ocr` sta a **84 ms al p50 e 137 al massimo** — cioe'
+                    # la macchia arrivava a schermo con quattro fotogrammi di
+                    # ritardo sulla scena, e in panoramica si vede eccome.
+                    #
+                    # Quei millisecondi non sono suoi: per sfocare non serve
+                    # sapere cosa c'e' scritto. I pixel sono gia' in mano appena
+                    # il fotogramma e' stato preso, e da li' devono partire.
+                    # Ridisegnare costa 10 ms, quindi il costo non e' mai stato
+                    # nel disegno: era nell'attesa.
+                    if self.overlay is not None and self.overlay._visibile:
+                        pezzo = ritaglia(g.frame, self.overlay.rett)
+                        if pezzo is not None:
+                            self.coda.put(("aggiorna", (pezzo, time.perf_counter())))
                     for riga in self.pipeline.on_frame(g.frame):
                         if self.sessione is not None:
                             self.sessione.line(riga)
@@ -643,16 +663,14 @@ class App:
                     # timer finche' la finestra era visibile — un anello chiuso
                     # su se' stesso — e la finestra non spariva piu'.
                     if self.overlay is not None and self.overlay._visibile:
-                        # **I pixel si rinfrescano finche' la finestra e' a
-                        # schermo**, anche nei giri in cui il lettore non vede il
-                        # sottotitolo. Prima il rinfresco stava dentro il ramo
-                        # `a_schermo`: durante il buco di letture la toppa si
-                        # congelava, cioe' diventava un rettangolo di immagine
-                        # vecchia proprio nei fotogrammi in cui si stava
+                        # I pixel li ha gia' spediti il ritaglio di sopra, che
+                        # gira **prima** dell'OCR: qui resta solo decidere se la
+                        # finestra deve restare accesa. Il rinfresco non sta piu'
+                        # dentro il ramo `a_schermo` perche' durante un buco di
+                        # letture la toppa si congelava — un rettangolo di
+                        # immagine vecchia proprio nei fotogrammi in cui si stava
                         # decidendo se spegnerla.
-                        pezzo = ritaglia(g.frame, self.overlay.rett)
-                        if pezzo is not None:
-                            self.coda.put(("aggiorna", (pezzo, time.perf_counter())))
+                        #
                         # **Si contano i giri vuoti, non si guarda l'orologio.**
                         # L'OCR perde una riga per qualche fotogramma e la
                         # ritrova subito: spegnere al primo giro vuoto fa
@@ -712,7 +730,14 @@ class App:
                 # dicono se lo streaming ha retto. Dopo la prima prova dal vivo di
                 # Qwen la diagnosi si e' dovuta **dedurre**, perche' i contatori
                 # non erano stati scritti da nessuna parte.
+                # **Le metriche della finestra vanno nel report, e non ci
+                # andavano.** `overlay.ritardo` — quanto vecchio e' il ritaglio
+                # quando arriva a schermo — veniva misurato a ogni giro e poi
+                # buttato, perche' qui si scriveva solo il rapporto della
+                # catena. E' esattamente la domanda «il blur va in differita?»,
+                # con la risposta gia' raccolta e mai letta da nessuno.
                 rapporto = self.pipeline.report() if self.pipeline is not None else ""
+                rapporto = f"{rapporto}\n\n-- finestra --\n{self._metriche.report()}"
                 self.coda.put(
                     ("nota", f"sessione salvata in {self.sessione.close(self.cfg, rapporto)}")
                 )

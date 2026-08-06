@@ -610,6 +610,20 @@ def _sfoca(fetta, raggio: float):
 def _peso_bordo(w: int, h: int, quota: float = 0.18):
     """Quanto vale la sfocatura in ogni punto: 1 al centro, 0 sul bordo.
 
+    **Spenta di default (`sfuma=0`), e la ragione e' che curava il difetto
+    sbagliato.** Il bordo era il posto dove la macchia si notava, quindi si e'
+    sfumato li'; ma sfumare verso i pixel del gioco vuol dire, sul bordo,
+    rimettere il sottotitolo che si sta nascondendo. La fascia nitida era il 18%
+    del lato corto — cioe' l'altezza del riquadro, 45-80 px — quindi 8-14 px
+    tutt'intorno a un rettangolo che sta stretto al testo: le cime e le code dei
+    glifi italiani riaffioravano. La cucitura non si vedeva piu', si vedeva
+    l'originale.
+
+    Resta qui perche' la strada e' buona e il difetto era **dove** si sfumava,
+    non che si sfumasse: allargando la toppa oltre il testo, la sfumatura
+    cadrebbe su scena senza scritte e non riporterebbe indietro niente. Non e'
+    stato provato.
+
     **La sfumatura non si fa sull'opacita', e il perche' e' costato una prova
     dal vivo.** La finestra e' trasparente per *colore-chiave*, che e' binario:
     un pixel o vale esattamente la chiave e sparisce, o non la vale e si vede.
@@ -690,7 +704,7 @@ class Sostituzione:
         larghezza_schermo: int = 0,
         asse: float | None = None,
         sospetta: bool = False,
-        sfuma: float = 0.18,
+        sfuma: float = 0.0,
     ) -> None:
         from PIL import Image, ImageDraw
 
@@ -970,13 +984,21 @@ class Sostituzione:
                 # su un gioco che scrive piu' grande.
                 raggio = max(2.0, self.blur * self.alta / 40.0)
                 sfocato = _sfoca(fetta, raggio)
-                # Al centro lo sfocato, sul bordo il gioco com'e': la macchia
-                # finisce senza che si veda dove.
-                peso = _peso_bordo(fetta.shape[1], fetta.shape[0], self.sfuma)
-                misto = (sfocato.astype(np.float32) * peso
-                         + fetta.astype(np.float32) * (1.0 - peso))
+                # **Sfocato fino al bordo, e la sfumatura e' spenta.** Sfumare
+                # verso i pixel del gioco vuol dire, sul bordo, rimettere cio'
+                # che c'e' sotto — e sotto c'e' il sottotitolo che si sta
+                # nascondendo. Con la quota vecchia (0,18 del lato corto) la
+                # fascia nitida era di 8-14 px su un riquadro alto 45-80, che sta
+                # stretto al testo: le cime e le code dei glifi italiani
+                # riaffioravano tutt'intorno. Vista dall'utente a schermo, non da
+                # un contatore: nessuna delle misure sulla macchia guarda cosa
+                # c'e' **dentro** ai suoi bordi.
+                if self.sfuma > 0.0:
+                    peso = _peso_bordo(fetta.shape[1], fetta.shape[0], self.sfuma)
+                    sfocato = (sfocato.astype(np.float32) * peso
+                               + fetta.astype(np.float32) * (1.0 - peso))
                 patch = Image.fromarray(
-                    np.ascontiguousarray(misto.astype(np.uint8)[:, :, ::-1])
+                    np.ascontiguousarray(sfocato.astype(np.uint8)[:, :, ::-1])
                 ).resize((w, h))
             tela.paste(patch, (int(self.su(x0)) - self.ox,
                                int(self.su(y0)) - self.oy))

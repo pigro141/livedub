@@ -2354,6 +2354,43 @@ def test_overlay(c: Check) -> None:
          f"la riga originale diventa illeggibile: deviazione {prima.std():.1f} -> "
          f"{0.0 if not dopo.size else dopo.std():.1f}")
 
+    # -- e **fino al bordo**, che e' il difetto visto dall'utente ---------
+    # La sfumatura verso i pixel del gioco rimetteva l'originale proprio sul
+    # bordo: 8-14 px nitidi tutt'intorno a un riquadro che sta stretto al testo,
+    # cioe' le cime e le code dei glifi italiani ancora leggibili. Le misure che
+    # c'erano non potevano dirlo — sono tutte di *quanto e' grande* la macchia o
+    # *quanto e' opaca*, e lo sbaglio era **cosa resta leggibile dentro di lei**.
+    #
+    # La quantita' giusta e' il contrasto fra i pixel che **erano** inchiostro e
+    # quelli che non lo erano: se la riga e' stata cancellata i due si
+    # confondono. Misurato su questo stesso fotogramma, che parte da 183,9 senza
+    # toppa: con la sfumatura a 0,18 la cornice sta a 68,3 contro 34,2 del resto
+    # — il bordo si legge il **doppio** del centro — e a sfumatura spenta 24,3
+    # contro 29,2. Il rapporto separa i due casi di un fattore due e mezzo, che
+    # non e' una soglia vinta sull'orlo di un precipizio.
+    def _contrasto(luma, ink):
+        return (float(luma[ink].mean() - luma[~ink].mean())
+                if ink.sum() >= 5 and (~ink).sum() >= 5 else float("nan"))
+
+    p_full = pezzo[ry0:ry1, rx0:rx1, :3].mean(axis=2)
+    d_full = a0[ry0 - o1:ry1 - o1, rx0 - o0:rx1 - o0, :3].mean(axis=2)
+    hh = min(p_full.shape[0], d_full.shape[0])
+    ww = min(p_full.shape[1], d_full.shape[1])
+    p_full, d_full = p_full[:hh, :ww], d_full[:hh, :ww]
+    era_ink = p_full > 200
+    sp = max(2, min(hh, ww) // 6)
+    orlo = np.zeros(p_full.shape, bool)
+    orlo[:sp, :] = orlo[-sp:, :] = orlo[:, :sp] = orlo[:, -sp:] = True
+    c_tutto = _contrasto(d_full, era_ink)
+    c_orlo = _contrasto(d_full[orlo], era_ink[orlo])
+    c.ok(int(era_ink[orlo].sum()) >= 20,
+         f"la cornice della toppa contiene inchiostro da cancellare "
+         f"({int(era_ink[orlo].sum())} px): se no la verifica non potrebbe fallire")
+    c.ok(c_orlo == c_orlo and c_orlo <= c_tutto * 1.2,
+         f"sul bordo la riga originale non si legge piu' che al centro "
+         f"(contrasto cornice {c_orlo:.1f} contro {c_tutto:.1f}): sfumare verso "
+         f"i pixel del gioco rimetteva li' il sottotitolo da nascondere")
+
     x0, y0, x1, y1 = bande[0]
 
     fatto = dipingi(pezzo, bande, "Hi, Lamar!", scala=1.0, modo="blur",

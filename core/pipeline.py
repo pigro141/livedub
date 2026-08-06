@@ -1272,10 +1272,11 @@ class DubPipeline:
         # traduzione accesa. Nella sessione dell'utente, `dub.repeated` a 0 con
         # due doppioni identici a schermo.
         #
-        # E' la quinta volta in questo progetto che due numeri giusti vengono
-        # confrontati in unita' diverse — dopo `chars_per_second`,
-        # `merge_similarity`, il passo di un motore applicato a un altro e i
-        # car/s dell'italiano applicati all'inglese. Qui l'unita' era la lingua.
+        # E' la **sesta** volta in questo progetto che due quantita' giuste
+        # vengono confrontate in unita' diverse — dopo `chars_per_second`,
+        # `merge_similarity`, il passo di un motore applicato a un altro, i
+        # car/s dell'italiano applicati all'inglese e `accepted_delay_ms`
+        # applicato a una catena raddoppiata. Qui l'unita' era la lingua.
         # Il cancello era stato misurato su una catena che non traduceva, e ha
         # smesso di funzionare senza che nessuno lo toccasse.
         chiave = _lettere(event.text)

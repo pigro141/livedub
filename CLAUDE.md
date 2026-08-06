@@ -37,7 +37,7 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest              # 1129 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest              # 1164 verifiche
 .\.venv\Scripts\python.exe -m tools.selftest speaker pool # gruppi scelti
 .\.venv\Scripts\python.exe -m tools.selftest -v           # con i verdi in chiaro
 
@@ -54,7 +54,8 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 # la prova d'ascolto, con i controlli fatti prima (venv, cattura, Ollama e il suo
 # modello) e la configurazione stampata: la riga sotto e' lunga otto opzioni, e
 # copiarla male non da' errore — da' una prova fatta con un'altra configurazione.
-powershell -ExecutionPolicy Bypass -File tools\prova.ps1 [-Traduci] [-Motore piper]
+powershell -ExecutionPolicy Bypass -File tools\prova.ps1 [-Traduci] [-Motore piper] `
+    [-Set translate.background_mode=riquadro]   # -Set e' ripetibile, e viene stampato
 
 # come si vedrebbe l'overlay, senza accendere il gioco: stesso pittore del vivo.
 # `--frames N` sputa N PNG invece del video, e si guardano subito.
@@ -368,6 +369,27 @@ da un'euristica non e' una guardia.
 rettangolo alto un sesto dello schermo da' una fascia di 391 px per una riga da
 45, e in quello spazio ci sta mezza scena. Nessun filtro disfa una saldatura;
 stringere l'area si' — la UI adesso lo dice sopra 0,12.
+
+**Il blur non puo' essere a ritardo zero, e la modalita' che lo e' esisteva
+gia'.** Far vedere pixel del gioco vuol dire **copiarli** — cattura, nostro
+processo, Tk, compositore — e quella catena ha un pavimento. Verificato che il
+compositore non lo puo' fare al posto nostro: su Windows 11 26200
+`ACCENT_ENABLE_BLURBEHIND` e `ACCENT_ENABLE_ACRYLICBLURBEHIND` **tingono e
+basta**. La misura che lo dice mette dietro righe da un pixel **piu'** uno
+scalino chiaro/scuro — una sfocatura toglie le prime e conserva il secondo, un
+riempimento distrugge tutti e due: lo scalino passa da 99,9 a 3,8 e 9,5, col
+colore-chiave e senza.
+
+`background_mode="riquadro"` invece il ritardo non ce l'ha **per costruzione**:
+una tinta piatta non ha struttura da mostrare in ritardo. Con
+`translate.background` vuoto (il default) il colore e' la **mediana** dei pixel
+coperti, ripresa a ogni rinfresco — la mediana e non la media, perche' la riga
+bianca da coprire tirerebbe la media proprio verso cio' che si vuole togliere.
+E' la stessa scelta di RSTGameTranslation ("Auto Set Overlay Background Color").
+
+**E il ritardo che resta si misura**: `overlay.ritardo` dice quanto e' vecchio il
+ritaglio quando arriva a schermo. Misurato dal vivo, **p50 20-23 ms, p95 39,
+max 70**.
 
 **`core/onnx.py`** — la porta unica per aprire una sessione ONNX, che esiste per
 la riga `preload_dlls()`. Si veda la regola piu' sotto.
@@ -744,6 +766,35 @@ e li' nessuna scusa plausibile libera il budget — 250 e 1250 danno la stessa
 compressione al tetto. La risposta e' venuta rigiocando la programmazione di due
 sessioni **dal vivo** archiviate, dove gli `elapsed` veri erano gia' scritti in
 `events.jsonl`.)
+
+**E la sesta e' stata una lingua, di nuovo — ma stavolta ha spento un
+cancello.** `_gia_detta` riceve la battuta **prima** che `_speak` la traduca,
+quindi in italiano; le battute gia' dette conservano cio' che si e' *detto*, che
+traducendo e' inglese. Si confrontava `abbracciami` con `hugme`: con la
+traduzione accesa il cancello anti-doppioni non poteva scattare **mai**.
+Misurato: `dub.repeated` a **0** con due doppioni identici a schermo, e 6 dopo
+la cura, sulla stessa scena. Il gruppo `non_ripetere` era verde perche' provava
+una catena che **non traduce** — e il traduttore finto che ora usa deve
+**cambiare davvero** il testo, se no le due lingue coincidono e la verifica
+torna a non poter fallire.
+
+**Una misura puo' essere raccolta a ogni giro e non arrivare da nessuna parte.**
+`overlay.ritardo` — quanto e' vecchio il ritaglio quando arriva a schermo —
+esisteva, girava, e veniva buttato: `ferma()` scriveva solo il rapporto della
+catena, e le metriche della finestra morivano con lei. Quando l'utente ha detto
+«il blur va in differita», la risposta era gia' stata raccolta e mai letta, ed
+e' stata cercata con un banco. E' il quarto campo di questo progetto misurato o
+dichiarato e mai letto, dopo `max_ocr_hz`, `tts.device` e `background_mode`.
+Prima di misurare qualcosa, guardare se e' gia' misurato.
+
+**Un costo si paga dove sta, non dove serve.** Il ritaglio dei pixel da sfocare
+stava in fondo al giro video, dopo `on_frame`: per spedire dei pixel aspettava
+che l'OCR avesse finito di leggere — `vision.ocr` a **84 ms al p50 e 137 al
+massimo**, cioe' quattro fotogrammi di ritardo che non erano suoi. Per sfocare
+non serve sapere cosa c'e' scritto. Misurato prima di toccare niente: il
+ridisegno costa **10,5 ms**, quindi il difetto non e' mai stato nel disegno, era
+nell'attesa. Quando qualcosa arriva tardi, guardare **cosa aspetta**, non quanto
+costa.
 
 **E la piu' importante: l'orecchio dell'utente trova cio' che la suite non puo'.**
 E' successo a ogni difetto serio di questo progetto, con la suite verde. Quando

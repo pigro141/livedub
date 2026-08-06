@@ -11,9 +11,8 @@ italiano dal vivo dei sottotitoli dei videogiochi.
 
 **Il grafo è la memoria.** In `graphify-out/graph.json` c'è la mappa della
 codebase. Per qualunque domanda architetturale si usa `graphify query "<domanda>"`
-**prima** di partire a grep. Si riaggiorna con `graphify update` dopo modifiche
-grosse, non a ogni task. (Da riaggiornare: `ui/overlay.py` è stato riscritto e
-`tools/prova.ps1` è nuovo.)
+**prima** di partire a grep. Si riaggiorna con `/graphify . --update` dopo
+modifiche grosse, non a ogni task.
 
 Poi `CLAUDE.md`, che ha l'architettura e le regole di metodo. **Non leggere il
 README per intero.**
@@ -25,115 +24,117 @@ README per intero.**
 - **Non sprecare token.**
 - **Prima di azzardare, chiedi.**
 
-## Dove siamo, e dove si è fermato il lavoro
+## Dove siamo
 
-**Feature: 14 su 14.** **Step finali: 4 su 19.** La voce nuova e'
-**recording**: la telecamera virtuale per OBS, chiesta dall'utente e chiusa.
+Suite verde a **1164 verifiche**. L'ultima sessione è partita da un video di
+debug registrato dall'utente ed è stata tutta **grafica dell'overlay dal vivo**:
+quattro difetti trovati guardando i suoi fotogrammi e il suo log, non il codice.
 
-Il lavoro è fermo **al cancello dell'utente**, che l'utente stesso ha messo:
-prima la sua prova d'ascolto, con un report di cosa va e cosa no, e solo dopo
-l'impacchettamento. Non si passa oltre senza quel report.
+**Il vivo è stato provato due volte**, in `runs/2026-08-06_15-34-16` (blur) e
+`runs/2026-08-06_15-51-18` (riquadro). Da lì vengono tutti i numeri qui sotto.
 
-La prova si accende con `tools\prova.ps1` (`-Traduci` per il caso tradotto) e il
-foglio è **`DA_VERIFICARE.md`**, che dice cosa guardare e cosa serve nel report.
+## Le cinque cose che questa sessione ha cambiato
 
-Quello che resta dopo è **solo UI, impacchettamento e repo**, e nessuno dei punti
-aspetta una misura:
+**1. Il riquadro sfocato non si allarga più, e si posa dove l'OCR ha letto.**
+Nel log dell'utente andava a `1515x390` — l'intera fascia d'analisi per una riga
+da 45 px — col raggio della sfocatura a 55,8 invece di 12. Due cause: la
+geometria si ricercava nei pixel **2310 ms dopo** la lettura (scena cambiata,
+originale sparito, si trovava scenario), e il filtro delle bande guardava **solo**
+la sovrapposizione orizzontale. Adesso `SpokenLine.boxes`/`ink` portano a valle i
+rettangoli validati dal lettore, finiscono anche in `events.jsonl`, e **vivo e
+MP4 prendono la geometria dalla stessa fonte**. Misurato dal vivo dopo: altezza
+del riquadro p50 28-39 px, una sola sopra i 100 su 30 righe.
 
-| blocco | cosa | quanti |
-|---|---|---|
-| **UI** | interfaccia, selettore tecnologie, impostazioni avanzate con spiegazioni accanto, modifica a caldo | 4 |
-| *(cancello)* | **la prova dell'utente** — è qui che siamo | — |
-| **distribuzione** | installabile plug-and-play, exe, licenza | 3 |
-| **repo** | il repo GitHub più i suoi sette punti | 8 |
+**2. Il blur non aspetta più l'OCR.** Il ritaglio stava in fondo al giro video:
+per spedire dei pixel da sfocare aspettava che l'OCR avesse letto — `vision.ocr`
+a 84 ms al p50 e 137 al massimo. Adesso parte subito dopo `grab()`. E
+`overlay.ritardo`, che veniva misurato a ogni giro e **buttato**, finisce nel
+report: **p50 20-23 ms, p95 39, max 70**.
 
-## Le due cose che questa sessione ha cambiato
+**3. I doppioni: il cancello confrontava due lingue.** `_gia_detta` riceve la
+battuta prima che `_speak` la traduca (italiano), le battute già dette la
+conservano tradotta (inglese): `abbracciami` contro `hugme`, quindi **non poteva
+scattare mai**. `dub.repeated` era a 0 con due doppioni identici a schermo; dopo
+la cura, **6** sulla stessa scena.
 
-**1. La grafica dell'overlay: rifatta due volte, la seconda dopo che l'utente
-l'ha provata dal vivo.** Il difetto peggiore l'ha trovato lui e non era grafico:
-**la nostra finestra finiva dentro la cattura**. La catena fotografa lo schermo
-per darlo all'OCR, e la finestra sta sullo schermo — misurato, il 100% dei suoi
-pixel entrava nel fotogramma, con `mss` e con `dxcam`. L'OCR leggeva noi, e le
-righe sparivano. `WDA_EXCLUDEFROMCAPTURE` porta quel numero a 0%.
-E poi, tutti trovati guardando l'MP4: si spegneva tutto il riquadro invece della
-sola riga; il carattere era il 40% troppo grande perche' confrontavo l'altezza
-della banda con l'altezza di `Ag` (una riga senza discendenti e' alta solo quanto
-le maiuscole — adesso il confronto e' sulla **larghezza** del testo letto); la
-taglia cambiava da una battuta all'altra; il riquadro **inseguiva l'immagine come
-un tracker** perche' lo ridisegnavo a ogni fotogramma; e la finestra spariva alla
-fine della nostra voce invece che alla fine del sottotitolo.
+**4. Il blur a ritardo zero non si può fare, e la modalità che lo è esisteva
+già.** Provato se può sfocare il compositore invece di noi: su Windows 11 26200
+`ACCENT_ENABLE_BLURBEHIND` e `ACCENT_ENABLE_ACRYLICBLURBEHIND` **tingono e
+basta** (lo scalino chiaro/scuro dietro passa da 99,9 a 3,8 e 9,5).
+`background_mode="riquadro"` invece il ritardo non ce l'ha per costruzione, e
+adesso il suo colore è la mediana dei pixel coperti invece di un nero fisso.
 
-Adesso: geometria decisa **una volta** e mai piu' toccata, pixel della
-cancellatura rinfrescati a 10 Hz (se no la toppa congelata diventa un rettangolo
-di immagine vecchia mentre la scena si muove), e la cancellatura fatta con
-apertura+chiusura invece che con `inpaint` — stesso risultato, **0,15 ms contro
-16,3**, ed e' quel costo che permette di rinfrescarla.
+**5. `prova.ps1` accetta `-Set sezione.campo=valore`**, ripetibile e stampato.
 
-**2. `accepted_delay_ms` da 250 a 1250, misurato.** La compressione restava a
-1250 su *tutti* i percentili con la scena piena a metà. Non era il passo: era la
-scusa, tarata quando la parte fissa della catena costava ~670 ms, applicata a una
-catena che con la traduzione ne costa 1690. Rigiocando la programmazione di due
-sessioni dal vivo archiviate, il precipizio sta fra 900 e 1200 ms e l'altopiano
-comincia a 1200. Le due tabelle nuove — con e senza traduzione — stanno accanto
-al campo in `core/config.py`.
+## La domanda aperta, ed è dell'utente non dei numeri
 
-**Il numero che chiude la questione non l'ho io**: `dub.rate_x1000` deve
-staccarsi da 1250 nella prossima sessione dal vivo. È scritto in
-`DA_VERIFICARE.md` **prima** della prova, apposta.
+**Blur o riquadro?** Il blur mostra il gioco ma ha un ritardo residuo che non si
+può togliere; il riquadro non ha ritardo ma si nota di più. L'utente ha provato
+tutti e due e **il suo giudizio non è ancora arrivato**. Non cambiare il default
+prima di quello.
 
-## Lo stato dei motori, misurato dal vivo
+La terza strada, se dice «il riquadro si vede troppo ma il blur è ancora in
+ritardo»: alzare molto `translate.blur_strength`. Dei pixel abbastanza sfocati
+non sono databili, quindi il ritardo smette di vedersi pur restando. Non è stata
+provata.
 
-| | sintesi p50 | note |
-|---|---|---|
-| **piper** | ~50 ms | CPU. **L'unico sotto i 6 core** |
-| **kokoro** (default della prova) | 198-257 ms | CUDA, 1128 MB di VRAM. Sei voci inglesi, due italiane |
-| **supertonic** | 313 ms | CPU. A 4 core costa 1315 ms: non usabile |
-| ~~qwen~~ | — | **tolto**, e la ragione sta in `CLAUDE.md` |
+## Il difetto che resta, e che nessun filtro può togliere
+
+**La riga di testo si salda a ciò che ha attorno.** Su fondo chiaro `find_bands`
+non affianca la riga al chiaro vicino: ci si fonde — misurato, una banda alta
+**186 px che conteneva** un sottotitolo da 45. Il riquadro allora cresce con lei.
+Le cure ci sono (ancora scelta per vicinanza al centro dell'area, altezza di
+riferimento limitata dal corpo del carattere, tetto duro sul riquadro) ma la
+causa a monte è **l'area disegnata troppo alta**: con `respiro = 0.6*rh`, un
+rettangolo alto un sesto dello schermo dà una fascia di 391 px per una riga da
+45. La UI adesso avvisa sopra 0,12. Se il difetto torna, è lì che si guarda.
+
+## Le due cose che l'ultima sessione ha lasciato in giro
+
+- `dub.rate_x1000` sta a **1250 dal p95 in su** in entrambe le sessioni (p50
+  1000-1040). Un numero inchiodato al tetto, in questo progetto, non è mai una
+  coincidenza. Non è stato indagato.
+- L'OCR sporca il testo e il traduttore ci costruisce sopra: `'Lavoriamo : si
+  eme gia da qualche mese'` è diventato `"Us: We've been working together..."`.
+  L'errore di lettura diventa una parola nella traduzione.
 
 ## Il banco
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                    # 1137 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest                    # 1164 verifiche
 .\.venv\Scripts\python.exe -m tools.dub testGameplayFattoDaMe.mp4 --profile gtav `
     --start 1240 --end 1290 --set vision.ocr_backend=oneocr --mp4
+.\.venv\Scripts\python.exe -m tools.overlay_mp4 testGameplayFattoDaMe.mp4 runs\<passata> `
+    --profile gtav --offset 1240 --frames 4 --out runs\ov\o.png
 .\.venv\Scripts\python.exe -m tools.reopen runs\<cartella> [secondo]
-.\.venv\Scripts\python.exe -m tools.bench_cpu --backend supertonic   # PC vecchi
-.\.venv\Scripts\python.exe -m tools.bench_translate --parolacce      # i traduttori
 ```
 
 Dal vivo:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci
+powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci `
+    [-Set translate.background_mode=riquadro]
 ```
 
-## Le due lezioni di questa sessione
+## Le lezioni di questa sessione
 
-**Un anello di reazione non lascia tracce nel pezzo che rompe.** L'overlay
-rientrava nella cattura che alimenta l'OCR: il programma leggeva il proprio
-testo, e il sintomo — righe saltate — sembrava un difetto dell'OCR. Nessun
-contatore poteva dirlo. La domanda che lo scioglie in un minuto è **«quello che
-scriviamo può rientrare da dove leggiamo?»**, e si risponde mettendo a schermo un
-colore che nel gioco non esiste e cercandolo nei pixel catturati.
+**Un rimedio che stringe può stringere sul posto sbagliato, e sembra comunque un
+progresso.** Il riquadro passava da 1516x391 a 670x108: tutti i numeri
+miglioravano. Guardando il fotogramma dipinto, stava **dove il sottotitolo non
+c'era** — peggio di prima, che almeno lo copriva. Le misure che guardavo erano
+tutte di *quanto*, e lo sbaglio era *dove*. Su una correzione geometrica, la
+verifica è l'immagine.
 
-**Quando l'utente deve accendere il gioco per giudicare, lo strumento è
-sbagliato.** Ogni giro di correzione sulla grafica gli costava una sessione
-intera, e dopo due giri si consegna una cosa sbagliata perché nessuno ne fa un
-terzo. `tools/overlay_mp4.py` monta un video con **lo stesso pittore del vivo**:
-i giri si fanno da soli in trenta secondi, e all'utente si manda il video.
+**Controllare che la misura distingua le due risposte.** La prima prova sul blur
+del compositore guardava solo l'energia alle alte frequenze — che crolla tanto se
+sfochi quanto se copri. Diceva «SFOCA» a due API che non sfocavano.
 
-**Una soglia va rimisurata quando cambia la catena, non quando cambia il
-sintomo.** `accepted_delay_ms = 250` era misurato bene, su una catena che costava
-la metà. Aggiungendo la traduzione sulla strada critica quel numero è diventato
-sbagliato senza che nessuno lo toccasse — la quinta volta in questo progetto che
-un numero giusto viene applicato a una distribuzione diversa da quella su cui era
-stato misurato.
+**Prima di misurare qualcosa, guardare se è già misurato.** `overlay.ritardo`
+esisteva e veniva buttato. La domanda dell'utente aveva la risposta già raccolta,
+e io l'ho cercata con un banco.
 
-**E il corollario sullo strumento**: la domanda non era rispondibile dal banco.
-Con `--tempo-reale` e la traduzione accesa il costo fisso diventa 8,9 secondi, e
-a quel punto **nessuna** scusa libera il budget (provato: 250 e 1250 danno la
-stessa compressione al tetto). La risposta è venuta rigiocando due sessioni dal
-vivo già archiviate, dove i tempi veri erano già scritti. Prima di credere a un
-banco, chiedersi se quel banco può esprimere la risposta.
+**Quando qualcosa arriva tardi, guardare cosa aspetta, non quanto costa.** Il
+ridisegno del blur costa 10,5 ms; il ritardo era gli 84 ms di OCR che aspettava
+senza motivo.
 
 Fine del prompt.

@@ -16,10 +16,25 @@ chiesta dall'utente come correzione di rotta. La telecamera virtuale per OBS,
 aggiunta e poi tolta nella stessa sessione, non serve più: esisteva solo perché
 l'overlay era nascosto a tutte le catture.
 
-**E il cancello è aperto**: `tools\prova.ps1` accende la catena con i controlli
-fatti prima (venv, scheda di cattura, Ollama e il suo modello) e stampa la
-configurazione per esteso, e `DA_VERIFICARE.md` è il foglio della prova. Quello
-che l'utente riporta viene prima di impacchettare.
+**L'utente ha provato, e il report è arrivato in forma di video.** Da lì è uscita
+una sessione intera di correzioni alla grafica dal vivo, tutte trovate sui suoi
+fotogrammi e sul suo log e nessuna sul codice: il riquadro sfocato che si
+allargava a tutta la fascia (`1515x390` per una riga da 45), il blur che
+aspettava l'OCR (84 ms al p50 che non erano suoi), i doppioni tornati perché il
+cancello confrontava l'italiano letto con l'inglese detto, il testo che poteva
+uscire dai bordi. Le misure stanno in `CLAUDE.md`; il dettaglio della consegna in
+`PROSSIMA_SESSIONE.md`.
+
+**Resta una domanda che è dell'utente e non dei numeri**: blur o riquadro. Il
+blur mostra il gioco ma ha un ritardo residuo che non si può togliere — provato
+che il compositore di Windows non lo può fare al posto nostro; il riquadro non ha
+ritardo per costruzione ma si nota di più. Il default non si cambia prima del suo
+giudizio.
+
+**E il cancello resta lì**: `tools\prova.ps1` accende la catena con i controlli
+fatti prima (venv, scheda di cattura, Ollama e il suo modello), accetta
+`-Set sezione.campo=valore` e stampa la configurazione per esteso;
+`DA_VERIFICARE.md` è il foglio della prova.
 
 I quindici rimasti sono tre blocchi, e il primo blocca gli altri:
 

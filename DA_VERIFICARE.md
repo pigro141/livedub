@@ -1,7 +1,7 @@
 # La tua prova, e cosa guardare
 
 Questo file e' il foglio della **prova d'ascolto**: come si accende, cosa
-guardare, e cosa mi serve nel tuo report. La suite e' verde (1143 verifiche) ma
+guardare, e cosa mi serve nel tuo report. La suite e' verde (1164 verifiche) ma
 la suite non sente niente: ogni difetto serio di questo progetto e' stato trovato
 dal tuo orecchio, con la suite verde.
 
@@ -23,6 +23,10 @@ powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci -Avvia
 
 # per vedere solo cosa farebbe, senza partire
 powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci -Prova
+
+# una variante, senza riscrivere la riga a mano (-Set e' ripetibile, e viene stampato)
+powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci `
+    -Set translate.background_mode=riquadro
 ```
 
 Lo script controlla **prima** le tre cose che altrimenti si scoprono a gioco
@@ -39,16 +43,76 @@ gli eventi e il riepilogo.
 Sopra un fullscreen esclusivo nessuna finestra puo' comparire, e l'overlay non si
 vedrebbe — senza che niente lo dica.
 
-**E l'overlay non si puo' fotografare**: e' dichiarato fuori dalla cattura, e uno
-screenshot *e'* una cattura. Se fai uno screen per mandarmelo, li' non ci sara' —
-non e' un difetto, e' la cura. Per farmelo vedere serve una foto col telefono, o
-mi fido di quello che mi scrivi.
+**E l'overlay adesso si fotografa.** Era dichiarato fuori da *tutte* le catture
+perche' rientrava nel fotogramma dato all'OCR — con due prezzi: non lo vedeva
+nemmeno chi registra, e non era diagnosticabile. Scegliendo **la finestra del
+gioco** invece dello schermo non ci rientra affatto, quindi quella cura e' stata
+tolta: uno screenshot lo prende, e chi registra lo vede. Se scegli «Tutto lo
+schermo» l'esclusione torna da sola, e li' vale ancora la vecchia regola.
+
+Quindi **mandami pure gli screen**: valgono piu' di qualunque descrizione.
 
 **Se non succede niente**, guarda la prima riga nel log della finestra: dice
 quale cattura sta usando, e se quella veloce non restituisce fotogrammi lo scrive
 e passa a `mss` da sola dopo due secondi. Su questa macchina, con il desktop,
 `dxcam` restituisce **zero** fotogrammi su 1071 — col gioco acceso puo' andare
 diversamente, e per questo il ripiego e' automatico invece che una scelta.
+
+---
+
+## 0. La domanda di adesso: **blur o riquadro?**
+
+E' l'unica cosa che i numeri non possono decidere, e ti riguarda direttamente.
+
+Hai detto che il blur va in differita. Era vero, e in parte era colpa nostra: il
+ritaglio dei pixel da sfocare aspettava che l'OCR avesse finito di leggere — 84
+ms al p50, 137 al massimo, cioe' quattro fotogrammi di ritardo che non c'entravano
+niente. Adesso parte subito dopo la cattura, e il ritardo che resta si misura:
+`overlay.ritardo` in fondo a `report.txt`, **p50 20-23 ms**.
+
+**Ma a zero non ci arriva, e non e' pigrizia.** Far vedere pixel del gioco vuol
+dire copiarli — cattura, nostro processo, finestra, compositore — e quella catena
+ha un pavimento. Ho provato a farlo fare a Windows (che i pixel ce li ha gia'):
+su questa versione le due funzioni che dovrebbero sfocare **tingono e basta**,
+misurato.
+
+Quindi ci sono due strade, e scegli tu:
+
+| | ritardo | come si vede |
+|---|---|---|
+| `blur` (default) | resta un residuo | il gioco si intravede, piu' discreto |
+| `riquadro` | **nessuno, per costruzione** | tinta piatta del colore della scena, copre meglio ma si nota di piu' |
+
+Il riquadro non ha ritardo perche' una tinta piatta non ha struttura da mostrare
+in ritardo. Il colore non e' nero: e' la **mediana dei pixel che sta coprendo**,
+ripresa a ogni fotogramma, quindi si intona alla scena.
+
+Si prova cosi':
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci `
+    -Set translate.background_mode=riquadro
+```
+
+**Cosa mi serve**: quale dei due preferisci, e se col blur il ritardo si vede
+ancora **in guida** (e' li' che si nota). Se dici «il riquadro si vede troppo ma
+il blur e' ancora indietro», c'e' una terza strada non ancora provata: alzare
+molto `translate.blur_strength`. Dei pixel abbastanza sfocati non si datano,
+quindi il ritardo smette di vedersi pur restando.
+
+---
+
+## 0b. E i doppioni, che tornavano
+
+Avevi ragione: la stessa frase usciva due volte. Il cancello anti-ripetizione
+c'era e funzionava, e ha smesso quando e' arrivata la traduzione — confrontava la
+frase italiana appena letta con quella gia' **detta in inglese**, cioe' due cose
+che non si somigliano mai. Nella tua sessione il contatore diceva 0 soppressioni
+con due doppioni identici a schermo; adesso ne sopprime 6 sulla stessa scena.
+
+**Cosa guardare**: che non ne escano piu' — e, all'opposto, che non sparisca una
+battuta che un personaggio ripete **davvero**. Il secondo difetto sarebbe peggiore
+del primo, e si vede solo all'ascolto.
 
 ---
 

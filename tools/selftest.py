@@ -2558,6 +2558,22 @@ def test_overlay(c: Check) -> None:
          f"e nessuna riga esce dai lati dello schermo ({largo_max:.0f} px)")
     c.ok(all(r.strip() for r in s_lunga.righe), "niente righe vuote, niente testo perso")
 
+    # -- **la sfocatura veloce e' la stessa cosa** ------------------------
+    # Si rimpicciolisce, si sfoca, si ringrandisce: i dettagli che si perdono
+    # rimpicciolendo sono esattamente quelli che la sfocatura cancella comunque.
+    # Va verificato invece che supposto, perche' se le due divergessero si
+    # starebbe consegnando un effetto diverso da quello misurato.
+    from ui.overlay import _sfoca
+
+    prova = np.ascontiguousarray(pezzo[:, : min(400, pezzo.shape[1]), :3])
+    for raggio in (3.0, 10.0, 24.0):
+        esatta = cv2.GaussianBlur(prova, (0, 0), sigmaX=raggio, sigmaY=raggio)
+        veloce = _sfoca(prova, raggio)
+        d = float(np.abs(esatta.astype(np.int16) - veloce.astype(np.int16)).mean())
+        c.ok(d <= 2.0,
+             f"a raggio {raggio:.0f} la sfocatura veloce e' la stessa "
+             f"(scarto medio {d:.1f}/255)")
+
     # -- il costo, perche' gira nel thread video --------------------------
     t0 = time.perf_counter()
     for _ in range(5):

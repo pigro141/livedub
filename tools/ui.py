@@ -171,6 +171,14 @@ class SelettoreFinestra:
 
 
 class App:
+    # **Ogni quanto la finestra guarda la coda, in millisecondi.** Erano 100, e
+    # si vedeva: la macchia sfocata restava indietro fino a un decimo di secondo
+    # rispetto alla scena, che su una panoramica sono decine di pixel. Allineato
+    # alla cattura (30 Hz) il ritardo scende a un fotogramma, che e' il minimo
+    # possibile senza disegnare dal thread video — dove non si puo', perche'
+    # Tkinter non e' rientrante da un thread qualunque.
+    PASSO_UI = 33
+
     def __init__(self, args) -> None:
         import tkinter as tk
         from tkinter import scrolledtext
@@ -253,9 +261,16 @@ class App:
             self.log.tag_config(f"s{i}", foreground=c)
         self.log.tag_config("nota", foreground="#8b949e")
         self.noti: dict[str, int] = {}
+        # Quanto vecchio e' il ritaglio quando finisce a schermo. Senza questo
+        # numero il ritardo del blur si poteva solo guardare, e guardandolo si
+        # discute; misurandolo si corregge.
+        from core.metrics import MetricsRegistry
+
+        self._metriche = MetricsRegistry()
+        self._t_ritardo = self._metriche.timer("overlay.ritardo")
 
         self.root.protocol("WM_DELETE_WINDOW", self.chiudi)
-        self.root.after(100, self._svuota_coda)
+        self.root.after(self.PASSO_UI, self._svuota_coda)
 
     # -- ROI ---------------------------------------------------------------
 
@@ -354,9 +369,19 @@ class App:
         self.log.see("end")
 
     def _svuota_coda(self) -> None:
+        # **Dei ritagli si disegna solo l'ultimo.** Ne arrivano trenta al
+        # secondo e questo giro ne fa dieci: disegnarli tutti vorrebbe dire fare
+        # tre volte il lavoro per mostrare solo l'ultimo, e — peggio — se
+        # disegnare costa piu' di quanto arriva la coda si allunga e la macchia
+        # sfocata resta indietro **sempre di piu'**. E' il ritardo che si vede a
+        # schermo quando la telecamera si muove.
+        ultimo_ritaglio = None
         try:
             while True:
                 tipo, dato = self.coda.get_nowait()
+                if tipo == "aggiorna":
+                    ultimo_ritaglio = dato
+                    continue
                 if tipo == "riga":
                     sid, voce, testo, lat, t = dato
                     if sid not in self.noti:
@@ -393,21 +418,23 @@ class App:
                 elif tipo == "spegni":
                     if self.overlay is not None:
                         self.overlay.nascondi()
-                elif tipo == "aggiorna":
-                    if self.overlay is not None:
-                        self.overlay.aggiorna(dato)
+
                 elif tipo == "stato":
                     self.l_stato.config(text=dato)
                 elif tipo == "nota":
                     self.scrivi(dato, tag="nota")
         except queue.Empty:
             pass
+        if ultimo_ritaglio is not None and self.overlay is not None:
+            pezzo, quando = ultimo_ritaglio
+            self.overlay.aggiorna(pezzo)
+            self._t_ritardo.add((time.perf_counter() - quando) * 1000.0)
         # **Il sottotitolo tradotto sparisce da solo.** Una banda perenne in
         # mezzo allo schermo e' peggio dell'originale che copriva.
         self._segui_finestra()
         if self.overlay is not None and time.perf_counter() >= self._overlay_fino_a:
             self.overlay.nascondi()
-        self.root.after(100, self._svuota_coda)
+        self.root.after(self.PASSO_UI, self._svuota_coda)
 
     # -- avvio e arresto ---------------------------------------------------
 
@@ -575,7 +602,9 @@ class App:
                             self._overlay_fino_a = time.perf_counter() + 0.4
                             pezzo = ritaglia(g.frame, self.overlay.rett)
                             if pezzo is not None:
-                                self.coda.put(("aggiorna", pezzo))
+                                self.coda.put(
+                                    ("aggiorna", (pezzo, time.perf_counter()))
+                                )
                         elif time.perf_counter() >= self._overlay_fino_a:
                             self.coda.put(("spegni", None))
                     if n % 30 == 0:

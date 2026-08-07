@@ -3033,6 +3033,7 @@ from tools.selftest_vision import (  # noqa: E402
     test_roi,
     test_tracker,
 )
+from tools.selftest_gioco2 import test_gioco2  # noqa: E402
 
 def test_session(c: Check) -> None:
     """La sessione salvata, e il giro di andata e ritorno che la rende utile.
@@ -3513,6 +3514,11 @@ GROUPS = {
     "pool_genere": test_pool_genere,
     "tts": test_tts_fake,
     "mixer": test_mixer,
+    # L'unico gruppo che apre l'OCR **vero**, e l'unico che guarda un gioco che
+    # non e' GTA V. Sta in fondo perche' costa qualche secondo (il worker
+    # OneOCR va acceso) e perche' e' il solo che possa dire «questa suite gira
+    # su una macchina senza il modello».
+    "gioco2": test_gioco2,
 }
 
 

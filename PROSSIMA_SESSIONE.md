@@ -7,7 +7,49 @@ Copia da qui in giù.
 Lavoro su **livedub** (`C:\Users\filde\Documents\!code\CLAUDE\livedub`), doppiaggio
 italiano dal vivo dei sottotitoli dei videogiochi.
 
-## Il lavoro di questa sessione, e nient'altro
+## La prima cosa da fare, prima della UI
+
+**Un test automatico su un secondo gioco**, con quest'area di prova:
+
+    https://www.youtube.com/watch?v=id-6tyZ5vF0
+
+Serve perché il 7 agosto la catena è stata puntata su un altro gioco per
+curiosità e **non leggeva niente**: 109 ritagli mandati all'OCR, 109 vuoti. Uno
+dei due difetti che ne sono usciti è corretto (`vision.line_pad`), l'altro no.
+Senza un test, il primo torna alla prima modifica e il secondo non si accorge
+nessuno che c'è.
+
+**L'area va tenuta larga, come la disegnerebbe un utente.** Questo è il punto e
+non un dettaglio: con la ROI calibrata del profilo il difetto **non si vede**, e
+un test che usa l'area stretta passerebbe per il motivo sbagliato. Misurato, con
+un'area larga il banco legge **50 battute invece di 115** — quindi il test deve
+girare nelle condizioni in cui il programma viene davvero usato, non in quelle in
+cui funziona meglio.
+
+Cosa deve saper far fallire:
+
+- **l'OCR che torna vuoto**: se `vision.ocr.lines > 0` e `vision.ocr.empty` è
+  uguale, il test deve essere rosso. È esattamente la forma in cui il difetto si
+  è presentato, e nessun contatore lo dichiarava — la catena girava «bene»;
+- **il ritaglio senza margine**: con `line_pad = 0` quel gioco non si legge, con
+  0,2 sì. Il test deve prendere la regressione se qualcuno rimette 0;
+- **il nome del personaggio colorato**: quel gioco scrive `ALFIO:` in giallo, e
+  il criterio della parola colorata — scritto per togliere l'HUD di GTA V — lo
+  scarta. Oggi si disfa solo con `vision.sat_max=255`, che però spegne anche la
+  difesa dall'HUD. Il test deve rendere visibile lo scambio, non nasconderlo.
+
+Come procurarsi il materiale: `yt-dlp` va installato **fuori dal venv**
+(`pip install --target`, il venv monta `onnxruntime-gpu` e non si tocca), e si
+scarica solo la finestra che serve con `--download-sections`. Lo stesso giro è
+già stato fatto per `yt_scena.mp4`, che è la scena di GTA V ed è il modello da
+seguire — comprese l'allineamento dei tempi e la scelta del formato.
+
+I due screenshot dell'utente (`Downloads\Screenshot 2026-08-07 040716.png`, fondo
+marrone, e `...042303.png`, fondo nero) sono il caso minimo già pronto: fondo
+chiaro e fondo scuro si comportano **in modo diverso**, e un test che ne prova
+uno solo non copre l'altro.
+
+## Poi il lavoro vero di questa sessione, e nient'altro
 
 **Si lavora su `SviluppoProgetto.md`, blocco UI.** Quel file è la roadmap: 14
 feature su 14 chiuse, 4 step finali su 19, e il cancello che diceva *«prima di
@@ -134,21 +176,11 @@ lo chieda:
 - **`decide_after_ms`** vale 500 ms dei 1239 di latenza, il doppio della sintesi.
   Abbassarlo guadagna tempo e costa attribuzioni sbagliate: altro scambio da
   orecchio.
-- **Il secondo gioco, provato per scherzo, ha trovato due cose vere.** L'utente ha
-  puntato la catena su un altro gioco (nomi scritti `ALFIO:`, sottotitoli bianchi,
-  nome del personaggio giallo). Non leggeva **niente**: 109 ritagli all'OCR, 109
-  vuoti. Due difetti distinti, tutti e due di ipotesi nascoste su GTA V:
-  1. **Il ritaglio non aveva margine verticale.** Corretto (`vision.line_pad`,
-     default 0 quindi GTA V non cambia). Se il margine giovi **anche** a GTA V
-     non è stato misurato: è una misura da mezz'ora sul banco.
-  2. **Il criterio della parola colorata lavora contro un gioco che colora il nome
-     di chi parla per progetto.** La cura scritta stamattina per l'HUD di GTA V
-     scarta ogni riga di quel gioco, e per disfarla serve `vision.sat_max=255` —
-     che però spegne anche la difesa dall'HUD. Serve poter dire «il colore è del
-     nome, non di scenario», non un interruttore unico.
-  Il materiale di prova sono i due screenshot in `Downloads` (`...040716.png`
-  fondo marrone, `...042303.png` fondo nero): sono un caso di prova pronto, e
-  fondo chiaro e fondo scuro si comportano in modo diverso.
+*(Il secondo gioco **non** sta in questa lista: è la prima cosa da fare, ed è in
+cima a questo file. Quello che resta aperto lì dentro è il criterio della parola
+colorata contro un nome colorato per progetto — non si risolve con una soglia,
+serve poter dire «il colore è del nome, non di scenario». E se il margine del
+ritaglio giovi **anche** a GTA V non è mai stato misurato.)*
 
 Il banco `yt_scena.mp4` (282 MB, gitignorato) resta lì per quando serviranno: è
 la scena della sessione dell'utente, avanti di 29,5 s rispetto ai suoi tempi.

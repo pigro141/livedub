@@ -6,48 +6,60 @@
 "no" misurato (i tag del TTS, la correzione automatica per distanza di edit, Qwen).
 
 **Step finali: 4 su 19.** La grafica del sottotitolo tradotto è chiusa: scritta,
-**guardata a schermo**, corretta di quattro difetti e coperta da verifiche. Le
-altre due spuntate — colore/dimensione dei sottotitoli e scelta delle lingue —
-sono fatte **come meccanismo**: i parametri esistono e si regolano da `--set`.
-Quello che manca è la UI che li espone.
+**guardata a schermo**, corretta e coperta da verifiche. Le altre due spuntate —
+colore/dimensione dei sottotitoli e scelta delle lingue — sono fatte **come
+meccanismo**: i parametri esistono e si regolano da `--set`. Quello che manca è
+la UI che li espone.
 
-La voce nuova è la **cattura della finestra del gioco** invece dello schermo,
-chiesta dall'utente come correzione di rotta. La telecamera virtuale per OBS,
-aggiunta e poi tolta nella stessa sessione, non serve più: esisteva solo perché
-l'overlay era nascosto a tutte le catture.
+## Il cancello è passato — e questo è il fatto che conta
 
-**L'utente ha provato, e il report è arrivato in forma di video.** Da lì è uscita
-una sessione intera di correzioni alla grafica dal vivo, tutte trovate sui suoi
-fotogrammi e sul suo log e nessuna sul codice: il riquadro sfocato che si
-allargava a tutta la fascia (`1515x390` per una riga da 45), il blur che
-aspettava l'OCR (84 ms al p50 che non erano suoi), i doppioni tornati perché il
-cancello confrontava l'italiano letto con l'inglese detto, il testo che poteva
-uscire dai bordi. Le misure stanno in `CLAUDE.md`; il dettaglio della consegna in
-`PROSSIMA_SESSIONE.md`.
+Il cancello che diceva *«prima di iniziare la fase seguente fammi fare una prova
+e ti faccio un report dettagliato»* **è stato passato il 7 agosto 2026**. L'utente
+ha provato dal vivo, due volte, e il report è arrivato in forma di **video della
+sessione**: dai suoi fotogrammi e dal suo log a schermo sono usciti quattro
+difetti, nessuno dei quali faceva scattare un contatore.
 
-**Resta una domanda che è dell'utente e non dei numeri**: blur o riquadro. Il
-blur mostra il gioco ma ha un ritardo residuo che non si può togliere — provato
-che il compositore di Windows non lo può fare al posto nostro; il riquadro non ha
-ritardo per costruzione ma si nota di più. Il default non si cambia prima del suo
-giudizio.
+Tutti e quattro sono corretti, con la suite a **1172 verifiche verdi**:
 
-**E il cancello resta lì**: `tools\prova.ps1` accende la catena con i controlli
-fatti prima (venv, scheda di cattura, Ollama e il suo modello), accetta
-`-Set sezione.campo=valore` e stampa la configurazione per esteso;
-`DA_VERIFICARE.md` è il foglio della prova.
+| difetto | esito, misurato dal vivo |
+|---|---|
+| a pool pieno nessuno arrivava a due battute, quindi nessuno era mai *confermato* | voci neutre da **97% a 35%**, punteggio p50 da 0,136 a **0,414** |
+| il bordo sfumato della toppa rimetteva l'italiano che doveva nascondere | contrasto sulla cornice da 68,3 a 24,3 |
+| il criterio della parola colorata misurava una lettera, non una parola | scattava 0 volte su una parola vera, ora sì |
+| l'HUD sulla stessa riga finiva nel ritaglio e **veniva pronunciato** | battute sporcate da **11% a 0%** |
 
-I quindici rimasti sono tre blocchi, e il primo blocca gli altri:
+Una quinta ipotesi è stata **smentita da una misura** invece che risolta:
+`dub.rate_x1000` al tetto non dipende da una finestra prevista corta. La finestra
+vera è 0,93 s contro 1,37 previsti — la previsione era già generosa, e la
+compressione è necessaria in tre casi su quattro.
+
+**La domanda blur o riquadro è chiusa**: l'utente ha giudicato dal vivo e si resta
+sul **blur**. Non è più una voce aperta.
+
+E c'è un banco nuovo che cambia il modo di lavorare: **`yt_scena.mp4`**, la scena
+della sessione scaricata a 1080p60 (avanti di 29,5 s rispetto ai tempi del vivo).
+Riproduce sul banco la frammentazione delle identità e il tetto di compressione.
+Prima serviva una sessione intera dell'utente per provare una modifica sul
+riconoscimento; adesso sono tre minuti.
+
+## Cosa resta: quindici voci, tre blocchi
 
 | blocco | cosa | quanti |
 |---|---|---|
-| **UI** | interfaccia, selettore tecnologie, impostazioni avanzate con spiegazioni, modifica a caldo | 4 |
-| *(cancello)* | **la tua prova, con report di cosa va e cosa no** | — |
+| **UI** | interfaccia, selettore tecnologie, impostazioni avanzate con spiegazioni, modifica a caldo, aree multiple | 5 |
 | **distribuzione** | installabile, exe, licenza | 3 |
 | **repo** | il repo più i suoi sette punti | 8 |
 
 **Nessuno aspetta una misura.** L'unico che poggiava su dati — i requisiti minimi
 — ce li ha già tutti. Da qui in poi è lavoro di interfaccia e di confezione, non
-di misura: il contrario di tutto quello che è venuto prima.
+di misura: il contrario di tutto quello che è venuto prima. **Chi riprende non
+deve tornare a misurare**: le cose tecniche ancora aperte sono elencate in fondo
+a `PROSSIMA_SESSIONE.md` e sono dichiarate *fuori dal lavoro di adesso*.
+
+**Il cancello resta come strumento**: `tools\prova.ps1` accende la catena con i
+controlli fatti prima (venv, scheda di cattura, traduttore), accetta
+`-Set sezione.campo=valore` e stampa la configurazione per esteso;
+`DA_VERIFICARE.md` è il foglio della prova.
 
 *(La riga per riga sta sotto: ogni voce fatta porta il suo esito, comprese quelle
 che si sono chiuse con un "no".)*
@@ -175,6 +187,14 @@ che si sono chiuse con un "no".)*
     → **La sfocatura vale solo mentre un tradotto è a schermo** e gli intervalli attaccati
     si fondono, se no sfarfalla. Verificato che il trattamento sia applicato davvero:
     nitidezza della ROI a **0,00** dentro gli intervalli e **1,00** fuori.
+    → **Blur o riquadro: deciso dall'utente il 7 agosto 2026, si resta sul `blur`.** Il
+    riquadro non ha ritardo per costruzione, ma è una placca visibile e la sua tinta
+    sbaglia proprio dove la scena è chiara (scarto fino a 86 livelli dalla scena
+    attorno); il blur è quasi invisibile e il suo ritardo residuo è misurato a p50
+    20-23 ms. **Non è più una voce aperta.**
+    → E il bordo del blur aveva un difetto suo, corretto nella stessa prova: la
+    sfumatura mescolava lo sfocato con i pixel del gioco, quindi **sul bordo rimetteva
+    l'italiano**. Spenta (`sfuma = 0`): sfocato pieno fino al bordo.
   * \[x]  installare qwen tts e Chatterbox, provare sul banco e stimare l'hardware
     → **fatti tutti e due**, erano già installati nei venv delle cartelle sorelle.
     **Chatterbox**: 3394 ms a battuta su CUDA — fuori portata dal vivo, ma dà emozione
@@ -300,7 +320,17 @@ che si sono chiuse con un "no".)*
   * \[ ]  impostazioni avanzate con regolazione di tutti i parametri con vicino un icona a ogni settings che spiega bene cosa fa e cosa succede se viene cambiato rischi ecc (davvero tuti anche la regolazione delle frequenze maschio femmina)
   * \[ ] cambiamento live dei settings e applicazione live
   * \[ ] selettore aree multiple di traduzioni solo testo e poi quella testo e audio, (attenzione se le aree si sovrappongono non lavorare due volte in quel punto)
-  * PRIMA DI INIZIARE LA FASE SEGUENTE FAMMI FARE UNA PROVA e ti faccio un report dettagliato di cosa va e cosa no
+  * \[x]  **PRIMA DI INIZIARE LA FASE SEGUENTE FAMMI FARE UNA PROVA e ti faccio un
+    report dettagliato di cosa va e cosa no**
+    → **Fatto il 7 agosto 2026.** Prova dal vivo, e il report è arrivato come **video
+    della sessione**: i quattro difetti sono usciti dai fotogrammi dell'utente e dal
+    log a schermo dentro il suo video, **nessuno da un contatore**. Il peggiore —
+    l'HUD incollata dentro le battute e pronunciata (`'Raggiungi i'`, `'Sali sul'`,
+    `.San An`) — era l'11% delle battute e non faceva scattare niente, perché per la
+    catena erano righe lette con successo.
+    → Corretti tutti e quattro, suite a **1172 verifiche**. Il dettaglio e le misure
+    stanno in `CLAUDE.md` e in `PROSSIMA_SESSIONE.md`.
+    → **Il cancello è aperto: da qui si va sulla UI.**
   * \[ ]  rendere il tutto facilmente installabile plug and play
   * \[ ]  fare exe
   * \[ ]  scegliere la licenza copyright da usare in base alle librerie e la mia scelta

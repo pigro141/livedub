@@ -9,7 +9,7 @@ italiano dal vivo dei sottotitoli dei videogiochi.
 
 ## Il secondo gioco: fatto, e la risposta è metà sì
 
-Il test c'è (gruppo `gioco2`, 63 verifiche, suite a **1235**) e le due passate a
+Il test c'è (gruppo `gioco2`, 78 verifiche, suite a **1250**) e le due passate a
 confronto sono state fatte. Il gioco è **Mafia: The Old Country** in italiano.
 
 **Un solo parametro dei due va bene a tutti e due i giochi.** La verità è
@@ -38,9 +38,15 @@ non l'ha letta» e «non c'era niente da leggere» sono due cose diverse:
   risposta, perché conta l'HUD come testo vero: saliva da 88 a 90 mentre le cose
   peggioravano. È la regola del controllare che la misura possa rispondere.)*
 
-**Ed è per questo che è diventato un interruttore dell'utente**, deciso il 7
-agosto: `vision.exclude_colored`, nella UI la casella **«Ignora i sottotitoli
-colorati»**. I due giochi lo vogliono al contrario e nessun valore li concilia,
+**Ed è per questo che è diventato un comando dell'utente**, deciso il 7
+agosto. Nella barra della UI ci sono due cose accanto: la casella **«Ignora i
+sottotitoli colorati»** (`vision.exclude_colored`) e la sua manopola fine,
+**«soglia»** (`vision.sat_max`), che dice quanto acceso debba essere un colore
+per contare come colore — perché il criterio è **cieco alla tinta**: misurato su
+sette colori, giallo, rosso, ciano, verde, viola e arancio si comportano
+identici, e un azzurro pallido (saturazione 50) passa comunque. La soglia si
+spegne insieme alla casella, perché a difesa spenta quel numero non lo guarda
+nessuno. I due giochi lo vogliono al contrario e nessun valore li concilia,
 quindi la scelta è di chi il gioco lo sta guardando — non un default da
 indovinare. Si cambia **a caldo**: la casella scrive nella config viva che il
 lettore rilegge a ogni fotogramma, e c'è una verifica che lo prova su un lettore
@@ -136,7 +142,7 @@ README per intero.**
 
 ## Dove siamo
 
-Suite verde a **1235 verifiche**. La catena dal vivo funziona: ultima sessione
+Suite verde a **1250 verifiche**. La catena dal vivo funziona: ultima sessione
 (`runs/2026-08-07_03-34-36`, 58 battute in 3 minuti, area stretta a 0,080):
 
 | | |
@@ -156,7 +162,7 @@ La UI si prova accendendola. Il resto serve solo a controllare che una modifica
 non abbia rotto la catena sotto.
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                    # 1235 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest                    # 1250 verifiche
 
 # la UI dal vivo, con i controlli fatti prima e la configurazione stampata
 powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci -Traduttore google

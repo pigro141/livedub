@@ -243,6 +243,7 @@ def _prova_colore(c, schermate: dict[str, np.ndarray]) -> None:
              f"{nome}: con exclude_colored=False il criterio della parola colorata non scatta piu'")
 
     _prezzo_dell_interruttore(c)
+    _colore_non_conta(c)
 
 
 def _prezzo_dell_interruttore(c) -> None:
@@ -420,3 +421,63 @@ def _prova_a_caldo(c, img: np.ndarray, ocr) -> None:
     lettore.diff = SubtitleReader(cfg, ocr, metrics=MetricsRegistry(), clock=orologio).diff
     lettore.tracker.close_all(orologio.t)
     c.eq(_legge(lettore, orologio, img), [], "rimessa la spunta, si torna al comportamento di prima")
+
+    # E la manopola fine, sullo **stesso** lettore: alzando la soglia oltre la
+    # saturazione del nome giallo, la riga smette di sembrare colorata e si
+    # legge anche a difesa accesa. E' il campo che la UI espone come «soglia».
+    cfg.sat_max = 255
+    aperte = _legge(lettore, orologio, img)
+    c.ok(len(aperte) == 1, "alzata la soglia a caldo, lo stesso lettore legge la riga")
+    cfg.sat_max = VisionConfig().sat_max
+    lettore.tracker.close_all(orologio.t)
+    c.eq(_legge(lettore, orologio, img), [], "riabbassata la soglia, si torna indietro")
+
+
+def _colore_non_conta(c) -> None:
+    """Il criterio guarda **quanto** e' acceso un colore, non **quale** sia.
+
+    Serve a rispondere a «e se un gioco ne usa un altro?»: la saturazione e'
+    `max - min` sui canali, quindi e' cieca alla tinta per costruzione. Detta
+    cosi' e' una supposizione sul codice; misurata su sette tinte diverse sulla
+    stessa riga, e' un fatto:
+
+    | nome scritto in | saturazione | a difesa accesa |
+    |---|---|---|
+    | giallo (Mafia), arancio, rosso, ciano, viola, verde | 115-210 | **scartata** |
+    | azzurro pallido | 50 | letta lo stesso |
+    | bianco | 0 | letta |
+
+    La seconda riga e' il motivo per cui la soglia sta nella UI accanto alla
+    casella: sotto di lei un colore non e' un colore, e quel confine dipende da
+    come il gioco scrive.
+    """
+    from tools.frames import font_available, render_subtitles
+
+    if not font_available():  # pragma: no cover - macchina senza font
+        c.ok(False, "niente font di sistema: la cecita' alla tinta non si puo' mostrare")
+        return
+
+    vivaci = {
+        "giallo": (245, 205, 60), "rosso": (235, 70, 70), "ciano": (80, 220, 235),
+        "verde": (120, 235, 120), "viola": (185, 110, 240), "arancio": (250, 150, 40),
+    }
+    for nome, rgb in vivaci.items():
+        riga = render_subtitles([("PIPPO: Andiamo via di qui.", rgb)], size=(70, 700), font_px=28)
+        bande = classify_lines(riga, _cfg())
+        c.ok(
+            bool(bande) and not bande[0].cls.is_dialogue,
+            f"un nome in {nome} viene scartato come quello giallo di Mafia",
+        )
+        c.ok(
+            bool(classify_lines(riga, _cfg(exclude_colored=False))[0].cls.is_dialogue),
+            f"...e con la spunta tolta torna leggibile, in {nome} come in giallo",
+        )
+
+    # E il confine: sotto la soglia un colore non e' un colore, e passa lo stesso.
+    pallido = render_subtitles([("PIPPO: Andiamo via di qui.", (185, 205, 235))],
+                               size=(70, 700), font_px=28)
+    bande = classify_lines(pallido, _cfg())
+    c.ok(
+        bool(bande) and bande[0].cls.is_dialogue,
+        "un azzurro pallido (saturazione 50) resta dialogo anche a difesa accesa",
+    )

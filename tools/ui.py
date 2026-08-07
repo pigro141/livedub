@@ -265,6 +265,34 @@ class App:
         )
         self.c_colorati.pack(side="left", padx=10)
 
+        # **Quanto acceso dev'essere un colore per contare come colore.**
+        # Il criterio non guarda *quale* tinta sia — giallo, rosso, ciano si
+        # comportano identici, misurato — ma quanto stacca dal bianco
+        # (`max - min` sui canali, quindi 0 = grigio, 255 = tinta piena). Sotto
+        # questa soglia una riga non e' colorata affatto, e passa comunque:
+        # misurato su sette colori, un azzurro pallido a saturazione 50 viene
+        # letto anche a difesa accesa.
+        #
+        # Sta accanto alla casella perche' e' la sua manopola fine, e si spegne
+        # con lei: a difesa spenta il numero non lo guarda nessuno, e una casella
+        # attiva che non fa niente e' peggio di una assente.
+        self.v_sat = tk.IntVar(value=int(self.cfg.vision.sat_max))
+        tk.Label(barra, text="soglia").pack(side="left")
+        self.s_sat = tk.Spinbox(
+            barra, from_=0, to=255, width=4, textvariable=self.v_sat,
+            command=self._cambia_sat, justify="right",
+        )
+        self.s_sat.pack(side="left", padx=(3, 10))
+        # Anche scritta a mano, non solo con le frecce: chi conosce il numero lo
+        # digita.
+        self.s_sat.bind("<KeyRelease>", lambda _e: self._cambia_sat())
+        # Uscendo dal campo, quel che si vede torna a essere quel che si usa.
+        # Mentre si scrive la casella puo' stare vuota o dire `12a`, e va bene —
+        # ma se ci si allontana lasciandola cosi', a schermo resterebbe un
+        # numero che la catena non sta usando.
+        self.s_sat.bind("<FocusOut>", lambda _e: self.v_sat.set(int(self.cfg.vision.sat_max)))
+        self._aggiorna_sat()
+
         self.l_roi = tk.Label(barra, text=self._testo_roi(), anchor="w")
         self.l_roi.pack(side="left", padx=12)
 
@@ -306,10 +334,42 @@ class App:
         """
         acceso = bool(self.v_colorati.get())
         self.cfg.vision.exclude_colored = acceso
+        self._aggiorna_sat()
         self.scrivi(
             "sottotitoli colorati: " + ("ignorati (difesa dall'HUD accesa)" if acceso
                                         else "letti (per i giochi che colorano il nome di chi parla)")
         )
+
+    def _aggiorna_sat(self) -> None:
+        """La soglia si tocca solo quando serve, cioe' a difesa accesa."""
+        self.s_sat.configure(state="normal" if self.v_colorati.get() else "disabled")
+
+    def _cambia_sat(self) -> None:
+        """La soglia del colore, applicata subito.
+
+        **Il campo si puo' anche digitare, quindi puo' contenere qualunque
+        cosa.** Una casella vuota o `'12a'` non deve spegnere la catena a meta'
+        sessione: un valore che non e' un numero si ignora e basta, e quello
+        buono resta quello di prima. Fuori da 0-255 non ha senso — la
+        saturazione e' `max - min` su tre canali a 8 bit — quindi si taglia
+        invece di accettare un numero che non puo' succedere.
+        """
+        try:
+            scritto = int(self.s_sat.get())
+        except (ValueError, TypeError):
+            return  # sta ancora scrivendo: si aspetta
+        valore = max(0, min(255, scritto))
+        # **Se il numero e' stato tagliato, la casella deve dirlo.** Digitando
+        # 9999 la catena usava 255 mentre a schermo restava 9999: e' il difetto
+        # peggiore possibile qui — una sessione che gira con una configurazione
+        # diversa da quella che la UI mostra. Trovato guidando la finestra vera,
+        # non leggendo il codice.
+        if valore != scritto:
+            self.v_sat.set(valore)
+        if valore == int(self.cfg.vision.sat_max):
+            return
+        self.cfg.vision.sat_max = valore
+        self.scrivi(f"soglia del colore: {valore} (sotto, una riga non e' colorata)")
 
     def _testo_roi(self) -> str:
         x, y, w, h = self.cfg.vision.roi

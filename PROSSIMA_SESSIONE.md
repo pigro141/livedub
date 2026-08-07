@@ -31,7 +31,23 @@ difetti e ne ha *smentito* un quinto con una misura. Tutti e quattro sono stati
 trovati guardando **il video della sessione dell'utente e il suo log a schermo**,
 non i contatori: nessuno dei quattro faceva scattare un numero.
 
-Il riferimento è `runs/2026-08-07_01-40-16` (589 battute, 45 minuti dal vivo).
+Due riferimenti, e servono a cose diverse. `runs/2026-08-07_01-40-16` è la
+sessione **prima** delle correzioni (589 battute, 45 minuti, area larga): è lì
+che si vedono i difetti. `runs/2026-08-07_03-34-36` è **dopo** (58 battute, 3
+minuti, area stretta a 0,080), ed è lo stato di adesso:
+
+| | prima | dopo |
+|---|---|---|
+| punteggio riconoscimento p50 | 0,136 | **0,414** |
+| voci neutre | 97% | **38%** |
+| battute con HUD incollata | 11% | **0%** |
+| `battute_note` p50 | 0 | **12** |
+| latenza p50 | 1693 ms | **1239 ms** |
+| WSOLA p50 | — | **1,000** |
+
+I 450 ms di latenza in meno vengono quasi certamente dall'area stretta: meno
+pixel da leggere, OCR più svelto, meno coda. È la conferma che stringere l'area
+paga due volte.
 
 ## Il banco nuovo, che cambia il modo di lavorare
 
@@ -122,10 +138,11 @@ nativo e uno a 1,30, ascoltati affiancati. Mezz'ora di banco. Non è stato fatto
 
 ## Quello che resta, in ordine di quanto costa
 
-- **L'area di cattura dell'utente era alta 0,144**, sopra la soglia di 0,12 su cui
-  la UI avvisa. Misurato: con un'area così il banco legge **50 battute invece di
-  115**. Un'area larga non fa solo entrare l'HUD, fa leggere peggio. È il singolo
-  cambiamento col rapporto migliore fra sforzo e risultato, e lo fa l'utente.
+- ~~L'area di cattura troppo alta.~~ **Risolto dall'utente**: da 0,144 a 0,080, e
+  la latenza è scesa di 450 ms. La misura che lo aveva chiesto resta valida e va
+  ricordata a chi ridisegna l'area: con un'area alta 0,144 il banco legge **50
+  battute invece di 115**. Un'area larga non fa solo entrare l'HUD, fa leggere
+  peggio.
 - **`speaker.ring_lag` mente.** Dice 5543 ms mentre `ritardo_anello` per battuta
   dice 7 ms. Ha mandato una diagnosi fuori strada per mezza sessione, e sta nel
   report che si legge all'inizio della prossima. Va aggiustato o tolto.

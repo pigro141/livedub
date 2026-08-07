@@ -134,6 +134,21 @@ lo chieda:
 - **`decide_after_ms`** vale 500 ms dei 1239 di latenza, il doppio della sintesi.
   Abbassarlo guadagna tempo e costa attribuzioni sbagliate: altro scambio da
   orecchio.
+- **Il secondo gioco, provato per scherzo, ha trovato due cose vere.** L'utente ha
+  puntato la catena su un altro gioco (nomi scritti `ALFIO:`, sottotitoli bianchi,
+  nome del personaggio giallo). Non leggeva **niente**: 109 ritagli all'OCR, 109
+  vuoti. Due difetti distinti, tutti e due di ipotesi nascoste su GTA V:
+  1. **Il ritaglio non aveva margine verticale.** Corretto (`vision.line_pad`,
+     default 0 quindi GTA V non cambia). Se il margine giovi **anche** a GTA V
+     non è stato misurato: è una misura da mezz'ora sul banco.
+  2. **Il criterio della parola colorata lavora contro un gioco che colora il nome
+     di chi parla per progetto.** La cura scritta stamattina per l'HUD di GTA V
+     scarta ogni riga di quel gioco, e per disfarla serve `vision.sat_max=255` —
+     che però spegne anche la difesa dall'HUD. Serve poter dire «il colore è del
+     nome, non di scenario», non un interruttore unico.
+  Il materiale di prova sono i due screenshot in `Downloads` (`...040716.png`
+  fondo marrone, `...042303.png` fondo nero): sono un caso di prova pronto, e
+  fondo chiaro e fondo scuro si comportano in modo diverso.
 
 Il banco `yt_scena.mp4` (282 MB, gitignorato) resta lì per quando serviranno: è
 la scena della sessione dell'utente, avanti di 29,5 s rispetto ai suoi tempi.

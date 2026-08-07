@@ -7,47 +7,47 @@ Copia da qui in giù.
 Lavoro su **livedub** (`C:\Users\filde\Documents\!code\CLAUDE\livedub`), doppiaggio
 italiano dal vivo dei sottotitoli dei videogiochi.
 
-## La prima cosa da fare, prima della UI
+## Il secondo gioco: fatto, e la risposta è metà sì
 
-**Un test automatico su un secondo gioco**, con quest'area di prova:
+Il test c'è (gruppo `gioco2`, 55 verifiche, suite a **1227**) e le due passate a
+confronto sono state fatte. Il gioco è **Mafia: The Old Country** in italiano.
 
-    https://www.youtube.com/watch?v=id-6tyZ5vF0
+**Un solo parametro dei due va bene a tutti e due i giochi.** La verità è
+misurata *fuori* dalla catena — OCR sull'area intera a 2 Hz — perché «la catena
+non l'ha letta» e «non c'era niente da leggere» sono due cose diverse:
 
-Serve perché il 7 agosto la catena è stata puntata su un altro gioco per
-curiosità e **non leggeva niente**: 109 ritagli mandati all'OCR, 109 vuoti. Uno
-dei due difetti che ne sono usciti è corretto (`vision.line_pad`), l'altro no.
-Senza un test, il primo torna alla prima modifica e il secondo non si accorge
-nessuno che c'è.
+| configurazione | GTA V (105 battute vere) | Mafia (18 vere) |
+|---|---|---|
+| com'è oggi (`line_pad=0`, `sat_max=37`) | 87 → 83% | **0 → 0%** |
+| `line_pad=0,2` | 88 → 84% | 2 → 11% |
+| `line_pad=0,2` + `sat_max=255` | 90 → 86% | **12 → 67%** |
 
-**L'area va tenuta larga, come la disegnerebbe un utente.** Questo è il punto e
-non un dettaglio: con la ROI calibrata del profilo il difetto **non si vede**, e
-un test che usa l'area stretta passerebbe per il motivo sbagliato. Misurato, con
-un'area larga il banco legge **50 battute invece di 115** — quindi il test deve
-girare nelle condizioni in cui il programma viene davvero usato, non in quelle in
-cui funziona meglio.
+- **`line_pad=0,2` è compatibile con tutti e due**, e su GTA V il guadagno non è
+  nel conteggio ma nella frammentazione: il grappolo `Sali sul Mia / 3eo,ar /
+  Joo,c / sigr;ta / ...` (quattordici righe di spazzatura) diventa `Sali sul
+  furgone.` più quattro frammenti, `Torna sul fu re` diventa `Torna sul
+  furgone.`, e tornano gli accenti. Fuori lessico 8,2% → 8,0%. Due passate di
+  controllo **identiche carattere per carattere**, quindi non è fortuna.
+  Resta a 0 di default: cambia il gioco principale (130 → 123 battute aperte) e
+  quel giudizio è dell'orecchio. **Serve una prova d'ascolto per promuoverlo.**
+- **`sat_max=255` non è compatibile, e non è una soglia da trovare.** Su GTA V
+  spegne l'intera difesa dall'HUD (1349 righe scartate → 0) e le due righe che
+  *guadagna* sono `'Andiamo a Vinewood Boulevard.'` e `'Vinewood Boul'`: obiettivi
+  di missione pronunciati. Fuori lessico 8,0% → 9,4%.
+  *(E il metro «quante battute vere ritrova» **non può** esprimere questa
+  risposta, perché conta l'HUD come testo vero: saliva da 88 a 90 mentre le cose
+  peggioravano. È la regola del controllare che la misura possa rispondere.)*
 
-Cosa deve saper far fallire:
+Quello che resta aperto è quindi **uno solo**, ed è quello già dichiarato: serve
+poter dire «il colore è del **nome**, non di scenario». Il nome sta all'inizio
+della riga, finisce con i due punti, e si ripete identico fra le battute — sono
+tre indizi che una soglia sulla saturazione non ha. `vision/label.py` esiste già
+e fa metà del lavoro.
 
-- **l'OCR che torna vuoto**: se `vision.ocr.lines > 0` e `vision.ocr.empty` è
-  uguale, il test deve essere rosso. È esattamente la forma in cui il difetto si
-  è presentato, e nessun contatore lo dichiarava — la catena girava «bene»;
-- **il ritaglio senza margine**: con `line_pad = 0` quel gioco non si legge, con
-  0,2 sì. Il test deve prendere la regressione se qualcuno rimette 0;
-- **il nome del personaggio colorato**: quel gioco scrive `ALFIO:` in giallo, e
-  il criterio della parola colorata — scritto per togliere l'HUD di GTA V — lo
-  scarta. Oggi si disfa solo con `vision.sat_max=255`, che però spegne anche la
-  difesa dall'HUD. Il test deve rendere visibile lo scambio, non nasconderlo.
-
-Come procurarsi il materiale: `yt-dlp` va installato **fuori dal venv**
-(`pip install --target`, il venv monta `onnxruntime-gpu` e non si tocca), e si
-scarica solo la finestra che serve con `--download-sections`. Lo stesso giro è
-già stato fatto per `yt_scena.mp4`, che è la scena di GTA V ed è il modello da
-seguire — comprese l'allineamento dei tempi e la scelta del formato.
-
-I due screenshot dell'utente (`Downloads\Screenshot 2026-08-07 040716.png`, fondo
-marrone, e `...042303.png`, fondo nero) sono il caso minimo già pronto: fondo
-chiaro e fondo scuro si comportano **in modo diverso**, e un test che ne prova
-uno solo non copre l'altro.
+Il materiale: `mafia_scena.mp4` (150 s dall'Atto 3 «Pizzu», gitignorato) e le due
+schermate dell'utente in `assets/gioco2/`. `yt-dlp` va installato **fuori dal
+venv** (`pip install --target`, il venv monta `onnxruntime-gpu` e non si tocca) e
+si scarica solo la finestra che serve con `--download-sections`.
 
 ## Poi il lavoro vero di questa sessione, e nient'altro
 
@@ -125,7 +125,7 @@ README per intero.**
 
 ## Dove siamo
 
-Suite verde a **1172 verifiche**. La catena dal vivo funziona: ultima sessione
+Suite verde a **1227 verifiche**. La catena dal vivo funziona: ultima sessione
 (`runs/2026-08-07_03-34-36`, 58 battute in 3 minuti, area stretta a 0,080):
 
 | | |
@@ -145,7 +145,7 @@ La UI si prova accendendola. Il resto serve solo a controllare che una modifica
 non abbia rotto la catena sotto.
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                    # 1172 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest                    # 1227 verifiche
 
 # la UI dal vivo, con i controlli fatti prima e la configurazione stampata
 powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci -Traduttore google
@@ -176,11 +176,11 @@ lo chieda:
 - **`decide_after_ms`** vale 500 ms dei 1239 di latenza, il doppio della sintesi.
   Abbassarlo guadagna tempo e costa attribuzioni sbagliate: altro scambio da
   orecchio.
-*(Il secondo gioco **non** sta in questa lista: è la prima cosa da fare, ed è in
-cima a questo file. Quello che resta aperto lì dentro è il criterio della parola
-colorata contro un nome colorato per progetto — non si risolve con una soglia,
-serve poter dire «il colore è del nome, non di scenario». E se il margine del
-ritaglio giovi **anche** a GTA V non è mai stato misurato.)*
+*(Il secondo gioco è **fatto**, e sta in cima a questo file: test verde, due
+passate misurate. Di lì resta aperta una cosa sola — il criterio della parola
+colorata contro un nome colorato per progetto — e una decisione d'orecchio:
+promuovere `line_pad` a 0,2 come default. Che il margine giovi anche a GTA V
+adesso è misurato, e la risposta è sì.)*
 
 Il banco `yt_scena.mp4` (282 MB, gitignorato) resta lì per quando serviranno: è
 la scena della sessione dell'utente, avanti di 29,5 s rispetto ai suoi tempi.

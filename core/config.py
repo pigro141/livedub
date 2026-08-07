@@ -178,6 +178,31 @@ class VisionConfig:
     # soglia riusata su un'altra distribuzione.
     #
     # A zero il criterio e' spento e resta la sola quota `sat_ink_max`.
+    #
+    # **E qui c'e' l'unica incompatibilita' misurata fra due giochi.** Mafia: The
+    # Old Country scrive il nome di chi parla in giallo davanti a **ogni**
+    # battuta (`ENZO:`, `ALFIO:`), quindi questo criterio scarta tutto il
+    # dialogo: 1497 righe buttate, **zero** battute aperte in 150 secondi di
+    # scena. Si disfa solo spegnendo il colore (`sat_max=255`), e il prezzo su
+    # GTA V e' l'intera difesa dall'HUD — misurato sulle due scene:
+    #
+    # | | GTA V, righe scartate dal colore | GTA V, fuori lessico | Mafia, battute lette |
+    # |---|---|---|---|
+    # | `sat_max=37` (profilo) | 1349 | 8,0% | **0 su 18** |
+    # | `sat_max=255` | **0** | 9,4% | **12 su 18** |
+    #
+    # E le due righe che GTA V **guadagna** con 255 sono, letteralmente,
+    # `'Andiamo a Vinewood Boulevard.'` e `'Vinewood Boul'`: obiettivi di
+    # missione pronunciati, cioe' il difetto per cui questo criterio esiste.
+    # (Vale la pena notarlo: il metro «quante battute vere ritrova» **non puo'**
+    # esprimere questa risposta, perche' conta l'HUD come testo vero. Il numero
+    # saliva da 88 a 90 mentre la cosa peggiorava.)
+    #
+    # Non e' una soglia da trovare: nessun valore separa un nome giallo da un
+    # obiettivo giallo. Serve poter dire **«il colore e' del nome, non di
+    # scenario»** — il nome sta all'inizio della riga, finisce con i due punti,
+    # e si ripete identico fra le battute. Finche' non c'e', i due giochi
+    # vogliono due valori.
     min_color_word_frac: float = 0.15
     # Quanto vuoto si chiude fra due colonne colorate perche' contino come la
     # stessa parola, in quote dell'altezza della banda. Misurato su Arial
@@ -229,6 +254,27 @@ class VisionConfig:
     # `p` e bordi antialiasati. Misurato su un secondo gioco, banda alta 20 px:
     # senza margine l'OCR torna **vuoto**, con 4 px sopra e sotto legge tutto a
     # confidenza 1,00. A zero e' il comportamento di sempre.
+    #
+    # **E su GTA V non costa niente: e' l'unico dei due rimedi del secondo gioco
+    # che vada bene a tutti e due.** Le due scene a confronto, con la verita'
+    # misurata **fuori** dalla catena (OCR sull'area intera a 2 Hz):
+    #
+    # | `line_pad` | GTA V (105 battute vere) | Mafia (18 vere) | fuori lessico (GTA V) |
+    # |---|---|---|---|
+    # | 0,0 | 87 ritrovate (83%) | 2 (11%) | 8,2% |
+    # | **0,2** | **88 (84%)** | **12 (67%)** | **8,0%** |
+    #
+    # Su GTA V il guadagno non e' nel conteggio, e' nella frammentazione: il
+    # grappolo `Sali sul Mia / 3eo,ar / Joo,c / sigr;ta / ajepis / ...` — quattordici
+    # righe di spazzatura — diventa `Sali sul furgone.` piu' quattro frammenti, e
+    # `Torna sul fu re` diventa `Torna sul furgone.`. Tornano anche gli accenti
+    # (`E l'ultima moda` -> `E' l'ultima moda`), che e' proprio cio' che il
+    # margine recupera. Le due passate di controllo sono uscite **identiche
+    # carattere per carattere**, quindi la differenza e' del trattamento e non
+    # della fortuna.
+    #
+    # Resta a 0 perche' cambia il comportamento sul gioco principale (130 -> 123
+    # battute aperte) e quel giudizio e' dell'orecchio, non del lessico.
     line_pad: float = 0.0
     white_min_luma: int = 200  # bianco pieno
     grey_min_luma: int = 110  # sotto questa soglia non e' testo

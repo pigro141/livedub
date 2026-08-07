@@ -148,6 +148,7 @@ def test_gioco2(c) -> None:
         _prova_margine(c, {"fondo_chiaro": chiaro, "fondo_scuro": scuro}, ocr)
         _prova_contatori(c, {"fondo_chiaro": chiaro, "fondo_scuro": scuro}, ocr)
         _prova_catena(c, {"fondo_chiaro": chiaro, "fondo_scuro": scuro}, ocr)
+        _prova_a_caldo(c, scuro, ocr)
     finally:
         chiudi = getattr(ocr, "close", None)
         if chiudi is not None:
@@ -176,12 +177,12 @@ def _prova_margine(c, schermate: dict[str, np.ndarray], ocr) -> None:
     riproducibile. Se un giorno diventassero verdi anche a zero, il margine ha
     smesso di essere la spiegazione e va rimisurato — non festeggiato.
 
-    Il colore qui e' fuori strada, quindi si guarda con `sat_max=255`: se no la
+    Il colore qui e' fuori strada, quindi si guarda con `exclude_colored=False`: se no la
     riga non arriva mai all'OCR e questa tabella misurerebbe l'altro difetto.
     """
     for nome, img in schermate.items():
         for pad, deve_leggere in ((0.0, False), (PAD_DICHIARATO, True)):
-            cfg = _cfg(line_pad=pad, sat_max=255)
+            cfg = _cfg(line_pad=pad, exclude_colored=False)
             bande = classify_lines(img, cfg)
             if not c.ok(len(bande) == 1, f"{nome}: una sola banda di testo (pad {pad})"):
                 continue
@@ -215,11 +216,14 @@ def _prova_colore(c, schermate: dict[str, np.ndarray]) -> None:
     **prima di pagare l'OCR**. Non e' una lettura sbagliata: e' una riga che
     all'OCR non arriva.
 
-    **Lo scambio e' qui e va tenuto visibile.** Oggi si disfa solo con
-    `sat_max=255`, cioe' spegnendo del tutto la difesa dall'HUD: le due verifiche
-    sotto lo dicono a voce alta invece di nasconderlo dietro una soglia scelta
-    bene. Il giorno in cui esistera' un criterio che sa dire «il colore e' del
-    nome, non di scenario», la seconda smettera' di essere il prezzo della prima.
+    **Lo scambio e' qui, ed e' diventato un interruttore dell'utente**
+    (`vision.exclude_colored`, nella UI «Ignora i sottotitoli colorati»): i due
+    giochi lo vogliono al contrario e nessuna soglia li concilia, quindi la
+    scelta e' di chi il gioco lo sta guardando. Le verifiche sotto tengono
+    visibile il prezzo delle due posizioni invece di nasconderlo dietro un
+    numero scelto bene. Il giorno in cui esistera' un criterio che sa dire «il
+    colore e' del nome, non di scenario», l'interruttore potra' avere un terzo
+    valore invece di due.
     """
     for nome, img in schermate.items():
         bande = classify_lines(img, _cfg())
@@ -232,28 +236,28 @@ def _prova_colore(c, schermate: dict[str, np.ndarray]) -> None:
             f"{nome}: con le difese di GTA V la riga non e' dialogo — il gioco non si legge affatto",
         )
 
-        aperto = classify_lines(img, _cfg(sat_max=255))
+        aperto = classify_lines(img, _cfg(exclude_colored=False))
         c.ok(len(aperto) == 1 and aperto[0].cls.is_dialogue,
-             f"{nome}: con sat_max=255 la stessa riga torna dialogo")
+             f"{nome}: con exclude_colored=False la stessa riga torna dialogo")
         c.ok(not aperto[0].color_word,
-             f"{nome}: con sat_max=255 il criterio della parola colorata non scatta piu'")
+             f"{nome}: con exclude_colored=False il criterio della parola colorata non scatta piu'")
 
-    _prezzo_di_sat_max(c)
+    _prezzo_dell_interruttore(c)
 
 
-def _prezzo_di_sat_max(c) -> None:
-    """E quanto costa `sat_max=255`: cade la difesa dall'HUD di GTA V.
+def _prezzo_dell_interruttore(c) -> None:
+    """E quanto costa `exclude_colored=False`: cade la difesa dall'HUD di GTA V.
 
     Misurato dal vivo su GTA V, la difesa serve — sono frammenti di HUD colorata
     **incollati** a una battuta vera e pronunciati: `'Rec.Lavoriamo insieme...'`,
     `"Si, era lui.Adam'a App"`. Qui la stessa cosa su un frame di cui si conosce
     gia' la risposta: una riga di suggerimento gialla, che di default viene
-    scartata e con `sat_max=255` passa per dialogo.
+    scartata e con `exclude_colored=False` passa per dialogo.
     """
     from tools.frames import YELLOW, font_available, render_subtitles
 
     if not font_available():  # pragma: no cover - macchina senza font
-        c.ok(False, "niente font di sistema: il prezzo di sat_max=255 non si puo' mostrare")
+        c.ok(False, "niente font di sistema: il prezzo di exclude_colored=False non si puo' mostrare")
         return
 
     hud = render_subtitles([("Raggiungi il molo", YELLOW)], size=(90, 700), font_px=34)
@@ -262,11 +266,41 @@ def _prezzo_di_sat_max(c) -> None:
         bool(difeso) and not difeso[0].cls.is_dialogue,
         "GTA V: con le difese accese una riga di HUD gialla viene scartata",
     )
-    scoperto = classify_lines(hud, _cfg(sat_max=255))
+    scoperto = classify_lines(hud, _cfg(exclude_colored=False))
     c.ok(
         bool(scoperto) and scoperto[0].cls.is_dialogue,
-        "GTA V: con sat_max=255 la stessa riga di HUD passa per dialogo — e' il prezzo",
+        "GTA V: con exclude_colored=False la stessa riga di HUD passa per dialogo — e' il prezzo",
     )
+    _interruttore(c, hud)
+
+
+def _interruttore(c, hud: np.ndarray) -> None:
+    """L'interruttore fa **esattamente** quello che si faceva a mano, e niente
+    di piu'.
+
+    Prima di avere un nome suo, spegnere il colore si faceva con `sat_max=255`,
+    ed e' cosi' che sono state prese tutte le misure archiviate: GTA V 1349
+    righe scartate -> 0 e fuori lessico 8,0% -> 9,4%, Mafia 0 battute su 18 ->
+    12. Se l'interruttore non fosse la stessa cosa, quelle misure smetterebbero
+    di parlare di lui — e sarebbe la settima volta che in questo progetto un
+    numero misurato su una quantita' viene applicato a un'altra.
+
+    Quindi la verifica non e' «l'interruttore funziona», e' **«da' lo stesso
+    risultato della strada da cui vengono i numeri»**, banda per banda.
+    """
+    a = classify_lines(hud, _cfg(exclude_colored=False))
+    b = classify_lines(hud, _cfg(sat_max=255))
+    c.eq(len(a), len(b), "l'interruttore trova le stesse bande di sat_max=255")
+    for x, y in zip(a, b):
+        c.eq((x.cls, x.color_word, round(x.sat_share, 6)),
+             (y.cls, y.color_word, round(y.sat_share, 6)),
+             "l'interruttore classifica come sat_max=255")
+        c.ok(np.array_equal(x.crop, y.crop), "l'interruttore da' all'OCR lo stesso ritaglio")
+
+    # E acceso non cambia niente rispetto a prima che esistesse: il default e'
+    # il comportamento di sempre, non una versione nuova con lo stesso nome.
+    d = classify_lines(hud, _cfg())
+    c.ok(bool(d) and not d[0].cls.is_dialogue, "acceso, l'interruttore e' il comportamento di sempre")
 
 
 # ------------------------------------------ la forma del difetto, sui contatori --
@@ -286,7 +320,7 @@ def _prova_contatori(c, schermate: dict[str, np.ndarray], ocr) -> None:
     **impossibile con**.
     """
     for nome, img in schermate.items():
-        rotto = _conta(schermate[nome], _cfg(line_pad=0.0, sat_max=255), ocr)
+        rotto = _conta(schermate[nome], _cfg(line_pad=0.0, exclude_colored=False), ocr)
         c.ok(rotto["vision.ocr.lines"] > 0, f"{nome}: senza margine i ritagli all'OCR ci sono")
         c.eq(
             rotto.get("vision.ocr.empty", 0),
@@ -294,7 +328,7 @@ def _prova_contatori(c, schermate: dict[str, np.ndarray], ocr) -> None:
             f"{nome}: senza margine sono vuoti **tutti** — la forma del difetto",
         )
 
-        sano = _conta(img, _cfg(line_pad=PAD_DICHIARATO, sat_max=255), ocr)
+        sano = _conta(img, _cfg(line_pad=PAD_DICHIARATO, exclude_colored=False), ocr)
         c.ok(sano["vision.ocr.lines"] > 0, f"{nome}: col margine i ritagli all'OCR ci sono")
         c.ok(
             sano.get("vision.ocr.empty", 0) < sano["vision.ocr.lines"],
@@ -323,31 +357,66 @@ def _prova_catena(c, schermate: dict[str, np.ndarray], ocr) -> None:
     solo non basta — che e' il motivo per cui correggerne uno e provare non
     aveva mostrato nessun progresso.
 
-    | `line_pad` | `sat_max` | battute aperte |
+    | `line_pad` | «Ignora i sottotitoli colorati» | battute aperte |
     |---|---|---|
-    | 0,0 | 60 (difese GTA V) | nessuna |
-    | 0,2 | 60 | nessuna |
-    | 0,0 | 255 | nessuna |
-    | **0,2** | **255** | **la battuta, per intero** |
+    | 0,0 | acceso (default, difese GTA V) | nessuna |
+    | 0,2 | acceso | nessuna |
+    | 0,0 | spento | nessuna |
+    | **0,2** | **spento** | **la battuta, per intero** |
     """
     for nome, img in schermate.items():
-        for pad, sat, deve in (
-            (0.0, VisionConfig().sat_max, False),
-            (PAD_DICHIARATO, VisionConfig().sat_max, False),
-            (0.0, 255, False),
-            (PAD_DICHIARATO, 255, True),
+        for pad, difesa, deve in (
+            (0.0, True, False),
+            (PAD_DICHIARATO, True, False),
+            (0.0, False, False),
+            (PAD_DICHIARATO, False, True),
         ):
             orologio = _Orologio()
             lettore = SubtitleReader(
-                _cfg(line_pad=pad, sat_max=sat), ocr, metrics=MetricsRegistry(), clock=orologio
+                _cfg(line_pad=pad, exclude_colored=difesa), ocr, metrics=MetricsRegistry(), clock=orologio
             )
             aperte = _legge(lettore, orologio, img)
             if deve:
-                if c.ok(len(aperte) == 1, f"{nome}: pad {pad} + sat_max {sat} apre una battuta"):
+                if c.ok(len(aperte) == 1, f"{nome}: pad {pad} + difesa {difesa} apre una battuta"):
                     for parola in ATTESO[nome]:
                         c.ok(
                             parola in aperte[0],
                             f"{nome}: la battuta dice {parola!r} (aperta {aperte[0]!r})",
                         )
             else:
-                c.eq(aperte, [], f"{nome}: pad {pad} + sat_max {sat} non apre niente")
+                c.eq(aperte, [], f"{nome}: pad {pad} + difesa {difesa} non apre niente")
+
+
+# ---------------------------------------------------- l'interruttore, a caldo --
+
+
+def _prova_a_caldo(c, img: np.ndarray, ocr) -> None:
+    """La casella si puo' spuntare **a sessione accesa**, e si sente subito.
+
+    La UI la espone come «Ignora i sottotitoli colorati» e scrive nello stesso
+    oggetto config che il lettore rilegge a ogni fotogramma. Detta cosi' e' una
+    supposizione: qui e' un lettore **gia' costruito** che prima non apre
+    niente, e che dopo aver girato l'interruttore apre la battuta — senza
+    ricostruire nulla.
+
+    Questo progetto ha gia' pagato per campi dichiarati e non letti
+    (`max_ocr_hz`, `tts.device`, `background_mode`, `overlay.ritardo`): un
+    interruttore che la UI mostra e che la catena non guarda darebbe una
+    sessione diversa da quella che si crede di stare guardando, ed e' il difetto
+    peggiore per uno strumento di misura.
+    """
+    cfg = _cfg(line_pad=PAD_DICHIARATO)  # difesa accesa: com'e' di default
+    orologio = _Orologio()
+    lettore = SubtitleReader(cfg, ocr, metrics=MetricsRegistry(), clock=orologio)
+
+    c.eq(_legge(lettore, orologio, img), [], "a difesa accesa il lettore non apre niente")
+
+    cfg.exclude_colored = False  # la spunta tolta dall'utente, a sessione accesa
+    aperte = _legge(lettore, orologio, img)
+    if c.ok(len(aperte) == 1, "tolta la spunta, lo **stesso** lettore apre la battuta"):
+        c.ok("ALFIO" in aperte[0], f"e la battuta e' quella giusta ({aperte[0]!r})")
+
+    cfg.exclude_colored = True  # rimessa: si torna indietro senza riavviare
+    lettore.diff = SubtitleReader(cfg, ocr, metrics=MetricsRegistry(), clock=orologio).diff
+    lettore.tracker.close_all(orologio.t)
+    c.eq(_legge(lettore, orologio, img), [], "rimessa la spunta, si torna al comportamento di prima")

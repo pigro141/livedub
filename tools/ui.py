@@ -246,6 +246,25 @@ class App:
         self.b_start.pack(side="left", padx=6)
         self.b_stop = tk.Button(barra, text="Ferma", command=self.ferma, width=10, state="disabled")
         self.b_stop.pack(side="left")
+        # **L'unico parametro che due giochi vogliono al contrario.** Il colore
+        # e' l'HUD in GTA V (obiettivi di missione, nomi di app) e il nome di
+        # chi parla in Mafia: The Old Country (`ENZO:`, `ALFIO:` in giallo).
+        # Nessuna soglia li concilia, quindi la sceglie chi il gioco lo sta
+        # guardando. Si veda `VisionConfig.exclude_colored`.
+        #
+        # Si cambia **a caldo**: la casella scrive nello stesso oggetto config
+        # che il lettore rilegge a ogni fotogramma, quindi non c'e' niente da
+        # ricostruire e non c'e' da riavviare. Questo e' uno dei pochi campi per
+        # cui e' vero — il backend TTS o quello OCR no.
+        self.v_colorati = tk.BooleanVar(value=bool(self.cfg.vision.exclude_colored))
+        self.c_colorati = tk.Checkbutton(
+            barra,
+            text="Ignora i sottotitoli colorati",
+            variable=self.v_colorati,
+            command=self._cambia_colorati,
+        )
+        self.c_colorati.pack(side="left", padx=10)
+
         self.l_roi = tk.Label(barra, text=self._testo_roi(), anchor="w")
         self.l_roi.pack(side="left", padx=12)
 
@@ -276,6 +295,21 @@ class App:
         self.root.after(self.PASSO_UI, self._svuota_coda)
 
     # -- ROI ---------------------------------------------------------------
+
+    def _cambia_colorati(self) -> None:
+        """La casella dei sottotitoli colorati, applicata subito.
+
+        Si scrive nella config **viva**, quella che il lettore rilegge a ogni
+        fotogramma, e si dichiara a log: un interruttore che cambia cosa si
+        legge senza dirlo darebbe una sessione diversa da quella che si crede di
+        stare guardando.
+        """
+        acceso = bool(self.v_colorati.get())
+        self.cfg.vision.exclude_colored = acceso
+        self.scrivi(
+            "sottotitoli colorati: " + ("ignorati (difesa dall'HUD accesa)" if acceso
+                                        else "letti (per i giochi che colorano il nome di chi parla)")
+        )
 
     def _testo_roi(self) -> str:
         x, y, w, h = self.cfg.vision.roi

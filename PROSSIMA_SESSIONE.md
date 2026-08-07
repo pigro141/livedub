@@ -9,7 +9,7 @@ italiano dal vivo dei sottotitoli dei videogiochi.
 
 ## Il secondo gioco: fatto, e la risposta è metà sì
 
-Il test c'è (gruppo `gioco2`, 55 verifiche, suite a **1227**) e le due passate a
+Il test c'è (gruppo `gioco2`, 63 verifiche, suite a **1235**) e le due passate a
 confronto sono state fatte. Il gioco è **Mafia: The Old Country** in italiano.
 
 **Un solo parametro dei due va bene a tutti e due i giochi.** La verità è
@@ -30,19 +30,30 @@ non l'ha letta» e «non c'era niente da leggere» sono due cose diverse:
   controllo **identiche carattere per carattere**, quindi non è fortuna.
   Resta a 0 di default: cambia il gioco principale (130 → 123 battute aperte) e
   quel giudizio è dell'orecchio. **Serve una prova d'ascolto per promuoverlo.**
-- **`sat_max=255` non è compatibile, e non è una soglia da trovare.** Su GTA V
-  spegne l'intera difesa dall'HUD (1349 righe scartate → 0) e le due righe che
-  *guadagna* sono `'Andiamo a Vinewood Boulevard.'` e `'Vinewood Boul'`: obiettivi
-  di missione pronunciati. Fuori lessico 8,0% → 9,4%.
+- **Il filtro del colore non è compatibile, e non è una soglia da trovare.** Su
+  GTA V spegnerlo butta giù l'intera difesa dall'HUD (1349 righe scartate → 0) e
+  le due righe che *guadagna* sono `'Andiamo a Vinewood Boulevard.'` e
+  `'Vinewood Boul'`: obiettivi di missione pronunciati. Fuori lessico 8,0% → 9,4%.
   *(E il metro «quante battute vere ritrova» **non può** esprimere questa
   risposta, perché conta l'HUD come testo vero: saliva da 88 a 90 mentre le cose
   peggioravano. È la regola del controllare che la misura possa rispondere.)*
 
-Quello che resta aperto è quindi **uno solo**, ed è quello già dichiarato: serve
-poter dire «il colore è del **nome**, non di scenario». Il nome sta all'inizio
-della riga, finisce con i due punti, e si ripete identico fra le battute — sono
-tre indizi che una soglia sulla saturazione non ha. `vision/label.py` esiste già
-e fa metà del lavoro.
+**Ed è per questo che è diventato un interruttore dell'utente**, deciso il 7
+agosto: `vision.exclude_colored`, nella UI la casella **«Ignora i sottotitoli
+colorati»**. I due giochi lo vogliono al contrario e nessun valore li concilia,
+quindi la scelta è di chi il gioco lo sta guardando — non un default da
+indovinare. Si cambia **a caldo**: la casella scrive nella config viva che il
+lettore rilegge a ogni fotogramma, e c'è una verifica che lo prova su un lettore
+già costruito (mutando la riga che legge il campo, il gruppo diventa rosso in sei
+punti — è la classe di difetto che questo progetto ha già pagato quattro volte).
+Sul banco l'interruttore dà un risultato **identico carattere per carattere** a
+`sat_max=255`, quindi tutte le misure archiviate continuano a parlare di lui.
+
+Quello che resta aperto è quindi **la terza posizione dell'interruttore**: saper
+dire «il colore è del **nome**, non di scenario», così che nessuno dei due giochi
+debba rinunciare a niente. Il nome sta all'inizio della riga, finisce con i due
+punti, e si ripete identico fra le battute — tre indizi che una soglia sulla
+saturazione non ha. `vision/label.py` esiste già e fa metà del lavoro.
 
 Il materiale: `mafia_scena.mp4` (150 s dall'Atto 3 «Pizzu», gitignorato) e le due
 schermate dell'utente in `assets/gioco2/`. `yt-dlp` va installato **fuori dal
@@ -125,7 +136,7 @@ README per intero.**
 
 ## Dove siamo
 
-Suite verde a **1227 verifiche**. La catena dal vivo funziona: ultima sessione
+Suite verde a **1235 verifiche**. La catena dal vivo funziona: ultima sessione
 (`runs/2026-08-07_03-34-36`, 58 battute in 3 minuti, area stretta a 0,080):
 
 | | |
@@ -145,7 +156,7 @@ La UI si prova accendendola. Il resto serve solo a controllare che una modifica
 non abbia rotto la catena sotto.
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                    # 1227 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest                    # 1235 verifiche
 
 # la UI dal vivo, con i controlli fatti prima e la configurazione stampata
 powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci -Traduttore google

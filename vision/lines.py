@@ -267,6 +267,19 @@ def classify_lines(roi: np.ndarray, cfg: VisionConfig) -> list[LineBand]:
     if not mask.any():
         return []
 
+    # **L'esclusione delle righe colorate e' un interruttore dell'utente.** Si
+    # veda `VisionConfig.exclude_colored`: il colore vuol dire l'HUD in GTA V e
+    # il nome di chi parla in Mafia, e nessuna soglia distingue i due casi.
+    #
+    # Spegnerlo si fa alzando la soglia oltre il massimo possibile, e non e' un
+    # trucco: la saturazione e' `max - min` sui canali, quindi non puo' superare
+    # 255 e nessun pixel risulta colorato. Da li' in giu' tutto si spegne da
+    # solo — la quota `sat_ink_max` vale 0, la corsa colorata e' vuota, e i pixel
+    # colorati restano nel ritaglio invece di essere tolti. Un solo posto da
+    # cambiare invece di quattro rami paralleli, che e' il modo in cui in questo
+    # progetto una cura e' stata applicata a meta'.
+    sat_max = cfg.sat_max if getattr(cfg, "exclude_colored", True) else 255
+
     min_px = max(1, int(roi.shape[1] * cfg.min_line_fill))
     out: list[LineBand] = []
     for top, bottom in find_bands(mask, cfg.min_line_height, min_px, cfg.line_grow):
@@ -276,7 +289,7 @@ def classify_lines(roi: np.ndarray, cfg: VisionConfig) -> list[LineBand]:
         band_sat_img = sat[top : bottom + 1]
         band_luma_img = luma[top : bottom + 1]
 
-        hot = band_mask & (band_sat_img > cfg.sat_max)  # inchiostro colorato
+        hot = band_mask & (band_sat_img > sat_max)  # inchiostro colorato
         cool = band_mask & ~hot  # i glifi bianchi o grigi, se ci sono
         n_hot, n_cool = int(hot.sum()), int(cool.sum())
         share = n_hot / max(1, n_hot + n_cool)
@@ -309,7 +322,7 @@ def classify_lines(roi: np.ndarray, cfg: VisionConfig) -> list[LineBand]:
         # ingrandimento.
         band_ink = band_luma_img > cfg.grey_min_luma
         colonne_ink = band_ink.any(axis=0)
-        colonne_calde = (band_ink & (band_sat_img > cfg.sat_max)).any(axis=0)
+        colonne_calde = (band_ink & (band_sat_img > sat_max)).any(axis=0)
         estensione = _estensione(colonne_ink)
         # **Le lettere si saldano prima di misurare la corsa**, se no si misura
         # la lettera piu' larga e il criterio non scatta per nessuna parola.

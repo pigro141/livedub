@@ -178,32 +178,37 @@ class VisionConfig:
     # soglia riusata su un'altra distribuzione.
     #
     # A zero il criterio e' spento e resta la sola quota `sat_ink_max`.
-    #
-    # **E qui c'e' l'unica incompatibilita' misurata fra due giochi.** Mafia: The
-    # Old Country scrive il nome di chi parla in giallo davanti a **ogni**
-    # battuta (`ENZO:`, `ALFIO:`), quindi questo criterio scarta tutto il
-    # dialogo: 1497 righe buttate, **zero** battute aperte in 150 secondi di
-    # scena. Si disfa solo spegnendo il colore (`sat_max=255`), e il prezzo su
-    # GTA V e' l'intera difesa dall'HUD — misurato sulle due scene:
-    #
-    # | | GTA V, righe scartate dal colore | GTA V, fuori lessico | Mafia, battute lette |
-    # |---|---|---|---|
-    # | `sat_max=37` (profilo) | 1349 | 8,0% | **0 su 18** |
-    # | `sat_max=255` | **0** | 9,4% | **12 su 18** |
-    #
-    # E le due righe che GTA V **guadagna** con 255 sono, letteralmente,
-    # `'Andiamo a Vinewood Boulevard.'` e `'Vinewood Boul'`: obiettivi di
-    # missione pronunciati, cioe' il difetto per cui questo criterio esiste.
-    # (Vale la pena notarlo: il metro «quante battute vere ritrova» **non puo'**
-    # esprimere questa risposta, perche' conta l'HUD come testo vero. Il numero
-    # saliva da 88 a 90 mentre la cosa peggiorava.)
-    #
-    # Non e' una soglia da trovare: nessun valore separa un nome giallo da un
-    # obiettivo giallo. Serve poter dire **«il colore e' del nome, non di
-    # scenario»** — il nome sta all'inizio della riga, finisce con i due punti,
-    # e si ripete identico fra le battute. Finche' non c'e', i due giochi
-    # vogliono due valori.
     min_color_word_frac: float = 0.15
+    # **Se le righe con dell'inchiostro colorato vanno buttate. E' una scelta
+    # del gioco, quindi la fa l'utente.**
+    #
+    # Acceso e' giusto su GTA V, dove il colore e' dell'HUD: obiettivi di
+    # missione, nomi di app, la radio. Spegnerlo li' significa sentirli
+    # pronunciare — misurato, con la difesa giu' tornano `'Andiamo a Vinewood
+    # Boulevard.'` e `'Vinewood Boul'`.
+    #
+    # Ma il colore vuol dire un'altra cosa in un gioco che colora **il nome di
+    # chi parla** davanti a ogni battuta. Mafia: The Old Country scrive `ENZO:`,
+    # `ALFIO:` in giallo, e con la difesa accesa si butta tutto il dialogo.
+    # Misurato sulle due scene, con la verita' presa fuori dalla catena:
+    #
+    # | | GTA V, righe scartate | GTA V, fuori lessico | Mafia, battute lette |
+    # |---|---|---|---|
+    # | acceso (default) | 1349 | 8,0% | **0 su 18** |
+    # | spento | **0** | 9,4% | **12 su 18** |
+    #
+    # I due giochi vogliono il contrario, e **nessuna soglia li concilia**:
+    # nessun valore separa un nome giallo da un obiettivo giallo. Quindi non e'
+    # un numero da tarare meglio, e' un interruttore — e sta all'utente, che il
+    # suo gioco lo conosce. La UI lo espone come «Ignora i sottotitoli
+    # colorati», e si puo' cambiare **a caldo**: la riga si riclassifica a ogni
+    # fotogramma, quindi non c'e' niente da ricostruire.
+    #
+    # Il giorno in cui si sapra' dire «il colore e' del **nome**, non di
+    # scenario» — il nome sta a inizio riga, finisce con i due punti, e si
+    # ripete identico fra le battute — questo interruttore potra' avere un terzo
+    # valore invece di due.
+    exclude_colored: bool = True
     # Quanto vuoto si chiude fra due colonne colorate perche' contino come la
     # stessa parola, in quote dell'altezza della banda. Misurato su Arial
     # grassetto a 20, 34 e 60 punti: **0,16-0,205** fra due lettere della stessa

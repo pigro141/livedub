@@ -526,6 +526,30 @@ class DubPipeline:
         # aggiorna mentre la sessione gira.
         for ev in out.closed:
             if ev.duration is not None:
+                # **La previsione si prende prima che il modello impari da lei**,
+                # se no si confronta la previsione con se stessa.
+                #
+                # Perche' finisce nel registro: `finestra_prevista` era scritta
+                # a ogni battuta, la durata vera era **osservata** qui e buttata,
+                # e quindi la domanda «la finestra e' prevista bene?» non era
+                # rispondibile da nessuna traccia — mentre il numero per
+                # rispondere passava di qua a ogni sottotitolo. E' la stessa
+                # forma di `overlay.ritardo`, `max_ocr_hz`, `tts.device` e
+                # `background_mode`: misurato o disponibile, e mai letto.
+                #
+                # Serve perche' `dub.rate_x1000` sta al tetto sul 20% delle
+                # battute, e li' la durata naturale (3,08 s) supera la finestra
+                # prevista (2,32 s). Se la previsione e' corta, il budget e'
+                # artificialmente piccolo e si comprime per niente; se e' giusta,
+                # il parlato e' davvero troppo e la cura sta altrove. Le due
+                # portano a rimedi opposti.
+                self._registra_riga({
+                    "kind": "finestra",
+                    "t_on": round(float(ev.t_on), 3),
+                    "text": ev.text,
+                    "vera": round(float(ev.duration), 3),
+                    "prevista": round(float(self.timing.predict(ev.text)), 3),
+                })
                 self.timing.observe(ev.text, ev.duration)
             self._learn(ev)
         # **Non si parla subito: si aspetta che il personaggio parli.** Alla

@@ -26,115 +26,170 @@ README per intero.**
 
 ## Dove siamo
 
-Suite verde a **1164 verifiche**. L'ultima sessione è partita da un video di
-debug registrato dall'utente ed è stata tutta **grafica dell'overlay dal vivo**:
-quattro difetti trovati guardando i suoi fotogrammi e il suo log, non il codice.
+Suite verde a **1172 verifiche**. La sessione del 7 agosto ha chiuso quattro
+difetti e ne ha *smentito* un quinto con una misura. Tutti e quattro sono stati
+trovati guardando **il video della sessione dell'utente e il suo log a schermo**,
+non i contatori: nessuno dei quattro faceva scattare un numero.
 
-**Il vivo è stato provato due volte**, in `runs/2026-08-06_15-34-16` (blur) e
-`runs/2026-08-06_15-51-18` (riquadro). Da lì vengono tutti i numeri qui sotto.
+Il riferimento è `runs/2026-08-07_01-40-16` (589 battute, 45 minuti dal vivo).
 
-## Le cinque cose che questa sessione ha cambiato
+## Il banco nuovo, che cambia il modo di lavorare
 
-**1. Il riquadro sfocato non si allarga più, e si posa dove l'OCR ha letto.**
-Nel log dell'utente andava a `1515x390` — l'intera fascia d'analisi per una riga
-da 45 px — col raggio della sfocatura a 55,8 invece di 12. Due cause: la
-geometria si ricercava nei pixel **2310 ms dopo** la lettura (scena cambiata,
-originale sparito, si trovava scenario), e il filtro delle bande guardava **solo**
-la sovrapposizione orizzontale. Adesso `SpokenLine.boxes`/`ink` portano a valle i
-rettangoli validati dal lettore, finiscono anche in `events.jsonl`, e **vivo e
-MP4 prendono la geometria dalla stessa fonte**. Misurato dal vivo dopo: altezza
-del riquadro p50 28-39 px, una sola sopra i 100 su 30 righe.
+`yt_scena.mp4` (282 MB, gitignorato) è la scena della sessione dell'utente
+scaricata da YouTube a 1080p60. **Il video è avanti di 29,5 s rispetto ai tempi
+della sessione dal vivo** (il primo pezzo è il riassunto dell'episodio prima).
 
-**2. Il blur non aspetta più l'OCR.** Il ritaglio stava in fondo al giro video:
-per spedire dei pixel da sfocare aspettava che l'OCR avesse letto — `vision.ocr`
-a 84 ms al p50 e 137 al massimo. Adesso parte subito dopo `grab()`. E
-`overlay.ritardo`, che veniva misurato a ogni giro e **buttato**, finisce nel
-report: **p50 20-23 ms, p95 39, max 70**.
+```powershell
+.\.venv\Scripts\python.exe -m tools.dub yt_scena.mp4 --profile gtav --start 29 --end 315 `
+    --set vision.ocr_backend=oneocr
+```
 
-**3. I doppioni: il cancello confrontava due lingue.** `_gia_detta` riceve la
-battuta prima che `_speak` la traduca (italiano), le battute già dette la
-conservano tradotta (inglese): `abbracciami` contro `hugme`, quindi **non poteva
-scattare mai**. `dub.repeated` era a 0 con due doppioni identici a schermo; dopo
-la cura, **6** sulla stessa scena.
+Riproduce il tetto di compressione e la frammentazione delle identità con la
+stessa forma del vivo. Prima serviva una sessione intera dell'utente per provare
+una modifica sul riconoscimento; adesso sono tre minuti. Se serve un'altra scena,
+si scarica con `yt-dlp` installato **fuori dal venv** (`pip install --target`) e
+`--download-sections`.
 
-**4. Il blur a ritardo zero non si può fare, e la modalità che lo è esisteva
-già.** Provato se può sfocare il compositore invece di noi: su Windows 11 26200
-`ACCENT_ENABLE_BLURBEHIND` e `ACCENT_ENABLE_ACRYLICBLURBEHIND` **tingono e
-basta** (lo scalino chiaro/scuro dietro passa da 99,9 a 3,8 e 9,5).
-`background_mode="riquadro"` invece il ritardo non ce l'ha per costruzione, e
-adesso il suo colore è la mediana dei pixel coperti invece di un nero fisso.
+## Le quattro cose corrette
 
-**5. `prova.ps1` accetta `-Set sezione.campo=valore`**, ripetibile e stampato.
+**1. La voce restava neutra su tutto, e la causa era un ramo che non attaccava
+niente.** A pool pieno (`max_speakers = 16`) `impara` restituiva l'id del
+migliore senza contargli la battuta. Il pool si riempie con le prime 16 righe,
+quindi da lì in poi *ogni* riga passava di lì: nessuno arrivava a due battute,
+nessuno diventava `confermato`, e `scegli` — che sceglie solo fra i confermati —
+restituiva zero per sempre.
 
-## La domanda aperta, ed è dell'utente non dei numeri
+Dal vivo: voci neutre da **98/101 (97%) a 208/589 (35%)**, punteggio p50 da 0,136
+a **0,394**, `battute_note` p50 da 0 a **52**, tre voci vere in uso.
 
-**Blur o riquadro?** Il blur mostra il gioco ma ha un ritardo residuo che non si
-può togliere; il riquadro non ha ritardo ma si nota di più. L'utente ha provato
-tutti e due e **il suo giudizio non è ancora arrivato**. Non cambiare il default
-prima di quello.
+**2. Il bordo sfumato della toppa rimetteva il sottotitolo da nascondere.** La
+sfumatura mescolava lo sfocato con i pixel del gioco: sul bordo ricompariva
+l'italiano. Misurato, l'inchiostro originale si leggeva il **doppio** sulla
+cornice che al centro (68,3 contro 34,2). Spenta (`sfuma = 0`).
 
-La terza strada, se dice «il riquadro si vede troppo ma il blur è ancora in
-ritardo»: alzare molto `translate.blur_strength`. Dei pixel abbastanza sfocati
-non sono databili, quindi il ritardo smette di vedersi pur restando. Non è stata
-provata.
+**3. La parola colorata: il criterio non poteva scattare.** `_corsa_piu_lunga`
+girava sulle colonne grezze e fra le lettere c'è del vuoto, quindi misurava **la
+lettera più larga**: quota 0,043 contro una soglia di 0,15. Adesso le lettere si
+saldano prima (`_chiudi_buchi`, `color_word_gap = 0.28`, misurato: 0,16-0,205 fra
+lettere e 0,375-0,438 fra parole).
 
-## Il difetto che resta, e che nessun filtro può togliere
+**4. L'HUD sulla stessa riga finiva nel ritaglio e veniva pronunciato.** Il
+ritaglio andava dalla prima all'ultima colonna d'inchiostro: nome della strada,
+radio, nomi di app. Nella sessione dell'utente **63 battute su 576, l'11%** —
+`.San An`, `.Las Laguni`, `SiniQuelli erano...`. Adesso la banda si spezza ai
+buchi larghi (`line_gap_split = 2.5`, sei volte uno spazio) e si tiene il blocco
+**più vicino al centro**, perché GTA V centra i sottotitoli e mette l'HUD ai bordi.
 
-**La riga di testo si salda a ciò che ha attorno.** Su fondo chiaro `find_bands`
-non affianca la riga al chiaro vicino: ci si fonde — misurato, una banda alta
-**186 px che conteneva** un sottotitolo da 45. Il riquadro allora cresce con lei.
-Le cure ci sono (ancora scelta per vicinanza al centro dell'area, altezza di
-riferimento limitata dal corpo del carattere, tetto duro sul riquadro) ma la
-causa a monte è **l'area disegnata troppo alta**: con `respiro = 0.6*rh`, un
-rettangolo alto un sesto dello schermo dà una fascia di 391 px per una riga da
-45. La UI adesso avvisa sopra 0,12. Se il difetto torna, è lì che si guarda.
+## L'ipotesi smentita, e vale quanto le correzioni
 
-## Le due cose che l'ultima sessione ha lasciato in giro
+`dub.rate_x1000` sta al tetto sul 20% delle battute. L'ipotesi era: la finestra è
+prevista corta, quindi si comprime per niente.
 
-- `dub.rate_x1000` sta a **1250 dal p95 in su** in entrambe le sessioni (p50
-  1000-1040). Un numero inchiodato al tetto, in questo progetto, non è mai una
-  coincidenza. Non è stato indagato.
-- L'OCR sporca il testo e il traduttore ci costruisce sopra: `'Lavoriamo : si
-  eme gia da qualche mese'` è diventato `"Us: We've been working together..."`.
-  L'errore di lettura diventa una parola nella traduzione.
+Per rispondere ho dovuto **rendere la domanda rispondibile**: la durata vera del
+sottotitolo veniva osservata da `timing.observe` a ogni riga e buttata via.
+Adesso finisce nel registro come `kind: "finestra"` (con la previsione presa
+*prima* che il modello impari da lei). Misurato, sulle battute al tetto:
+
+| | |
+|---|---|
+| finestra prevista | 1,37 s |
+| finestra **vera** | **0,93 s** |
+| durata naturale del parlato | 1,25 s |
+| entrerebbero senza comprimere | **4 su 17 (24%)** |
+
+**L'opposto dell'ipotesi**: la previsione era già generosa e la compressione è
+necessaria in tre casi su quattro. Nel predittore non c'è niente da correggere.
+
+## La decisione aperta, ed è dell'orecchio dell'utente
+
+**`tts.native_rate_max` vale 1,55 ed è un numero solo per tutti i motori.** I
+tetti di integrità misurati e scritti in `CLAUDE.md` sono **1,10 per SuperTonic e
+1,30 per Kokoro**. Con Kokoro la catena spinge il motore venticinque centesimi
+oltre il punto dove è stato misurato che la voce regge, e passa il residuo a
+WSOLA, che si inchioda al suo 1,25.
+
+È la stessa forma di errore già pagata due volte con `chars_per_second`, e sta
+scritta nel file stesso: *«ogni backend dichiara il proprio passo e il proprio
+tetto: un numero solo per tutti i motori è già costato due sessioni»*.
+`chars_per_second` è stato reso per-backend; `native_rate_max` no.
+
+**Non è un guadagno gratis.** Abbassarlo a 1,30 fa articolare meglio il motore e
+sposta *più* carico su WSOLA, che schiaccia peggio. Alzare `timing.rate_max` sopra
+1,25 fa sparire le consonanti. I due si scambiano il difetto, e quale si senta
+meno lo decide l'orecchio. **Il modo di chiederglielo è pronto e non richiede il
+gioco acceso**: due MP4 della stessa scena con `tools/dub.py --mp4`, uno a 1,55
+nativo e uno a 1,30, ascoltati affiancati. Mezz'ora di banco. Non è stato fatto.
+
+## Quello che resta, in ordine di quanto costa
+
+- **L'area di cattura dell'utente era alta 0,144**, sopra la soglia di 0,12 su cui
+  la UI avvisa. Misurato: con un'area così il banco legge **50 battute invece di
+  115**. Un'area larga non fa solo entrare l'HUD, fa leggere peggio. È il singolo
+  cambiamento col rapporto migliore fra sforzo e risultato, e lo fa l'utente.
+- **`speaker.ring_lag` mente.** Dice 5543 ms mentre `ritardo_anello` per battuta
+  dice 7 ms. Ha mandato una diagnosi fuori strada per mezza sessione, e sta nel
+  report che si legge all'inizio della prossima. Va aggiustato o tolto.
+- **Il riquadro sfocato ogni tanto va a 1318×154 o 175**, contro i 48-107 normali.
+  È la saldatura con lo sfondo chiaro, e discende dall'area larga: stringendola
+  dovrebbe sparire da sola. Da riverificare **dopo** che l'area è stretta.
+- Il caso della parola colorata **corta** in una frase lunga («Premi **E** per
+  entrare») resta scoperto: quota 0,025, sotto qualunque soglia che non butti via
+  dialogo.
+- La verifica di `line_gap_split` **sull'area larga** non è stata portata a
+  termine (passata in timeout). L'11% è la misura del difetto, non del rimedio.
 
 ## Il banco
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                    # 1164 verifiche
-.\.venv\Scripts\python.exe -m tools.dub testGameplayFattoDaMe.mp4 --profile gtav `
-    --start 1240 --end 1290 --set vision.ocr_backend=oneocr --mp4
-.\.venv\Scripts\python.exe -m tools.overlay_mp4 testGameplayFattoDaMe.mp4 runs\<passata> `
-    --profile gtav --offset 1240 --frames 4 --out runs\ov\o.png
+.\.venv\Scripts\python.exe -m tools.selftest                    # 1172 verifiche
+.\.venv\Scripts\python.exe -m tools.dub yt_scena.mp4 --profile gtav `
+    --start 29 --end 315 --set vision.ocr_backend=oneocr --mp4
 .\.venv\Scripts\python.exe -m tools.reopen runs\<cartella> [secondo]
+.\.venv\Scripts\python.exe -m tools.recluster runs\<cartella>\speaker.jsonl --profile gtav
 ```
 
 Dal vivo:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci `
-    [-Set translate.background_mode=riquadro]
+powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci -Traduttore google `
+    [-Set translate.blur_strength=45]
 ```
 
 ## Le lezioni di questa sessione
 
-**Un rimedio che stringe può stringere sul posto sbagliato, e sembra comunque un
-progresso.** Il riquadro passava da 1516x391 a 670x108: tutti i numeri
-miglioravano. Guardando il fotogramma dipinto, stava **dove il sottotitolo non
-c'era** — peggio di prima, che almeno lo copriva. Le misure che guardavo erano
-tutte di *quanto*, e lo sbaglio era *dove*. Su una correzione geometrica, la
-verifica è l'immagine.
+**Uno spazzamento piatto non sta misurando la soglia che spazza.**
+`merge_similarity` da 0,35 a 0,90 non muoveva **un solo numero**: 16 identità con
+una battuta sola a ogni valore. Quello non è "la soglia è sbagliata", è "la
+variabile è un'altra e sta a monte". È il segnale che ha portato al difetto vero.
 
-**Controllare che la misura distingua le due risposte.** La prima prova sul blur
-del compositore guardava solo l'energia alle alte frequenze — che crolla tanto se
-sfochi quanto se copri. Diceva «SFOCA» a due API che non sfocavano.
+**Il pezzo si prova fuori dalla catena.** La banca alimentata a mano con le
+impronte già registrate ha separato in un minuto «la banca sbaglia» da «la catena
+non la usa come crede». Nella catena i due sono indistinguibili.
 
-**Prima di misurare qualcosa, guardare se è già misurato.** `overlay.ritardo`
-esisteva e veniva buttato. La domanda dell'utente aveva la risposta già raccolta,
-e io l'ho cercata con un banco.
+**Una verifica può esistere a metà.** Quella sul tetto del pool controllava che il
+pool non si superasse, non che il ramo facesse il suo lavoro. Era verde mentre il
+difetto rendeva neutra ogni voce della sessione.
 
-**Quando qualcosa arriva tardi, guardare cosa aspetta, non quanto costa.** Il
-ridisegno del blur costa 10,5 ms; il ritardo era gli 84 ms di OCR che aspettava
-senza motivo.
+**Il primo censimento era mal posto e diceva il contrario.** Calcolavo la
+saturazione con HSV invece che con `luma_sat()` del progetto: sulla sabbia l'HSV è
+saturo dappertutto, e la misura dichiarava «perdi il 33% del dialogo» su una
+correzione che non ne perde niente. Prima di credere a un numero, controllare che
+usi le definizioni della catena e non delle proprie.
+
+**Il surrogato ha colpito ancora.** Per tarare il taglio dell'HUD ho costruito i
+ritagli a mano e dati all'OCR: spazzatura **anche a trattamento spento**, quindi
+la misura non poteva esprimere niente. La risposta è venuta facendo girare la
+catena vera due volte.
+
+**Rendere la domanda rispondibile è metà del lavoro.** La durata vera del
+sottotitolo passava per `timing.observe` a ogni riga da sempre. Registrarla ha
+richiesto sei righe e ha ucciso un'ipotesi su cui si sarebbe potuta spendere una
+sessione intera. È il sesto campo misurabile e mai letto di questo progetto, dopo
+`overlay.ritardo`, `max_ocr_hz`, `tts.device` e `background_mode`.
+
+**Il log a schermo dell'utente vale quanto la sua registrazione.** I frammenti di
+HUD incollati alle battute — il difetto più grosso rimasto — si leggevano nella
+finestra di livedub dentro il suo video. Nessun contatore li mostrava, perché per
+la catena erano righe lette con successo.
 
 Fine del prompt.

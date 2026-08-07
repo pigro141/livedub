@@ -187,6 +187,24 @@ class VisionConfig:
     # lettere senza saldare le parole. A zero i buchi non si chiudono e si torna
     # a misurare la lettera.
     color_word_gap: float = 0.28
+    # Quanto dev'essere largo un buco orizzontale perche' cio' che sta di la'
+    # non sia piu' la stessa scritta, in quote dell'altezza della banda. Fra due
+    # parole il buco vale 0,4 (p75 misurato su 39248 buchi di 1125 bande di
+    # dialogo: p50 0,16, p75 0,39); sopra c'e' la coda dell'HUD sulla stessa
+    # riga. Fra i blocchi si tiene quello piu' vicino al centro dell'area.
+    # A zero non si spezza niente e il ritaglio torna a prendere tutta la riga.
+    #
+    # **2,5 e' scelto largo apposta**: uno spazio fra parole vale 0,4, quindi qui
+    # serve un buco sei volte piu' largo perche' si tagli. Sul banco con l'area
+    # calibrata il guadagno e' piccolo — spariscono `tMa ti dir�,` e
+    # `AaMerda. Per se stesso, penso.`, e si perde una battuta su 115 — perche'
+    # con quell'area l'HUD resta quasi tutto fuori. **Il caso che conta e' l'area
+    # larga di una sessione vera**, dove il difetto vale 63 battute su 576.
+    #
+    # Il limite della prova, dichiarato: la verifica sull'area larga non e' stata
+    # portata a termine (la passata di controllo e' andata in timeout), quindi il
+    # numero dal vivo e' quello del difetto, non quello del rimedio.
+    line_gap_split: float = 2.5
     white_min_luma: int = 200  # bianco pieno
     grey_min_luma: int = 110  # sotto questa soglia non e' testo
     # Il testo di gioco e' bordato di nero: non e' luminoso in assoluto, e'

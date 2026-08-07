@@ -352,6 +352,29 @@ def classify_lines(roi: np.ndarray, cfg: VisionConfig) -> list[LineBand]:
 
         cols = np.where(body_mask.any(axis=0))[0]
         x0, x1 = (int(cols[0]), int(cols[-1]) + 1) if cols.size else (0, roi.shape[1])
+        # **Il ritaglio si ferma al blocco del sottotitolo, non all'ultima
+        # colonna della riga.** Andando dalla prima all'ultima, qualunque
+        # scritta sulla stessa altezza ci finisce dentro: il nome della strada,
+        # la radio, il nome di un'app. L'OCR le legge di seguito alla battuta e
+        # **vengono pronunciate**. Nella sessione dell'utente sono 63 battute su
+        # 576 — l'11% — con dentro roba come `.San An`, `.Las Laguni`,
+        # `.Del. Pe`, `Sini`, `Sp`: tutti frammenti tagliati dal bordo dell'area.
+        #
+        # I due si separano da soli: fra due parole il buco vale 0,4 volte
+        # l'altezza della banda (p75 misurato 0,39), fra il sottotitolo e l'HUD
+        # molto di piu'. E fra i blocchi si tiene **quello piu' vicino al centro**
+        # dell'area, perche' GTA V scrive i sottotitoli centrati e l'HUD ai bordi
+        # — la stessa ancora che sceglie la banda da sfocare.
+        if cfg.line_gap_split > 0.0 and cols.size > 1:
+            alt = max(1, bottom - top + 1)
+            taglio = cfg.line_gap_split * alt
+            stacchi = np.flatnonzero(np.diff(cols) - 1 >= taglio)
+            if stacchi.size:
+                bordi = [0, *(stacchi + 1), cols.size]
+                centro = roi.shape[1] / 2.0
+                blocchi = [(cols[a], cols[b - 1] + 1) for a, b in zip(bordi, bordi[1:])]
+                a, b = min(blocchi, key=lambda z: abs((z[0] + z[1]) / 2.0 - centro))
+                x0, x1 = int(a), int(b)
         band_grey = band_luma_img[:, x0:x1] * body_mask[:, x0:x1]
         out.append(
             LineBand(

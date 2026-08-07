@@ -8,6 +8,8 @@ quella che si sta cercando.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 
 from core.config import VisionConfig
@@ -170,6 +172,39 @@ def test_lines(c) -> None:
     )
 
     c.eq(classify_lines(np.zeros((100, 400, 3), np.uint8), cfg), [], "ROI nera: nessuna riga")
+
+    # -- l'HUD sulla stessa riga non entra nel ritaglio --------------------
+    # Il ritaglio andava dalla prima all'ultima colonna d'inchiostro della
+    # banda: una scritta alla stessa altezza ma dall'altra parte dell'area — il
+    # nome della strada, la radio — ci finiva dentro, l'OCR la leggeva di
+    # seguito alla battuta e **veniva pronunciata**. Nella sessione dell'utente
+    # sono 63 battute su 576, con dentro roba come `.San An` e `.Del. Pe`.
+    #
+    # Qui si mette una macchia di inchiostro al bordo, alla stessa altezza del
+    # testo centrato, e si chiede che il ritaglio tenga **il blocco piu' vicino
+    # al centro**: GTA V scrive i sottotitoli centrati e l'HUD ai bordi.
+    con_hud = np.zeros((60, 800, 3), np.uint8)
+    con_hud[20:40, 300:500] = 240        # il sottotitolo, al centro
+    con_hud[22:38, 730:790] = 240        # il frammento di HUD, al bordo
+    cfg_h = replace(cfg, line_gap_split=2.5)
+    bh = [b for b in classify_lines(con_hud, cfg_h) if b.cls.is_dialogue]
+    c.ok(len(bh) == 1 and bh[0].x1 <= 560,
+         f"il ritaglio si ferma al blocco centrale e lascia fuori l'HUD "
+         f"(x1={bh[0].x1 if bh else -1}, l'HUD comincia a 730)")
+    cfg_0 = replace(cfg, line_gap_split=0.0)
+    b0 = [b for b in classify_lines(con_hud, cfg_0) if b.cls.is_dialogue]
+    c.ok(len(b0) == 1 and b0[0].x1 > 700,
+         f"e a taglio spento ci finisce dentro, se no la verifica non potrebbe "
+         f"fallire (x1={b0[0].x1 if b0 else -1})")
+    # Una battuta sola, senza HUD, non si tocca: fra le parole il buco vale 0,4
+    # volte l'altezza e la soglia e' 2,5.
+    solo = np.zeros((60, 800, 3), np.uint8)
+    solo[20:40, 300:380] = 240
+    solo[20:40, 392:500] = 240           # due parole, spazio normale
+    bs = [b for b in classify_lines(solo, cfg_h) if b.cls.is_dialogue]
+    c.ok(len(bs) == 1 and bs[0].x0 <= 300 and bs[0].x1 >= 500,
+         f"due parole con uno spazio normale restano la stessa riga "
+         f"({bs[0].x0 if bs else -1}-{bs[0].x1 if bs else -1}, atteso 300-500)")
 
     # Robustezza al rumore di fondo.
     for noise in (0.02, 0.05, 0.10):

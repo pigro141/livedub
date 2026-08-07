@@ -375,7 +375,34 @@ def classify_lines(roi: np.ndarray, cfg: VisionConfig) -> list[LineBand]:
                 blocchi = [(cols[a], cols[b - 1] + 1) for a, b in zip(bordi, bordi[1:])]
                 a, b = min(blocchi, key=lambda z: abs((z[0] + z[1]) / 2.0 - centro))
                 x0, x1 = int(a), int(b)
-        band_grey = band_luma_img[:, x0:x1] * body_mask[:, x0:x1]
+        # **Il ritaglio ha un margine sopra e sotto, e senza non si legge.**
+        #
+        # La banda finisce dove finisce l'inchiostro che la maschera ha trovato,
+        # e li' dentro non ci stanno gli accenti, le code di `g` e `p` e i bordi
+        # antialiasati dei glifi. Su GTA V si legge lo stesso; su un secondo
+        # gioco no, e non a meta': **niente affatto**.
+        #
+        # Misurato sullo screenshot dell'utente, banda alta 20 px in un ritaglio
+        # di 73:
+        #
+        #   la banda come la dava la catena  ->  (vuoto)
+        #   la stessa con 4 px sopra e sotto ->  letta intera, confidenza 1,00
+        #
+        # E non lo curava nessuno dei parametri che sembravano fatti apposta:
+        # `line_grow` lasciava la banda a 20 px a ogni valore da 0,45 a 2,00.
+        #
+        # **Mascherare o no non c'entra**, ed e' stato provato prima di scrivere
+        # questo: col margine l'OCR legge in tutti e due i modi, su fondo scuro e
+        # su fondo chiaro. Una prima versione aggiungeva un `mask_crop` per
+        # spegnere la maschera; era la cura del difetto sbagliato ed e' stata
+        # tolta.
+        pad = int(round(cfg.line_pad * (bottom - top + 1)))
+        if pad > 0:
+            t0 = max(0, top - pad)
+            t1 = min(luma.shape[0], bottom + 1 + pad)
+            band_grey = luma[t0:t1, x0:x1] * mask[t0:t1, x0:x1]
+        else:
+            band_grey = band_luma_img[:, x0:x1] * body_mask[:, x0:x1]
         out.append(
             LineBand(
                 top=int(top),

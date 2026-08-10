@@ -9,7 +9,7 @@ italiano dal vivo dei sottotitoli dei videogiochi.
 
 ## Il secondo gioco: fatto, e la risposta è metà sì
 
-Il test c'è (gruppo `gioco2`, 78 verifiche, suite a **1250**) e le due passate a
+Il test c'è (gruppo `gioco2`, 78 verifiche, suite a **1346**) e le due passate a
 confronto sono state fatte. Il gioco è **Mafia: The Old Country** in italiano.
 
 **Un solo parametro dei due va bene a tutti e due i giochi.** La verità è
@@ -66,62 +66,44 @@ schermate dell'utente in `assets/gioco2/`. `yt-dlp` va installato **fuori dal
 venv** (`pip install --target`, il venv monta `onnxruntime-gpu` e non si tocca) e
 si scarica solo la finestra che serve con `--download-sections`.
 
-## Poi il lavoro vero di questa sessione, e nient'altro
+## Il blocco UI e la distribuzione: fatti
 
-**Si lavora su `SviluppoProgetto.md`, blocco UI.** Quel file è la roadmap: 14
-feature su 14 chiuse, 4 step finali su 19, e il cancello che diceva *«prima di
-iniziare la fase seguente fammi fare una prova»* è stato passato il 7 agosto 2026
-— l'utente ha provato dal vivo, ha consegnato il report in forma di video, e i
-quattro difetti che ne sono usciti sono corretti.
+`SviluppoProgetto.md` è la roadmap. **16 step su 19 sono chiusi**, e tutto il
+blocco UI più tutta la distribuzione sono stati fatti l'8 agosto 2026:
 
-**Da qui in poi non si misura più: si costruisce l'interfaccia.** È il contrario
-di tutto quello che è venuto prima, ed è scritto nella roadmap. Se ti viene la
-tentazione di aprire un banco, rileggi *«Cosa NON si fa»* in fondo.
+- **la finestra** ha quattro schede (Sessione, Tecnologie, Aree, Impostazioni
+  avanzate) e la barra di prima sopra;
+- **le impostazioni si generano dall'albero** (`core/schema.py` + `ui/pannello.py`):
+  166 campi, il `?` di ognuno apre il commento di `core/config.py` *così com'è
+  scritto*, misure comprese. Non è un elenco a mano: aggiungere un campo lo fa
+  comparire da solo;
+- **142 campi su 166 si applicano a caldo**, i 24 che non possono lo dicono;
+- **le aree multiple** ci sono fino in fondo — config, catena, finestra — con i
+  due modi e le sovrapposizioni sottratte prima di leggere;
+- **licenza GPL-3.0-or-later**, obbligata da Piper (default) ed eSpeak NG. Il
+  conto sta in `LICENZE.md`;
+- **`installa.ps1`** verifica invece di dire «fatto»; **`livedub.spec`** produce
+  l'exe, ed è stato aperto e fotografato;
+- **README** rifatto per chi arriva da fuori, col diagramma Mermaid, la lista di
+  cosa esce dal computer e i requisiti misurati. Il vecchio è
+  `docs/architettura.md`.
 
-Le cinque voci del blocco, in ordine:
+## Cosa resta davvero: tre voci, tutte in attesa dell'utente
 
-1. **UI, interfaccia chiara e funzionale**
-2. **Selettore delle tecnologie da usare** (motore TTS, OCR, traduttore, impronta)
-3. **Impostazioni avanzate**: *tutti* i parametri regolabili, ognuno con l'icona
-   che spiega cosa fa e cosa si rischia a cambiarlo — comprese le frequenze
-   maschio/femmina
-4. **Cambiamento dei settings a caldo**, applicati dal vivo
-5. **Selettore di aree multiple**: solo testo, oppure testo+audio; e se due aree
-   si sovrappongono quel punto **non va lavorato due volte**
+1. **creare il repo GitHub** — l'utente ha detto «aspetta». Tutto il materiale è
+   pronto in locale; manca solo `gh repo create` e il push.
+2. **il sito GitHub Pages** — dipende dalla prima.
+3. **il link per le donazioni** — l'utente ha detto «dopo».
 
-Finito il blocco UI si passa a distribuzione (installabile, exe, licenza) e poi
-al repo. Sono già scritti in `SviluppoProgetto.md`; non riscriverli qui.
+**Una cosa da decidere prima di pubblicare**: 156 commit su 159 hanno il trailer
+`Co-Authored-By: Claude`. L'autore git è sempre e solo `filde`, quindi su GitHub
+non comparirebbe nessun collaboratore — ma il trailer si legge nei messaggi.
+Toglierlo significa riscrivere la storia (`git-filter-repo`), e va deciso.
 
-## Le quattro cose da sapere prima di scrivere una riga di UI
-
-**1. La UI non va inventata, va generata.** In `core/config.py` c'è **un solo
-albero di dataclass**, e ogni campo è già raggiungibile con
-`--set sezione.campo=valore`. Le impostazioni avanzate si costruiscono
-**percorrendo quell'albero**, non elencando i campi a mano: un elenco scritto a
-mano diverge al primo campo aggiunto, e questo progetto ha già quattro campi
-dichiarati in config che *non li leggeva nessuno* (`max_ocr_hz`, `tts.device`,
-`background_mode`, `overlay.ritardo`).
-
-**2. Le spiegazioni che l'utente chiede sono già scritte.** Quasi ogni campo di
-`core/config.py` ha sopra un commento che dice **cosa fa, quanto è stato
-misurato e cosa succede a cambiarlo** — spesso con la tabella della misura. Sono
-esattamente il testo dell'icona. Vanno estratti, non riscritti: riscriverli
-significa perdere le misure e inventare rischi.
-
-**3. Non tutti i parametri si possono cambiare a caldo, e la differenza è
-sostanziale.** Alcuni si leggono a ogni fotogramma (colori, soglie, dimensioni);
-altri si leggono **una volta sola alla costruzione** — il backend TTS, il backend
-OCR, il dispositivo, la frequenza dell'anello audio. Cambiare i secondi a caldo
-non dà errore: dà una sessione che gira con una configurazione diversa da quella
-che la UI mostra, che è il difetto peggiore possibile per uno strumento di
-misura. **La UI deve sapere quali sono quali** e, per i secondi, dire che serve
-un riavvio invece di fingere.
-
-**4. Il meccanismo di due voci spuntate c'è già, manca solo la faccia.** Colore e
-dimensione dei sottotitoli (`translate.color`, `background`, `background_opacity`,
-`background_mode`, `blur_strength`, `font`, `font_frac`, `outline`) e la scelta
-delle lingue (`translate.source` / `target`) funzionano già da `--set`. Il blocco
-UI in buona parte consiste nel dare una faccia a cose che girano.
+**E una decisione d'orecchio ancora aperta**: promuovere `line_pad` a 0,2 come
+default. Misurato meglio su tutti e due i giochi (vedi sopra), ma cambia il gioco
+principale — 130 → 123 battute aperte — e quello lo giudica l'ascolto, non il
+lessico. Basta una prova con `tools/dub.py --mp4` affiancata.
 
 ## Come si conosce questo progetto
 
@@ -142,7 +124,7 @@ README per intero.**
 
 ## Dove siamo
 
-Suite verde a **1250 verifiche**. La catena dal vivo funziona: ultima sessione
+Suite verde a **1346 verifiche**. La catena dal vivo funziona: ultima sessione
 (`runs/2026-08-07_03-34-36`, 58 battute in 3 minuti, area stretta a 0,080):
 
 | | |
@@ -162,7 +144,7 @@ La UI si prova accendendola. Il resto serve solo a controllare che una modifica
 non abbia rotto la catena sotto.
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                    # 1250 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest                    # 1346 verifiche
 
 # la UI dal vivo, con i controlli fatti prima e la configurazione stampata
 powershell -ExecutionPolicy Bypass -File tools\prova.ps1 -Traduci -Traduttore google

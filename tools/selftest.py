@@ -3034,6 +3034,7 @@ from tools.selftest_vision import (  # noqa: E402
     test_tracker,
 )
 from tools.selftest_gioco2 import test_gioco2  # noqa: E402
+from tools.selftest_schema import test_schema  # noqa: E402
 
 def test_session(c: Check) -> None:
     """La sessione salvata, e il giro di andata e ritorno che la rende utile.
@@ -3519,6 +3520,7 @@ GROUPS = {
     # OneOCR va acceso) e perche' e' il solo che possa dire «questa suite gira
     # su una macchina senza il modello».
     "gioco2": test_gioco2,
+    "schema": test_schema,
 }
 
 

@@ -299,10 +299,22 @@ class App:
         self.l_stato = tk.Label(self.root, text="fermo", anchor="w", fg="#666")
         self.l_stato.pack(fill="x", padx=10)
 
+        # **Le schede.** La barra sopra resta sempre visibile perche' e' quello
+        # che si tocca durante una prova; sotto ci sono le cose che si guardano
+        # una volta e poi si lasciano stare.
+        from tkinter import ttk
+
+        self.schede = ttk.Notebook(self.root)
+        self.schede.pack(fill="both", expand=True, padx=8, pady=8)
+
+        sessione = ttk.Frame(self.schede)
+        self.schede.add(sessione, text="Sessione")
         self.log = scrolledtext.ScrolledText(
-            self.root, font=("Consolas", 10), bg="#12131a", fg="#d8d8e0", insertbackground="#fff"
+            sessione, font=("Consolas", 10), bg="#12131a", fg="#d8d8e0", insertbackground="#fff"
         )
-        self.log.pack(fill="both", expand=True, padx=8, pady=8)
+        self.log.pack(fill="both", expand=True)
+
+        self._schede_config()
         # Un colore per personaggio: la domanda che si fa guardando questo log
         # non e' "cosa ha detto" ma "e' sempre lo stesso a parlare?", e a quella
         # l'occhio risponde da un colore molto prima che da una sigla.
@@ -322,6 +334,90 @@ class App:
         self.root.protocol("WM_DELETE_WINDOW", self.chiudi)
         self.root.after(self.PASSO_UI, self._svuota_coda)
 
+    # -- schede ------------------------------------------------------------
+
+    # **I quattro motori che si scelgono, piu' cio' che ognuno si porta
+    # dietro.** L'elenco e' di percorsi e non di valori: le *scelte* vengono
+    # dallo schema, cioe' dai commenti di `core/config.py`, quindi aggiungere un
+    # backend non richiede di toccare questo file.
+    TECNOLOGIE: tuple[str, ...] = (
+        "vision.ocr_backend", "vision.ocr_device",
+        "tts.backend", "tts.device", "tts.kokoro_weights", "tts.pool_size",
+        "speaker.backend", "vad.backend", "emotion.backend",
+        "translate.enabled", "translate.backend", "translate.source", "translate.target",
+        "correct.backend",
+    )
+
+    def _schede_config(self) -> None:
+        """Tecnologie e impostazioni, **disegnate dallo stesso pannello**.
+
+        Sono due viste dello stesso elenco e non due griglie diverse: la scheda
+        delle tecnologie e' il pannello filtrato ai quattordici percorsi che
+        scelgono un motore. Un secondo disegnatore mostrerebbe una cosa mentre
+        l'altro ne fa un'altra, che e' come sono nati i difetti dell'overlay.
+        """
+        from tkinter import ttk
+
+        from ui.pannello import Pannello
+
+        tecnologie = ttk.Frame(self.schede)
+        self.schede.add(tecnologie, text="Tecnologie")
+        ttk.Label(
+            tecnologie,
+            text="Quale motore usare per ogni stadio. Quasi tutti si leggono una volta "
+                 "sola: dopo averli cambiati serve ripremere Avvia.",
+            foreground="#666", wraplength=900, justify="left",
+        ).pack(fill="x", padx=8, pady=(8, 0))
+        self.p_tecnologie = Pannello(
+            tecnologie, self.cfg, al_cambio=self._campo_cambiato,
+            sessione_accesa=lambda: self.pipeline is not None,
+            solo=self.TECNOLOGIE, cerca=False,
+        )
+        self.p_tecnologie.pack(fill="both", expand=True)
+
+        avanzate = ttk.Frame(self.schede)
+        self.schede.add(avanzate, text="Impostazioni avanzate")
+        self.p_avanzate = Pannello(
+            avanzate, self.cfg, al_cambio=self._campo_cambiato,
+            sessione_accesa=lambda: self.pipeline is not None,
+        )
+        self.p_avanzate.pack(fill="both", expand=True)
+
+    def _riallinea_pannelli(self) -> None:
+        """La barra e i pannelli mostrano la stessa config: vanno tenuti insieme.
+
+        La barra in alto e le schede sono **tre griglie di caselle sopra un solo
+        oggetto**. Toccando la barra, i pannelli devono rileggere; se no la
+        scheda avanzata continuerebbe a mostrare il valore di prima, cioe' una
+        configurazione che non e' in uso.
+        """
+        for nome in ("p_tecnologie", "p_avanzate"):
+            pannello = getattr(self, nome, None)
+            if pannello is not None:
+                pannello.aggiorna()
+
+    def _campo_cambiato(self, campo, valore) -> None:
+        """Un parametro toccato dal pannello: si scrive a log e si riallinea.
+
+        **Le due viste sono lo stesso oggetto config ma due griglie di caselle**:
+        cambiando `tts.backend` dalla scheda delle tecnologie, la stessa riga
+        nelle avanzate deve aggiornarsi da sola. Se no una delle due mostrerebbe
+        un valore che non e' piu' quello in uso — lo stesso difetto della soglia
+        del colore digitata `9999`, spostato di una finestra.
+        """
+        for pannello in (getattr(self, "p_tecnologie", None), getattr(self, "p_avanzate", None)):
+            if pannello is not None:
+                pannello.aggiorna()
+        if campo.percorso == "vision.exclude_colored":
+            self.v_colorati.set(bool(valore))
+            self._aggiorna_sat()
+        elif campo.percorso == "vision.sat_max":
+            self.v_sat.set(int(valore))
+        elif campo.percorso == "vision.roi":
+            self.l_roi.configure(text=self._testo_roi())
+        coda = "" if campo.caldo else "  (serve ripremere Avvia)"
+        self.scrivi(f"{campo.percorso} = {valore}{coda}")
+
     # -- ROI ---------------------------------------------------------------
 
     def _cambia_colorati(self) -> None:
@@ -335,6 +431,7 @@ class App:
         acceso = bool(self.v_colorati.get())
         self.cfg.vision.exclude_colored = acceso
         self._aggiorna_sat()
+        self._riallinea_pannelli()
         self.scrivi(
             "sottotitoli colorati: " + ("ignorati (difesa dall'HUD accesa)" if acceso
                                         else "letti (per i giochi che colorano il nome di chi parla)")
@@ -369,6 +466,7 @@ class App:
         if valore == int(self.cfg.vision.sat_max):
             return
         self.cfg.vision.sat_max = valore
+        self._riallinea_pannelli()
         self.scrivi(f"soglia del colore: {valore} (sotto, una riga non e' colorata)")
 
     def _testo_roi(self) -> str:
@@ -399,6 +497,7 @@ class App:
                 # torna una finestra normale, e chi registra lo vede.
                 self.overlay.esclusione(False)
         self.l_roi.config(text=self._testo_roi())
+        self._riallinea_pannelli()
         if self.pipeline is not None:
             self.scrivi("(vale dalla prossima partenza)", tag="nota")
 

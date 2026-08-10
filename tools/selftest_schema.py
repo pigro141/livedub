@@ -86,6 +86,19 @@ def test_schema(c) -> None:
         len(senza) <= SENZA_AIUTO_MAX,
         f"i campi senza spiegazione non sono aumentati ({len(senza)}, tetto {SENZA_AIUTO_MAX})",
     )
+    # **Due campi non possono avere la stessa spiegazione.** E' il sintomo di un
+    # blocco di commento incollato al campo sbagliato — successo davvero: il
+    # commento di `mask_crop`, un campo tolto, era rimasto orfano e finiva
+    # attaccato a `line_pad`, che nel pannello spiegava un'altra cosa. A trovarlo
+    # e' stato **guardare il pannello**, non leggere il codice.
+    from collections import Counter
+
+    doppi = [t for t, n in Counter(k.aiuto for k in elenco if k.aiuto).items() if n > 1]
+    c.eq(doppi, [], "nessuna spiegazione e' condivisa da due campi")
+    c.ok(
+        per_nome["vision.line_pad"].aiuto.startswith("Quanto margine"),
+        "e `line_pad` spiega il margine, non la maschera del campo tolto",
+    )
     c.ok(
         per_nome["vision.sat_max"].sommario.endswith("dialogo"),
         "il sommario e' una riga sola, per stare accanto alla manopola",

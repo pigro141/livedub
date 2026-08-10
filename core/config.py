@@ -235,24 +235,6 @@ class VisionConfig:
     # portata a termine (la passata di controllo e' andata in timeout), quindi il
     # numero dal vivo e' quello del difetto, non quello del rimedio.
     line_gap_split: float = 2.5
-    # **Se all'OCR va il ritaglio mascherato o la banda in chiaro.**
-    #
-    # Acceso e' giusto su GTA V: il testo e' bianco pieno su fondo scuro, e
-    # togliere lo scenario dal ritaglio fa leggere meglio. Ma e' un'ipotesi sul
-    # gioco, non una verita' sul riconoscimento, e su un gioco che scrive il
-    # bianco a luminanza 180 invece che 250 si rovescia: i bordi antialiasati
-    # cadono sotto qualunque soglia che separi testo e fondo, e all'OCR arrivano
-    # lettere a brandelli.
-    #
-    # Misurato sullo screenshot di un secondo gioco (bianco su fondo marrone):
-    # immagine grezza letta a confidenza **1,00**, ritaglio mascherato **vuoto**.
-    # Quindici combinazioni di `grey_min_luma` (30-110) e `contrast_min`
-    # (0-68,8): una sola leggeva, ed era quella che teneva tutto — cioe' quella
-    # che spegneva la maschera. E su fondo **nero** anche quella smetteva, perche'
-    # li' la maschera torna a fare il suo lavoro.
-    #
-    # A spento la maschera resta dov'e' utile: trova le bande e decide la
-    # classe. Cambia solo cosa si da' da leggere.
     # Quanto margine sopra e sotto la banda va nel ritaglio dell'OCR, in quote
     # dell'altezza della banda. La banda finisce dove finisce l'inchiostro
     # trovato dalla maschera, e li' dentro non ci stanno accenti, code di `g` e

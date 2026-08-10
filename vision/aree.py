@@ -1,0 +1,159 @@
+"""Piu' aree di lettura sullo stesso schermo, senza lavorare due volte.
+
+**Perche' piu' di una.** Un gioco non mette tutto il testo nello stesso posto:
+il dialogo sta in basso al centro, il nome di chi parla puo' stare altrove, e i
+cartelli di missione hanno una loro striscia. Con una ROI sola si sceglie: o si
+allarga fino a contenerli tutti — e allora dentro ci finisce mezza scena, che e'
+il difetto misurato che salda le righe allo scenario — o si rinuncia.
+
+**E non tutte servono alla stessa cosa.** Un'area di dialogo va letta *e* detta a
+voce; un cartello di missione va al massimo tradotto e disegnato, ma pronunciarlo
+e' esattamente il difetto che l'11% delle battute di GTA V aveva. Da qui il
+`modo`: `testo_audio` legge e fa parlare, `testo` legge e basta.
+
+**Le sovrapposizioni si tolgono, non si tollerano.** Due aree che si accavallano
+farebbero leggere due volte gli stessi pixel: costo doppio sull'OCR — che e' gia'
+l'85% del lavoro della catena — e soprattutto la **stessa battuta letta due
+volte**, che a valle diventa due battute e due voci sovrapposte, il difetto
+peggiore del prodotto. Quindi la sovrapposizione si sottrae *prima* di leggere.
+
+**Come si sottrae, e perche' cosi'.** L'intersezione di due rettangoli si toglie
+tagliando l'area in strisce: fino a quattro rettangoli (sopra, sotto, sinistra,
+destra dell'intersezione), tutti ancora rettangoli. Non e' l'unica scomposizione
+possibile ma e' l'unica che tiene ogni pezzo **rettangolare**, e tutto quello che
+sta a valle — `classify_lines`, il diff, l'overlay — lavora su rettangoli. Una
+maschera arbitraria costringerebbe a riscrivere tre stadi per un caso di bordo.
+
+L'ordine decide chi cede: **vince l'area dichiarata prima**. E' una scelta e va
+detta, perche' altrimenti sarebbe l'ordine di iterazione a decidere in silenzio
+quale delle due aree perde dei pixel.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+Rettangolo = tuple[float, float, float, float]  # x, y, w, h normalizzati
+
+MODI = ("testo_audio", "testo")
+
+
+@dataclass(slots=True)
+class Area:
+    """Un rettangolo da leggere, e cosa farne."""
+
+    roi: Rettangolo
+    modo: str = "testo_audio"
+    nome: str = ""
+
+    def __post_init__(self) -> None:
+        if self.modo not in MODI:
+            raise ValueError(f"modo sconosciuto: {self.modo!r} (uno fra {', '.join(MODI)})")
+        x, y, w, h = self.roi
+        if w <= 0 or h <= 0:
+            raise ValueError(f"area di superficie nulla: {self.roi}")
+
+    @property
+    def parla(self) -> bool:
+        return self.modo == "testo_audio"
+
+
+def interseca(a: Rettangolo, b: Rettangolo) -> Rettangolo | None:
+    """Il rettangolo comune, o `None` se non si toccano."""
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    x0, y0 = max(ax, bx), max(ay, by)
+    x1, y1 = min(ax + aw, bx + bw), min(ay + ah, by + bh)
+    if x1 <= x0 or y1 <= y0:
+        return None
+    return (x0, y0, x1 - x0, y1 - y0)
+
+
+def sottrai(a: Rettangolo, b: Rettangolo) -> list[Rettangolo]:
+    """`a` meno `b`, come lista di rettangoli disgiunti.
+
+    Zero pezzi se `b` copre `a` per intero, uno se non si toccano, fino a
+    quattro nel caso generale: la striscia sopra e quella sotto prendono tutta la
+    larghezza, quelle a sinistra e a destra solo l'altezza rimasta in mezzo — se
+    no gli angoli finirebbero in due pezzi contemporaneamente, e un pixel contato
+    due volte e' proprio la cosa che questa funzione esiste per evitare.
+    """
+    comune = interseca(a, b)
+    if comune is None:
+        return [a]
+    ax, ay, aw, ah = a
+    cx, cy, cw, ch = comune
+    fuori: list[Rettangolo] = []
+    if cy > ay:  # sopra
+        fuori.append((ax, ay, aw, cy - ay))
+    if cy + ch < ay + ah:  # sotto
+        fuori.append((ax, cy + ch, aw, ay + ah - (cy + ch)))
+    mezzo_h = ch
+    if cx > ax:  # sinistra, solo la fascia in mezzo
+        fuori.append((ax, cy, cx - ax, mezzo_h))
+    if cx + cw < ax + aw:  # destra
+        fuori.append((cx + cw, cy, ax + aw - (cx + cw), mezzo_h))
+    return [r for r in fuori if r[2] > 0 and r[3] > 0]
+
+
+@dataclass(slots=True)
+class Pezzo:
+    """Un rettangolo da leggere davvero, e a quale area appartiene."""
+
+    roi: Rettangolo
+    area: int  # indice dell'area nell'elenco dichiarato
+    modo: str
+
+
+def dividi(aree: list[Area], minimo: float = 1e-4) -> list[Pezzo]:
+    """Le aree ridotte a rettangoli che **non si sovrappongono**.
+
+    Vince chi e' dichiarato prima: ogni area cede alle precedenti i pixel che ha
+    in comune con loro. Il risultato copre la stessa superficie dell'unione delle
+    aree, e ogni punto appartiene a un pezzo solo.
+
+    `minimo` butta via le schegge: sottraendo due rettangoli quasi allineati
+    restano strisce alte un millesimo di schermo, che non contengono testo e
+    costerebbero comunque una passata di OCR.
+    """
+    pezzi: list[Pezzo] = []
+    for i, area in enumerate(aree):
+        resti = [area.roi]
+        for prima in aree[:i]:
+            nuovi: list[Rettangolo] = []
+            for r in resti:
+                nuovi.extend(sottrai(r, prima.roi))
+            resti = nuovi
+        for r in resti:
+            if r[2] >= minimo and r[3] >= minimo:
+                pezzi.append(Pezzo(roi=r, area=i, modo=area.modo))
+    return pezzi
+
+
+def superficie(rettangoli: list[Rettangolo]) -> float:
+    """Quanta superficie, in frazione di schermo. Usata per verificare."""
+    return sum(w * h for _, _, w, h in rettangoli)
+
+
+# **La tolleranza sulla sovrapposizione, e perche' non e' un modo di far passare
+# la verifica.** Sottraendo rettangoli in virgola mobile due pezzi che condividono
+# un bordo possono risultare sovrapposti di 2,4e-20 di schermo: `ay + (cy - ay)`
+# non e' esattamente `cy`. Misurato, non temuto — l'ha trovato la prova su 200
+# gruppi a caso.
+#
+# Il numero non e' scelto per far passare quel caso: e' scelto sull'unica cosa
+# che conta, **un pixel**. Su un fotogramma 1920x1080 un pixel vale 4,8e-7 della
+# superficie; 1e-9 e' cinquecento volte meno, quindi una sovrapposizione sotto
+# questa soglia non puo' far leggere due volte nemmeno un pixel. Una vera — due
+# aree tirate male dall'utente — vale milioni di volte tanto.
+TOLLERANZA = 1e-9
+
+
+def si_sovrappongono(rettangoli: list[Rettangolo], tolleranza: float = TOLLERANZA) -> bool:
+    """Vero se due qualsiasi condividono piu' di `tolleranza` di superficie."""
+    for i, a in enumerate(rettangoli):
+        for b in rettangoli[i + 1 :]:
+            comune = interseca(a, b)
+            if comune is not None and comune[2] * comune[3] > tolleranza:
+                return True
+    return False

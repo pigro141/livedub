@@ -91,6 +91,15 @@ class Pannello(ttk.Frame):
 
         self._scorrevole(cfg)
         self._filtra()
+        # Se le spiegazioni non ci sono (pacchetto senza `core/config.py` fra i
+        # dati), lo si dice a chiare lettere invece di mostrare un pannello che
+        # sembra completo e ha perso tutte le misure.
+        if not any(c.aiuto for c, _ in self._righe if c is not None):
+            self._dillo(
+                "le spiegazioni dei parametri non sono disponibili in questa copia "
+                "(manca core/config.py): le manopole funzionano, i testi no",
+                errore=True,
+            )
 
     # -- costruzione -------------------------------------------------------
 

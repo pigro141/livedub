@@ -14,3 +14,8 @@ runs/
 graphify-out/
 .vscode/
 .idea/
+
+# PyInstaller: il pacchetto si ricostruisce, non si versiona.
+build/
+dist/
+*.spec.bak

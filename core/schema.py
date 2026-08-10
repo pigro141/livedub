@@ -131,6 +131,20 @@ def _commenti() -> dict[tuple[str, str], str]:
     commento in coda sulla stessa riga. Un blocco separato da una riga vuota
     appartiene ancora al campo che segue: e' cosi' che sono scritti.
     """
+    if not SORGENTE.exists():
+        # **Manca il sorgente: le spiegazioni non ci sono, e va detto.** Succede
+        # in un pacchetto costruito senza `core/config.py` fra i dati. Morire
+        # qui vorrebbe dire un programma che non parte per colpa dei testi
+        # d'aiuto; tacere vorrebbe dire un pannello che sembra completo e ha
+        # perso tutte le misure. Si torna vuoto **dopo averlo dichiarato**, e il
+        # pannello mostra la riga che lo dice.
+        import sys as _sys
+
+        print(
+            f"livedub: {SORGENTE} non c'e': le impostazioni saranno senza spiegazioni",
+            file=_sys.stderr,
+        )
+        return {}
     testo = SORGENTE.read_text(encoding="utf-8")
     righe = testo.splitlines()
     albero = ast.parse(testo)

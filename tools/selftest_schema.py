@@ -194,6 +194,25 @@ def test_schema(c) -> None:
         "dentro una sezione resta l'ordine del sorgente, non l'alfabetico",
     )
 
+    # -- e se il sorgente non c'e', si dichiara invece di morire ---------------
+    # Succede in un pacchetto costruito senza `core/config.py` fra i dati:
+    # l'exe partiva e moriva alla costruzione del pannello. Morire li' vorrebbe
+    # dire un programma che non si apre per colpa dei testi d'aiuto; tacere
+    # vorrebbe dire un pannello che sembra completo e ha perso tutte le misure.
+    # Trovato facendo partire l'exe, non leggendo lo spec.
+    import core.schema as _sch
+
+    vero, _sch.SORGENTE = _sch.SORGENTE, _sch.SORGENTE.with_name("non-esiste.py")
+    _sch._commenti.cache_clear()
+    try:
+        orfani = campi(Config())
+        c.eq(len(orfani), len(elenco), "senza sorgente i campi ci sono ancora tutti")
+        c.eq([k.aiuto for k in orfani if k.aiuto], [], "ma senza spiegazioni, e senza esplodere")
+    finally:
+        _sch.SORGENTE = vero
+        _sch._commenti.cache_clear()
+    c.ok(any(k.aiuto for k in campi(Config())), "e col sorgente al suo posto tornano")
+
     # -- e il giro di andata e ritorno: quello che lo schema mostra si puo' ----
     # riscrivere in config e ritrovarlo uguale. E' la regola della trasformata
     # contro la propria inversa, applicata a un pannello di impostazioni.

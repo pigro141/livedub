@@ -306,7 +306,10 @@ che si sono chiuse con un "no".)*
     sorgente video, visto che l'overlay era nascosto a tutte le catture. Non essendo piu'
     nascosto, non serve piu' — la cura giusta era togliere la causa, non aggiungere una
     seconda cura.
-  * \[ ]  UI interfaccia chiara e funzionale
+  * \[x]  UI interfaccia chiara e funzionale
+    → **fatta**: la barra di prima resta sopra (è quella che si tocca durante una prova) e
+    sotto ci sono quattro schede — Sessione (il log di chi parla), Tecnologie, Aree,
+    Impostazioni avanzate. Guardata a schermo e **guidata**, non solo scritta.
   * \[x]  possibilità di modificare i sottotitoli tradotti colore dimensione
     → `translate.color`, `background`, `background_opacity`, `background_mode`,
     `blur_strength`, `font`, `font_frac`, `outline`. La dimensione è una **frazione**
@@ -316,10 +319,53 @@ che si sono chiuse con un "no".)*
     → `translate.source` / `translate.target`. `auto` lo capisce solo Google: i modelli
     offline sono **di** una coppia di lingue, quindi con `locale` un `auto` diventa `en`
     e viene detto, invece di esserlo in silenzio. **Manca la UI**, non il meccanismo.
-  * \[ ]  selettore delle tecnologie da usare
-  * \[ ]  impostazioni avanzate con regolazione di tutti i parametri con vicino un icona a ogni settings che spiega bene cosa fa e cosa succede se viene cambiato rischi ecc (davvero tuti anche la regolazione delle frequenze maschio femmina)
-  * \[ ] cambiamento live dei settings e applicazione live
-  * \[ ] selettore aree multiple di traduzioni solo testo e poi quella testo e audio, (attenzione se le aree si sovrappongono non lavorare due volte in quel punto)
+  * \[x]  selettore delle tecnologie da usare
+    → **fatto**, e non è un elenco scritto a mano: le scelte escono dai commenti di
+    `core/config.py` con la convenzione `a | b | c` già in uso. Vengono da sole cinque
+    voci, tre OCR, cinque traduttori, tre impronte, due VAD, i pesi di Kokoro. Aggiungere
+    un backend non richiede di toccare la UI.
+    → Una regola nata da un caso vero: se né il valore né il default stanno nell'elenco,
+    quell'elenco **non parla di quel campo** (`translate.ollama_model` vale
+    `translategemma:4b` e il commento dice `4b | 12b | 27b`: sono le taglie, e il menu ci
+    avrebbe scritto dentro `4b`).
+  * \[x]  impostazioni avanzate con regolazione di tutti i parametri con vicino un icona a ogni settings che spiega bene cosa fa e cosa succede se viene cambiato rischi ecc (davvero tuti anche la regolazione delle frequenze maschio femmina)
+    → **tutti e 165**, comprese le frequenze maschio/femmina, **generati percorrendo
+    l'albero** (`core/schema.py` + `ui/pannello.py`) e non elencati a mano: un elenco a
+    mano diverge al primo campo aggiunto.
+    → Il `?` accanto a ogni campo apre il commento di `core/config.py` **così com'è
+    scritto**, tabelle delle misure comprese. Non sono testi riscritti per l'occasione:
+    riscriverli vorrebbe dire perdere le misure e inventare rischi.
+    → **Guardare il pannello ha trovato subito un difetto vero**: `line_pad` spiegava la
+    maschera del ritaglio, perché il commento di `mask_crop` — un campo *tolto* — era
+    rimasto orfano e si incollava al campo dopo. Ora una verifica impedisce che due campi
+    condividano la stessa spiegazione.
+    → Cricchetto: 50 campi non hanno ancora una spiegazione, ed è un **tetto** — uno nuovo
+    senza commento rende la suite rossa.
+  * \[x] cambiamento live dei settings e applicazione live
+    → **142 campi su 165 si applicano a caldo**, e i 23 che non possono lo **dicono**
+    invece di fingere: «si applica al prossimo Avvia, non a questa sessione». La regola è
+    scritta: freddo se il valore si legge nel costruttore di qualcosa che non si
+    ricostruisce a sessione accesa.
+    → Fingere sarebbe il difetto peggiore per uno strumento di misura: una sessione che
+    gira con una configurazione diversa da quella che la UI mostra.
+    → Barra e pannelli sono **tre griglie sopra un solo oggetto** e si riallineano nei due
+    versi; ogni manopola **rilegge da config dopo aver scritto**, così quel che si vede è
+    sempre quel che si usa (generalizzazione del difetto trovato digitando `9999`).
+  * \[x] selettore aree multiple di traduzioni solo testo e poi quella testo e audio, (attenzione se le aree si sovrappongono non lavorare due volte in quel punto)
+    → **fatto fino in fondo**: config, catena e finestra. `vision.aree` vuoto = un lettore
+    sulla ROI, cioè com'è sempre stato.
+    → I due modi ci sono e **vengono letti**: `testo_audio` legge e fa parlare, `testo`
+    legge, traduce e disegna ma non pronuncia. Verificato mutando la riga che legge il
+    modo — due verifiche rosse.
+    → **Le sovrapposizioni si sottraggono prima di leggere** (`vision/aree.py`): gli stessi
+    pixel letti due volte diventano due battute e due voci sovrapposte. Vince l'area
+    dichiarata prima, e l'elenco nella UI dice da solo quando ha tolto qualcosa.
+    → Le 46 verifiche non chiedono «funziona» ma le due invarianti — **niente si
+    sovrappone**, **niente si perde** — su 500 coppie e 200 gruppi a caso. La prova a caso
+    ha trovato subito una cosa vera: due pezzi confinanti risultano sovrapposti di 2,4e-20
+    di schermo, perché `ay + (cy - ay)` non è esattamente `cy`. La tolleranza è un
+    cinquecentesimo di pixel, e c'è una verifica che una sovrapposizione grande **un pixel
+    solo** venga ancora vista.
   * \[x]  **PRIMA DI INIZIARE LA FASE SEGUENTE FAMMI FARE UNA PROVA e ti faccio un
     report dettagliato di cosa va e cosa no**
     → **Fatto il 7 agosto 2026.** Prova dal vivo, e il report è arrivato come **video

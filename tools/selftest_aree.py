@@ -147,3 +147,136 @@ def _a_caso(rng) -> tuple[float, float, float, float]:
     x = rng.uniform(0.0, 0.8)
     y = rng.uniform(0.0, 0.8)
     return (x, y, rng.uniform(0.05, 1.0 - x), rng.uniform(0.05, 1.0 - y))
+
+
+def test_aree_catena(c) -> None:
+    """Le aree dentro la catena, non solo in geometria.
+
+    La domanda che la geometria non puo' chiudere: **la catena legge davvero da
+    piu' posti, e sta zitta dove le e' stato detto?** Un modo dichiarato e non
+    letto sarebbe il quinto campo di questo progetto misurato e mai usato.
+    """
+    from dataclasses import replace
+
+    import numpy as np
+
+    from core.clock import VirtualClock
+    from core.config import Config
+    from core.pipeline import DubPipeline
+    from tools.frames import WHITE, empty_frame, font_available, render_subtitles
+    from vision.aree import da_config, dividi
+
+    c.group("aree")
+
+    cfg = Config()
+    cfg.tts.backend = "tone"
+    cfg.speaker.backend = "none"
+    cfg.vad.backend = "energy"
+    cfg.vision.use_lexicon = False
+
+    # -- senza aree dichiarate non cambia niente ------------------------------
+    r = DubPipeline(cfg, _tono(), clock=VirtualClock(), samplerate=48000)
+    c.eq(len(r.lettori), 1, "senza aree dichiarate c'e' un lettore solo")
+    c.eq(r.lettori[0][0].cfg.roi, cfg.vision.roi, "e legge la ROI di sempre")
+    c.eq(r.lettori[0][1], "testo_audio", "e parla")
+
+    # -- `self.reader` deve restare una vista, non una copia ------------------
+    # Le verifiche di tutto il progetto sostituiscono `r.reader` con un lettore
+    # finto: se fosse una copia, il finto verrebbe messo da una parte e ignorato
+    # dall'altra, e la verifica proverebbe la catena vera credendo di provarne
+    # una finta.
+    finto = object()
+    r.reader = finto  # type: ignore[assignment]
+    c.ok(r.lettori[0][0] is finto, "assegnare `reader` cambia chi legge davvero")
+    c.eq(r.lettori[0][1], "testo_audio", "e non perde il modo del pezzo")
+
+    # -- due aree: due lettori, ognuno col suo diff e il suo tracker -----------
+    due = replace(cfg.vision, aree=("0.2:0.85:0.6:0.10:testo_audio", "0.0:0.0:0.5:0.12:testo"))
+    cfg2 = Config()
+    cfg2.vision = due
+    cfg2.tts.backend, cfg2.speaker.backend, cfg2.vad.backend = "tone", "none", "energy"
+    cfg2.vision.use_lexicon = False
+    r2 = DubPipeline(cfg2, _tono(), clock=VirtualClock(), samplerate=48000)
+    c.eq(len(r2.lettori), 2, "due aree, due lettori")
+    c.eq([m for _, m in r2.lettori], ["testo_audio", "testo"], "ognuno col suo modo")
+    c.ok(
+        r2.lettori[0][0].tracker is not r2.lettori[1][0].tracker,
+        "e ognuno col suo tracker: due aree sono due flussi di sottotitoli",
+    )
+    c.ok(r2.lettori[0][0].diff is not r2.lettori[1][0].diff, "e col suo diff")
+
+    # -- e la sovrapposizione arriva alla catena gia' tolta -------------------
+    sovra = replace(cfg.vision, aree=("0.0:0.0:0.6:0.6", "0.4:0.4:0.6:0.6"))
+    cfg3 = Config()
+    cfg3.vision = sovra
+    cfg3.tts.backend, cfg3.speaker.backend, cfg3.vad.backend = "tone", "none", "energy"
+    r3 = DubPipeline(cfg3, _tono(), clock=VirtualClock(), samplerate=48000)
+    rettangoli = [lettore.cfg.roi for lettore, _ in r3.lettori]
+    c.ok(not si_sovrappongono(rettangoli), "i rettangoli che arrivano ai lettori sono disgiunti")
+    c.eq(len(rettangoli), len(dividi(da_config(sovra))), "e sono i pezzi che la divisione ha prodotto")
+
+    # -- la prova che conta: si legge da due posti, se ne pronuncia uno --------
+    if not font_available():  # pragma: no cover - macchina senza font
+        c.ok(False, "niente font di sistema: la prova sulle due aree non si puo' fare")
+        return
+
+    # Due scritte a due altezze diverse, e un OCR finto che **distingue da quale
+    # area viene il ritaglio** dalla sua larghezza. Serve cosi': un finto che
+    # restituisce sempre lo stesso testo non potrebbe dire se la battuta muta e'
+    # quella giusta, e la verifica passerebbe anche invertendo i due modi.
+    frame = empty_frame((1080, 1920))
+    frame[80:160, 200:1400] = render_subtitles(
+        [("Raggiungi il molo di Vespucci adesso", WHITE)], size=(80, 1200)
+    )
+    frame[940:1020, 600:1300] = render_subtitles([("Andiamo via", WHITE)], size=(80, 700))
+
+    cfg4 = Config()
+    cfg4.tts.backend, cfg4.speaker.backend, cfg4.vad.backend = "tone", "none", "energy"
+    cfg4.vision.use_lexicon = False
+    cfg4.vision.aree = ("0.30:0.86:0.40:0.09:testo_audio", "0.10:0.07:0.65:0.08:testo")
+    cfg4.speaker.decide_after_ms = 0
+    cfg4.speaker.max_wait_ms = 0
+    orologio = VirtualClock()
+    r4 = DubPipeline(cfg4, _tono(), ocr=_OcrPerArea(), clock=orologio, samplerate=48000)
+    r4.start_live(warmup=False)
+
+    dette: list = []
+    for k in range(12):
+        orologio.set(k * 0.1)
+        dette.extend(r4.on_frame(np.zeros_like(frame) if k == 0 else frame))
+
+    testi = {d.text for d in dette}
+    aperte = r4.metrics.snapshot()["counters"].get("vision.subtitles.opened", 0)
+    c.eq(aperte, 2, "si legge da tutte e due le aree")
+    c.ok(
+        any("Andiamo" in t for t in testi),
+        f"la battuta dell'area che parla viene detta (dette: {sorted(testi)})",
+    )
+    c.ok(
+        not any("molo" in t for t in testi),
+        f"e quella di solo testo **non** viene pronunciata (dette: {sorted(testi)})",
+    )
+    c.eq(len(testi), 1, "una battuta detta su due lette")
+    c.ok(len(r4._muti) == 1, "e la catena sa quale delle due tenere muta")
+
+
+class _OcrPerArea:
+    """Un OCR finto che risponde in base a **da dove** arriva il ritaglio.
+
+    La larghezza del ritaglio dice l'area: quella in alto e' larga 0,65 dello
+    schermo, quella in basso 0,40. Senza questo, un finto che dice sempre la
+    stessa cosa lascerebbe passare la verifica anche a modi invertiti — cioe'
+    non potrebbe fallire proprio nel caso per cui esiste.
+    """
+
+    name = "finto"
+
+    def read(self, line):
+        largo = line.shape[1] > 300
+        return ("Raggiungi il molo di Vespucci adesso" if largo else "Andiamo via di qui"), 1.0
+
+
+def _tono():
+    from speak.base import make_tts
+
+    return make_tts(type("T", (), {"backend": "tone", "samplerate": 22050})())

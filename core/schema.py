@@ -71,6 +71,8 @@ FREDDI: tuple[str, ...] = (
     # l'anello audio e la cattura: flussi aperti all'avvio
     "audio.",
     "capture.",
+    # i lettori si costruiscono uno per area all'avvio
+    "vision.aree",
     # il lessico si carica una volta
     "vision.use_lexicon",
     "vision.lexicon_dir",

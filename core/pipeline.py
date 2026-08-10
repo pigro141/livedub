@@ -50,7 +50,7 @@ from speak.pool import VoicePool, build_pool, voce_neutra, voce_per
 from vision.label import LabelReader
 from vision.ocr import OcrBackend, make_ocr
 from vision.reader import SubtitleReader
-from vision.subtitles import contenimento
+from vision.subtitles import TrackerOutput, contenimento
 
 
 def _lettere(testo: str) -> str:
@@ -252,13 +252,50 @@ class DubPipeline:
         self.metrics = metrics or MetricsRegistry()
         self._clock = clock
 
-        self.reader = SubtitleReader(
-            cfg.vision,
-            ocr if ocr is not None else make_ocr(cfg.vision.ocr_backend, cfg.vision.ocr_device),
-            metrics=self.metrics,
-            clock=clock,
-            on_error="bypass",  # in gioco una battuta persa e' meglio di una sessione persa
+        # **Un lettore per pezzo d'area, e i pezzi non si sovrappongono.**
+        # Con `vision.aree` vuoto ce n'e' uno solo sulla ROI, cioe' esattamente
+        # com'e' sempre stato: nessun profilo esistente cambia comportamento.
+        #
+        # Uno per pezzo e non uno solo con piu' ritagli, perche' ogni lettore
+        # porta con se' il **suo** diff e il **suo** tracker: due aree sono due
+        # flussi di sottotitoli indipendenti, e un tracker condiviso vedrebbe la
+        # comparsa di una riga in basso come la sparizione di quella in alto.
+        #
+        # I pezzi arrivano gia' divisi da `vision.aree.dividi`: se due aree si
+        # accavallano, la parte in comune sta in un pezzo solo. Leggerla due
+        # volte vorrebbe dire la stessa battuta due volte e due voci
+        # sovrapposte — il difetto peggiore del prodotto.
+        from dataclasses import replace as _replace
+
+        from vision.aree import da_config, dividi
+
+        motore = ocr if ocr is not None else make_ocr(
+            cfg.vision.ocr_backend, cfg.vision.ocr_device
         )
+        pezzi = dividi(da_config(cfg.vision))
+        self.lettori: list[tuple[SubtitleReader, str]] = []
+        for pezzo in pezzi:
+            vista = cfg.vision if len(pezzi) == 1 else _replace(cfg.vision, roi=pezzo.roi)
+            self.lettori.append((
+                SubtitleReader(
+                    vista,
+                    motore,
+                    metrics=self.metrics,
+                    clock=clock,
+                    on_error="bypass",  # in gioco una battuta persa e' meglio di una sessione persa
+                ),
+                pezzo.modo,
+            ))
+        # `self.reader` resta il nome del primo lettore -- e' il caso di gran
+        # lunga piu' comune, ed e' quello che tutto il resto del progetto nomina
+        # e che le verifiche **sostituiscono** con un lettore finto. Quindi non
+        # e' una copia ma una vista sull'elenco: assegnarlo deve cambiare chi
+        # legge davvero, se no un lettore finto verrebbe messo da una parte e
+        # ignorato dall'altra, e la verifica proverebbe la catena vera credendo
+        # di provarne una finta.
+        # Le battute che si leggono ma **non** si pronunciano (`modo="testo"`):
+        # un cartello di missione va tradotto e disegnato, non detto a voce.
+        self._muti: set[int] = set()
         # Il pool segue il backend: senza, una sessione SuperTonic riceverebbe
         # in dote le voci di Piper e non saprebbe pronunciarle.
         # **La lingua del pool e' quella che si parlera'**: se si traduce, quella
@@ -513,7 +550,7 @@ class DubPipeline:
 
     def on_frame(self, frame: np.ndarray | None) -> list[SpokenLine]:
         """Un frame in ingresso. Restituisce le battute doppiate in questa passata."""
-        out = self.reader.run(frame)
+        out = self._leggi_tutte(frame)
         self.closed.extend(out.closed)
         # Chi e' a schermo, e chi non c'e' piu'. `updated` non tocca `t_on`,
         # quindi un testo che migliora non fa sparire e ricomparire niente.
@@ -606,7 +643,42 @@ class DubPipeline:
 
             pronte = [e for e in self._da_dire if pronta(e)]
             self._da_dire = [e for e in self._da_dire if not pronta(e)]
-        return [self._speak(ev) for ev in pronte if not self._gia_detta(ev)]
+        # **Le battute di un'area `testo` non si pronunciano.** Restano lette e
+        # chiuse — quindi tradotte e disegnate sopra il gioco — ma non prendono
+        # una voce. E' il motivo per cui il modo esiste: pronunciare un cartello
+        # di missione e' esattamente il difetto che l'11% delle battute di GTA V
+        # aveva.
+        return [
+            self._speak(ev)
+            for ev in pronte
+            if id(ev) not in self._muti and not self._gia_detta(ev)
+        ]
+
+    @property
+    def reader(self) -> SubtitleReader:
+        return self.lettori[0][0]
+
+    @reader.setter
+    def reader(self, lettore: SubtitleReader) -> None:
+        self.lettori[0] = (lettore, self.lettori[0][1])
+
+    def _leggi_tutte(self, frame) -> TrackerOutput:
+        """Fa passare il frame da tutti i lettori e ne unisce le uscite.
+
+        Con un'area sola non c'e' niente da unire e si torna la sua uscita
+        com'e': il caso comune non paga il caso raro.
+        """
+        if len(self.lettori) == 1:
+            return self.lettori[0][0].run(frame)
+        aperte, chiuse, aggiornate = [], [], []
+        for lettore, modo in self.lettori:
+            parziale = lettore.run(frame)
+            if modo != "testo_audio":
+                self._muti.update(id(ev) for ev in parziale.opened)
+            aperte.extend(parziale.opened)
+            chiuse.extend(parziale.closed)
+            aggiornate.extend(parziale.updated)
+        return TrackerOutput(opened=aperte, closed=chiuse, updated=aggiornate)
 
     def _speak(self, event: SubtitleEvent) -> SpokenLine:
         """Da battuta letta a audio programmato."""
@@ -1707,7 +1779,8 @@ class DubPipeline:
 
     def finish(self) -> None:
         """Chiude le battute ancora a schermo: senza, l'ultima resta senza durata."""
-        self.closed.extend(self.reader.close().closed)
+        for lettore, _ in self.lettori:
+            self.closed.extend(lettore.close().closed)
         # Le battute ancora in attesa vanno dette comunque: la promessa e' che
         # non si scarta niente, e una battuta trattenuta per scegliere meglio la
         # voce sarebbe il modo piu' assurdo di perderla.

@@ -410,6 +410,22 @@ class VisionConfig:
     # gia' a schermo e fermo, che servono a tenerlo vivo e a migliorarne il
     # testo e possono aspettare un diciottesimo di secondo.
     max_ocr_hz: float = 18.0
+    # **Piu' aree di lettura, quando una sola non basta.** Vuoto = si usa `roi`,
+    # cioe' com'e' sempre stato: nessun profilo esistente cambia comportamento.
+    #
+    # Ogni voce e' `x:y:w:h:modo` con le prime quattro normalizzate come `roi` e
+    # `modo` fra `testo_audio` (si legge e si fa parlare) e `testo` (si legge e
+    # basta). La seconda serve ai cartelli di missione e ai nomi di luogo:
+    # tradurli si', pronunciarli e' il difetto che l'11% delle battute di GTA V
+    # aveva. I due punti dentro e la virgola fra le aree, e non il contrario:
+    # `--set` separa gli elementi di una tupla con la virgola, quindi un'area
+    # che ne contenesse sarebbe letta come cinque aree monche.
+    #
+    # **Se due aree si accavallano, la parte in comune si legge una volta sola** e
+    # la cede a quella dichiarata prima (`vision/aree.py`). Non e' una
+    # raffinatezza: gli stessi pixel letti due volte diventano due battute e due
+    # voci sovrapposte, che e' il difetto peggiore del prodotto.
+    aree: tuple[str, ...] = ()
 
 
 @dataclass
@@ -1490,6 +1506,16 @@ class Config:
         if not is_dataclass(target) or not hasattr(target, leaf):
             raise KeyError(f"percorso di config sconosciuto: {path!r}")
         current = getattr(target, leaf)
+        # **Una tupla vuota non dice di che cosa e' vuota.** `_coerce` deduce il
+        # tipo degli elementi dal primo che trova, e su `()` non ne trova
+        # nessuno: cadeva sul numero, quindi una lista di stringhe vuota non si
+        # poteva riempire da `--set`. Il tipo dichiarato del campo lo sa, e sta a
+        # un passo di distanza.
+        if isinstance(current, tuple) and not current:
+            for f in fields(target):
+                if f.name == leaf and "str" in str(f.type):
+                    current = ("",)
+                    break
         coerced = _coerce(value, current, path)
         setattr(target, leaf, coerced)
         return coerced

@@ -157,3 +157,54 @@ def si_sovrappongono(rettangoli: list[Rettangolo], tolleranza: float = TOLLERANZ
             if comune is not None and comune[2] * comune[3] > tolleranza:
                 return True
     return False
+
+
+# ------------------------------------------------------- da e per la config --
+
+
+def leggi(voci) -> list[Area]:
+    """Le aree scritte in config, come `x:y:w:h:modo`.
+
+    I due punti dentro e la virgola fra le aree, e non il contrario: `--set`
+    separa gli elementi di una tupla con la virgola, quindi un'area che ne
+    contenesse verrebbe letta come cinque aree monche.
+
+    Un testo malformato **solleva**: un'area sbagliata vuol dire leggere il
+    posto sbagliato dello schermo per tutta la sessione, e accorgersene
+    riascoltando. Meglio non partire.
+    """
+    fuori: list[Area] = []
+    for voce in voci or ():
+        testo = str(voce).strip()
+        if not testo:
+            continue
+        pezzi = [p.strip() for p in testo.split(":")]
+        if len(pezzi) not in (4, 5):
+            raise ValueError(
+                f"area malformata: {testo!r} (serve `x:y:w:h` o `x:y:w:h:modo`)"
+            )
+        try:
+            roi = tuple(float(p) for p in pezzi[:4])
+        except ValueError as e:
+            raise ValueError(f"area malformata: {testo!r} ({e})") from None
+        modo = pezzi[4] if len(pezzi) == 5 else "testo_audio"
+        fuori.append(Area(roi=roi, modo=modo, nome=testo))  # type: ignore[arg-type]
+    return fuori
+
+
+def scrivi(aree: list[Area]) -> tuple[str, ...]:
+    """L'inverso di `leggi`, per riscrivere in config quello che la UI ha tirato."""
+    return tuple(
+        f"{a.roi[0]:.4f}:{a.roi[1]:.4f}:{a.roi[2]:.4f}:{a.roi[3]:.4f}:{a.modo}" for a in aree
+    )
+
+
+def da_config(vision) -> list[Area]:
+    """Le aree in uso: quelle dichiarate, o `roi` sola se non ce ne sono.
+
+    **Il ripiego e' la ragione per cui questo campo puo' restare vuoto di
+    default**: un profilo che non sa niente delle aree continua a leggere la sua
+    ROI, e nessun comportamento cambia finche' qualcuno non ne aggiunge una.
+    """
+    aree = leggi(getattr(vision, "aree", ()))
+    return aree or [Area(roi=tuple(vision.roi), modo="testo_audio", nome="roi")]

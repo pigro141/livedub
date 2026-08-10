@@ -377,18 +377,57 @@ che si sono chiuse con un "no".)*
     → Corretti tutti e quattro, suite a **1172 verifiche**. Il dettaglio e le misure
     stanno in `CLAUDE.md` e in `PROSSIMA_SESSIONE.md`.
     → **Il cancello è aperto: da qui si va sulla UI.**
-  * \[ ]  rendere il tutto facilmente installabile plug and play
-  * \[ ]  fare exe
-  * \[ ]  scegliere la licenza copyright da usare in base alle librerie e la mia scelta
+  * \[x]  rendere il tutto facilmente installabile plug and play
+    → `installa.ps1`: Python, venv, dipendenze, OneOCR, modelli, e chiude con la suite.
+    **Verifica di aver ottenuto quello che ha chiesto** invece di dire «fatto» — compreso
+    il provider CUDA vero (`get_available_providers`), perché qui un ripiego silenzioso è
+    già costato due volte. Quello che manca lo elenca col perché e cosa comporta.
+    → `-SenzaGpu` installa `onnxruntime` al posto di quello GPU: i due **non convivono**.
+  * \[x]  fare exe
+    → `livedub.spec` (PyInstaller), 528 MB in cartella — non `onefile`, perché lì mezzo
+    giga viene scompattato a ogni avvio e i percorsi relativi a `__file__` cambiano ogni
+    volta.
+    → **Si impacchetta il programma, non i modelli**: è una scelta di licenza prima che di
+    dimensione (OneOCR non è ridistribuibile, i pesi hanno ognuno la propria).
+    → **Farlo partire ha trovato il difetto che leggere lo spec non poteva**: il pannello
+    estrae le spiegazioni dal *sorgente* di `core/config.py`, e in un pacchetto i `.py` non
+    ci sono. Ora `config.py` viaggia fra i dati e, se manca, il programma **lo dichiara**
+    invece di morire o di tacere. Verificato a schermo: finestra `livedub`, quattro schede.
+  * \[x]  scegliere la licenza copyright da usare in base alle librerie e la mia scelta
+    → **GPL-3.0-or-later, e non per gusto: è quello che impongono le librerie.**
+    `piper-tts` 1.6.0 — il motore **di default** — è GPL-3.0-or-later, ed `espeak-ng.dll`
+    dentro `espeakng-loader` (il g2p di Kokoro) pure. Due motori su tre.
+    → Anche scrivendo MIT sul nostro codice, l'eseguibile distribuito resterebbe GPL-3: la
+    compatibilità funziona in una direzione sola. Dichiarare MIT sarebbe difendibile per i
+    file scritti da noi e **fuorviante per la cosa che la gente scarica**.
+    → Il conto libreria per libreria sta in `LICENZE.md`, letto dai metadati dei pacchetti
+    **installati** e non a memoria. Comprese le due cose che non si ridistribuiscono
+    (OneOCR e i pesi) e cosa servirebbe per tornare permissivi.
   * \[ ]  repo github senza collaboratore claude
 
-    * \[ ]  repo professionale dove spiega tutte le feature e lingue supportate
-    * \[ ]  spiegazione con un diagramma di flusso di cosa avviene nel programma
-    * \[ ]  valorizzazione dell'uso completamente locale ed estrema privacy
-    * \[ ]  scrivere requisiti minimi richiesti, e quelli per la migliore esperienza in assoluto
+    * \[x]  repo professionale dove spiega tutte le feature e lingue supportate
+      → `README.md` riscritto per chi arriva da fuori; il vecchio (architettura estesa) è
+      diventato `docs/architettura.md`. Feature, lingue di lettura/voce/traduzione, la
+      finestra, l'installazione, e il capitolo onesto «Funziona con il mio gioco?».
+    * \[x]  spiegazione con un diagramma di flusso di cosa avviene nel programma
+      → diagramma Mermaid nel README (GitHub lo disegna da solo, niente immagini da
+      rigenerare): i due domini, il punto di fusione, e la strada dell'overlay.
+    * \[x]  valorizzazione dell'uso completamente locale ed estrema privacy
+      → non uno slogan ma **la lista di cosa esce dal computer**, stadio per stadio.
+      L'unico modo di far uscire del testo è chiedere `translate.backend=google`, che
+      lo dichiara su stderr a ogni battuta. Nessuna telemetria, nessun account, nessun
+      server nostro — non esiste un server nostro.
+    * \[x]  scrivere requisiti minimi richiesti, e quelli per la migliore esperienza in assoluto
+      → scritti nel README con i numeri misurati: minimi 4 core e nessuna GPU (Piper,
+      ~670 ms di latenza), migliore Kokoro su CUDA (257 ms, 1128 MB di VRAM, ~1150 ms
+      totali). Con la tabella del costo per numero di core, e la riga che conta:
+      **sotto i 6 core solo Piper**.
       → **i numeri ci sono già, manca scriverli**: senza GPU si gira con Piper o SuperTonic
       (CPU, e sotto i 6 core **solo** Piper); Kokoro vuole CUDA e 1128 MB di VRAM. È
       l'unico punto degli step finali che poggia su misure, e le misure sono fatte.
     * \[ ]  fare anche un link paypal o qualcosa del genere per prendere delle donazioni
     * \[ ]  fare sito github dove c'è spiegato tutto
-    * \[ ]  fruttare hype di gtavi per dire che è compatibile anche con quello
+    * \[x]  fruttare hype di gtavi per dire che è compatibile anche con quello
+      → nel README, e detto in modo che regga: livedub è costruito su **quello che c'è a
+      schermo**, non su file del gioco. Niente da estrarre, niente anti-cheat da toccare —
+      guarda lo schermo e suona nelle cuffie come farebbe un giocatore.

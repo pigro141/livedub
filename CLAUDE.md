@@ -10,7 +10,7 @@ catena**: si legge il testo a schermo con l'OCR, si capisce chi sta parlando
 dall'audio, si sintetizza con una voce assegnata a quel personaggio e si mixa
 sopra il gioco abbassando l'originale.
 
-`README.md` ha l'architettura estesa e la grammatica dei sottotitoli. **Non
+`docs/architettura.md` ha l'architettura estesa e la grammatica dei sottotitoli. **Non
 leggerlo per intero**: costa e quasi mai serve.
 
 ## La memoria di questo progetto e' il grafo

@@ -207,8 +207,15 @@ def _scelte(aiuto: str) -> tuple[str, ...]:
     quasi sempre il bordo di una tabella di misure, e prenderla darebbe un menu
     a tendina con dentro `---`.
     """
+    # **In ordine, e non in un insieme.** Erano `{righe[0], righe[-1]}`: un
+    # insieme di due stringhe si percorre nell'ordine dei loro hash, che Python
+    # rimescola a ogni processo. Finche' una sola delle due righe e' un elenco
+    # non si vede; il giorno in cui un commento ne avesse due diverse, lo stesso
+    # campo avrebbe menu diversi da un avvio all'altro — un difetto che si
+    # riproduce una volta su due e sembra stregoneria. Oggi non capita in nessun
+    # campo (verificato), e per questo si corregge adesso che costa una riga.
     righe = [r for r in aiuto.splitlines() if r.strip()]
-    for riga in ({righe[0], righe[-1]} if righe else ()):
+    for riga in ((righe[0], righe[-1]) if righe else ()):
         trovate = _elenco(riga)
         if trovate:
             return trovate

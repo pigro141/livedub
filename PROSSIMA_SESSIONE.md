@@ -48,6 +48,21 @@ si fa:
 
 Nessuno si vedeva leggendo il codice. Cinque su sei sono usciti da una misura.
 
+**E poi le cure sono state rilette, il 11 agosto: cinque erano metà.** Non i
+difetti — le *correzioni* dei difetti, tutte consegnate con la suite verde:
+
+| | cosa non funzionava davvero |
+|---|---|
+| 15, 16 | `profiles/ultima.json` scritto uscendo e **mai riletto aprendo** |
+| 39 | il guasto dell'audio lasciava **Avvia spento**, la sessione aperta, lo stato **verde** |
+| 50 | con `save_mix=false` ogni `t_wav` era **nullo**: `tools/reopen <secondo>` cieco |
+| 92 | il tetto era su `spoken` e non su `closed` |
+| 81 | il gestore globale **non vedeva i thread**, cioè dove vive la catena |
+
+Quattro su cinque stanno nella finestra Qt o al suo confine, che è l'unica parte
+del programma **senza nessuna verifica**. Adesso la parte provabile senza aprire
+Qt sta fuori da Qt (`core.preferenze.riprendi`, `tools.ui.colore_stato`).
+
 **Le 16 dichiarate non sono lavoro dimenticato.** Sei si chiudono tutte insieme
 **quando Avvia arriverà nella finestra Qt** (l'indicatore di latenza, l'underrun
 a schermo, il selettore d'area col mouse): un indicatore vivo in una finestra che
@@ -64,7 +79,7 @@ verifiche, non di fretta. Chiude sei domande e rende la finestra Tk cancellabile
 
 ## Dove siamo
 
-Suite verde a **1381 verifiche**. `SviluppoProgetto.md`: **16 step su 19**.
+Suite verde a **1403 verifiche**. `SviluppoProgetto.md`: **16 step su 19**.
 
 **La finestra è stata rifatta in Qt** (`tools/ui_qt.py`, PySide6, che è il
 binding ufficiale di The Qt Company ed è LGPL-3, compatibile con la nostra
@@ -113,7 +128,7 @@ battute aperte) e quello lo giudica l'ascolto. Basta una prova con
 ## Come si prova quello che scrivi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                    # 1381 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest                    # 1403 verifiche
 .\.venv\Scripts\python.exe -m tools.ui_qt --profile gtav        # la finestra nuova
 .\.venv\Scripts\python.exe -m tools.ui --profile live           # il dal vivo, ancora Tk
 .\.venv\Scripts\python.exe -m tools.bench_memoria --battute 3600

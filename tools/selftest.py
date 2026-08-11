@@ -3041,6 +3041,8 @@ from tools.selftest_aree import (  # noqa: E402
     test_memoria,
     test_sessione,
     test_due_sessioni,
+    test_ripresa,
+    test_guasto_audio,
 )
 
 def test_session(c: Check) -> None:
@@ -3535,6 +3537,8 @@ GROUPS = {
     "memoria": test_memoria,
     "sessione_mix": test_sessione,
     "due_sessioni": test_due_sessioni,
+    "ripresa": test_ripresa,
+    "guasto_audio": test_guasto_audio,
 }
 
 

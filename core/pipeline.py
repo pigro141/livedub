@@ -415,6 +415,14 @@ class DubPipeline:
         # indietro di **secondi** (`repeat.window_s`) e si ferma da solo. Quindi
         # il tetto lo mette chi sa in quale dei due mondi sta: zero = tutte.
         self.max_spoken = 0
+        # **E lo stesso tetto vale qui, se no il rimedio era mezzo.** Ogni
+        # sottotitolo che sparisce finisce in questa lista, che dal vivo **non
+        # rilegge nessuno**: la scrivono `on_frame` e `finish`, la leggono solo i
+        # banchi (`tools/demo.py`). Misurato: 3600 `SubtitleEvent` — tre ore di
+        # gioco — sono +0,79 MB, un tredicesimo di quello che pesavano le
+        # battute. Poco, ma della stessa forma: cresce e non si ferma. Il tetto
+        # e' quello di `max_spoken`, perche' e' la stessa domanda («sono dal
+        # vivo o sul banco?») e due manopole per una domanda sola divergono.
         self.closed: list[SubtitleEvent] = []
         # **Quali sottotitoli sono a schermo adesso**, per `t_on` — che e'
         # l'identita' stabile di una battuta: il testo puo' migliorare mentre e'
@@ -567,7 +575,7 @@ class DubPipeline:
     def on_frame(self, frame: np.ndarray | None) -> list[SpokenLine]:
         """Un frame in ingresso. Restituisce le battute doppiate in questa passata."""
         out = self._leggi_tutte(frame)
-        self.closed.extend(out.closed)
+        self._chiudi(out.closed)
         # Chi e' a schermo, e chi non c'e' piu'. `updated` non tocca `t_on`,
         # quindi un testo che migliora non fa sparire e ricomparire niente.
         for ev in out.opened:
@@ -686,6 +694,12 @@ class DubPipeline:
             # Si taglia dal fondo in blocco e non una per volta: `del` su una
             # lista lunga sposta tutto quello che resta a ogni chiamata.
             del self.spoken[: len(self.spoken) - self.max_spoken]
+
+    def _chiudi(self, eventi) -> None:
+        """Archivia i sottotitoli spariti, rispettando lo stesso tetto."""
+        self.closed.extend(eventi)
+        if self.max_spoken and len(self.closed) > self.max_spoken:
+            del self.closed[: len(self.closed) - self.max_spoken]
 
     def _leggi_tutte(self, frame) -> TrackerOutput:
         """Fa passare il frame da tutti i lettori e ne unisce le uscite.
@@ -1805,7 +1819,7 @@ class DubPipeline:
     def finish(self) -> None:
         """Chiude le battute ancora a schermo: senza, l'ultima resta senza durata."""
         for lettore, _ in self.lettori:
-            self.closed.extend(lettore.close().closed)
+            self._chiudi(lettore.close().closed)
         # Le battute ancora in attesa vanno dette comunque: la promessa e' che
         # non si scarta niente, e una battuta trattenuta per scegliere meglio la
         # voce sarebbe il modo piu' assurdo di perderla.

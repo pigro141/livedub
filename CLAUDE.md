@@ -796,6 +796,29 @@ ridisegno costa **10,5 ms**, quindi il difetto non e' mai stato nel disegno, era
 nell'attesa. Quando qualcosa arriva tardi, guardare **cosa aspetta**, non quanto
 costa.
 
+**Una cura e' quasi sempre piu' stretta del difetto, e la suite verde non lo
+dice.** Rilette a freddo, cinque delle correzioni scritte per chiudere le cento
+domande erano **meta'**: `profiles/ultima.json` scritto uscendo e mai riletto
+aprendo (sesta volta della forma «dichiarato e mai letto», stavolta con il file
+gia' pieno dei valori giusti accanto a una finestra che ripartiva dai default);
+il guasto dell'audio che fermava i due thread ma lasciava **Avvia spento**, la
+sessione aperta e lo stato **verde**; `save_mix=false` che spegneva l'orologio
+insieme alla registrazione, e quindi ogni `t_wav` nullo — cioe' `tools/reopen
+<secondo>`, che e' il metodo intero di questo progetto; il tetto alla memoria
+messo su `spoken` e non su `closed`. Tutte scritte guardando il difetto, tutte
+verdi, tutte incomplete. La domanda che le prende e' gia' scritta qui sopra per i
+rami paralleli — **«cosa fa la strada vecchia che questa non fa?»** — e vale
+anche per una cura: *fermare i thread non e' fermare la sessione, spegnere la
+registrazione non e' spegnere l'orologio, salvare non e' rileggere*.
+
+**E il posto dove guardare per primo e' quello che nessuna verifica tocca.**
+Quattro di quei cinque stavano nella finestra Qt o al suo confine, che era
+l'unica parte del programma senza **nessuna** verifica. Il rimedio non e'
+verificare Qt: e' che la parte che si puo' provare senza aprirlo **stia fuori da
+Qt** — `core.preferenze.riprendi` (con che configurazione si riapre) e
+`tools.ui.colore_stato` (di che colore va il pallino) sono regole, non disegno, e
+adesso si verificano in una suite che gira senza hardware.
+
 **E la piu' importante: l'orecchio dell'utente trova cio' che la suite non puo'.**
 E' successo a ogni difetto serio di questo progetto, con la suite verde. Quando
 l'utente dice "non funziona" e i numeri dicono di si', **sono i numeri a essere

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import sys
+import threading
 import traceback
 from pathlib import Path
 
@@ -93,6 +94,30 @@ def cattura_eccezioni(al_guasto=None) -> None:
         precedente(tipo, valore, tb)
 
     sys.excepthook = mio
+
+    # **`sys.excepthook` non vede i thread, ed e' li' che vive questo
+    # programma.** I due cicli — audio a 10 ms e video a 30 Hz — girano ognuno
+    # nel suo thread, e un'eccezione li' finisce in `threading.excepthook`: senza
+    # questa riga, il gestore «niente esce di scena in silenzio» copriva l'unico
+    # posto dove non succede quasi mai niente. E' la stessa cosa della domanda
+    # 39, vista dal lato del registro: il thread audio moriva senza lasciare
+    # traccia, e l'unico modo di accorgersene era che il doppiaggio ammutolisse.
+    precedente_thread = threading.excepthook
+
+    def mio_thread(dati) -> None:
+        testo = "".join(
+            traceback.format_exception(dati.exc_type, dati.exc_value, dati.exc_traceback)
+        )
+        nome = getattr(dati.thread, "name", "?")
+        scrivi(f"GUASTO NON GESTITO nel thread {nome}\n" + testo)
+        if al_guasto is not None:
+            try:
+                al_guasto(dati.exc_type, dati.exc_value, testo)
+            except Exception:
+                pass
+        precedente_thread(dati)
+
+    threading.excepthook = mio_thread
 
 
 def percorso() -> Path:

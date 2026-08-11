@@ -52,7 +52,7 @@ from PySide6.QtWidgets import (  # noqa: E402
 )
 
 from core import preferenze, registro  # noqa: E402
-from core.config import PROFILES_DIR, Config, load_profile  # noqa: E402
+from core.config import PROFILES_DIR, Config  # noqa: E402
 from core.versione import NOME, VERSIONE, scheda  # noqa: E402
 from ui import qt_tema as tema  # noqa: E402
 from ui.qt_pannello import Pannello  # noqa: E402
@@ -550,8 +550,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--set", action="append", dest="overrides", metavar="CHIAVE=VALORE")
     args = ap.parse_args(argv)
 
-    cfg = (load_profile(args.profile, args.overrides) if args.profile
-           else Config().apply(args.overrides))
+    cfg, da_dove = preferenze.riprendi(args.profile, args.overrides)
 
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setStyle("Fusion")  # base neutra: il resto lo fa il foglio di stile
@@ -559,6 +558,7 @@ def main(argv: list[str] | None = None) -> int:
     app.setApplicationVersion(VERSIONE)
 
     finestra = Finestra(cfg, args)
+    finestra.scrivi(f"configurazione: {da_dove}")
 
     # **Niente esce di scena in silenzio.** Un'eccezione dentro un callback di Qt
     # stampa su una console che nell'eseguibile non esiste, e la finestra resta
@@ -579,9 +579,10 @@ def main(argv: list[str] | None = None) -> int:
     finestra.show()
     esito = app.exec()
     # L'ultima configurazione usata si ritrova: non e' un salvataggio con un
-    # nome, serve solo a non perdere quello che si stava facendo.
+    # nome, serve solo a non perdere quello che si stava facendo. La rilegge
+    # `configurazione()` al prossimo avvio — che e' la meta' che mancava.
     try:
-        cfg.save(PROFILES_DIR / "ultima.json")
+        cfg.save(preferenze.ultima())
     except Exception:
         pass
     return esito

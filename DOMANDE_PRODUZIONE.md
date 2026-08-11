@@ -17,8 +17,9 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
 
 ## A. Primo avvio e installazione (1–10)
 
-1. **Uno che scarica il repo e fa doppio clic, cosa vede?** ✅ **[fatto]** Niente: serve la
-   riga di comando. Un `livedub.bat` che chiama il venv è mezz'ora. **[fatto]**
+1. **Uno che scarica il repo e fa doppio clic, cosa vede?** ✅ **[fatto]** Prima
+   niente: serviva la riga di comando. Adesso `livedub.bat` chiama il venv, e se
+   il venv non c'è lancia l'installazione.
 2. **Se manca Python 3.11 lo dice o esplode?** ✅ `installa.ps1` lo controlla per
    primo e si ferma con il link.
 3. **Se manca la GPU?** ✅ `-SenzaGpu`, e senza il flag lo dichiara verificando
@@ -64,17 +65,29 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
     spaziature vengono dalla scala del tema, e la geometria salvata viene
     ritagliata sullo schermo vero all'apertura. Da guardare comunque alla prima
     prova su un portatile.
-13. **Su uno schermo 1366×768 ci sta?** ✅ **[fatto]** La finestra parte a 1240×800. Serve un
-    minimo sensato e un `resize` che rispetti lo schermo. **[fatto]**
-14. **La finestra si ricorda dov'era e quanto era grande?** ✅ **[fatto]** Riparte sempre al
-    centro. **[fatto]**
-15. **Le impostazioni cambiate si perdono chiudendo?** ✅ **[fatto]** **Sì, tutte.** È il
-    difetto più grave di questa lista: un'ora di regolazioni buttata. **[fatto]**
-16. **Si può salvare una configurazione con un nome?** ✅ **[fatto]** Solo scrivendo un JSON a
-    mano in `profiles/`. **[fatto]**
-17. **C'è un modo di sapere che versione si sta usando?** ✅ **[fatto]** No, e senza non si
-    può leggere un rapporto di errore di nessuno. **[fatto]**
-18. **Scorciatoie da tastiera?** ✅ **[fatto]** Nessuna. Almeno Ctrl+S, Ctrl+F, F5. **[fatto]**
+13. **Su uno schermo 1366×768 ci sta?** ✅ **[fatto]** Partiva a 1240×800 comunque.
+    Adesso legge lo schermo vero e ci sta dentro, con un minimo di 900×560.
+14. **La finestra si ricorda dov'era e quanto era grande?** ✅ **[fatto]**
+    Posizione, taglia e scheda aperta stanno in `%LOCALAPPDATA%\livedub`, e se lo
+    schermo di ieri non c'è più non ci si sposta sopra.
+15. **Le impostazioni cambiate si perdono chiudendo?** ✅ **[fatto], e la prima
+    cura era metà.** `profiles/ultima.json` veniva scritto uscendo e **non lo
+    rileggeva nessuno all'avvio**: un'ora di regolazioni restava sul disco,
+    accanto a una finestra che ripartiva dai default. Sesta volta della stessa
+    forma, dopo `max_ocr_hz`, `tts.device`, `background_mode`, `overlay.ritardo`
+    e `ui.save_mix`. Adesso lo rilegge `core.preferenze.riprendi`, che sta fuori
+    dalla finestra proprio perché così si può verificare senza aprire Qt — e la
+    finestra **dice da dove viene** la configurazione con cui si è aperta.
+    → L'ordine è quello che l'utente si aspetta: `--profile` vince sull'ultima,
+    `--set` vince su tutti e due, e un `ultima.json` illeggibile fa ripartire dai
+    default **dicendolo**.
+16. **Si può salvare una configurazione con un nome?** ✅ **[fatto]** Ctrl+S salva
+    un profilo, Ctrl+O ne apre uno: un file che si legge, si diffa e si manda.
+17. **C'è un modo di sapere che versione si sta usando?** ✅ **[fatto]** F1 la
+    mostra e `core/versione.py` la scrive in cima a ogni registro: senza, un
+    rapporto di errore non dice quale codice stava girando.
+18. **Scorciatoie da tastiera?** ✅ **[fatto]** Cinque: Ctrl+S, Ctrl+O, Ctrl+F,
+    Ctrl+L, F1.
 19. **Si può usare senza mouse?** ✅ Tab di serie in ordine di costruzione
     (testata → barra → schede → pannello), più cinque scorciatoie: Ctrl+S salva,
     Ctrl+O apre, Ctrl+F va alla ricerca, Ctrl+L copia la diagnostica, F1 la
@@ -90,8 +103,8 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
     perché **Avvia non è ancora portato**, quindi non c'è un caso scoperto: c'è
     un caso che non esiste.
 22. **Se si preme Avvia due volte?** ✅ Nella Tk `if self.threads: return`.
-23. **Il log cresce all'infinito?** ✅ **[fatto]** Sì, `QPlainTextEdit` senza tetto: una
-    sessione lunga se lo mangia tutto. **[fatto]**
+23. **Il log cresce all'infinito?** ✅ **[fatto]** Cresceva: `QPlainTextEdit` senza
+    tetto, e una sessione lunga se lo mangiava tutto. Adesso 5000 righe.
 24. **Si può copiare una riga del log?** ✅ È un widget di testo selezionabile.
 25. **Si può cercare dentro il log?** ⚠️ Non c'è una ricerca dedicata, ma il log
     è un widget di testo Qt: Ctrl+A e Ctrl+C funzionano, e per cercare davvero
@@ -141,8 +154,9 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
 33. **Cambiare motore TTS a caldo?** ✅ La striscia "Applica ora" rifà la catena.
 34. **Un parametro cambiato è davvero quello in uso?** ✅ Ogni manopola rilegge da
     config dopo aver scritto.
-35. **Si può esportare la configurazione per un rapporto di errore?** ✅ **[fatto]** Esiste
-    `--dump-config` ma non un bottone. **[fatto]**
+35. **Si può esportare la configurazione per un rapporto di errore?** ✅ **[fatto]**
+    C'era solo `--dump-config`. Adesso Ctrl+L mette negli appunti versione,
+    sistema, provider ONNX e configurazione, cioè quello che serve a chi legge.
 36. **La ROI disegnata a mano è sensata?** ✅ Sopra 0,12 di altezza la finestra
     avvisa, con la misura del perché.
 37. **Le aree multiple si possono disegnare col mouse nella Qt?** ⚠️ Partono
@@ -163,6 +177,16 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
     → **Non si riapre il device da soli**, ed è una scelta: il flusso audio ha una
     linea temporale che ripartirebbe da zero, e riprendere a metà vorrebbe dire
     programmare battute su un orologio che non esiste più.
+    → **E anche questa cura era metà, in tre punti.** Fermare i cicli non è
+    fermare la sessione: i due thread uscivano, ma **Avvia restava spento** — lo
+    riaccende solo `ferma` — quindi il messaggio invitava a premere un bottone
+    disabilitato; la sessione restava aperta col WAV mai scritto; e lo stato
+    «audio interrotto» usciva **verde**, perché la regola del colore cerca `!` o
+    «guasto» e lì non c'era nessuno dei due. Il colore del «va tutto bene» sopra
+    una catena morta. Adesso il guasto passa dalla coda, il thread
+    dell'interfaccia chiude la sessione come farebbe Ferma, e la regola del
+    colore sta fuori dalla finestra (`tools.ui.colore_stato`) perché è una regola
+    e si può verificare senza aprire niente.
 40. **Se cattura e uscita sono lo stesso device?** ✅ Si rifiuta di partire e lo
     spiega: rientrerebbe.
 41. **Se non c'è nessun loopback?** ✅ Solleva **elencando quelli disponibili**,
@@ -199,6 +223,12 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
     MB/minuto** su disco (int16) e **22 MB/minuto in RAM** (float32). Il tetto è
     30 minuti, cioè **330 MB su disco e 660 MB di RAM**. Ora la finestra lo dice
     all'avvio, e `ui.save_mix=false` lo spegne davvero.
+    → **E spegnendolo si perdeva la diagnosi che prometteva di conservare.** Il
+    ritorno anticipato stava **prima** della riga che prende l'origine del tempo,
+    quindi `t0` restava `None` e ogni `t_wav` di `events.jsonl` usciva nullo:
+    `tools/reopen runs\<data> <secondo>` filtra su quel campo, cioè non trovava
+    più niente. Spegnere la registrazione doveva togliere la lista dei blocchi,
+    non l'orologio.
 
 ## E. Video e cattura (51–62)
 
@@ -296,9 +326,17 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
 
 ## H. Errori, guasti, diagnosi (81–90)
 
-81. **Se qualcosa esplode, l'utente cosa vede?** ✅ **[fatto]** Nella Qt un traceback in
-    console che con l'exe non esiste. Serve un gestore globale. **[fatto]**
-82. **C'è un file di log su disco?** ✅ **[fatto]** Solo il rapporto di fine sessione. **[fatto]**
+81. **Se qualcosa esplode, l'utente cosa vede?** ✅ **[fatto]** Prima un traceback
+    su una console che con l'exe non esiste. Adesso un gestore globale: finestra
+    di guasto, riga rossa nel log, traceback nel registro.
+    → **E copriva metà del programma.** `sys.excepthook` **non vede i thread**, e
+    qui i due cicli — audio a 10 ms, video a 30 Hz — sono thread: il gestore
+    «niente esce di scena in silenzio» guardava l'unico posto dove non muore mai
+    niente. Adesso c'è anche `threading.excepthook`. È la domanda 39 vista dal
+    lato del registro.
+82. **C'è un file di log su disco?** ✅ **[fatto]** C'era solo il rapporto di fine
+    sessione, che nasce dopo. Adesso `%LOCALAPPDATA%\livedub\log`, uno al giorno,
+    se ne tengono sette — un guasto succede anche prima che una sessione cominci.
 83. **Un rapporto di errore contiene versione, config e sistema?** ✅ **[fatto]**
 84. **Se il disco è pieno?** ⚠️ `events.jsonl` e `speaker.jsonl` si scrivono
     **mentre gira**, quindi la diagnosi si salva comunque; il WAV si scrive alla
@@ -345,6 +383,15 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
     chiamata senza dichiarare i tipi non solleva, torna zero. Un numero
     impossibile è più utile di un numero sbagliato — e quello stesso giro aveva
     già detto la cosa vera, contando 3600 oggetti vivi.
+    → **Il tetto però era su una lista sola.** `closed` — i sottotitoli spariti —
+    continuava a crescere, e dal vivo non la rilegge nessuno: la scrivono
+    `on_frame` e `finish`, la leggono solo i banchi. Misurato: 3600
+    `SubtitleEvent` sono **+0,79 MB**, un tredicesimo delle battute. Poco, ma
+    della stessa forma. Adesso segue lo stesso tetto, perché è la stessa domanda
+    («sono dal vivo o sul banco?») e due manopole per una domanda sola divergono.
+    → **E il banco non poteva vederlo**, perché chiama `_speak` direttamente: il
+    lettore non gira, quindi `closed` resta vuota. Un banco che salta lo stadio
+    dove sta il difetto non lo misura mai.
 93. **Quanto ruba al gioco in fps?** ⚠️ **Misurato indirettamente e limitato per
     progetto**: la catena consuma ~66 s di CPU per 60 s di scena, di cui 56 sono
     OCR — ed è per questo che esiste `max_ocr_hz`, che quel costo lo taglia. Su
@@ -404,3 +451,32 @@ esercizio:
 
 Nessuno dei sei si vedeva leggendo il codice. Cinque su sei sono usciti da una
 misura, e il sesto da una domanda posta ad alta voce.
+
+## E poi le cure sono state rilette, e cinque erano metà
+
+Rileggere le correzioni **dopo**, a mente fredda e con la suite verde, ha trovato
+altri sei difetti — tutti dentro il codice scritto per chiudere queste domande,
+nessuno visibile dal suo messaggio di commit:
+
+| dove | cosa non funzionava |
+|---|---|
+| 15, 16 | `profiles/ultima.json` scritto uscendo e **mai riletto aprendo**: la sesta volta della stessa forma |
+| 39 | il guasto dell'audio lasciava **Avvia spento**, la sessione aperta e lo stato **verde** |
+| 50 | con `save_mix=false` ogni `t_wav` usciva **nullo**: `tools/reopen <secondo>` non trovava più niente |
+| 92 | il tetto copriva `spoken` e non `closed`, che cresceva ancora |
+| 81 | il gestore globale **non vedeva i thread**, cioè dove vive tutta la catena |
+| 26 | l'elenco dei valori ammessi si sceglieva percorrendo un **insieme**: ordine casuale a ogni processo |
+
+**La lezione, che è una sola.** Una cura si scrive guardando il difetto, e il
+difetto è quasi sempre più stretto della cura: fermare i thread non è fermare la
+sessione, spegnere la registrazione non è spegnere l'orologio, salvare non è
+rileggere. Il modo di accorgersene non è rileggere il codice — è chiedersi
+**cosa fa la strada vecchia che questa nuova non fa**, che è la stessa domanda
+già scritta in `CLAUDE.md` per i rami paralleli.
+
+E il segnale che avrebbe dovuto insospettire subito: **la finestra Qt non aveva
+nessuna verifica**. Quattro dei sei stanno lì o al confine, e il primo (il file
+salvato e mai riletto) è sopravvissuto proprio perché quel codice non lo provava
+nessuno. Adesso la parte che si può provare senza aprire Qt **sta fuori da Qt**
+(`core.preferenze.riprendi`, `tools.ui.colore_stato`), che è l'unico modo di
+verificarla in una suite che gira senza hardware.

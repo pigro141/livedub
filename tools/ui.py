@@ -170,6 +170,23 @@ class SelettoreFinestra:
         self.al_termine(f)
 
 
+def colore_stato(testo: str, tema) -> str:
+    """Di che colore va il pallino, dato quello che c'e' scritto accanto.
+
+    **Sta fuori dalla finestra perche' e' una regola, non un disegno**, e una
+    regola si verifica senza aprire niente. E' servito: «audio interrotto»
+    veniva **verde** — il colore del «va tutto bene» sopra una catena morta —
+    perche' non contiene ne' `!` ne' «guasto», e nessuno poteva accorgersene
+    senza staccare le cuffie a meta' sessione.
+    """
+    basso = testo.lower()
+    if "!" in testo or "error" in basso or "guast" in basso or "interrott" in basso:
+        return tema.ROSSO
+    if "ferm" in basso or "pront" in basso:
+        return tema.TESTO_FIOCO
+    return tema.VERDE
+
+
 class App:
     # **Ogni quanto la finestra guarda la coda, in millisecondi.** Erano 100, poi
     # 33 per allinearsi alla cattura. Ma questo passo e' un **ritardo aggiunto**:
@@ -431,13 +448,7 @@ class App:
         """
         t = self.tema
         if colore is None:
-            basso = testo.lower()
-            if "!" in testo or "error" in basso or "guast" in basso:
-                colore = t.ROSSO
-            elif "ferm" in basso or "pront" in basso:
-                colore = t.TESTO_FIOCO
-            else:
-                colore = t.VERDE
+            colore = colore_stato(testo, t)
         self.l_stato.config(text=testo)
         t.pallino(self.spia, colore)
 
@@ -857,6 +868,8 @@ class App:
 
                 elif tipo == "stato":
                     self.stato(dato)
+                elif tipo == "guasto":
+                    self._audio_guasto(dato)
                 elif tipo == "nota":
                     self.scrivi(dato, tag="nota")
         except queue.Empty:
@@ -974,12 +987,19 @@ class App:
                                 self.sessione.audio(fuori, quando)
                 except Exception as guasto:
                     pronto.set()  # se no il ciclo video aspetta dieci secondi per niente
-                    self.coda.put(("nota", f"! l'audio si e' fermato: {type(guasto).__name__}: "
-                                           f"{guasto}"))
-                    self.coda.put(("nota", "! probabile: cuffie o altoparlanti staccati, "
-                                           "oppure il device e' cambiato. Ricollega e premi Avvia."))
-                    self.coda.put(("stato", "audio interrotto"))
                     self.stop.set()  # il video senza audio non serve a niente
+                    # **Fermare i cicli non e' fermare la sessione**, e la prima
+                    # versione di questa cura si era fermata a meta': i due
+                    # thread uscivano, ma Avvia restava spento (lo riaccende solo
+                    # `ferma`), la sessione restava aperta col WAV non scritto, e
+                    # lo stato «audio interrotto» usciva **verde**, che e' il
+                    # colore del «va tutto bene». Il messaggio diceva «ricollega
+                    # e premi Avvia» indicando un bottone disabilitato.
+                    #
+                    # Il riordino lo deve fare il thread dell'interfaccia — da
+                    # qui non si tocca Tkinter — quindi si manda un messaggio e
+                    # ci pensa `_svuota_coda`.
+                    self.coda.put(("guasto", f"{type(guasto).__name__}: {guasto}"))
 
             def ciclo_video() -> None:
                 # La sorgente si apre **nel thread che la usa**: dxcam sta su COM,
@@ -1146,6 +1166,27 @@ class App:
         except Exception as exc:  # un errore di device non deve chiudere la finestra
             self.coda.put(("nota", f"! avvio fallito: {type(exc).__name__}: {exc}"))
             self._fine_thread()
+
+    def _audio_guasto(self, dettaglio: str) -> None:
+        """Il ciclo audio e' morto: si chiude la sessione come se fosse un Ferma.
+
+        **Il guasto piu' probabile e' anche quello da cui si deve poter
+        tornare**: cuffie staccate, il device cambiato sotto i piedi. Dirlo e
+        basta lasciava la finestra in uno stato che non esiste — nessun thread
+        vivo, Avvia spento, la sessione aperta e il WAV mai scritto — e l'unica
+        via d'uscita era premere Ferma, che nessuno pensa di premere quando ha
+        appena letto «premi Avvia».
+        """
+        self.scrivi(f"! l'audio si e' fermato: {dettaglio}", tag="nota")
+        self.scrivi("! probabile: cuffie o altoparlanti staccati, oppure il device e' "
+                    "cambiato. Ricollega e premi Avvia.", tag="nota")
+        if self.threads or self.pipeline is not None:
+            self.ferma()  # chiude la sessione, salva il WAV, riaccende Avvia
+        # Dopo `ferma`, se no lo stato «fermo» che manda lei arriverebbe dopo
+        # questo e cancellerebbe il rosso. Il colore e' dichiarato: «audio
+        # interrotto» senza il punto esclamativo verrebbe **verde**, cioe' il
+        # colore di «va tutto bene» sopra una catena morta.
+        self.coda.put(("stato", "! audio interrotto"))
 
     def _fine_thread(self) -> None:
         self.b_start.config(state="normal")

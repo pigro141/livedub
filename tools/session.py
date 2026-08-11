@@ -97,11 +97,18 @@ class Session:
     # -- audio -------------------------------------------------------------
 
     def audio(self, block: np.ndarray, t: float) -> None:
-        if not self.salva_mix:
-            return
         """Un blocco di uscita, con l'istante a cui il mixer lo ha prodotto."""
+        # **L'origine si prende comunque, anche senza registrare.** Spegnendo il
+        # mix si usciva **prima** di questa riga, quindi `t0` restava `None` e
+        # ogni `t_wav` di `events.jsonl` usciva nullo: la sessione perdeva la
+        # colonna con cui si riapre (`tools/reopen`), cioe' proprio la diagnosi
+        # che `salva_mix=False` prometteva di conservare. Costa un confronto e
+        # non alloca niente: quello che si voleva spegnere e' la lista, non
+        # l'orologio.
         if self.t0 is None:
             self.t0 = t
+        if not self.salva_mix:
+            return
         if self._pieno:
             return
         if self._n >= self.max_samples:

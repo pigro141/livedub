@@ -339,6 +339,21 @@ def test_memoria(c) -> None:
     doppione = SubtitleEvent(text=testo, cls=LineClass.WHITE, t_on=1.0)
     c.ok(r._gia_detta(doppione), "col tetto al minimo il cancello anti-doppioni scatta ancora")
 
+    # -- e lo stesso tetto vale per i sottotitoli chiusi ---------------------
+    # Il rimedio della domanda 92 si era fermato a `spoken`: `closed` cresceva
+    # ancora, e dal vivo non la rilegge nessuno. Misurato: 3600 `SubtitleEvent`
+    # sono +0,79 MB. Poco, ma senza limite — che era proprio la forma del
+    # difetto, non la sua taglia.
+    r, o, _ = catena(10)
+    eventi = [SubtitleEvent(text=f"Sottotitolo {i}", cls=LineClass.WHITE, t_on=i * 1.0)
+              for i in range(50)]
+    r._chiudi(eventi)
+    c.eq(len(r.closed), 10, "col tetto anche i sottotitoli chiusi si accorciano")
+    c.ok(r.closed[-1].text.endswith("49"), "e restano gli ultimi, non i primi")
+    r, o, _ = catena(0)
+    r._chiudi(eventi)
+    c.eq(len(r.closed), 50, "senza tetto si tengono tutti (il banco li usa)")
+
 
 def test_sessione(c) -> None:
     """`ui.save_mix` viene letto davvero (domande 50, 91, 92).
@@ -373,6 +388,16 @@ def test_sessione(c) -> None:
         c.eq(spento._blocks, [], "con save_mix spento non si accumula **niente**")
         c.eq(spento._n, 0, "e nemmeno il conteggio dei campioni")
 
+        # **Ma la diagnosi deve restare**, ed era proprio quella che si perdeva.
+        # Spegnendo il mix si usciva prima di prendere l'origine del tempo,
+        # quindi `t0` restava `None` e ogni `t_wav` di `events.jsonl` usciva
+        # nullo: `tools/reopen runs\<data> <secondo>` — il comando su cui e'
+        # costruito tutto il metodo di questo progetto, «dimmi il secondo in cui
+        # l'hai sentita» — non trovava piu' niente, perche' filtra su quel campo.
+        c.ok(spento.t0 is not None,
+             "e l'origine del tempo si prende lo stesso: senza, ogni t_wav e' nullo")
+        c.ok(spento.t0 == acceso.t0, "ed e' la stessa che si prenderebbe registrando")
+
         # `Session` tiene `events.jsonl` aperto: senza chiuderle, la cartella
         # temporanea non si cancella su Windows e il gruppo esplode in chiusura
         # invece che su una verifica. Un guasto negli attrezzi si legge male
@@ -382,6 +407,154 @@ def test_sessione(c) -> None:
                 s._lines.close()
             except Exception:
                 pass
+
+
+def test_ripresa(c) -> None:
+    """Le impostazioni si ritrovano riaprendo (domande 15 e 16).
+
+    **Il file c'era, e non lo leggeva nessuno.** `ultima.json` veniva scritto
+    all'uscita della finestra Qt e mai riletto all'avvio: chi regolava per
+    un'ora, chiudeva e riapriva, ritrovava i default con il file dei valori
+    giusti sul disco accanto. La cura per il difetto piu' grave dell'elenco
+    aveva la forma del difetto che questo progetto ha gia' pagato cinque volte.
+
+    Le tre domande sono quelle che quella meta' mancante non avrebbe superato:
+    **si rilegge?**, **un profilo chiesto vince ancora?**, **un file rotto fa
+    ripartire dai default dicendolo?**
+    """
+    import tempfile
+    from pathlib import Path
+
+    from core import preferenze
+    from core.config import Config
+
+    c.group("memoria")
+
+    vero = preferenze.ultima
+    with tempfile.TemporaryDirectory() as tmp:
+        finto = Path(tmp) / "ultima.json"
+        preferenze.ultima = lambda: finto
+        try:
+            # -- niente da riprendere: si parte dai default, e si dice ---------
+            cfg, da_dove = preferenze.riprendi(None, None)
+            c.eq(da_dove, "default", "senza file salvato si parte dai default")
+
+            # -- si rilegge davvero -------------------------------------------
+            salvata = Config()
+            salvata.vision.sat_max = 77
+            salvata.mix.duck_db = -12.5
+            salvata.save(finto)
+            cfg, da_dove = preferenze.riprendi(None, None)
+            c.eq(cfg.vision.sat_max, 77, "riaprendo si ritrova quello che si era regolato")
+            c.close(cfg.mix.duck_db, -12.5, "anche i decimali, non solo gli interi")
+            c.ok("ultima" in da_dove, f"e la finestra puo' dire da dove viene ({da_dove})")
+
+            # -- ma `--set` resta sopra ---------------------------------------
+            cfg, _ = preferenze.riprendi(None, ["vision.sat_max=33"])
+            c.eq(cfg.vision.sat_max, 33, "--set vince sull'ultima configurazione")
+
+            # -- e un profilo chiesto vince su tutto --------------------------
+            cfg, da_dove = preferenze.riprendi("gtav", None)
+            c.ok(cfg.vision.sat_max != 77,
+                 "chi chiede un profilo vuole quello, non la sessione di ieri")
+            c.eq(da_dove, "profilo gtav", "e lo dichiara")
+
+            # -- un file rotto non impedisce di partire, e lo dice ------------
+            finto.write_text("{ questo non e' json", encoding="utf-8")
+            cfg, da_dove = preferenze.riprendi(None, None)
+            c.eq(cfg.vision.sat_max, Config().vision.sat_max,
+                 "un ultima.json illeggibile fa ripartire dai default")
+            c.ok("non si e' potuto leggere" in da_dove,
+                 "**dicendolo**: aprirsi diversi da ieri senza spiegare e' peggio")
+        finally:
+            preferenze.ultima = vero
+
+
+def test_guasto_audio(c) -> None:
+    """Le cuffie staccate a meta' partita (domande 39, 45, 87).
+
+    La cura c'era ed era **meta'**: il ciclo protetto diceva il guasto e fermava
+    i due thread, ma la sessione restava aperta col WAV mai scritto, **Avvia
+    restava spento** — lo riaccende solo `ferma` — e lo stato usciva *verde*. Il
+    messaggio invitava a premere un bottone disabilitato.
+
+    Qui si prova il metodo vero su un finto: e' logica dell'interfaccia, non
+    disegno, quindi non serve aprire una finestra.
+    """
+    import queue as _queue
+
+    from tools.ui import App, colore_stato
+
+    c.group("memoria")
+
+    class Finta:
+        def __init__(self) -> None:
+            self.righe: list[str] = []
+            self.threads = [object()]
+            self.pipeline = object()
+            self.coda: _queue.Queue = _queue.Queue()
+            self.fermata = False
+
+        def scrivi(self, testo, tag=None) -> None:
+            self.righe.append(testo)
+
+        def ferma(self) -> None:
+            self.fermata = True
+            self.threads.clear()
+            self.pipeline = None
+            self.coda.put(("stato", "fermo"))
+
+    f = Finta()
+    App._audio_guasto(f, "OSError: il device non c'e' piu'")
+    c.ok(f.fermata, "il guasto dell'audio chiude la sessione come farebbe Ferma")
+    c.ok(any("cuffie" in r for r in f.righe), "e dice cosa e' probabilmente successo")
+
+    msg = []
+    while not f.coda.empty():
+        msg.append(f.coda.get_nowait())
+    stati = [d for t, d in msg if t == "stato"]
+    c.ok(stati and stati[-1] != "fermo",
+         f"l'ultimo stato non e' «fermo»: sarebbe il colore sbagliato ({stati})")
+
+    # E il colore e' la meta' che non si vedeva: la stringa di prima era verde.
+    class _T:
+        ROSSO, VERDE, TESTO_FIOCO = "rosso", "verde", "fioco"
+
+    c.eq(colore_stato(stati[-1], _T), "rosso", "e il pallino diventa rosso")
+    c.eq(colore_stato("audio interrotto", _T), "rosso",
+         "anche scritto senza punto esclamativo: era verde, cioe' «va tutto bene»")
+    c.eq(colore_stato("in corso", _T), "verde", "e una sessione viva resta verde")
+    c.eq(colore_stato("fermo", _T), "fioco", "e una ferma resta fioca")
+
+    # -- e il registro deve vedere i thread, che e' dove vive questo programma --
+    # `sys.excepthook` non li copre: un'eccezione dentro il ciclo audio o quello
+    # video finisce in `threading.excepthook` e, senza, il gestore «niente esce
+    # di scena in silenzio» guardava l'unico posto dove non muore mai niente.
+    import sys as _sys
+    import threading as _th
+
+    from core import registro
+
+    visti: list[str] = []
+    prima_sys, prima_th = _sys.excepthook, _th.excepthook
+    try:
+        # Il gestore incatena a quello di prima, che di serie stampa il
+        # traceback: qui lo si zittisce **prima**, se no la suite sputa un
+        # guasto finto in mezzo ai risultati veri. Che l'incatenamento avvenga
+        # lo dice questa stessa riga: se non chiamasse il precedente, il finto
+        # qui sotto non verrebbe mai chiamato.
+        _th.excepthook = lambda dati: None
+        registro.cattura_eccezioni(lambda tipo, valore, testo: visti.append(f"{tipo.__name__}"))
+
+        def esplode() -> None:
+            raise RuntimeError("il device non c'e' piu'")
+
+        t = _th.Thread(target=esplode)
+        t.start()
+        t.join(timeout=5.0)
+    finally:
+        _sys.excepthook, _th.excepthook = prima_sys, prima_th
+    c.eq(visti, ["RuntimeError"], "un thread che esplode arriva al registro, non al silenzio")
 
 
 def test_due_sessioni(c) -> None:

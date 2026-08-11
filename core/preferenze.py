@@ -70,3 +70,56 @@ def aggiorna(**valori: Any) -> dict[str, Any]:
     dati.update(valori)
     scrivi(dati)
     return dati
+
+
+# ------------------------------------------------- l'ultima configurazione --
+
+
+def ultima() -> Path:
+    """Il profilo in cui finisce la configurazione all'uscita."""
+    from core.config import PROFILES_DIR
+
+    return PROFILES_DIR / "ultima.json"
+
+
+def riprendi(profilo: str | None = None, overrides: Any = None):
+    """Con che configurazione si riapre il programma, e **da dove viene**.
+
+    **`ultima.json` veniva scritto all'uscita e non lo rileggeva nessuno.** Era
+    la cura scritta per le domande 15 e 16 — «le impostazioni si perdono
+    chiudendo», il difetto piu' grave di quell'elenco — e aveva la forma esatta
+    di quello che questo progetto ha gia' pagato cinque volte: un valore
+    prodotto, salvato e mai letto (`max_ocr_hz`, `tts.device`,
+    `background_mode`, `overlay.ritardo`, `ui.save_mix`). L'utente regolava per
+    un'ora, chiudeva, riapriva e ritrovava i default — con il file pieno dei
+    valori giusti sul disco, li' accanto.
+
+    L'ordine e' quello che l'utente si aspetta: **un profilo chiesto vince
+    sempre** (chi scrive `--profile gtav` vuole gtav, non la sessione di ieri) e
+    `--set` sta sopra tutti e due. Senza profilo si riprende l'ultima.
+
+    Si torna anche **da dove viene**, perche' va scritto nel log: una finestra
+    che si apre con valori che l'utente non riconosce, e non dice perche', e'
+    peggio di una che li ha dimenticati.
+
+    Sta qui e non nella finestra perche' e' una decisione sulla configurazione,
+    non sul disegno: qui si puo' verificare senza aprire Qt, e infatti e' cosi'
+    che il difetto e' venuto fuori.
+    """
+    from core.config import Config, load_profile
+
+    if profilo:
+        return load_profile(profilo, overrides), f"profilo {profilo}"
+    f = ultima()
+    if f.exists():
+        try:
+            cfg = Config.load(f)
+            cfg.apply(overrides)
+            return cfg, f"l'ultima configurazione usata ({f})"
+        except Exception as guasto:
+            # Un profilo scritto da una versione precedente puo' avere un campo
+            # che non esiste piu': si riparte dai default **dicendolo**, se no
+            # il programma si apre diverso da ieri e nessuno sa perche'.
+            return (Config().apply(overrides),
+                    f"default: {f.name} non si e' potuto leggere ({guasto})")
+    return Config().apply(overrides), "default"

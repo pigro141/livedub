@@ -11,6 +11,12 @@ runs/
 *.wav
 *.onnx
 
+# L'ultima configurazione usata: la scrive la finestra uscendo e la rilegge
+# aprendo (`core/preferenze.riprendi`). E' lo stato della macchina di chi sta
+# giocando, non un profilo calibrato: versionarla vorrebbe dire consegnare a
+# tutti le regolazioni dell'ultima prova fatta qui.
+profiles/ultima.json
+
 graphify-out/
 .vscode/
 .idea/

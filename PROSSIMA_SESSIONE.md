@@ -64,7 +64,7 @@ verifiche, non di fretta. Chiude sei domande e rende la finestra Tk cancellabile
 
 ## Dove siamo
 
-Suite verde a **1368 verifiche**. `SviluppoProgetto.md`: **16 step su 19**.
+Suite verde a **1381 verifiche**. `SviluppoProgetto.md`: **16 step su 19**.
 
 **La finestra è stata rifatta in Qt** (`tools/ui_qt.py`, PySide6, che è il
 binding ufficiale di The Qt Company ed è LGPL-3, compatibile con la nostra
@@ -99,7 +99,7 @@ era il modo più rapido di restare senza nessuna delle due.
 
 1. **Creare il repo GitHub** — hai detto «aspetta». È tutto pronto: README col
    diagramma, `LICENZE.md`, `installa.ps1`, `livedub.spec`, `livedub.bat`.
-   **Da decidere prima di pubblicare**: 156 commit su 165 hanno il trailer
+   **Da decidere prima di pubblicare**: 167 commit su 170 hanno il trailer
    `Co-Authored-By: Claude`. L'autore git sei sempre e solo tu, quindi su GitHub
    non comparirebbe nessun collaboratore, ma la riga si legge nei messaggi.
    Toglierla significa riscrivere la storia.
@@ -113,7 +113,7 @@ battute aperte) e quello lo giudica l'ascolto. Basta una prova con
 ## Come si prova quello che scrivi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                    # 1368 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest                    # 1381 verifiche
 .\.venv\Scripts\python.exe -m tools.ui_qt --profile gtav        # la finestra nuova
 .\.venv\Scripts\python.exe -m tools.ui --profile live           # il dal vivo, ancora Tk
 .\.venv\Scripts\python.exe -m tools.bench_memoria --battute 3600

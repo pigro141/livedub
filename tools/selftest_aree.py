@@ -382,3 +382,34 @@ def test_sessione(c) -> None:
                 s._lines.close()
             except Exception:
                 pass
+
+
+def test_due_sessioni(c) -> None:
+    """Due sessioni nello stesso secondo non si pestano i piedi (domanda 32).
+
+    Avevano la **stessa cartella**, e ci scrivevano dentro tutte e due:
+    `events.jsonl` aperto due volte, il WAV dell'una sopra quello dell'altra, e
+    nessun errore perche' `mkdir(exist_ok=True)` non si lamenta. Due finestre
+    aperte per confrontare due configurazioni e' proprio come si usa il
+    programma.
+    """
+    import tempfile
+
+    from tools.session import Session
+
+    c.group("memoria")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        sessioni = [Session(root=tmp, salva_mix=False) for _ in range(3)]
+        try:
+            cartelle = {s.dir for s in sessioni}
+            c.eq(len(cartelle), 3, "tre sessioni nello stesso secondo, tre cartelle")
+            nomi = sorted(s.dir.name for s in sessioni)
+            c.ok(nomi[0][:19] == nomi[-1][:19],
+                 "e il nome resta la data leggibile, col suffisso solo dove serve")
+        finally:
+            for s in sessioni:
+                try:
+                    s._lines.close()
+                except Exception:
+                    pass

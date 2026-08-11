@@ -23,30 +23,44 @@ modifiche grosse — e l'8-11 agosto ne sono state fatte parecchie (front-end Qt
 `core/versione.py`), quindi **il primo comando della sessione è
 `/graphify . --update`** se non risulta già fatto.
 
-## Il lavoro di adesso: finire le cento domande
+## Le cento domande: finite
 
-`DOMANDE_PRODUZIONE.md` è l'elenco delle domande che si fanno a un programma
-prima di darlo a qualcuno che non l'ha scritto. Stato: **44 a posto, 34 difetti,
-20 mai provate, 2 mezze**.
+`DOMANDE_PRODUZIONE.md` è chiuso. **84 chiuse, 16 dichiarate come limite noto,
+zero senza risposta.** Un ❓ non è un ✅ in attesa, ed è per questo che nessuna è
+rimasta tale: ognuna ha o una correzione, o una misura, o un limite scritto col
+suo perché.
 
-**`METODO_DOMANDE.md` dice come si lavorano**, ed è la cosa da leggere prima di
-toccarne una: sei passi, una domanda per volta, cinque sotto-domande scritte
-*prima* di guardare il codice, la soglia dichiarata *prima* di vedere il numero.
+**`METODO_DOMANDE.md` dice come sono state lavorate** — sei passi, una per volta,
+cinque sotto-domande scritte *prima* di guardare il codice, la soglia dichiarata
+*prima* di vedere il numero. È il file da leggere se ne arrivano di nuove.
 
-Non è burocrazia: ognuno dei sei passi esiste perché saltandolo si è già
-sbagliato. In questa sessione, tre volte.
+I sei difetti veri trovati chiudendole, che sono la ragione per cui l'esercizio
+si fa:
 
-Le rimanenti si dividono in tre gruppi, e l'ordine consigliato è **primo, terzo,
-secondo**:
+| | cosa |
+|---|---|
+| 92 | la memoria cresceva senza limite: 3600 battute → 3600 oggetti mai liberati |
+| 50, 91 | `Session` teneva **660 MB** di audio in RAM, e non lo diceva niente |
+| 50 | `ui.save_mix` dichiarato e **mai letto da nessuno** — il quinto campo così |
+| 39 | il thread audio moriva **in silenzio** con le cuffie staccate |
+| 32 | due sessioni nello stesso secondo scrivevano nella **stessa cartella** |
+| 27, 28 | `capture.fps = -5` e `decide_after_ms = 99999` passavano senza un fiato |
 
-| gruppo | quante | esempi |
-|---|---|---|
-| si chiudono da soli | ~20 | intervalli dei valori (27, 28), ricerca nel log (25), annulla (31), `runs/` che cresce (85), indicatore di latenza (44, 70, 86) |
-| sono lavoro vero | ~6 | il WAV scritto a blocchi invece che in RAM (84, 91), selettore d'area nella Qt (37), portare **Avvia** nella finestra Qt |
-| servono te e il gioco acceso | ~8 | cuffie staccate a metà (39), fps rubati (93), schermo a 150% (12), due monitor (55) |
+Nessuno si vedeva leggendo il codice. Cinque su sei sono usciti da una misura.
 
-Il secondo gruppo si accorpa alla prossima prova d'ascolto dell'utente, che è
-l'unico momento in cui il gioco è acceso comunque.
+**Le 16 dichiarate non sono lavoro dimenticato.** Sei si chiudono tutte insieme
+**quando Avvia arriverà nella finestra Qt** (l'indicatore di latenza, l'underrun
+a schermo, il selettore d'area col mouse): un indicatore vivo in una finestra che
+non fa girare la catena non avrebbe niente da mostrare. Le altre sono limiti veri
+— testo scuro su fondo chiaro, sottotitoli in fumetti, lingue non latine, Python
+dello Store — e stanno nel README.
+
+## Quindi il lavoro di adesso è uno solo
+
+**Portare Avvia nella finestra Qt**, con l'overlay. È il pezzo su cui questo
+progetto ha trovato i difetti peggiori (il programma che leggeva se stesso, la
+finestra dimensionata sul testo sbagliato), quindi va portato con le stesse
+verifiche, non di fretta. Chiude sei domande e rende la finestra Tk cancellabile.
 
 ## Dove siamo
 

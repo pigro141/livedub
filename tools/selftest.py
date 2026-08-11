@@ -3034,12 +3034,13 @@ from tools.selftest_vision import (  # noqa: E402
     test_tracker,
 )
 from tools.selftest_gioco2 import test_gioco2  # noqa: E402
-from tools.selftest_schema import test_livelli, test_schema  # noqa: E402
+from tools.selftest_schema import test_limiti, test_livelli, test_schema  # noqa: E402
 from tools.selftest_aree import (  # noqa: E402
     test_aree,
     test_aree_catena,
     test_memoria,
     test_sessione,
+    test_due_sessioni,
 )
 
 def test_session(c: Check) -> None:
@@ -3528,10 +3529,12 @@ GROUPS = {
     "gioco2": test_gioco2,
     "schema": test_schema,
     "livelli": test_livelli,
+    "limiti": test_limiti,
     "aree": test_aree,
     "aree_catena": test_aree_catena,
     "memoria": test_memoria,
     "sessione_mix": test_sessione,
+    "due_sessioni": test_due_sessioni,
 }
 
 

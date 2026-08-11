@@ -270,3 +270,53 @@ def test_livelli(c) -> None:
     # E le tarature no: sono il motivo per cui i livelli esistono.
     for percorso in ("speaker.merge_similarity", "vision.color_word_gap", "timing.learn_decay"):
         c.eq(livello(percorso), "esperto", f"{percorso} e' una taratura, non una manopola")
+
+
+def test_limiti(c) -> None:
+    """Gli intervalli dei valori (domande 27 e 28).
+
+    **`Config.set` controlla il tipo, non il senso.** `capture.fps = -5` passa e
+    ferma la cattura; `speaker.decide_after_ms = 99999` passa e rende il
+    programma muto. Nessuno dei due da' errore, ed e' il difetto peggiore di
+    questa categoria: la sessione gira, sembra rotta, e non c'e' niente da
+    leggere.
+    """
+    from core.config import Config
+    from core.schema import LIMITI, campi, fuori_scala
+
+    c.group("schema")
+
+    noti = {k.percorso for k in campi(Config())}
+    c.eq([p for p in LIMITI if p not in noti], [], "ogni campo con un limite esiste davvero")
+
+    # I due casi che hanno fatto nascere la regola.
+    c.ok(fuori_scala("capture.fps", -5), "una frequenza negativa viene rifiutata")
+    c.ok(fuori_scala("speaker.decide_after_ms", 99999), "e un'attesa da 100 secondi")
+    # E i limiti fisici, dove il numero non e' un'opinione.
+    c.ok(fuori_scala("vision.sat_max", 300), "una saturazione oltre 255 non vuol dire niente")
+    c.ok(fuori_scala("mix.duck_db", 10), "un ducking positivo alzerebbe il gioco invece di abbassarlo")
+    c.ok(fuori_scala("timing.rate_max", 3.0), "una fretta al triplo non e' parlato")
+
+    # **Il messaggio e' per l'utente**: dice cosa fare, non che c'e' stato un no.
+    c.ok("fra 0 e 255" in fuori_scala("vision.sat_max", 300), "e dice qual e' l'intervallo")
+
+    # E i valori veri devono passare tutti: un limite che rifiuta il default
+    # sarebbe un limite sbagliato, e si accorgerebbe solo chi tocca quel campo.
+    fuori = [
+        f"{k.percorso}={k.valore}"
+        for k in campi(Config())
+        if k.tipo in ("int", "float") and fuori_scala(k.percorso, k.valore)
+    ]
+    c.eq(fuori, [], "nessun default di config e' fuori dal proprio intervallo")
+
+    # E nemmeno i valori dei profili calibrati, che sono i veri valori in uso.
+    from core.config import PROFILES_DIR
+
+    for profilo in sorted(PROFILES_DIR.glob("*.json")):
+        cfg = Config.load(profilo)
+        rotti = [
+            f"{k.percorso}={k.valore}"
+            for k in campi(cfg)
+            if k.tipo in ("int", "float") and fuori_scala(k.percorso, k.valore)
+        ]
+        c.eq(rotti, [], f"il profilo {profilo.name} sta dentro i limiti")

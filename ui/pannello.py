@@ -31,7 +31,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Any, Callable
 
-from core.schema import TITOLI, Campo, campi
+from core.schema import TITOLI, Campo, campi, fuori_scala
 from ui import tema
 
 # Larghezza del testo dell'aiuto, in caratteri. I commenti di `config.py` sono
@@ -211,6 +211,14 @@ class Pannello(ttk.Frame):
         difetto trovato sulla soglia del colore digitando `9999`.
         """
         var = self._var[campo.percorso]
+        # Fuori scala si rifiuta e si dice: si veda `core.schema.LIMITI`.
+        male = fuori_scala(campo.percorso, var.get())
+        if male:
+            self._dillo(f"{campo.nome}: {male}. Resta "
+                        f"{_testo(self.cfg.get(campo.percorso))}, che e' quello in uso.",
+                        errore=True)
+            self._rileggi(campo)
+            return
         try:
             self.cfg.set(campo.percorso, var.get())
         except (ValueError, TypeError, KeyError):

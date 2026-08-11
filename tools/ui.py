@@ -946,18 +946,40 @@ class App:
             t_avvio = time.perf_counter()
 
             def ciclo_audio() -> None:
-                with Loopback(entrata, block=self.args.block, samplerate=sr) as ing, Player(
-                    uscita, block=self.args.block, samplerate=sr
-                ) as alt:
-                    self.pipeline.start_live()
-                    pronto.set()
-                    while not self.stop.is_set():
-                        gioco = ing.read()
-                        quando = self.pipeline.mixer.now
-                        fuori = self.pipeline.on_audio(gioco, n=len(gioco))
-                        alt.write(fuori)
-                        if self.sessione is not None:
-                            self.sessione.audio(fuori, quando)
+                # **Il guasto piu' probabile di tutti: le cuffie staccate a meta'
+                # partita.** WASAPI non aspetta: il device sparisce e la lettura
+                # solleva. Senza questo, il thread moriva **in silenzio** — il
+                # doppiaggio ammutoliva, la finestra continuava a dire «in
+                # corso», e non c'era niente da leggere. E' esattamente la forma
+                # dei difetti che questo progetto ha imparato a temere: non un
+                # errore, un silenzio.
+                #
+                # Non si prova a riaprire il device da soli: il flusso audio ha
+                # una linea temporale (`_marche`) che riparte da zero, e riprendere
+                # a meta' vorrebbe dire programmare battute su un orologio che non
+                # esiste piu'. Si ferma tutto e **si dice cosa e' successo**, che
+                # per l'utente vuol dire «rimetti le cuffie e ripremi Avvia».
+                try:
+                    with Loopback(entrata, block=self.args.block, samplerate=sr) as ing, Player(
+                        uscita, block=self.args.block, samplerate=sr
+                    ) as alt:
+                        self.pipeline.start_live()
+                        pronto.set()
+                        while not self.stop.is_set():
+                            gioco = ing.read()
+                            quando = self.pipeline.mixer.now
+                            fuori = self.pipeline.on_audio(gioco, n=len(gioco))
+                            alt.write(fuori)
+                            if self.sessione is not None:
+                                self.sessione.audio(fuori, quando)
+                except Exception as guasto:
+                    pronto.set()  # se no il ciclo video aspetta dieci secondi per niente
+                    self.coda.put(("nota", f"! l'audio si e' fermato: {type(guasto).__name__}: "
+                                           f"{guasto}"))
+                    self.coda.put(("nota", "! probabile: cuffie o altoparlanti staccati, "
+                                           "oppure il device e' cambiato. Ricollega e premi Avvia."))
+                    self.coda.put(("stato", "audio interrotto"))
+                    self.stop.set()  # il video senza audio non serve a niente
 
             def ciclo_video() -> None:
                 # La sorgente si apre **nel thread che la usa**: dxcam sta su COM,

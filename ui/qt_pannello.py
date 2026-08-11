@@ -35,7 +35,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.schema import LIVELLI, TITOLI, Campo, campi, livello, visibile_a
+from core.schema import (
+    LIVELLI,
+    TITOLI,
+    Campo,
+    campi,
+    fuori_scala,
+    livello,
+    visibile_a,
+)
 from ui import qt_tema as tema
 
 
@@ -152,6 +160,16 @@ class Pannello(QWidget):
 
         w = self._manopola(campo)
         w.setFixedWidth(196)
+        # **Il nome accessibile e' il percorso del campo, non «casella».** Uno
+        # screen reader legge il nome, e trenta caselle di spunta chiamate tutte
+        # allo stesso modo non sono navigabili: e' l'unica cosa che le distingue.
+        # La descrizione porta la spiegazione vera, cioe' lo stesso testo che
+        # l'occhio vede accanto alla manopola.
+        w.setAccessibleName(campo.percorso)
+        w.setAccessibleDescription(
+            (campo.sommario or "nessuna spiegazione scritta")
+            + ("" if campo.caldo else " — si legge solo all'avvio")
+        )
         # **Le caselle di spunta si allineano con le altre manopole.** Senza, una
         # riga booleana sembrava rientrata rispetto a quella sopra, e la colonna
         # dei valori si spezzava a ogni booleano — che in questo albero sono
@@ -186,6 +204,7 @@ class Pannello(QWidget):
         aiuto.setObjectName("aiuto")
         aiuto.setCursor(Qt.PointingHandCursor)
         aiuto.setToolTip("Cosa fa, quanto e' stato misurato, cosa si rischia a cambiarlo")
+        aiuto.setAccessibleName(f"spiegazione di {campo.percorso}")
         aiuto.clicked.connect(lambda _=False, c=campo: self.spiega(c))
         L.addWidget(aiuto)
 
@@ -232,6 +251,19 @@ class Pannello(QWidget):
             grezzo = w.currentText()
         else:
             grezzo = w.text()
+        # **Fuori scala si rifiuta e si dice, non si corregge di nascosto.**
+        # `Config.set` controlla il tipo e non il senso: `capture.fps = -5` passa
+        # e ferma la cattura, `decide_after_ms = 99999` passa e rende il
+        # programma muto. Correggerlo in silenzio darebbe una sessione che gira
+        # con un numero diverso da quello scritto, che e' il difetto contro cui
+        # tutto questo pannello esiste.
+        male = fuori_scala(campo.percorso, grezzo)
+        if male:
+            self._dillo(
+                f"{campo.nome}: {male}. Resta {_testo(self.cfg.get(campo.percorso))}, "
+                f"che e' quello in uso.", errore=True)
+            self._rileggi(campo)
+            return
         try:
             self.cfg.set(campo.percorso, grezzo)
         except (ValueError, TypeError, KeyError):

@@ -56,7 +56,22 @@ class Session:
         max_minutes: float = 30.0,
         salva_mix: bool = True,
     ) -> None:
-        self.dir = Path(root) / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        # **Due sessioni avviate nello stesso secondo avevano la stessa
+        # cartella**, e ci scrivevano dentro tutte e due: `events.jsonl` aperto
+        # in scrittura da due processi, il WAV dell'una sopra quello dell'altra.
+        # Misurato aprendo due `Session` di fila — stesso nome, `exist_ok=True`,
+        # nessun errore. E' la domanda 32, e succede davvero: due finestre aperte
+        # per confrontare due configurazioni e' proprio come si usa il programma.
+        #
+        # Il rimedio e' un suffisso e non un timestamp piu' fine: il nome resta
+        # leggibile (`2026-08-11_15-49-52` e poi `-2`), che e' l'unico motivo per
+        # cui una cartella si chiama con una data invece che con un numero a caso.
+        base = Path(root) / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        self.dir = base
+        n = 2
+        while self.dir.exists():
+            self.dir = base.with_name(f"{base.name}-{n}")
+            n += 1
         self.dir.mkdir(parents=True, exist_ok=True)
         self.samplerate = samplerate
         # **Il mix si tiene in RAM finche' non finisce la sessione**, e a

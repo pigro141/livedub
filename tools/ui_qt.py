@@ -134,6 +134,9 @@ class Finestra(QMainWindow):
         # **Un tetto alle righe.** Senza, una sessione di tre ore se lo mangia
         # tutto: e' la domanda 23, e costa una riga.
         self.log.setMaximumBlockCount(5000)
+        self.log.setAccessibleName("registro della sessione")
+        self.log.setAccessibleDescription(
+            "chi parla e cosa e' stato detto, in sola lettura")
         self.log.setFont(QFont(tema.MONO, 10))
         C.addWidget(self.log)
         self.schede.addTab(contenitore, "Sessione")
@@ -312,6 +315,7 @@ class Finestra(QMainWindow):
             L.addWidget(b)
         self.b_avvia = QPushButton("Avvia")
         self.b_avvia.setObjectName("primario")
+        self.b_avvia.setAccessibleName("avvia il doppiaggio")
         self.b_avvia.setEnabled(False)
         self.b_avvia.setToolTip(
             "Non ancora portato in questa finestra: i due cicli e l'overlay vivono in\n"
@@ -333,6 +337,7 @@ class Finestra(QMainWindow):
         self.c_colorati = QCheckBox("Ignora i sottotitoli colorati")
         self.c_colorati.setChecked(bool(self.cfg.vision.exclude_colored))
         self.c_colorati.toggled.connect(self._cambia_colorati)
+        self.c_colorati.setAccessibleName("ignora i sottotitoli colorati")
         self.c_colorati.setToolTip(
             "Acceso: le righe con del testo colorato si buttano (l'HUD di GTA V).\n"
             "Spento: si leggono (i giochi che colorano il nome di chi parla)."
@@ -343,6 +348,7 @@ class Finestra(QMainWindow):
         self.s_sat.setRange(0, 255)
         self.s_sat.setValue(int(self.cfg.vision.sat_max))
         self.s_sat.valueChanged.connect(self._cambia_sat)
+        self.s_sat.setAccessibleName("soglia del colore")
         self.s_sat.setToolTip("Quanto acceso dev'essere un colore per contare come colore.")
         L.addWidget(self.s_sat)
         L.addStretch(1)
@@ -391,6 +397,7 @@ class Finestra(QMainWindow):
         corpo = QHBoxLayout()
         corpo.setSpacing(tema.S3)
         self.elenco_aree = QListWidget()
+        self.elenco_aree.setAccessibleName("aree di lettura dichiarate")
         corpo.addWidget(self.elenco_aree, 1)
         bottoni = QVBoxLayout()
         bottoni.setSpacing(tema.S2)

@@ -418,3 +418,102 @@ def visibile_a(percorso: str, livello_scelto: str) -> bool:
     """Se `percorso` va mostrato a chi ha scelto `livello_scelto`."""
     ordine = {"base": 0, "medio": 1, "esperto": 2}
     return ordine[livello(percorso)] <= ordine.get(livello_scelto, 2)
+
+
+# ------------------------------------------------------------- gli intervalli --
+#
+# **`Config.set` controlla il tipo, non il senso.** `capture.fps = -5` passa,
+# `speaker.decide_after_ms = 99999` pure: il primo ferma la cattura, il secondo
+# rende il programma muto, e nessuno dei due da' errore. Sono le domande 27 e 28
+# di `DOMANDE_PRODUZIONE.md`.
+#
+# Gli intervalli sono **dichiarati** e non dedotti, perche' non c'e' niente nel
+# tipo che dica che una frequenza non puo' essere negativa. Dove il limite e' una
+# proprieta' fisica (una saturazione sta fra 0 e 255, una frazione fra 0 e 1) e'
+# ovvio; dove e' una scelta, il numero e' scritto qui e la ragione accanto.
+#
+# **Non si correggono in silenzio.** Un valore fuori scala viene rifiutato e
+# **detto**: correggerlo di nascosto darebbe una sessione che gira con un numero
+# diverso da quello scritto, che e' il difetto contro cui tutta questa UI esiste.
+LIMITI: dict[str, tuple[float, float]] = {
+    # fisici: oltre non vuol dire niente
+    "vision.sat_max": (0, 255),
+    "vision.white_min_luma": (0, 255),
+    "vision.grey_min_luma": (0, 255),
+    "vision.luma_percentile": (0, 100),
+    "vision.sat_percentile": (0, 100),
+    "vad.floor_percentile": (0, 100),
+    # frazioni
+    "vision.min_line_fill": (0.0, 1.0),
+    "vision.sat_ink_max": (0.0, 1.0),
+    "vision.min_color_word_frac": (0.0, 1.0),
+    "vision.ink_min_columns": (0.0, 1.0),
+    "vision.diff_threshold": (0.0, 1.0),
+    "speaker.similarity": (0.0, 1.0),
+    "speaker.merge_similarity": (0.0, 1.0),
+    "speaker.name_min_score": (0.0, 1.0),
+    "repeat.similarity": (0.0, 1.0),
+    "repeat.containment": (0.0, 1.0),
+    "vision.continue_similarity": (0.0, 1.0),
+    "vision.continue_containment": (0.0, 1.0),
+    "vision.max_wrong_frac": (0.0, 1.0),
+    # scelte, col perche' accanto
+    "capture.fps": (1, 240),          # sotto 1 la cattura si ferma
+    "vision.max_ocr_hz": (0, 60),     # 0 = nessun tetto
+    "vision.line_pad": (0.0, 2.0),    # oltre il doppio della banda e' un'altra riga
+    "vision.line_grow": (0.0, 4.0),
+    "vision.stable_reads": (1, 20),   # zero letture concordi vuol dire nessuna conferma
+    "vision.min_ocr_chars": (0, 100),
+    "vision.min_line_height": (1, 500),
+    # **Sopra i due secondi il programma sembra rotto.** L'attesa per decidere chi
+    # parla vale 500 ms dei 1239 di latenza: a 99999 non parla piu' nessuno, e
+    # l'utente non ha modo di collegare le due cose.
+    "speaker.decide_after_ms": (0, 2000),
+    "speaker.max_wait_ms": (0, 5000),
+    "speaker.min_clip_ms": (0, 5000),
+    "speaker.lead_ms": (0, 2000),
+    "speaker.max_speakers": (1, 64),
+    "tts.pool_size": (1, 32),
+    "tts.samplerate": (8000, 48000),
+    # **Il tetto della fretta: sopra 1,5 le consonanti spariscono.** Misurato:
+    # l'integrita' cade a 1,10 su SuperTonic e 1,30 su Kokoro.
+    "timing.rate_max": (1.0, 2.0),
+    "timing.rate_min": (0.3, 1.0),
+    "tts.native_rate_max": (1.0, 2.5),
+    "timing.accepted_delay_ms": (0, 5000),
+    "audio.samplerate": (8000, 192000),
+    "audio.blocksize": (32, 4800),
+    "audio.ring_seconds": (1.0, 120.0),
+    "mix.duck_db": (-60.0, 0.0),      # positivo alzerebbe il gioco invece di abbassarlo
+    "mix.dub_gain_db": (-40.0, 20.0),
+    "mix.prebuffer_ms": (0, 2000),
+    "translate.background_opacity": (0.0, 1.0),
+    "translate.font_frac": (0.0, 0.5),
+    "translate.blur_strength": (0.0, 100.0),
+}
+
+
+def limiti(percorso: str) -> tuple[float, float] | None:
+    """L'intervallo ammesso per un campo, se ne ha uno dichiarato."""
+    return LIMITI.get(percorso)
+
+
+def fuori_scala(percorso: str, valore) -> str:
+    """Perche' quel valore non va bene, o stringa vuota se va bene.
+
+    Torna un **messaggio per l'utente** e non un booleano: «fra 0 e 255» dice
+    cosa fare, `False` dice solo che c'e' stato un rifiuto.
+    """
+    coppia = LIMITI.get(percorso)
+    if coppia is None:
+        return ""
+    try:
+        n = float(valore)
+    except (TypeError, ValueError):
+        return ""
+    basso, alto = coppia
+    if n < basso or n > alto:
+        def _f(x: float) -> str:
+            return f"{x:g}"
+        return f"deve stare fra {_f(basso)} e {_f(alto)}"
+    return ""

@@ -192,6 +192,20 @@ def leggi(voci) -> list[Area]:
     return fuori
 
 
+def da_leggere(cfg) -> tuple:
+    """I rettangoli che la catena legge davvero: le aree se ci sono, se no la ROI.
+
+    Sta qui perche' la regola «aree dichiarate oppure la ROI» era gia' scritta
+    in `core/pipeline.py` e serviva anche alla cattura: due copie della stessa
+    regola divergono al primo che ne cambia una, e qui divergere vorrebbe dire
+    catturare una fascia che non contiene quello che si legge — cioe' nero.
+    """
+    aree = leggi(getattr(cfg.vision, "aree", ()) or ())
+    if aree:
+        return tuple(a.roi for a in aree)
+    return (tuple(cfg.vision.roi),)
+
+
 def scrivi(aree: list[Area]) -> tuple[str, ...]:
     """L'inverso di `leggi`, per riscrivere in config quello che la UI ha tirato."""
     return tuple(

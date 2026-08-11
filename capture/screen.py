@@ -109,8 +109,19 @@ class MssSource(ScreenSource):
             raise RuntimeError(f"monitor {monitor} inesistente: ce ne sono {len(mons) - 1}")
         m = mons[monitor]
         if region is not None:
+            # **La regione e' relativa al monitor, non al desktop.** Con due
+            # schermi l'origine di `mons[2]` non e' (0,0), e la ROI e'
+            # normalizzata sul monitor che si sta catturando: sommare qui
+            # l'origine e' l'unico posto dove i due sistemi si incontrano una
+            # volta sola. E' la stessa ragione per cui `make_screen` traduce
+            # l'indice del monitor invece di lasciarlo fare ai backend.
             left, top, right, bottom = region
-            self._box = {"left": left, "top": top, "width": right - left, "height": bottom - top}
+            self._box = {
+                "left": m["left"] + left,
+                "top": m["top"] + top,
+                "width": right - left,
+                "height": bottom - top,
+            }
         else:
             self._box = {"left": m["left"], "top": m["top"], "width": m["width"], "height": m["height"]}
 
@@ -212,6 +223,135 @@ class FinestraSource(ScreenSource):
             self._ctrl.stop()
         except Exception:  # pragma: no cover
             pass
+
+
+class SoloRoi(ScreenSource):
+    """Cattura **solo la fascia che si legge**, e la rimette al suo posto.
+
+    **Perche' esiste.** Misurato su questa macchina, uno schermo 2560x1440:
+    prendere il fotogramma intero costa **29,7 ms**, cioe' il 90% del budget di
+    un giro a 30 Hz — e il ciclo video, dal vivo, girava a ~18 Hz. Ma di quel
+    fotogramma si guarda una fascia alta il 5%: il sottotitolo. Prendere solo
+    quella e reincollarla costa **6,1 ms**.
+
+        fascia + margine    dimensione    grab + incolla
+        ------------------------------------------------
+        schermo intero      2560x1440         32,4 ms
+        0,06 H              1308x248           9,2 ms
+        0,08 H              1366x306          11,7 ms   <- il default
+        0,10 H              1424x364          11,6 ms
+
+    Il default non e' il piu' stretto: e' il piu' stretto che lasci spazio
+    all'overlay, che cresce verso l'alto (si veda `capture.roi_margin`).
+
+    **Perche' si reincolla invece di consegnare la sola fascia.** Tutto cio' che
+    sta a valle — la ROI del lettore, le aree multiple, il ritaglio dell'overlay
+    — e' in coordinate del fotogramma intero. Consegnare un fotogramma piu'
+    piccolo vorrebbe dire cambiare quel sistema di coordinate in cinque posti, e
+    il primo che se ne dimenticasse leggerebbe il punto sbagliato **senza
+    errore**. La tela nera costa una frazione di quello che fa risparmiare.
+
+    **E il margine non e' prudenza**: l'overlay sfoca i pixel *attorno* alla
+    riga e cresce verso l'alto quando il tradotto occupa piu' righe. Fuori dalla
+    fascia catturata ci sarebbe nero, e si vedrebbe.
+    """
+
+    def __init__(self, sorgente: ScreenSource, regione, dimensione) -> None:
+        self.sorgente = sorgente
+        self.regione = tuple(int(v) for v in regione)
+        self.dimensione = (int(dimensione[0]), int(dimensione[1]))
+        self.name = f"{sorgente.name}+roi"
+
+    def grab(self) -> Grab:
+        g = self.sorgente.grab()
+        if not g.ok:
+            return g
+        left, top, right, bottom = self.regione
+        w, h = self.dimensione
+        pezzo = g.frame
+        tela = np.zeros((h, w, pezzo.shape[2] if pezzo.ndim == 3 else 1), pezzo.dtype)
+        # Il pezzo puo' essere piu' piccolo di quanto chiesto (bordi dello
+        # schermo): si incolla quello che c'e' invece di sollevare, se no una
+        # ROI attaccata al bordo farebbe cadere la sessione invece di leggere.
+        alto = min(pezzo.shape[0], h - top)
+        largo = min(pezzo.shape[1], w - left)
+        tela[top:top + alto, left:left + largo] = pezzo[:alto, :largo]
+        return Grab(frame=tela, t=g.t, fresh=g.fresh)
+
+    def close(self) -> None:
+        self.sorgente.close()
+
+
+def dimensione_monitor(monitor: int = 1) -> tuple[int, int]:
+    """Quanto e' grande il monitor che si cattura, in pixel."""
+    import mss
+
+    with mss.mss() as sct:
+        mons = sct.monitors
+        if monitor >= len(mons):
+            raise RuntimeError(f"monitor {monitor} inesistente: ce ne sono {len(mons) - 1}")
+        m = mons[monitor]
+        return int(m["width"]), int(m["height"])
+
+
+def regione_da_roi(rois, dimensione, margine: float = 0.08) -> tuple[int, int, int, int]:
+    """Il rettangolo da catturare per leggere quelle aree, in pixel del monitor.
+
+    Prende **l'unione** delle aree e non la prima: con `vision.aree` dichiarate
+    se ne legge piu' d'una, e catturare solo la prima farebbe sparire le altre
+    senza che niente lo dica — sarebbero semplicemente nere.
+    """
+    w, h = int(dimensione[0]), int(dimensione[1])
+    rois = [r for r in rois if r and len(r) == 4 and r[2] > 0 and r[3] > 0]
+    if not rois:
+        return (0, 0, w, h)
+    m = int(max(0.0, margine) * h)
+    left = max(0, int(min(r[0] for r in rois) * w) - m)
+    top = max(0, int(min(r[1] for r in rois) * h) - m)
+    right = min(w, int(max(r[0] + r[2] for r in rois) * w) + m)
+    bottom = min(h, int(max(r[1] + r[3] for r in rois) * h) + m)
+    return (left, top, max(left + 1, right), max(top + 1, bottom))
+
+
+def apri_cattura(
+    backend: str = "auto",
+    monitor: int = 1,
+    hwnd: int | None = None,
+    *,
+    rois=(),
+    margine: float = 0.08,
+    dillo=None,
+) -> ScreenSource:
+    """La sorgente di cattura, con la fascia sola se `rois` e' popolato.
+
+    E' il posto dove le due catene dal vivo costruiscono lo schermo, perche' la
+    scelta era ripetuta in due file e uno dei due non passava `region` — il
+    parametro esisteva in `make_screen` da sempre e **non lo passava nessuno**,
+    ottavo campo di questa forma in questo progetto.
+
+    `dillo` riceve una riga da mettere nel log: una cattura ridotta che non si
+    dichiara e' indistinguibile da un OCR che ha smesso di leggere.
+    """
+    if hwnd:
+        # Con la finestra la fascia non si ritaglia: WGC consegna gia' il solo
+        # contenuto della finestra, e la ROI e' relativa a quella. Ridurre
+        # ancora vorrebbe dire due sistemi di coordinate nello stesso frame.
+        if rois and dillo is not None:
+            dillo("cattura: finestra intera (la fascia sola vale solo sullo schermo)")
+        return make_screen(backend, monitor=monitor, hwnd=hwnd)
+    if not rois:
+        return make_screen(backend, monitor=monitor)
+    dimensione = dimensione_monitor(monitor)
+    regione = regione_da_roi(rois, dimensione, margine)
+    dentro = make_screen(backend, monitor=monitor, region=regione)
+    fuori = SoloRoi(dentro, regione, dimensione)
+    if dillo is not None:
+        left, top, right, bottom = regione
+        dillo(
+            f"cattura: solo la fascia {right - left}x{bottom - top} a ({left},{top}) "
+            f"invece di {dimensione[0]}x{dimensione[1]} (margine {margine:g})"
+        )
+    return fuori
 
 
 def make_screen(backend: str = "auto", monitor: int = 1, region=None, hwnd: int | None = None) -> ScreenSource:

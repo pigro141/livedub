@@ -50,11 +50,12 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from capture.audio import Loopback, Player, find_loopback, find_output, list_devices  # noqa: E402
-from capture.screen import make_screen  # noqa: E402
+from capture.screen import apri_cattura  # noqa: E402
 from core.clock import RealClock, set_clock  # noqa: E402
 from core.config import Config, load_profile  # noqa: E402
 from core.pipeline import DubPipeline  # noqa: E402
 from speak.base import ToneTts  # noqa: E402
+from vision.aree import da_leggere  # noqa: E402
 from tools.session import Session  # noqa: E402
 
 
@@ -136,6 +137,15 @@ def main(argv: list[str] | None = None) -> int:
     # SuperTonic aveva il numero colpevole in bella vista, e sembrava innocuo
     # finche' non lo si e' messo accanto a cio' che l'orecchio aveva sentito.
     sessione = None if args.no_save else Session(samplerate=sr)
+    # **La traccia delle impronte anche qui.** `tools/ui.py` e `tools/dub.py` la
+    # scrivevano, questo no: di una sessione di `tools.live` si sapeva cosa era
+    # stato detto e non cosa il riconoscitore aveva visto — punteggi, durata del
+    # ritaglio, perche' e' uscita la voce neutra. Cioe' mancava proprio il file
+    # che serve quando si chiede «perche' dal vivo riconosce peggio del banco».
+    registro = None
+    if sessione is not None:
+        registro = (sessione.dir / "speaker.jsonl").open("w", encoding="utf-8")
+        pipeline.speaker_log = registro
     print(f"TTS: {cfg.tts.backend}   voci nel pool: {len(pipeline.pool)}")
     print(f"profilo: {args.profile or '(default)'}   ROI {cfg.vision.roi}")
 
@@ -178,7 +188,12 @@ def main(argv: list[str] | None = None) -> int:
 
     def ciclo_video() -> None:
         """Tutto cio' che e' lento sta qui: cattura, OCR, sintesi."""
-        schermo = make_screen(args.backend, monitor=args.monitor)
+        schermo = apri_cattura(
+            args.backend, monitor=args.monitor,
+            rois=da_leggere(cfg) if cfg.capture.solo_roi else (),
+            margine=cfg.capture.roi_margin,
+            dillo=print,
+        )
         pronto.wait(timeout=10.0)
         periodo = 1.0 / max(1e-6, cfg.capture.fps)
         prossimo = time.perf_counter()
@@ -263,10 +278,13 @@ def main(argv: list[str] | None = None) -> int:
     print()
     report = pipeline.report()
     print(report)
+    if registro is not None:
+        registro.close()
+        pipeline.speaker_log = None
     if sessione is not None:
         dove = sessione.close(cfg, report)
         print(f"\nsessione salvata -> {dove}")
-        print("   mix.wav  events.jsonl  config.json  report.txt")
+        print("   mix.wav  events.jsonl  speaker.jsonl  config.json  report.txt")
         print("   una battuta storta si riapre col secondo stampato qui sopra:")
         print(f"   .\\.venv\\Scripts\\python.exe -m tools.reopen {dove} 95.4")
     return 0

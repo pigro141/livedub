@@ -38,13 +38,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from capture.audio import Loopback, Player, find_loopback, find_output, list_devices  # noqa: E402
-from capture.screen import make_screen  # noqa: E402
+from capture.screen import apri_cattura, make_screen  # noqa: E402
 from core.clock import RealClock, set_clock  # noqa: E402
 from core.config import Config, load_profile  # noqa: E402
 from core.pipeline import DubPipeline  # noqa: E402
 from tools.live import costruisci_tts  # noqa: E402
 from tools.session import Session  # noqa: E402
 from ui.overlay import inchiostro, inchiostro_da_box, ritaglia  # noqa: E402
+from vision.aree import da_leggere  # noqa: E402
 
 
 class SelettoreArea:
@@ -1008,9 +1009,18 @@ class App:
                 # La sorgente si apre **nel thread che la usa**: dxcam sta su COM,
                 # e creata altrove non solleva — restituisce `None` a ogni grab.
                 hwnd = self.finestra.hwnd if self.finestra is not None else None
-                schermo = make_screen(
-                    self.args.backend, monitor=self.args.monitor, hwnd=hwnd
-                )
+                # **Solo la fascia che si legge, se richiesto.** Lo schermo
+                # intero a 1440p costa 32,4 ms contro 11,7: a 30 Hz e' il 90% del
+                # giro speso a copiare pixel che nessuno guarda.
+                def apri():
+                    rois = da_leggere(self.cfg) if self.cfg.capture.solo_roi else ()
+                    return rois, apri_cattura(
+                        self.args.backend, monitor=self.args.monitor, hwnd=hwnd,
+                        rois=rois, margine=self.cfg.capture.roi_margin,
+                        dillo=lambda riga: self.coda.put(("nota", riga)),
+                    )
+
+                rois_aperte, schermo = apri()
                 self.coda.put(("nota", f"cattura: {schermo.name}"))
                 pronto.wait(timeout=10.0)
                 periodo = 1.0 / max(1e-6, self.cfg.capture.fps)
@@ -1034,6 +1044,18 @@ class App:
                     # saltarli costa l'audio.
                     if prossimo < ora:
                         prossimo = ora + periodo
+                    # **L'area si sposta col mouse a sessione accesa, e la
+                    # fascia catturata deve seguirla.** Senza, spostare il
+                    # rettangolo con la cattura ridotta darebbe il difetto
+                    # peggiore possibile: si legge il **nero** fuori dalla
+                    # vecchia fascia, e a schermo non succede piu' niente. Il
+                    # confronto costa un paio di tuple per fotogramma; riaprire
+                    # succede solo quando l'utente tira il rettangolo.
+                    if rois_aperte and da_leggere(self.cfg) != rois_aperte:
+                        schermo.close()
+                        rois_aperte, schermo = apri()
+                        self.coda.put(("nota", "area cambiata: rifaccio la cattura"))
+                        continue
                     g = schermo.grab()
                     if not g.ok:
                         # **`None` vuol dire due cose diverse, e si distinguono
@@ -1045,10 +1067,21 @@ class App:
                         # non finisce mai, e senza questo ripiego la finestra
                         # resta li' a non fare niente **senza dire perche'**.
                         vuoti += 1
+                        # `startswith` e non `==`: con la fascia sola il nome
+                        # diventa `dxcam+roi`, e un confronto esatto avrebbe
+                        # spento il ripiego proprio nella configurazione nuova —
+                        # cioe' la finestra ferma a non dire perche', che e' il
+                        # difetto per cui questo ripiego esiste.
                         if (n == 0 and vuoti > 2 * self.cfg.capture.fps
-                                and schermo.name == "dxcam"):
+                                and schermo.name.startswith("dxcam")):
                             schermo.close()
-                            schermo = make_screen("mss", monitor=self.args.monitor)
+                            rois_aperte = (
+                                da_leggere(self.cfg) if self.cfg.capture.solo_roi else ()
+                            )
+                            schermo = apri_cattura(
+                                "mss", monitor=self.args.monitor,
+                                rois=rois_aperte, margine=self.cfg.capture.roi_margin,
+                            )
                             self.coda.put((
                                 "nota",
                                 "! la cattura veloce non restituisce fotogrammi: passo a mss",

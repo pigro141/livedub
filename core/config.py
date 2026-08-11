@@ -29,6 +29,37 @@ class CaptureConfig:
     backend: str = "auto"  # auto | wgc | dxcam | mss
     monitor: int = 1
     fps: float = 30.0  # ritmo del diff sulla ROI, non dell'OCR
+    # **Prendere dallo schermo solo la fascia che si legge.** Di un fotogramma
+    # 2560x1440 si guarda una striscia alta il 5% — il sottotitolo — e si paga
+    # tutto il resto. Misurato con `mss`, la stessa macchina e lo stesso momento:
+    #
+    #     schermo intero    2560x1440    32,4 ms
+    #     fascia 0,06       1308x248      9,2 ms
+    #     fascia 0,08       1366x306     11,7 ms   <- qui
+    #     fascia 0,10       1424x364     11,6 ms
+    #
+    # A 30 Hz il giro dura 33 ms: prendere lo schermo intero se ne mangia il
+    # 90%, e dal vivo si vede. Provato sulla stessa scena, 60 secondi per parte:
+    #
+    #                       letture   sottotitoli   battute
+    #     schermo intero    884 (14,7 Hz)     30        28
+    #     solo la fascia   1197 (20,0 Hz)     35        34
+    #
+    # Non e' solo un risparmio: sono cinque sottotitoli in piu' letti, perche' il
+    # lettore ha bisogno di **frame consecutivi** per confermare una riga.
+    #
+    # **Il prezzo, che va detto**: fuori dalla fascia il fotogramma e' **nero**.
+    # Chi legge la ROI non se ne accorge, ma una prova che guardasse altrove
+    # troverebbe il buio senza nessun errore. Con la cattura della **finestra**
+    # non si applica: li' il fotogramma e' gia' solo il gioco.
+    solo_roi: bool = True
+    # Quanto si prende **attorno** alla fascia, in frazione dell'altezza dello
+    # schermo. Non e' prudenza: l'overlay sfoca i pixel intorno alla riga e
+    # **cresce verso l'alto** quando il tradotto occupa piu' righe della riga che
+    # copre. A 0,06 (86 px su 1440) tre righe di tradotto ci arriverebbero al
+    # bordo; 0,08 sono 115 px e costano 2,5 ms in piu' di un margine che sta
+    # stretto proprio quando serve.
+    roi_margin: float = 0.08
 
 
 @dataclass

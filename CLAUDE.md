@@ -280,6 +280,39 @@ segue; e non c'e' niente da ritagliare. Il rettangolo e' quello **cliente**
 contenuto senza bordi, e i sette pixel di differenza sono di quanto l'overlay
 cadrebbe spostato.
 
+**E se si cattura lo schermo, se ne prende solo la fascia che si legge**
+(`capture.solo_roi`, acceso di serie). Di un fotogramma 2560x1440 si guarda una
+striscia alta il 5% e si paga tutto il resto: `mss` costa **32,4 ms** per lo
+schermo intero contro **11,7** per la fascia col margine di serie, e a 30 Hz il
+giro dura 33. Non e' un risparmio astratto — provato sulla stessa scena, 60
+secondi per parte:
+
+| | letture | sottotitoli | battute |
+|---|---|---|---|
+| schermo intero | 884 (**14,7 Hz**) | 30 | 28 |
+| solo la fascia | 1193 (**19,9 Hz**) | **35** | **34** |
+
+Cinque sottotitoli in piu' letti, perche' il lettore ha bisogno di frame
+**consecutivi** per confermare una riga: meta' del ritmo non costa meta' delle
+letture, costa le righe corte.
+
+Tre cose che questo pezzo non poteva sbagliare, e che sono tutte di
+**posizione**. I pixel si reincollano in una tela grande come lo schermo, perche'
+ROI, aree e ritaglio dell'overlay sono in coordinate del fotogramma intero e
+consegnarne uno piu' piccolo vorrebbe dire cambiare quel sistema in cinque posti
+— dove il primo che se ne dimentica legge il punto sbagliato **senza errore**.
+Si prende **l'unione** delle aree e non la prima, se no le altre diventano nere
+in silenzio. E la fascia **segue l'area**: spostando il rettangolo col mouse a
+sessione accesa la cattura si riapre, se no si leggerebbe il nero e a schermo non
+succederebbe piu' niente.
+
+Il margine attorno (`capture.roi_margin`, 0,08) non e' prudenza: l'overlay sfoca
+i pixel intorno alla riga e **cresce verso l'alto** quando il tradotto occupa piu'
+righe dell'originale. Fuori dalla fascia troverebbe nero.
+
+E il campo `region` di `make_screen` c'era **da sempre e non lo passava
+nessuno**: ottavo campo di questa forma in questo progetto.
+
 **`ui/overlay.py`** — il sottotitolo tradotto disegnato sopra il gioco. Dal vivo
 il fotogramma non passa da noi, quindi serve una finestra: senza bordi, sempre in
 primo piano, con i clic che la attraversano e senza rubare il fuoco — che in molti
@@ -818,6 +851,19 @@ verificare Qt: e' che la parte che si puo' provare senza aprirlo **stia fuori da
 Qt** — `core.preferenze.riprendi` (con che configurazione si riapre) e
 `tools.ui.colore_stato` (di che colore va il pallino) sono regole, non disegno, e
 adesso si verificano in una suite che gira senza hardware.
+
+**Due passate della stessa scena non sono la stessa scena se non sono lo stesso
+tratto.** Provando il vivo contro il banco ho concluso tre volte una cosa falsa
+per la stessa ragione: la prima perche' il video era **finito** a meta' prova (e
+uno schermo fermo, per la catena, e' uno schermo senza sottotitoli); le altre
+perche' confrontavo il vivo su 0-70 s col banco su 30-125. Da li' erano usciti
+«dal vivo si perde il 60% delle righe» e «dal vivo riconosce molto peggio»,
+tutti e due **falsi**: allineando i tratti, 31 battute contro 33 (94%) e voce
+neutra 81% contro 78%. La differenza era la scena — la prima meta' e' fatta di
+battute corte di personaggi che non parlano mai abbastanza da essere confermati.
+Prima di leggere un confronto, verificare che le due passate abbiano visto le
+**stesse immagini**: `riparti.py` di quella sessione lo faceva rifiutandosi di
+misurare se due catture a un secondo di distanza erano identiche.
 
 **E la piu' importante: l'orecchio dell'utente trova cio' che la suite non puo'.**
 E' successo a ogni difetto serio di questo progetto, con la suite verde. Quando

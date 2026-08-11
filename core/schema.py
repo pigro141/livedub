@@ -466,6 +466,7 @@ LIMITI: dict[str, tuple[float, float]] = {
     "vision.max_wrong_frac": (0.0, 1.0),
     # scelte, col perche' accanto
     "capture.fps": (1, 240),          # sotto 1 la cattura si ferma
+    "capture.roi_margin": (0.0, 0.5),  # oltre meta' schermo non e' piu' una fascia
     "vision.max_ocr_hz": (0, 60),     # 0 = nessun tetto
     "vision.line_pad": (0.0, 2.0),    # oltre il doppio della banda e' un'altra riga
     "vision.line_grow": (0.0, 4.0),

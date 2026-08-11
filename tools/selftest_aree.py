@@ -596,6 +596,78 @@ def test_uscita_audio(c) -> None:
         audio.uscite = vero
 
 
+def test_solo_roi(c) -> None:
+    """Catturare la sola fascia che si legge, e rimetterla al suo posto.
+
+    Misurato su questa macchina a 2560x1440: il fotogramma intero costa
+    **29,7 ms** con `mss`, la fascia col margine di serie **6,1 ms**. A 30 Hz il
+    giro dura 33: la cattura intera se ne prendeva il 90%, e dal vivo il ciclo
+    video girava a ~18 Hz.
+
+    Le due domande che questo pezzo non deve sbagliare sono di **posizione**,
+    non di velocita': i pixel finiscono dove finivano prima (se no il lettore
+    legge il buio) e la fascia contiene tutte le aree dichiarate (se no le altre
+    diventano nere senza che niente lo dica).
+    """
+    import numpy as np
+
+    from capture.screen import Grab, ScreenSource, SoloRoi, regione_da_roi
+
+    c.group("memoria")
+
+    # -- il rettangolo da catturare -----------------------------------------
+    r = regione_da_roi([(0.25, 0.80, 0.50, 0.05)], (2560, 1440), margine=0.0)
+    c.eq(r, (640, 1152, 1920, 1224), "senza margine e' esattamente la ROI in pixel")
+
+    r = regione_da_roi([(0.25, 0.80, 0.50, 0.05)], (2560, 1440), margine=0.06)
+    c.eq(r, (640 - 86, 1152 - 86, 1920 + 86, 1224 + 86), "col margine si allarga di 0,06 H")
+
+    # Due aree lontane: si prende l'unione, se no la seconda e' nera.
+    r = regione_da_roi([(0.05, 0.10, 0.10, 0.05), (0.80, 0.90, 0.15, 0.05)],
+                       (1000, 1000), margine=0.0)
+    c.eq(r, (50, 100, 950, 950), "con piu' aree si prende l'unione, non la prima")
+
+    # Attaccata al bordo non si esce dallo schermo.
+    r = regione_da_roi([(0.9, 0.9, 0.1, 0.1)], (1000, 1000), margine=0.2)
+    c.eq(r, (700, 700, 1000, 1000), "il margine non esce dallo schermo")
+
+    # -- e i pixel finiscono dove stavano -----------------------------------
+    class Finta(ScreenSource):
+        name = "finta"
+
+        def __init__(self, pezzo):
+            self.pezzo = pezzo
+
+        def grab(self):
+            return Grab(frame=self.pezzo, t=1.0, fresh=True)
+
+    regione = (100, 200, 300, 260)  # 200x60
+    pezzo = np.full((60, 200, 3), 200, np.uint8)
+    s = SoloRoi(Finta(pezzo), regione, (640, 480))
+    g = s.grab()
+    c.eq(g.frame.shape, (480, 640, 3), "il fotogramma consegnato e' grande come lo schermo")
+    c.ok(g.frame[230, 200].tolist() == [200, 200, 200], "dentro la fascia ci sono i pixel veri")
+    c.ok(g.frame[10, 10].tolist() == [0, 0, 0], "fuori e' nero, e chi guarda li' lo vede")
+    c.ok(int(g.frame.sum()) == int(pezzo.sum()), "e non c'e' nient'altro: solo la fascia")
+
+    # La stessa ROI ritagliata dal fotogramma ricostruito deve dare il pezzo.
+    x, y = 100 / 640, 200 / 480
+    w, h = 200 / 640, 60 / 480
+    rit = g.frame[int(y * 480):int((y + h) * 480), int(x * 640):int((x + w) * 640)]
+    c.ok(np.array_equal(rit, pezzo),
+         "ritagliando con la ROI si riottiene esattamente cio' che si e' catturato")
+
+    # Un fotogramma assente resta assente: non si inventa una tela nera.
+    class Vuota(ScreenSource):
+        name = "vuota"
+
+        def grab(self):
+            return Grab(frame=None, t=1.0, fresh=False)
+
+    c.ok(not SoloRoi(Vuota(), regione, (640, 480)).grab().ok,
+         "se il backend non da' niente non si consegna una tela nera")
+
+
 def test_due_sessioni(c) -> None:
     """Due sessioni nello stesso secondo non si pestano i piedi (domanda 32).
 

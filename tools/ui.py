@@ -917,7 +917,16 @@ class App:
             # il cancello anti-doppioni, che guarda indietro di secondi: 400 sono
             # venti minuti di conversazione, cioe' cento volte quello che serve.
             self.pipeline.max_spoken = 400
-            self.sessione = None if self.args.no_save else Session(samplerate=sr)
+            # **`ui.save_mix` era dichiarato e non lo leggeva nessuno**: il
+            # quinto campo di questa forma, dopo `max_ocr_hz`, `tts.device`,
+            # `background_mode` e `overlay.ritardo`. Chi lo metteva a `false` si
+            # ritrovava lo stesso 660 MB di RAM e 340 MB di WAV per mezz'ora.
+            self.sessione = None if self.args.no_save else Session(
+                samplerate=sr, salva_mix=bool(self.cfg.ui.save_mix)
+            )
+            if self.sessione is not None and self.cfg.ui.save_mix:
+                self.coda.put(("nota", "registro l'audio: ~11 MB al minuto su disco, "
+                                       "fino a 660 MB di RAM (ui.save_mix=false lo spegne)"))
             # **Il registro delle impronte anche dal vivo.** Senza, di una
             # sessione dal vivo si sa cosa e' stato detto ma non cosa il
             # riconoscitore ha visto — e quando dal vivo va peggio che sul banco

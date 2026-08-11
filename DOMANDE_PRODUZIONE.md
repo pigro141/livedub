@@ -26,8 +26,9 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
 4. **Se manca OneOCR?** ✅ Lo dice e spiega che si userà `ppocr`, che legge peggio.
 5. **I modelli si scaricano al primo avvio: l'utente lo sa prima o dopo?** ❌ Lo
    scopre quando la finestra sembra bloccata. Serve una barra di avanzamento.
-6. **Quanto pesa un'installazione completa?** ❓ Mai misurato. `du -sh` dopo un
-   giro pulito.
+6. **Quanto pesa un'installazione completa?** ✅ **misurato**: `.venv` **3,0 GB**
+   (quasi tutto CUDA) + `models/` **1,4 GB** = **4,4 GB**. Non è poco e va detto
+   prima, non dopo.
 7. **Funziona su un utente Windows senza diritti di amministratore?** ❓ Probabile
    (nessun servizio, nessun driver), mai provato.
 8. **Funziona con Python installato dal Microsoft Store?** ❓ Quel Python ha una
@@ -98,7 +99,8 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
     guasto più probabile in assoluto durante una partita.
 40. **Se cattura e uscita sono lo stesso device?** ✅ Si rifiuta di partire e lo
     spiega: rientrerebbe.
-41. **Se non c'è nessun loopback?** ❓ `find_loopback` cosa fa a mani vuote.
+41. **Se non c'è nessun loopback?** ✅ Solleva **elencando quelli disponibili**,
+    che è la forma utile: non «non trovato» ma «ecco cosa c'è».
 42. **Voicemeeter non installato?** ✅ Il loopback WASAPI di serie basta.
 43. **Il doppiaggio rientra nella cattura?** ✅ Il controllo sui device lo impedisce.
 44. **`mix.underrun` viene mostrato all'utente?** ❌ Sta nel rapporto di fine
@@ -112,8 +114,10 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
 48. **La latenza audio è stabile per ore?** ❓ Le sessioni misurate sono da minuti.
 49. **Se il gioco è muto, il riconoscimento impazzisce?** ✅ Sotto soglia diventa
     voce neutra invece di inventare un personaggio.
-50. **Il file WAV della sessione quanto pesa?** ❓ ~10 MB/minuto a 48 kHz stereo
-    float, mai dichiarato all'utente.
+50. **Il file WAV della sessione quanto pesa?** ✅ **[fatto]** Misurato: **11
+    MB/minuto** su disco (int16) e **22 MB/minuto in RAM** (float32). Il tetto è
+    30 minuti, cioè **330 MB su disco e 660 MB di RAM**. Ora la finestra lo dice
+    all'avvio, e `ui.save_mix=false` lo spegne davvero.
 
 ## E. Video e cattura (51–62)
 
@@ -131,7 +135,10 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
 58. **Su un gioco che scrive scuro su chiaro?** ❌ Legge ma sporca (misurato su
     fotogrammi costruiti). Mai su un gioco vero.
 59. **Sottotitoli non in una striscia (fumetti)?** ❌ Non previsto.
-60. **Lingue non latine?** ❓ OneOCR le legge, ma la catena a valle no.
+60. **Lingue non latine?** ❌ **No, e ora è chiaro perché**: `italian_only`
+    toglie tutto ciò che non è latino, ed è nato per fermare i glifi CJK che
+    l'OCR restituisce sullo scenario. Cirillico e greco cadono con loro. Non è
+    un ❓: è una scelta, e va scritta nel README invece che scoperta.
 61. **Se la ROI include un orologio o un contatore?** ❌ Verrebbe letto e detto.
 62. **Il costo dell'OCR su un PC lento?** ✅ Misurato per numero di core.
 
@@ -172,12 +179,16 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
     console che con l'exe non esiste. Serve un gestore globale. **[fatto]**
 82. **C'è un file di log su disco?** ❌ Solo il rapporto di fine sessione. **[fatto]**
 83. **Un rapporto di errore contiene versione, config e sistema?** ❌ **[fatto]**
-84. **Se il disco è pieno?** ❓ `Session` scrive senza controllare.
+84. **Se il disco è pieno?** ❌ `Session.audio` accumula in RAM e scrive tutto
+    alla fine: un disco pieno fa fallire proprio la chiusura, cioè il momento in
+    cui si perde tutto. Il rimedio vero è scrivere il WAV a blocchi mentre gira.
 85. **Se `runs/` diventa enorme?** ❌ Nessuna pulizia, nessun avviso.
 86. **Il programma si accorge di essere in ritardo cronico?** ✅ I contatori ci
     sono. ❌ Ma non arrivano in faccia a nessuno.
-87. **Un thread che muore ferma tutto o resta a metà?** ❓ Il video ha `on_error="bypass"`;
-    l'audio no.
+87. **Un thread che muore ferma tutto o resta a metà?** ⚠️ Il lettore video ha
+    `on_error="bypass"` (una battuta persa è meglio di una sessione persa), il
+    ciclo audio no: un'eccezione lì lo ferma e il doppiaggio ammutolisce **senza
+    dirlo**. Da collegare al gestore globale.
 88. **Si può riprodurre una sessione andata male?** ✅ `tools/reopen`, ed è il
     pezzo forte del progetto.
 89. **Le metriche di finestra finiscono nel rapporto?** ✅ Corretto: prima morivano.
@@ -185,7 +196,10 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
 
 ## I. Prestazioni e risorse (91–96)
 
-91. **Quanta RAM usa una sessione lunga?** ❓ Mai misurato.
+91. **Quanta RAM usa una sessione lunga?** ✅ **misurato**: la catena parte da
+    ~101 MB e arriva a ~111 dopo tre ore. **Ma con la registrazione accesa si
+    aggiungono fino a 660 MB**, che è la voce più grossa del programma —
+    sessanta volte la catena intera — e non lo diceva niente.
 92. **La memoria cresce nel tempo?** ✅ **[fatto]** Misurato con
     `tools/bench_memoria.py`: **+10,4 MB** su 3600 battute, cioè tre ore di
     gioco. Sotto la soglia dichiarata *prima* della prova (50 MB) — ma **cresceva
@@ -202,7 +216,9 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
 93. **Quanto ruba al gioco in fps?** ❓ Mai misurato con un frame counter.
 94. **La VRAM di Kokoro (1128 MB) su una scheda da 6 GB con GTA V acceso?** ❓
 95. **Il programma scalda la CPU al punto di far throttlare il gioco?** ❓
-96. **Chiudendo, tutti i processi figli muoiono?** ❓ Il worker OneOCR è un figlio.
+96. **Chiudendo, tutti i processi figli muoiono?** ⚠️ Il worker OneOCR ha
+    `close()` con `terminate()` e un `__del__` che lo chiama — ma `__del__` non è
+    garantito se il processo muore di brutto. Da provare uccidendo il padre.
 
 ## L. Consegna e fiducia (97–100)
 
@@ -221,9 +237,10 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
 
 | | quante |
 |---|---|
-| ✅ a posto, verificato | 40 |
-| ❌ difetti veri | 32 |
-| ❓ mai provato | 28 |
+| ✅ a posto, verificato | 44 |
+| ❌ difetti veri | 34 |
+| ❓ mai provato | 20 |
+| ⚠️ mezzo coperto, da provare | 2 |
 
 **I ❓ sono la parte interessante.** Ventinove domande a cui nessuno ha risposto,
 e quasi tutte si chiudono in mezz'ora ciascuna con una misura. Le tre che

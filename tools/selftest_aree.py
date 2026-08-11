@@ -338,3 +338,47 @@ def test_memoria(c) -> None:
     o.set(1.0)
     doppione = SubtitleEvent(text=testo, cls=LineClass.WHITE, t_on=1.0)
     c.ok(r._gia_detta(doppione), "col tetto al minimo il cancello anti-doppioni scatta ancora")
+
+
+def test_sessione(c) -> None:
+    """`ui.save_mix` viene letto davvero (domande 50, 91, 92).
+
+    Era dichiarato in config, valeva `True`, e **non lo leggeva nessuno**: il
+    quinto campo di questa forma dopo `max_ocr_hz`, `tts.device`,
+    `background_mode` e `overlay.ritardo`. Chi lo metteva a `false` si ritrovava
+    lo stesso 660 MB di RAM e 330 MB di WAV per mezz'ora di sessione.
+
+    La verifica non e' che il campo esista: e' che **spegnendolo non si accumuli
+    piu' niente**. Un campo che c'e' e non fa niente e' esattamente cio' che
+    questo progetto ha pagato quattro volte.
+    """
+    import tempfile
+
+    import numpy as np
+
+    from tools.session import Session
+
+    c.group("memoria")
+
+    blocco = np.zeros((4800, 2), np.float32)
+    with tempfile.TemporaryDirectory() as tmp:
+        acceso = Session(root=tmp, samplerate=48000, salva_mix=True)
+        for i in range(20):
+            acceso.audio(blocco, i * 0.1)
+        c.ok(len(acceso._blocks) == 20, "con save_mix acceso i blocchi si accumulano")
+
+        spento = Session(root=tmp + "/b", samplerate=48000, salva_mix=False)
+        for i in range(20):
+            spento.audio(blocco, i * 0.1)
+        c.eq(spento._blocks, [], "con save_mix spento non si accumula **niente**")
+        c.eq(spento._n, 0, "e nemmeno il conteggio dei campioni")
+
+        # `Session` tiene `events.jsonl` aperto: senza chiuderle, la cartella
+        # temporanea non si cancella su Windows e il gruppo esplode in chiusura
+        # invece che su una verifica. Un guasto negli attrezzi si legge male
+        # quanto uno nel codice.
+        for s in (acceso, spento):
+            try:
+                s._lines.close()
+            except Exception:
+                pass

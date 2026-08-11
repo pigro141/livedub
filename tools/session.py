@@ -54,10 +54,21 @@ class Session:
         root: str | Path = "runs",
         samplerate: int = 48000,
         max_minutes: float = 30.0,
+        salva_mix: bool = True,
     ) -> None:
         self.dir = Path(root) / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.dir.mkdir(parents=True, exist_ok=True)
         self.samplerate = samplerate
+        # **Il mix si tiene in RAM finche' non finisce la sessione**, e a
+        # `max_minutes = 30` sono **660 MB** di float32 (48 kHz, stereo). E' il
+        # tetto, non una perdita — ma e' la voce di memoria piu' grossa del
+        # programma, sessanta volte la catena intera (misurata a +10 MB su tre
+        # ore con `tools/bench_memoria.py`), e non lo diceva niente.
+        #
+        # `salva_mix=False` la spegne del tutto: restano `events.jsonl` e
+        # `speaker.jsonl`, che sono quelli che servono a `tools/reopen` e a
+        # `tools/recluster`. Si perde l'ascolto, non la diagnosi.
+        self.salva_mix = bool(salva_mix)
         self.max_samples = int(max_minutes * 60 * samplerate)
         self._blocks: list[np.ndarray] = []
         self._n = 0
@@ -71,6 +82,8 @@ class Session:
     # -- audio -------------------------------------------------------------
 
     def audio(self, block: np.ndarray, t: float) -> None:
+        if not self.salva_mix:
+            return
         """Un blocco di uscita, con l'istante a cui il mixer lo ha prodotto."""
         if self.t0 is None:
             self.t0 = t

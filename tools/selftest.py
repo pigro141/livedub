@@ -3035,7 +3035,12 @@ from tools.selftest_vision import (  # noqa: E402
 )
 from tools.selftest_gioco2 import test_gioco2  # noqa: E402
 from tools.selftest_schema import test_livelli, test_schema  # noqa: E402
-from tools.selftest_aree import test_aree, test_aree_catena, test_memoria  # noqa: E402
+from tools.selftest_aree import (  # noqa: E402
+    test_aree,
+    test_aree_catena,
+    test_memoria,
+    test_sessione,
+)
 
 def test_session(c: Check) -> None:
     """La sessione salvata, e il giro di andata e ritorno che la rende utile.
@@ -3526,6 +3531,7 @@ GROUPS = {
     "aree": test_aree,
     "aree_catena": test_aree_catena,
     "memoria": test_memoria,
+    "sessione_mix": test_sessione,
 }
 
 

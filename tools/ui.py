@@ -37,7 +37,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from capture.audio import Loopback, Player, find_loopback, list_devices  # noqa: E402
+from capture.audio import Loopback, Player, find_loopback, find_output, list_devices  # noqa: E402
 from capture.screen import make_screen  # noqa: E402
 from core.clock import RealClock, set_clock  # noqa: E402
 from core.config import Config, load_profile  # noqa: E402
@@ -914,8 +914,11 @@ class App:
             entrata = find_loopback(self.args.loopback)
             uscita = default
             if self.args.output:
-                trovati = [d for d in loops if self.args.output.lower() in d.name.lower()]
-                uscita = trovati[0] if trovati else default
+                # **Fra le uscite, non fra i loopback**: quelli hanno zero canali
+                # di uscita, quindi il nome giusto dava `OSError -9998` e il nome
+                # sbagliato dava la predefinita **in silenzio**, cioe' il
+                # doppiaggio che suona da un'altra parte senza dirlo.
+                uscita = find_output(self.args.output)
             if entrata.index == uscita.index:
                 self.coda.put(("nota", "! cattura e uscita sono lo stesso device: rientrerebbe"))
                 self._fine_thread()

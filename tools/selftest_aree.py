@@ -557,6 +557,45 @@ def test_guasto_audio(c) -> None:
     c.eq(visti, ["RuntimeError"], "un thread che esplode arriva al registro, non al silenzio")
 
 
+def test_uscita_audio(c) -> None:
+    """`--output` sceglieva fra i **loopback**, che non sono uscite.
+
+    Trovato provando il programma dal vivo: per non far rientrare il doppiaggio
+    nella cattura serve suonare su un altro dispositivo, ed e' esattamente cio'
+    che quell'opzione promette. Cercava il nome in `list_devices()[0]`, che sono
+    i loopback WASAPI — dispositivi di **ingresso** con zero canali di uscita.
+    Col nome giusto si otteneva `OSError -9998 Invalid number of channels`; col
+    nome sbagliato, la predefinita **in silenzio**, cioe' il doppiaggio che
+    suona da un'altra parte senza dirlo. Verificato a mano su questa macchina
+    prima di correggere.
+
+    Qui non si tocca l'hardware: si sostituisce l'elenco, perche' quello che
+    era rotto e' la **scelta**, non WASAPI.
+    """
+    from capture import audio
+
+    c.group("memoria")
+
+    finte = [
+        audio.Device(index=22, name="Uscita digitale (Realtek)", channels=2, samplerate=48000),
+        audio.Device(index=25, name="Altoparlanti (Realtek)", channels=2, samplerate=48000),
+    ]
+    vero = audio.uscite
+    audio.uscite = lambda: finte
+    try:
+        d = audio.find_output("altoparlanti")
+        c.eq(d.index, 25, "si sceglie fra le uscite, per pezzo di nome")
+        c.ok(not d.is_loopback, "e quella scelta non e' un loopback")
+        try:
+            audio.find_output("cuffie")
+            c.ok(False, "un nome che non c'e' deve sollevare")
+        except RuntimeError as guasto:
+            c.ok("Uscita digitale" in str(guasto),
+                 "sollevando **elencando** quelle che ci sono, non «non trovato»")
+    finally:
+        audio.uscite = vero
+
+
 def test_due_sessioni(c) -> None:
     """Due sessioni nello stesso secondo non si pestano i piedi (domanda 32).
 

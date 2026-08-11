@@ -49,7 +49,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from capture.audio import Loopback, Player, find_loopback, list_devices  # noqa: E402
+from capture.audio import Loopback, Player, find_loopback, find_output, list_devices  # noqa: E402
 from capture.screen import make_screen  # noqa: E402
 from core.clock import RealClock, set_clock  # noqa: E402
 from core.config import Config, load_profile  # noqa: E402
@@ -117,8 +117,10 @@ def main(argv: list[str] | None = None) -> int:
     entrata = find_loopback(args.loopback)
     uscita = default
     if args.output:
-        cercato = [d for d in loops if args.output.lower() in d.name.lower()]
-        uscita = cercato[0] if cercato else default
+        # **Fra le uscite, non fra i loopback.** Cercarlo in `loops` dava un
+        # dispositivo con zero canali di uscita: `OSError -9998` se il nome
+        # corrispondeva, la predefinita in silenzio se non corrispondeva.
+        uscita = find_output(args.output)
     if entrata.index == uscita.index:
         print("! cattura e uscita sono lo stesso dispositivo: il doppiaggio rientrerebbe")
         return 2

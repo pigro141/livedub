@@ -90,6 +90,58 @@ def find_loopback(needle: str) -> Device:
     return esatti[0]
 
 
+def uscite() -> list[Device]:
+    """I dispositivi su cui si puo' **suonare**, che non sono i loopback.
+
+    Esiste perche' non c'era, e la sua mancanza aveva rotto `--output` in tutti
+    e due i programmi dal vivo: cercavano il nome dentro l'elenco dei
+    **loopback**, che WASAPI espone come dispositivi di *ingresso* con zero
+    canali di uscita. Il risultato non era «non trovato»: era
+    `OSError -9998 Invalid number of channels` se il nome corrispondeva, e il
+    silenzioso ritorno alla predefinita se non corrispondeva — cioe' il
+    doppiaggio che suona da un'altra parte senza dirlo, che e' il modo in cui si
+    crea l'anello contro cui esiste questo file.
+    """
+    pa = _pa()
+    p = pa.PyAudio()
+    try:
+        wasapi = p.get_host_api_info_by_type(pa.paWASAPI)
+        fuori: list[Device] = []
+        for i in range(p.get_device_count()):
+            d = p.get_device_info_by_index(i)
+            if d["hostApi"] != wasapi["index"] or d.get("isLoopbackDevice"):
+                continue
+            if int(d["maxOutputChannels"]) <= 0:
+                continue
+            fuori.append(
+                Device(
+                    index=int(d["index"]),
+                    name=str(d["name"]),
+                    channels=int(d["maxOutputChannels"]),
+                    samplerate=int(d["defaultSampleRate"]),
+                )
+            )
+        return fuori
+    finally:
+        p.terminate()
+
+
+def find_output(needle: str) -> Device:
+    """Il dispositivo di uscita il cui nome contiene `needle`.
+
+    Solleva **elencando** invece di ripiegare sulla predefinita: chi scrive
+    `--output cuffie` e si ritrova il doppiaggio negli altoparlanti non ha modo
+    di accorgersene, e un ripiego che non si dichiara e' peggio di un errore.
+    """
+    tutte = uscite()
+    ago = needle.lower().strip()
+    esatti = [d for d in tutte if ago in d.name.lower()]
+    if not esatti:
+        nomi = "\n  ".join(d.name for d in tutte)
+        raise RuntimeError(f"nessuna uscita con '{needle}'. Disponibili:\n  {nomi}")
+    return esatti[0]
+
+
 class Loopback:
     """Cattura cio' che un dispositivo di uscita sta riproducendo."""
 

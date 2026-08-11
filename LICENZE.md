@@ -32,6 +32,7 @@ Lette dai metadati dei pacchetti **installati** in `.venv`, non da memoria.
 | libreria | licenza | dove pesa |
 |---|---|---|
 | **piper-tts** 1.6.0 | **GPL-3.0-or-later** | motore di voce **di default** |
+| PySide6 6.11 (Qt 6.11) | LGPL-3.0 *or* GPL-2.0 *or* GPL-3.0 | la finestra |
 | **espeakng-loader** (`espeak-ng.dll`) | **GPL-3.0-or-later** | g2p per Kokoro |
 | **phonemizer-fork** | **GPL-3.0** | idem |
 | onnxruntime-gpu | MIT | tutti i modelli |
@@ -47,6 +48,13 @@ Lette dai metadati dei pacchetti **installati** in `.venv`, non da memoria.
 | numpy | BSD-3-Clause e altre | ovunque |
 | soundfile | BSD-3-Clause | WAV |
 | imageio-ffmpeg | BSD-2-Clause | montaggio degli MP4 di prova |
+
+**PySide6 e non PyQt**, e la differenza vale la riga: PySide6 e' il binding
+**ufficiale** di The Qt Company e si puo' prendere in LGPL-3, che vuol dire che
+un domani il progetto potrebbe anche non essere GPL senza dover cambiare
+interfaccia. PyQt e' GPL-3 o commerciale, e avrebbe chiuso quella porta per
+sempre. Oggi non cambia niente — siamo GPL-3 comunque, per via di Piper — ma e'
+l'unica delle due scelte che non si paga due volte.
 
 Nessuna di queste è **incompatibile** con GPL-3: MIT, BSD e Apache-2.0 si possono
 combinare in un'opera GPL-3 (Apache-2.0 solo verso GPL-**3**, non GPL-2 — un

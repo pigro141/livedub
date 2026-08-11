@@ -236,16 +236,45 @@ class App:
                 escludi_cattura=not getattr(args, "overlay_catturabile", False),
             )
 
-        barra = tk.Frame(self.root)
-        barra.pack(fill="x", padx=8, pady=6)
-        self.b_finestra = tk.Button(barra, text="Scegli finestra", command=self.scegli_finestra)
+        # **La testata.** Nome, stato e cosa si sta guardando, sempre visibili.
+        # Il pallino colorato dice se sta girando prima di qualunque parola: la
+        # finestra si guarda di sfuggita mentre si gioca, ed e' esattamente la
+        # condizione in cui una parola non si legge.
+        from tkinter import ttk
+
+        from ui import tema
+
+        self.tema = tema
+        tema.applica(self.root)
+
+        testata = ttk.Frame(self.root, style="Testata.TFrame")
+        testata.pack(fill="x")
+        dentro = ttk.Frame(testata, style="Testata.TFrame")
+        dentro.pack(fill="x", padx=14, pady=10)
+        ttk.Label(dentro, text="livedub", style="Testata.TLabel").pack(side="left")
+        self.spia = tk.Canvas(dentro, width=16, height=16, bg=tema.PANNELLO,
+                              highlightthickness=0)
+        self.spia.pack(side="left", padx=(14, 5))
+        tema.pallino(self.spia, tema.TESTO_FIOCO)
+        self.l_stato = ttk.Label(dentro, text="fermo", style="TenueP.TLabel")
+        self.l_stato.pack(side="left")
+        self.l_bersaglio = ttk.Label(dentro, text="nessuna finestra scelta",
+                                     style="TenueP.TLabel")
+        self.l_bersaglio.pack(side="right")
+
+        barra = ttk.Frame(self.root)
+        barra.pack(fill="x", padx=12, pady=(10, 6))
+        self.b_finestra = ttk.Button(barra, text="Scegli finestra", command=self.scegli_finestra)
         self.b_finestra.pack(side="left")
-        self.b_area = tk.Button(barra, text="Seleziona area", command=self.scegli_area)
+        self.b_area = ttk.Button(barra, text="Seleziona area", command=self.scegli_area)
         self.b_area.pack(side="left", padx=6)
-        self.b_start = tk.Button(barra, text="Avvia", command=self.avvia, width=10)
-        self.b_start.pack(side="left", padx=6)
-        self.b_stop = tk.Button(barra, text="Ferma", command=self.ferma, width=10, state="disabled")
+        # Un solo bottone e' quello che si preme, e si vede: se sono tutti uguali
+        # l'occhio deve leggerli tutti per trovarlo.
+        self.b_start = ttk.Button(barra, text="Avvia", command=self.avvia, style="Primario.TButton")
+        self.b_start.pack(side="left", padx=(14, 6))
+        self.b_stop = ttk.Button(barra, text="Ferma", command=self.ferma, state="disabled")
         self.b_stop.pack(side="left")
+
         # **L'unico parametro che due giochi vogliono al contrario.** Il colore
         # e' l'HUD in GTA V (obiettivi di missione, nomi di app) e il nome di
         # chi parla in Mafia: The Old Country (`ENZO:`, `ALFIO:` in giallo).
@@ -254,50 +283,50 @@ class App:
         #
         # Si cambia **a caldo**: la casella scrive nello stesso oggetto config
         # che il lettore rilegge a ogni fotogramma, quindi non c'e' niente da
-        # ricostruire e non c'e' da riavviare. Questo e' uno dei pochi campi per
-        # cui e' vero — il backend TTS o quello OCR no.
+        # ricostruire e non c'e' da riavviare.
         self.v_colorati = tk.BooleanVar(value=bool(self.cfg.vision.exclude_colored))
-        self.c_colorati = tk.Checkbutton(
-            barra,
-            text="Ignora i sottotitoli colorati",
-            variable=self.v_colorati,
-            command=self._cambia_colorati,
+        self.c_colorati = ttk.Checkbutton(
+            barra, text="Ignora i sottotitoli colorati",
+            variable=self.v_colorati, command=self._cambia_colorati,
         )
-        self.c_colorati.pack(side="left", padx=10)
+        self.c_colorati.pack(side="left", padx=(18, 0))
 
         # **Quanto acceso dev'essere un colore per contare come colore.**
         # Il criterio non guarda *quale* tinta sia — giallo, rosso, ciano si
-        # comportano identici, misurato — ma quanto stacca dal bianco
-        # (`max - min` sui canali, quindi 0 = grigio, 255 = tinta piena). Sotto
-        # questa soglia una riga non e' colorata affatto, e passa comunque:
-        # misurato su sette colori, un azzurro pallido a saturazione 50 viene
-        # letto anche a difesa accesa.
-        #
-        # Sta accanto alla casella perche' e' la sua manopola fine, e si spegne
-        # con lei: a difesa spenta il numero non lo guarda nessuno, e una casella
-        # attiva che non fa niente e' peggio di una assente.
+        # comportano identici, misurato — ma quanto stacca dal bianco. Sotto
+        # questa soglia una riga non e' colorata affatto: misurato su sette
+        # colori, un azzurro pallido a saturazione 50 viene letto anche a difesa
+        # accesa. Si spegne con la casella: a difesa spenta il numero non lo
+        # guarda nessuno, e un comando attivo che non fa niente e' peggio di uno
+        # assente.
         self.v_sat = tk.IntVar(value=int(self.cfg.vision.sat_max))
-        tk.Label(barra, text="soglia").pack(side="left")
-        self.s_sat = tk.Spinbox(
+        ttk.Label(barra, text="soglia", style="Tenue.TLabel").pack(side="left", padx=(10, 4))
+        self.s_sat = ttk.Spinbox(
             barra, from_=0, to=255, width=4, textvariable=self.v_sat,
             command=self._cambia_sat, justify="right",
         )
-        self.s_sat.pack(side="left", padx=(3, 10))
-        # Anche scritta a mano, non solo con le frecce: chi conosce il numero lo
-        # digita.
+        self.s_sat.pack(side="left")
         self.s_sat.bind("<KeyRelease>", lambda _e: self._cambia_sat())
         # Uscendo dal campo, quel che si vede torna a essere quel che si usa.
-        # Mentre si scrive la casella puo' stare vuota o dire `12a`, e va bene —
-        # ma se ci si allontana lasciandola cosi', a schermo resterebbe un
-        # numero che la catena non sta usando.
         self.s_sat.bind("<FocusOut>", lambda _e: self.v_sat.set(int(self.cfg.vision.sat_max)))
         self._aggiorna_sat()
 
-        self.l_roi = tk.Label(barra, text=self._testo_roi(), anchor="w")
-        self.l_roi.pack(side="left", padx=12)
+        self.l_roi = ttk.Label(barra, text=self._testo_roi(), style="Mono.TLabel")
+        self.l_roi.pack(side="right")
 
-        self.l_stato = tk.Label(self.root, text="fermo", anchor="w", fg="#666")
-        self.l_stato.pack(fill="x", padx=10)
+        # **La striscia delle modifiche in attesa.** Alcuni parametri si leggono
+        # una volta sola alla costruzione: cambiati a sessione accesa non fanno
+        # niente. Prima lo dicevo e basta, ed e' meta' del lavoro — «lo sapevi»
+        # non e' «si applica». Qui compare una striscia che li conta e un bottone
+        # che li applica davvero, rifacendo la catena.
+        self._in_attesa: list[str] = []
+        self.striscia = ttk.Frame(self.root, style="Pannello.TFrame")
+        self.l_attesa = ttk.Label(self.striscia, text="", style="TenueP.TLabel")
+        self.l_attesa.pack(side="left", padx=12, pady=7)
+        ttk.Button(self.striscia, text="Applica ora", style="Accento.TButton",
+                   command=self.applica_in_attesa).pack(side="right", padx=10, pady=5)
+        ttk.Button(self.striscia, text="Lascia stare",
+                   command=self.scarta_in_attesa).pack(side="right", pady=5)
 
         # **Le schede.** La barra sopra resta sempre visibile perche' e' quello
         # che si tocca durante una prova; sotto ci sono le cose che si guardano
@@ -310,18 +339,27 @@ class App:
         sessione = ttk.Frame(self.schede)
         self.schede.add(sessione, text="Sessione")
         self.log = scrolledtext.ScrolledText(
-            sessione, font=("Consolas", 10), bg="#12131a", fg="#d8d8e0", insertbackground="#fff"
+            sessione, font=tema.MONO, bg=tema.PANNELLO, fg=tema.TESTO,
+            insertbackground=tema.TESTO, relief="flat", borderwidth=0,
+            padx=12, pady=10, spacing1=1, spacing3=2, wrap="word",
         )
         self.log.pack(fill="both", expand=True)
+        # `ScrolledText` si porta dietro una `Scrollbar` classica di Tk, che non
+        # passa da ttk e quindi resterebbe chiara in mezzo a una finestra scura.
+        self.log.vbar.configure(
+            bg=tema.CAMPO, troughcolor=tema.PANNELLO, activebackground=tema.BORDO,
+            borderwidth=0, highlightthickness=0, width=12, relief="flat",
+            elementborderwidth=0,
+        )
 
         self._schede_config()
         # Un colore per personaggio: la domanda che si fa guardando questo log
         # non e' "cosa ha detto" ma "e' sempre lo stesso a parlare?", e a quella
         # l'occhio risponde da un colore molto prima che da una sigla.
-        self.colori = ["#7ee787", "#79c0ff", "#ffa657", "#d2a8ff", "#ff7b72", "#f2cc60"]
+        self.colori = list(tema.VOCI)
         for i, c in enumerate(self.colori):
             self.log.tag_config(f"s{i}", foreground=c)
-        self.log.tag_config("nota", foreground="#8b949e")
+        self.log.tag_config("nota", foreground=tema.TESTO_TENUE)
         self.noti: dict[str, int] = {}
         # Quanto vecchio e' il ritaglio quando finisce a schermo. Senza questo
         # numero il ritardo del blur si poteva solo guardare, e guardandolo si
@@ -366,8 +404,8 @@ class App:
             tecnologie,
             text="Quale motore usare per ogni stadio. Quasi tutti si leggono una volta "
                  "sola: dopo averli cambiati serve ripremere Avvia.",
-            foreground="#666", wraplength=900, justify="left",
-        ).pack(fill="x", padx=8, pady=(8, 0))
+            style="Tenue.TLabel", wraplength=900, justify="left",
+        ).pack(fill="x", padx=12, pady=(12, 0))
         self.p_tecnologie = Pannello(
             tecnologie, self.cfg, al_cambio=self._campo_cambiato,
             sessione_accesa=lambda: self.pipeline is not None,
@@ -384,6 +422,80 @@ class App:
             sessione_accesa=lambda: self.pipeline is not None,
         )
         self.p_avanzate.pack(fill="both", expand=True)
+
+    def stato(self, testo: str, colore: str | None = None) -> None:
+        """Lo stato in testata: una parola e un pallino.
+
+        Il colore lo si vede senza leggere, ed e' cio' che serve quando la
+        finestra si guarda di sfuggita con il gioco davanti.
+        """
+        t = self.tema
+        if colore is None:
+            basso = testo.lower()
+            if "!" in testo or "error" in basso or "guast" in basso:
+                colore = t.ROSSO
+            elif "ferm" in basso or "pront" in basso:
+                colore = t.TESTO_FIOCO
+            else:
+                colore = t.VERDE
+        self.l_stato.config(text=testo)
+        t.pallino(self.spia, colore)
+
+    # -- le modifiche che aspettano un riavvio ------------------------------
+
+    def _segna_in_attesa(self, percorso: str) -> None:
+        """Un parametro freddo cambiato a sessione accesa: si accoda e si mostra.
+
+        **«Lo sapevi» non e' «si applica».** Dire che serve un riavvio e poi
+        lasciare all'utente il compito di ricordarselo, fermare e riavviare a
+        mano e' meta' del lavoro: in pratica quella modifica resta non applicata
+        per tutta la sessione, ed e' esattamente la situazione che questa UI deve
+        impedire — una sessione che gira con una configurazione diversa da quella
+        che la finestra mostra.
+        """
+        if percorso not in self._in_attesa:
+            self._in_attesa.append(percorso)
+        self._mostra_attesa()
+
+    def _mostra_attesa(self) -> None:
+        if not self._in_attesa or self.pipeline is None:
+            self.striscia.pack_forget()
+            return
+        quante = len(self._in_attesa)
+        cosa = ", ".join(self._in_attesa[:3]) + ("..." if quante > 3 else "")
+        self.l_attesa.config(
+            text=f"{quante} modific{'a' if quante == 1 else 'he'} in attesa ({cosa}): "
+                 f"si applic{'a' if quante == 1 else 'ano'} rifacendo la catena, un paio di secondi"
+        )
+        self.striscia.pack(fill="x", before=self.schede, padx=12, pady=(0, 6))
+
+    def scarta_in_attesa(self) -> None:
+        """Le modifiche restano scritte in config, ma non si riavvia adesso."""
+        self._in_attesa.clear()
+        self._mostra_attesa()
+        self.scrivi("le modifiche restano scritte: avranno effetto al prossimo Avvia")
+
+    def applica_in_attesa(self) -> None:
+        """Ferma e riavvia la catena perche' i parametri freddi facciano effetto.
+
+        **Il prezzo e' dichiarato e non nascosto**: la sessione si chiude e se ne
+        apre un'altra, quindi il rapporto viene scritto e i personaggi imparati
+        fin qui ripartono da quello che il file `cast.json` ha salvato. Non e' un
+        cambio a caldo travestito: e' un riavvio, fatto per te, in un clic.
+        """
+        if self.pipeline is None:
+            self._in_attesa.clear()
+            self._mostra_attesa()
+            return
+        cosa = ", ".join(self._in_attesa)
+        self._in_attesa.clear()
+        self._mostra_attesa()
+        self.scrivi(f"--- rifaccio la catena per applicare: {cosa}")
+        self.stato("riavvio in corso", self.tema.AMBRA)
+        self.ferma()
+        # Si riparte al giro dopo di Tk, cosi' `ferma()` ha finito di svuotare la
+        # coda e il log dice le cose nell'ordine in cui sono successe.
+        self.root.after(400, self.avvia)
 
     def _riallinea_pannelli(self) -> None:
         """La barra e i pannelli mostrano la stessa config: vanno tenuti insieme.
@@ -417,12 +529,17 @@ class App:
                  "in comune viene letta una volta sola e resta a quella piu' in alto "
                  "nell'elenco: leggerla due volte vorrebbe dire due voci sovrapposte. "
                  "Le aree si applicano al prossimo Avvia.",
-            foreground="#666", wraplength=980, justify="left",
-        ).pack(fill="x", padx=8, pady=8)
+            style="Tenue.TLabel", wraplength=980, justify="left",
+        ).pack(fill="x", padx=12, pady=12)
 
         corpo = ttk.Frame(pagina)
-        corpo.pack(fill="both", expand=True, padx=8)
-        self.elenco_aree = tk.Listbox(corpo, font=("Consolas", 10), height=10)
+        corpo.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        self.elenco_aree = tk.Listbox(
+            corpo, font=self.tema.MONO, height=12, bg=self.tema.PANNELLO,
+            fg=self.tema.TESTO, selectbackground=self.tema.ACCENTO,
+            selectforeground="#0d1117", relief="flat", borderwidth=0,
+            highlightthickness=0, activestyle="none",
+        )
         self.elenco_aree.pack(side="left", fill="both", expand=True)
         bottoni = ttk.Frame(corpo)
         bottoni.pack(side="left", fill="y", padx=8)
@@ -511,8 +628,12 @@ class App:
             self.l_roi.configure(text=self._testo_roi())
         elif campo.percorso == "vision.aree":
             self._mostra_aree()
-        coda = "" if campo.caldo else "  (serve ripremere Avvia)"
-        self.scrivi(f"{campo.percorso} = {valore}{coda}")
+        if campo.caldo:
+            self.scrivi(f"{campo.percorso} = {valore}")
+        else:
+            self.scrivi(f"{campo.percorso} = {valore}   (si legge solo all'avvio)")
+            if self.pipeline is not None:
+                self._segna_in_attesa(campo.percorso)
 
     # -- ROI ---------------------------------------------------------------
 
@@ -735,7 +856,7 @@ class App:
                         self.overlay.nascondi()
 
                 elif tipo == "stato":
-                    self.l_stato.config(text=dato)
+                    self.stato(dato)
                 elif tipo == "nota":
                     self.scrivi(dato, tag="nota")
         except queue.Empty:

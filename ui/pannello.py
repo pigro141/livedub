@@ -32,6 +32,7 @@ from tkinter import ttk
 from typing import Any, Callable
 
 from core.schema import TITOLI, Campo, campi
+from ui import tema
 
 # Larghezza del testo dell'aiuto, in caratteri. I commenti di `config.py` sono
 # scritti a 88 colonne: piu' stretto di cosi' le tabelle delle misure si
@@ -71,23 +72,26 @@ class Pannello(ttk.Frame):
         self.solo = tuple(solo)
 
         # Il filtro: con 165 campi, trovarne uno scorrendo e' il modo peggiore.
-        barra = ttk.Frame(self)
+        barra = ttk.Frame(self, style="Pannello.TFrame")
         if cerca:
-            barra.pack(fill="x", padx=6, pady=(6, 0))
-        ttk.Label(barra, text="Cerca").pack(side="left")
+            barra.pack(fill="x")
+        interno = ttk.Frame(barra, style="Pannello.TFrame")
+        interno.pack(fill="x", padx=12, pady=9)
+        ttk.Label(interno, text="Cerca", style="TenueP.TLabel").pack(side="left")
         self.v_cerca = tk.StringVar()
-        casella = ttk.Entry(barra, textvariable=self.v_cerca, width=28)
-        casella.pack(side="left", padx=6)
+        casella = ttk.Entry(interno, textvariable=self.v_cerca, width=30)
+        casella.pack(side="left", padx=8)
         self.v_cerca.trace_add("write", lambda *_: self._filtra())
         self.v_solo_caldi = tk.BooleanVar(value=False)
         ttk.Checkbutton(
-            barra, text="solo quelli applicabili a caldo",
+            interno, text="solo quelli che si applicano subito",
+            style="Pannello.TCheckbutton",
             variable=self.v_solo_caldi, command=self._filtra,
-        ).pack(side="left", padx=10)
-        ttk.Button(barra, text="Riporta ai default", command=self.ripristina).pack(side="right")
+        ).pack(side="left", padx=12)
+        ttk.Button(interno, text="Riporta ai default", command=self.ripristina).pack(side="right")
 
-        self.stato = ttk.Label(self, text="", foreground="#8b949e", anchor="w")
-        self.stato.pack(fill="x", padx=8, pady=(4, 0))
+        self.stato = ttk.Label(self, text="", style="Tenue.TLabel", anchor="w")
+        self.stato.pack(fill="x", padx=12, pady=(6, 0))
 
         self._scorrevole(cfg)
         self._filtra()
@@ -106,8 +110,8 @@ class Pannello(ttk.Frame):
     def _scorrevole(self, cfg) -> None:
         """Una tela che scorre: 165 campi non stanno in una finestra."""
         contenitore = ttk.Frame(self)
-        contenitore.pack(fill="both", expand=True, padx=6, pady=6)
-        tela = tk.Canvas(contenitore, highlightthickness=0)
+        contenitore.pack(fill="both", expand=True, padx=12, pady=(6, 10))
+        tela = tk.Canvas(contenitore, highlightthickness=0, bg=tema.FONDO)
         barra = ttk.Scrollbar(contenitore, orient="vertical", command=tela.yview)
         self.dentro = ttk.Frame(tela)
         self.dentro.bind(
@@ -129,10 +133,10 @@ class Pannello(ttk.Frame):
                 sezione_corrente = campo.sezione
                 titolo = ttk.Label(
                     self.dentro,
-                    text=TITOLI.get(campo.sezione, campo.sezione),
-                    font=("Segoe UI", 10, "bold"),
+                    text=TITOLI.get(campo.sezione, campo.sezione).upper(),
+                    foreground=tema.ACCENTO, font=("Segoe UI Semibold", 9),
                 )
-                titolo.pack(fill="x", pady=(14, 4))
+                titolo.pack(fill="x", pady=(18, 6))
                 self._righe.append((None, titolo))  # type: ignore[arg-type]
             self._riga(campo)
 
@@ -140,7 +144,8 @@ class Pannello(ttk.Frame):
         riga = ttk.Frame(self.dentro)
         riga.pack(fill="x", pady=1)
 
-        etichetta = ttk.Label(riga, text=campo.nome, width=26, anchor="w")
+        etichetta = ttk.Label(riga, text=campo.nome, width=26, anchor="w",
+                              font=tema.MONO_PICCOLO)
         etichetta.pack(side="left")
 
         widget = self._manopola(riga, campo)
@@ -150,17 +155,18 @@ class Pannello(ttk.Frame):
         # **Il marchio del riavvio sta sulla riga, non in una nota a fondo
         # pagina.** Chi cambia il motore della voce deve vederlo li'.
         if not campo.caldo:
-            ttk.Label(riga, text="riavvio", foreground="#c9772a").pack(side="left", padx=6)
+            ttk.Label(riga, text="all\u2019avvio", foreground=tema.AMBRA,
+                      font=tema.UI_PICCOLO).pack(side="left", padx=8)
         if not campo.modificabile:
-            ttk.Label(riga, text="non modificabile", foreground="#8b949e").pack(side="left", padx=6)
+            ttk.Label(riga, text="non modificabile", foreground=tema.TESTO_FIOCO,
+                      font=tema.UI_PICCOLO).pack(side="left", padx=8)
 
-        ttk.Button(riga, text="?", width=2, command=lambda c=campo: self.spiega(c)).pack(
-            side="left", padx=4
-        )
+        ttk.Button(riga, text="\u24d8", width=2, style="Aiuto.TButton",
+                   command=lambda c=campo: self.spiega(c)).pack(side="left", padx=6)
         sommario = campo.sommario
         if sommario:
             ttk.Label(
-                riga, text=_una_riga(sommario), foreground="#8b949e", anchor="w"
+                riga, text=_una_riga(sommario), style="Tenue.TLabel", anchor="w"
             ).pack(side="left", fill="x", expand=True, padx=6)
         self._righe.append((campo, riga))
 
@@ -276,26 +282,31 @@ class Pannello(ttk.Frame):
         """La spiegazione del campo, cosi' com'e' scritta in `core/config.py`."""
         top = tk.Toplevel(self)
         top.title(campo.percorso)
-        top.geometry("760x520")
-        intestazione = ttk.Frame(top)
-        intestazione.pack(fill="x", padx=10, pady=(10, 0))
+        top.geometry("780x540")
+        top.configure(bg=tema.FONDO)
+        intestazione = ttk.Frame(top, style="Pannello.TFrame")
+        intestazione.pack(fill="x")
+        riga1 = ttk.Frame(intestazione, style="Pannello.TFrame")
+        riga1.pack(fill="x", padx=16, pady=(12, 2))
+        ttk.Label(riga1, text=campo.percorso, style="Testata.TLabel",
+                  font=("Consolas", 12, "bold")).pack(side="left")
         ttk.Label(
-            intestazione, text=campo.percorso, font=("Segoe UI", 11, "bold")
-        ).pack(side="left")
-        ttk.Label(
-            intestazione,
-            text=("si applica subito" if campo.caldo else "serve un riavvio per applicarlo"),
-            foreground=("#2f7d32" if campo.caldo else "#c9772a"),
+            riga1,
+            text=("si applica subito" if campo.caldo else "si legge solo all\u2019avvio"),
+            background=tema.PANNELLO,
+            foreground=(tema.VERDE if campo.caldo else tema.AMBRA),
         ).pack(side="right")
         ttk.Label(
-            top,
-            text=f"adesso: {_testo(self.cfg.get(campo.percorso))}     "
-                 f"default: {_testo(campo.default)}     tipo: {campo.tipo}",
-            foreground="#8b949e",
-        ).pack(fill="x", padx=10, pady=(2, 6))
+            intestazione,
+            text=f"adesso  {_testo(self.cfg.get(campo.percorso))}      "
+                 f"default  {_testo(campo.default)}      tipo  {campo.tipo}",
+            style="TenueP.TLabel", font=tema.MONO_PICCOLO,
+        ).pack(fill="x", padx=16, pady=(0, 12))
 
-        testo = tk.Text(top, wrap="word", width=LARGHEZZA_AIUTO, font=("Consolas", 9))
-        testo.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        testo = tk.Text(top, wrap="word", width=LARGHEZZA_AIUTO, font=tema.MONO_PICCOLO,
+                        bg=tema.FONDO, fg=tema.TESTO, relief="flat", borderwidth=0,
+                        padx=16, pady=14, spacing1=2, spacing3=3)
+        testo.pack(fill="both", expand=True)
         testo.insert(
             "1.0",
             campo.aiuto
@@ -304,7 +315,7 @@ class Pannello(ttk.Frame):
                "cosa misura e cosa si rischia a cambiarlo. Cambialo con prudenza.",
         )
         testo.configure(state="disabled")
-        ttk.Button(top, text="Chiudi", command=top.destroy).pack(pady=(0, 10))
+        ttk.Button(top, text="Chiudi", command=top.destroy).pack(pady=(0, 14))
 
     def _filtra(self) -> None:
         """Mostra solo le righe che contano, e nasconde i titoli rimasti vuoti."""
@@ -347,7 +358,8 @@ class Pannello(ttk.Frame):
         self.stato.configure(text=f"{visti} parametri mostrati")
 
     def _dillo(self, testo: str, errore: bool = False) -> None:
-        self.stato.configure(text=testo, foreground="#c0392b" if errore else "#8b949e")
+        self.stato.configure(text=testo,
+                             foreground=tema.ROSSO if errore else tema.TESTO_TENUE)
 
 
 def _testo(valore: Any) -> str:

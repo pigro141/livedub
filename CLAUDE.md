@@ -109,6 +109,18 @@ gia' parlato molto), e sotto `name_min_score` non si fa nessun nome: si parla co
 una voce neutra fuori dal pool, che dichiara "non lo so ancora" invece di
 mentire.
 
+**E ci sono scene in cui non riconosce quasi nessuno, ma non e' un difetto del
+vivo.** Su un tratto fatto di battibecchi corti — l'80% delle righe sotto i due
+secondi — la voce neutra tocca l'**81% dal vivo e il 78% sul banco**, cioe' la
+stessa cosa: sedici identita', dodici con una battuta sola, e chi non arriva a
+due non viene mai confermato. Prima di andarci a rimettere le mani, il caso nullo
+(`tools/recluster --shuffle`) dice che **non c'e' soglia da tarare**: a 0,30 le
+impronte vere danno 7 identita' e quelle **permutate** ne danno 9, a 0,45 sedici
+contro sedici. Un raggruppamento che il caso riproduce non e' un raggruppamento —
+abbassare la soglia darebbe un numero piu' bello e nessuna informazione in piu'.
+Quello che manca e' parlato: con ritagli da 0,7 s di battute da una riga
+l'impronta non separa nessuno, ed e' la stessa curva gia' scritta qui sopra.
+
 **L'anello audio ha una linea temporale sua** (`_marche` in `core/pipeline.py`).
 Ogni blocco lascia una marca `(campioni scritti, che ora era)`, e il tempo si
 converte in campioni interpolando fra le marche. Non e' un dettaglio: dal vivo il

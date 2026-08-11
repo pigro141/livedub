@@ -63,6 +63,30 @@ Quattro su cinque stanno nella finestra Qt o al suo confine, che è l'unica part
 del programma **senza nessuna verifica**. Adesso la parte provabile senza aprire
 Qt sta fuori da Qt (`core.preferenze.riprendi`, `tools.ui.colore_stato`).
 
+## E la catena è stata provata dal vivo, davvero
+
+L'11 agosto, con il gioco sostituito da una registrazione a schermo intero in
+Chrome: cattura dello schermo vera, OCR vero, audio vero da Voicemeeter, voce nelle
+casse. **La catena regge e i numeri sono quelli dichiarati** — latenza p50
+**665 ms** (dichiarato ~670), `mix.underrun` **0**, e `dub.rate_x1000` al p50
+**1000**, cioè il numero che `DA_VERIFICARE.md` chiedeva di guardare: si è
+staccato da 1250 e la diagnosi su `accepted_delay_ms` era giusta.
+
+Quello che la prova ha trovato, e che i banchi non avevano visto:
+
+| | cosa |
+|---|---|
+| **HUD pronunciata** | «Sali sul \[tasto]» sta nella fascia dei sottotitoli, il glifo cambia a ogni fotogramma e apre una battuta nuova: **8 su 17 dal vivo, 11 su 46 sul banco**. Aperto |
+| `--output` | non poteva funzionare: cercava fra i loopback. Corretto |
+| cattura | lo schermo intero costava **32,4 ms** su 33 di budget. Adesso si prende solo la fascia: **+35% di letture, +5 sottotitoli**. Fatto |
+| `tools/live.py` | non scriveva `speaker.jsonl`, cioè proprio il file che serve a rispondere. Corretto |
+
+**Due conclusioni sbagliate sono state ritirate**, e vale la pena sapere come:
+avevo scritto «dal vivo si perde il 60% delle righe» e «riconosce molto peggio
+del banco». Falso tutte e due — confrontavo **tratti diversi della stessa scena**
+(una volta il video era perfino finito a metà prova). Allineando i tratti: 31
+battute contro 33, e voce neutra 81% contro 78%.
+
 **Le 16 dichiarate non sono lavoro dimenticato.** Sei si chiudono tutte insieme
 **quando Avvia arriverà nella finestra Qt** (l'indicatore di latenza, l'underrun
 a schermo, il selettore d'area col mouse): un indicatore vivo in una finestra che

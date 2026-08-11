@@ -20,6 +20,7 @@ from typing import Any, Callable
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -266,8 +267,9 @@ class Pannello(QWidget):
         nome.setStyleSheet(f'font-family: "{tema.MONO}"; font-size: 13pt; font-weight: 600;')
         alto.addWidget(nome)
         alto.addStretch(1)
+        t = tema.attuale(QApplication.instance())
         quando = QLabel("si applica subito" if campo.caldo else "si legge solo all’avvio")
-        quando.setStyleSheet(f"color: {tema.VERDE if campo.caldo else tema.AMBRA};")
+        quando.setStyleSheet(f"color: {t.verde if campo.caldo else t.ambra};")
         alto.addWidget(quando)
         T.addLayout(alto)
         dati = QLabel(
@@ -318,8 +320,13 @@ class Pannello(QWidget):
         self.stato.setText(f"{visti} parametri mostrati")
 
     def _dillo(self, testo: str, errore: bool = False) -> None:
-        self.stato.setObjectName("errore" if errore else "tenue")
-        self.stato.setStyleSheet(f"color: {tema.ROSSO if errore else tema.TESTO_TENUE};")
+        # **Il colore si chiede alla tavolozza viva, non a una costante.** Con
+        # il tema che segue Windows, una costante scritta qui resterebbe quella
+        # dello scuro anche a finestra chiara — cioe' rosso acceso su bianco, o
+        # peggio, grigio chiaro su bianco: illeggibile proprio dove si scrive
+        # perche' un valore e' stato rifiutato.
+        t = tema.attuale(QApplication.instance())
+        self.stato.setStyleSheet(f"color: {t.rosso if errore else t.testo_tenue};")
         self.stato.setText(testo)
 
 

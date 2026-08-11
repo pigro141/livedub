@@ -32,6 +32,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut  # noqa: E402
 from PySide6.QtGui import QFont  # noqa: E402
 from PySide6.QtWidgets import (  # noqa: E402
     QApplication,
@@ -42,13 +43,17 @@ from PySide6.QtWidgets import (  # noqa: E402
     QMainWindow,
     QPlainTextEdit,
     QPushButton,
+    QFileDialog,
+    QMessageBox,
     QSpinBox,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from core.config import Config, load_profile  # noqa: E402
+from core import preferenze, registro  # noqa: E402
+from core.config import PROFILES_DIR, Config, load_profile  # noqa: E402
+from core.versione import NOME, VERSIONE, scheda  # noqa: E402
 from ui import qt_tema as tema  # noqa: E402
 from ui.qt_pannello import Pannello  # noqa: E402
 from vision.aree import Area, dividi, leggi, scrivi  # noqa: E402
@@ -66,6 +71,13 @@ TECNOLOGIE = (
 )
 
 
+def campi_di(cfg) -> list[str]:
+    """I percorsi di tutti i campi, per copiare una config dentro un'altra."""
+    from core.schema import campi
+
+    return [c.percorso for c in campi(cfg) if c.modificabile]
+
+
 class Finestra(QMainWindow):
     def __init__(self, cfg, args) -> None:
         super().__init__()
@@ -75,9 +87,32 @@ class Finestra(QMainWindow):
         self._in_attesa: list[str] = []
         self._voci: dict[str, int] = {}
 
-        self.setWindowTitle("livedub")
-        self.resize(1240, 800)
-        self.setStyleSheet(tema.foglio())
+        self.setWindowTitle(f"{NOME} {VERSIONE}")
+        # **La finestra si ricorda dov'era, e non esce dallo schermo.** Ripartire
+        # sempre al centro a 1240x800 e' un fastidio su un monitor grande e un
+        # guasto su uno da 1366x768, dove la finestra nasceva piu' alta dello
+        # spazio disponibile. Si legge lo schermo vero e ci si sta dentro.
+        self._pref = preferenze.leggi()
+        schermo = QGuiApplication.primaryScreen().availableGeometry()
+        largo = min(int(self._pref.get("larghezza", 1240)), schermo.width() - 40)
+        alto = min(int(self._pref.get("altezza", 800)), schermo.height() - 60)
+        self.setMinimumSize(900, 560)
+        self.resize(max(900, largo), max(560, alto))
+        if "x" in self._pref and "y" in self._pref:
+            x, y = int(self._pref["x"]), int(self._pref["y"])
+            if schermo.contains(x + 60, y + 30):  # lo schermo di ieri puo' non esserci piu'
+                self.move(x, y)
+        # **Il tema lo decide Windows, e cambia mentre la finestra e' aperta.**
+        # Qt avvisa (`colorSchemeChanged`), quindi non si legge il registro e non
+        # si riavvia: si riapplica il foglio di stile. Chi tiene Windows in
+        # chiaro si vedeva arrivare un rettangolo nero in mezzo allo schermo.
+        app = QApplication.instance()
+        self.tavolozza = tema.attuale(app)
+        self.setStyleSheet(tema.foglio(self.tavolozza))
+        try:
+            app.styleHints().colorSchemeChanged.connect(self._tema_cambiato)
+        except Exception:  # Qt piu' vecchio: si resta sul tema scelto all'avvio
+            pass
 
         centro = QWidget()
         self.setCentralWidget(centro)
@@ -96,6 +131,9 @@ class Finestra(QMainWindow):
         C.setContentsMargins(12, 12, 12, 12)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
+        # **Un tetto alle righe.** Senza, una sessione di tre ore se lo mangia
+        # tutto: e' la domanda 23, e costa una riga.
+        self.log.setMaximumBlockCount(5000)
         self.log.setFont(QFont(tema.MONO, 10))
         C.addWidget(self.log)
         self.schede.addTab(contenitore, "Sessione")
@@ -111,9 +149,118 @@ class Finestra(QMainWindow):
         self.p_avanzate = Pannello(cfg, al_cambio=self._campo_cambiato)
         self.schede.addTab(self._in_margine(self.p_avanzate), "Impostazioni avanzate")
 
+        self._scorciatoie()
+        self.schede.setCurrentIndex(int(self._pref.get("scheda", 0)))
+        registro.apri()
+        self.scrivi(scheda())
+        self.scrivi("")
         self.scrivi("finestra Qt: impostazioni, tecnologie e aree sono complete.")
         self.scrivi("per doppiare dal vivo si usa ancora `python -m tools.ui` "
                     "(i due cicli e l'overlay non sono ancora portati qui).")
+
+    # -- produzione: ricordare, salvare, non morire in silenzio -------------
+
+    def _scorciatoie(self) -> None:
+        """Le quattro che si usano davvero. Il resto lo fa Qt col Tab."""
+        for tasti, cosa in (
+            ("Ctrl+S", self.salva_profilo),
+            ("Ctrl+O", self.apri_profilo),
+            ("Ctrl+F", self._vai_a_cerca),
+            ("Ctrl+L", self.copia_diagnostica),
+            ("F1", self.chi_siamo),
+        ):
+            QShortcut(QKeySequence(tasti), self, activated=cosa)
+
+    def _vai_a_cerca(self) -> None:
+        self.schede.setCurrentIndex(3)
+        self.p_avanzate.casella.setFocus()
+        self.p_avanzate.casella.selectAll()
+
+    def salva_profilo(self) -> None:
+        """La configurazione come profilo: un file che si legge e si manda.
+
+        **Non un file di preferenze opaco**, e la differenza conta: un profilo si
+        apre, si diffa e si allega a un rapporto. Salvare 166 campi dentro un
+        blob vorrebbe dire perdere l'unica cosa che rende riproducibile una prova.
+        """
+        percorso, _ = QFileDialog.getSaveFileName(
+            self, "Salva la configurazione", str(PROFILES_DIR / "mio.json"),
+            "Profili livedub (*.json)")
+        if not percorso:
+            return
+        try:
+            self.cfg.save(percorso)
+            self.scrivi(f"configurazione salvata in {percorso}")
+        except Exception as e:
+            self._guaio(f"non sono riuscito a salvare: {e}")
+
+    def apri_profilo(self) -> None:
+        percorso, _ = QFileDialog.getOpenFileName(
+            self, "Apri una configurazione", str(PROFILES_DIR), "Profili livedub (*.json)")
+        if not percorso:
+            return
+        try:
+            nuova = Config.load(percorso)
+        except Exception as e:
+            self._guaio(f"quel profilo non si apre: {e}")
+            return
+        # Si copia **dentro** l'oggetto che tutti hanno in mano, invece di
+        # sostituirlo: i pannelli e la catena tengono un riferimento, e cambiarlo
+        # sotto di loro li lascerebbe a guardare una config che non e' piu' in uso.
+        for campo in campi_di(nuova):
+            try:
+                self.cfg.set(campo, nuova.get(campo))
+            except Exception:
+                pass
+        self._riallinea()
+        self.c_colorati.setChecked(bool(self.cfg.vision.exclude_colored))
+        self.s_sat.setValue(int(self.cfg.vision.sat_max))
+        self.l_roi.setText(self._testo_roi())
+        self._mostra_aree()
+        self.scrivi(f"configurazione caricata da {percorso}")
+
+    def copia_diagnostica(self) -> None:
+        """Versione, sistema e configurazione negli appunti, per un rapporto.
+
+        Chiedere «che versione hai e com'era configurato» a chi segnala un
+        difetto non funziona mai: o non lo sa, o lo copia male. Un tasto si'.
+        """
+        testo = f"{scheda()}\n\n--- configurazione ---\n{self.cfg.dump()}"
+        QApplication.clipboard().setText(testo)
+        self.scrivi(f"diagnostica negli appunti ({len(testo.splitlines())} righe) — "
+                    f"incollala in un rapporto di errore")
+
+    def chi_siamo(self) -> None:
+        QMessageBox.information(
+            self, f"{NOME} {VERSIONE}",
+            f"{scheda()}\n\nRegistro: {registro.percorso()}\n"
+            f"Licenza: GPL-3.0-or-later (vedi LICENZE.md)",
+        )
+
+    def _guaio(self, testo: str) -> None:
+        registro.scrivi(testo)
+        self.scrivi("! " + testo)
+        self.stato("guasto", self.tavolozza.rosso)
+
+    def closeEvent(self, evento) -> None:
+        """Chiudendo si ricorda dov'era la finestra e cosa si stava guardando."""
+        g = self.geometry()
+        preferenze.aggiorna(
+            x=g.x(), y=g.y(), larghezza=g.width(), altezza=g.height(),
+            scheda=self.schede.currentIndex(),
+        )
+        registro.scrivi("finestra chiusa")
+        super().closeEvent(evento)
+
+    def _tema_cambiato(self, *_a) -> None:
+        """Windows e' passato da chiaro a scuro (o viceversa) mentre giocavamo."""
+        nuova = tema.attuale(QApplication.instance())
+        if nuova.nome == self.tavolozza.nome:
+            return
+        self.tavolozza = nuova
+        self.setStyleSheet(tema.foglio(nuova))
+        self.stato(self.l_stato.text(), self._colore_stato)
+        self.scrivi(f"tema di sistema: {nuova.nome}")
 
     # -- pezzi della finestra ----------------------------------------------
 
@@ -135,7 +282,8 @@ class Finestra(QMainWindow):
         nome.setObjectName("nomeApp")
         L.addWidget(nome)
         self.spia = QLabel()
-        self.spia.setStyleSheet(tema.spia(tema.TESTO_FIOCO))
+        self._colore_stato = self.tavolozza.testo_fioco
+        self.spia.setStyleSheet(tema.spia(self._colore_stato))
         L.addWidget(self.spia)
         self.l_stato = QLabel("fermo")
         self.l_stato.setObjectName("tenue")
@@ -144,6 +292,12 @@ class Finestra(QMainWindow):
         self.l_bersaglio = QLabel("nessuna finestra scelta")
         self.l_bersaglio.setObjectName("tenue")
         L.addWidget(self.l_bersaglio)
+        info = QPushButton("ⓘ")
+        info.setObjectName("aiuto")
+        info.setCursor(Qt.PointingHandCursor)
+        info.setToolTip("Versione, sistema e provider (F1)")
+        info.clicked.connect(self.chi_siamo)
+        L.addWidget(info)
         return w
 
     def _barra(self) -> QWidget:
@@ -253,10 +407,12 @@ class Finestra(QMainWindow):
 
     def scrivi(self, testo: str) -> None:
         self.log.appendPlainText(testo)
+        registro.scrivi(testo)
 
     def stato(self, testo: str, colore: str | None = None) -> None:
+        self._colore_stato = colore or self.tavolozza.testo_fioco
         self.l_stato.setText(testo)
-        self.spia.setStyleSheet(tema.spia(colore or tema.TESTO_FIOCO))
+        self.spia.setStyleSheet(tema.spia(self._colore_stato))
 
     def _cambia_colorati(self, acceso: bool) -> None:
         self.cfg.vision.exclude_colored = bool(acceso)
@@ -380,9 +536,36 @@ def main(argv: list[str] | None = None) -> int:
 
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setStyle("Fusion")  # base neutra: il resto lo fa il foglio di stile
+    app.setApplicationName(NOME)
+    app.setApplicationVersion(VERSIONE)
+
     finestra = Finestra(cfg, args)
+
+    # **Niente esce di scena in silenzio.** Un'eccezione dentro un callback di Qt
+    # stampa su una console che nell'eseguibile non esiste, e la finestra resta
+    # li' come se niente fosse: peggio di un crash, perche' si continua a usarla
+    # credendo che funzioni.
+    def al_guasto(tipo, valore, testo):
+        try:
+            finestra._guaio(f"{tipo.__name__}: {valore}")
+            QMessageBox.critical(
+                finestra, "Guasto",
+                f"{tipo.__name__}: {valore}\n\nIl dettaglio e' nel registro:\n"
+                f"{registro.percorso()}",
+            )
+        except Exception:
+            pass
+
+    registro.cattura_eccezioni(al_guasto)
     finestra.show()
-    return app.exec()
+    esito = app.exec()
+    # L'ultima configurazione usata si ritrova: non e' un salvataggio con un
+    # nome, serve solo a non perdere quello che si stava facendo.
+    try:
+        cfg.save(PROFILES_DIR / "ultima.json")
+    except Exception:
+        pass
+    return esito
 
 
 if __name__ == "__main__":

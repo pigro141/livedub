@@ -345,3 +345,76 @@ TITOLI: dict[str, str] = {
 # senza commento rende la suite rossa e chi lo aggiunge deve dire cosa fa. Non e'
 # un difetto da correggere in blocco, e' un cricchetto.
 SENZA_AIUTO_MAX = 50
+
+
+# ---------------------------------------------------------------- i livelli --
+#
+# **Centosessantasei manopole sono la risposta giusta a una domanda che quasi
+# nessuno fa.** Chi apre il programma per la prima volta vuole sentire il
+# doppiaggio; chi ci ha giocato una settimana vuole cambiare la voce; solo chi
+# sta tarando vuole `merge_similarity`. Mostrarli tutti allo stesso modo non e'
+# neutrale: e' scegliere l'ultimo dei tre e far pagare agli altri due.
+#
+# I tre elenchi sono **dichiarati** e non dedotti, perche' non c'e' niente nel
+# tipo di un campo che dica quanto conta. E c'e' una verifica che ogni percorso
+# esista davvero: un elenco scritto a mano che si scolla dall'albero e' lo stesso
+# difetto contro cui esiste `core/schema.py`.
+
+# Quello che serve per far funzionare il programma, e nient'altro.
+BASE: tuple[str, ...] = (
+    "vision.roi",
+    "vision.exclude_colored",
+    "vision.sat_max",
+    "tts.backend",
+    "tts.device",
+    "mix.duck_db",
+    "mix.dub_gain_db",
+    "translate.enabled",
+    "translate.source",
+    "translate.target",
+)
+
+# Quello che si tocca quando si e' capito come funziona: la qualita' della
+# lettura, chi parla, i tempi.
+MEDIO: tuple[str, ...] = BASE + (
+    "capture.fps",
+    "vision.ocr_backend",
+    "vision.ocr_device",
+    "vision.line_pad",
+    "vision.white_min_luma",
+    "vision.grey_min_luma",
+    "vision.contrast_min",
+    "vision.max_ocr_hz",
+    "vision.aree",
+    "speaker.backend",
+    "speaker.decide_after_ms",
+    "speaker.similarity",
+    "speaker.max_speakers",
+    "speaker.gender_fallback",
+    "tts.pool_size",
+    "tts.voices",
+    "tts.native_rate_max",
+    "timing.rate_max",
+    "timing.accepted_delay_ms",
+    "translate.backend",
+    "translate.background_mode",
+    "translate.overlay",
+    "mix.duck_hold_ms",
+)
+
+LIVELLI = ("base", "medio", "esperto")
+
+
+def livello(percorso: str) -> str:
+    """Da che livello in su questo campo si mostra."""
+    if percorso in BASE:
+        return "base"
+    if percorso in MEDIO:
+        return "medio"
+    return "esperto"
+
+
+def visibile_a(percorso: str, livello_scelto: str) -> bool:
+    """Se `percorso` va mostrato a chi ha scelto `livello_scelto`."""
+    ordine = {"base": 0, "medio": 1, "esperto": 2}
+    return ordine[livello(percorso)] <= ordine.get(livello_scelto, 2)

@@ -154,12 +154,25 @@ MONO = "Consolas"
 R = 8
 R_PICCOLO = 6
 
+# **Una scala di spaziature, e non numeri decisi volta per volta.** Prima c'erano
+# 3, 6, 8, 9, 10, 12, 14, 16, 18, 22, 24 sparsi: nessuno di quei numeri e'
+# sbagliato da solo, ma insieme dicono che ogni margine e' stato scelto guardando
+# quel pezzo e non la finestra. Con una scala a passi di quattro le distanze si
+# **confrontano** — due cose alla stessa distanza sono allo stesso livello, e
+# l'occhio lo legge senza saperlo.
+S1, S2, S3, S4, S5 = 4, 8, 12, 16, 24
+
+# **E una scala di corpi.** Tre misure e due pesi bastano a dire tutto: il nome
+# del programma, i titoli, il testo, la nota. Una quarta misura non aggiunge un
+# livello di gerarchia, aggiunge un dubbio.
+C_TESTATA, C_TITOLO, C_TESTO, C_NOTA = 15, 11, 10, 9
+
 
 def foglio(t: Tavolozza = SCURA) -> str:
     """Il foglio di stile della finestra intera, per la tavolozza data."""
     return f"""
 * {{
-    font-family: "{UI}"; font-size: 10pt; color: {t.testo}; outline: none;
+    font-family: "{UI}"; font-size: {C_TESTO}pt; color: {t.testo}; outline: none;
 }}
 QWidget {{ background: {t.fondo}; }}
 QToolTip {{
@@ -168,24 +181,25 @@ QToolTip {{
 }}
 
 #testata {{ background: {t.pannello}; }}
-#nomeApp {{ font-size: 15pt; font-weight: 600; }}
-#tenue  {{ color: {t.testo_tenue}; font-size: 9pt; }}
-#mono   {{ color: {t.testo_tenue}; font-family: "{MONO}"; font-size: 9pt; }}
-#sezione {{ color: {t.accento}; font-size: 9pt; font-weight: 600; }}
-#nomeCampo {{ font-family: "{MONO}"; font-size: 9pt; }}
-#avviso {{ color: {t.ambra}; font-size: 9pt; }}
-#spento {{ color: {t.testo_fioco}; font-size: 9pt; }}
-#errore {{ color: {t.rosso}; font-size: 9pt; }}
+#nomeApp {{ font-size: {C_TESTATA}pt; font-weight: 600; }}
+#tenue  {{ color: {t.testo_tenue}; font-size: {C_NOTA}pt; }}
+#mono   {{ color: {t.testo_tenue}; font-family: "{MONO}"; font-size: {C_NOTA}pt; }}
+#sezione {{ color: {t.testo_tenue}; font-size: {C_NOTA}pt; font-weight: 600;
+            letter-spacing: 0.6px; }}
+#nomeCampo {{ font-family: "{MONO}"; font-size: {C_NOTA}pt; }}
+#avviso {{ color: {t.ambra}; font-size: {C_NOTA}pt; }}
+#spento {{ color: {t.testo_fioco}; font-size: {C_NOTA}pt; }}
+#errore {{ color: {t.rosso}; font-size: {C_NOTA}pt; }}
 
 QPushButton {{
     background: {t.campo}; border: none; border-radius: {R}px;
-    padding: 8px 16px; color: {t.testo};
+    padding: {S2}px {S4}px; color: {t.testo};
 }}
 QPushButton:hover  {{ background: {t.bordo}; }}
 QPushButton:pressed {{ background: {t.accento_scuro}; color: {t.su_accento}; }}
 QPushButton:disabled {{ background: {t.pannello}; color: {t.testo_fioco}; }}
 QPushButton#primario {{
-    background: {t.verde}; color: {t.su_accento}; font-weight: 600; padding: 8px 24px;
+    background: {t.verde}; color: {t.su_accento}; font-weight: 600; padding: {S2}px {S5}px;
 }}
 QPushButton#primario:disabled {{ background: {t.pannello}; color: {t.testo_fioco}; }}
 QPushButton#accento {{ background: {t.accento}; color: {t.su_accento}; font-weight: 600; }}
@@ -198,7 +212,8 @@ QPushButton#aiuto:hover {{ background: {t.campo}; }}
 
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {{
     background: {t.campo}; border: 1px solid transparent; border-radius: {R_PICCOLO}px;
-    padding: 6px 9px; selection-background-color: {t.accento}; selection-color: {t.su_accento};
+    padding: {S1}px {S2}px; selection-background-color: {t.accento};
+    selection-color: {t.su_accento};
 }}
 QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {{
     border: 1px solid {t.accento};
@@ -227,7 +242,7 @@ QComboBox QAbstractItemView {{
     selection-background-color: {t.accento}; selection-color: {t.su_accento}; padding: 4px;
 }}
 
-QCheckBox {{ spacing: 9px; }}
+QCheckBox {{ spacing: {S2}px; }}
 QCheckBox::indicator {{
     width: 17px; height: 17px; border-radius: 5px;
     background: {t.campo}; border: 1px solid {t.bordo};
@@ -242,15 +257,16 @@ QCheckBox::indicator:disabled {{ background: {t.pannello}; border: 1px solid {t.
 QTabWidget::pane {{ background: {t.pannello}; border: none; border-radius: {R}px; }}
 QTabBar::tab {{
     background: {t.fondo}; color: {t.testo_tenue};
-    padding: 10px 22px; margin-right: 3px;
+    padding: {S2}px {S5}px; margin-right: {S1}px;
     border-top-left-radius: {R}px; border-top-right-radius: {R}px;
 }}
 QTabBar::tab:hover {{ color: {t.testo}; }}
-QTabBar::tab:selected {{ background: {t.pannello}; color: {t.testo}; }}
+QTabBar::tab:selected {{ background: {t.pannello}; color: {t.testo};
+                         border-bottom: 2px solid {t.accento}; }}
 
 QPlainTextEdit, QTextEdit, QListWidget {{
     background: {t.pannello}; border: none; border-radius: {R}px;
-    padding: 10px; font-family: "{MONO}";
+    padding: {S3}px; font-family: "{MONO}";
     selection-background-color: {t.accento}; selection-color: {t.su_accento};
 }}
 QListWidget::item {{ padding: 4px 6px; border-radius: {R_PICCOLO}px; }}
@@ -264,7 +280,11 @@ QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
 QScrollArea {{ border: none; background: {t.pannello}; }}
 QScrollArea > QWidget > QWidget {{ background: {t.pannello}; }}
 
-#striscia {{ background: {t.campo}; border-radius: {R}px; }}
+#separatore {{ background: {t.bordo}; max-width: 1px; min-width: 1px; }}
+#gruppo {{ background: transparent; }}
+#vuoto {{ color: {t.testo_fioco}; font-size: {C_TESTO}pt; }}
+#striscia {{ background: {t.campo}; border-radius: {R}px;
+             border-left: 3px solid {t.ambra}; }}
 #striscia QLabel {{ background: transparent; color: {t.testo}; }}
 #pannello {{ background: {t.pannello}; border-radius: {R}px; }}
 #pannello QLabel, #pannello QCheckBox {{ background: transparent; }}

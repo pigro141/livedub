@@ -210,8 +210,8 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
 
 | | quante |
 |---|---|
-| ✅ a posto, verificato | 38 |
-| ❌ difetti veri | 33 |
+| ✅ a posto, verificato | 39 |
+| ❌ difetti veri | 32 |
 | ❓ mai provato | 29 |
 
 **I ❓ sono la parte interessante.** Ventinove domande a cui nessuno ha risposto,

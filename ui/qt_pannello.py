@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.schema import TITOLI, Campo, campi
+from core.schema import LIVELLI, TITOLI, Campo, campi, livello, visibile_a
 from ui import qt_tema as tema
 
 
@@ -62,7 +62,7 @@ class Pannello(QWidget):
 
         fuori = QVBoxLayout(self)
         fuori.setContentsMargins(0, 0, 0, 0)
-        fuori.setSpacing(8)
+        fuori.setSpacing(tema.S2)
 
         if intestazione:
             nota = QLabel(intestazione)
@@ -72,12 +72,30 @@ class Pannello(QWidget):
 
         if cerca:
             barra = QHBoxLayout()
-            barra.setSpacing(10)
+            barra.setSpacing(tema.S3)
             self.casella = QLineEdit()
             self.casella.setPlaceholderText("Cerca fra i parametri…")
             self.casella.textChanged.connect(self._filtra)
             barra.addWidget(self.casella, 1)
-            self.solo_caldi = QCheckBox("solo quelli che si applicano subito")
+            # **I tre livelli, che sono la correzione piu' importante di questo
+            # pannello.** Centosessantasei manopole sono la risposta giusta a una
+            # domanda che quasi nessuno fa: chi apre il programma la prima volta
+            # vuole sentire il doppiaggio, non tarare `merge_similarity`.
+            # Mostrarle tutte allo stesso modo non e' neutrale, e' scegliere
+            # l'ultimo dei tre utenti e far pagare agli altri due.
+            barra.addWidget(QLabel("mostra"))
+            self.v_livello = QComboBox()
+            self.v_livello.addItems(["l'essenziale", "le principali", "tutto"])
+            self.v_livello.setToolTip(
+                "l'essenziale: le dieci che servono per far funzionare il programma\n"
+                "le principali: piu' lettura, chi parla e tempi\n"
+                "tutto: tutti i parametri, compresi quelli di taratura"
+            )
+            self.v_livello.currentIndexChanged.connect(self._filtra)
+            self.v_livello.setFixedWidth(140)
+            barra.addWidget(self.v_livello)
+            self.solo_caldi = QCheckBox("solo a caldo")
+            self.solo_caldi.setToolTip("Nascondi i parametri che si leggono solo all'avvio")
             self.solo_caldi.toggled.connect(self._filtra)
             barra.addWidget(self.solo_caldi)
             azzera = QPushButton("Riporta ai default")
@@ -94,8 +112,8 @@ class Pannello(QWidget):
         dentro = QWidget()
         dentro.setObjectName("pannello")
         self.corpo = QVBoxLayout(dentro)
-        self.corpo.setContentsMargins(14, 10, 14, 14)
-        self.corpo.setSpacing(2)
+        self.corpo.setContentsMargins(tema.S4, tema.S3, tema.S4, tema.S4)
+        self.corpo.setSpacing(1)
         area.setWidget(dentro)
         fuori.addWidget(area, 1)
 
@@ -114,7 +132,7 @@ class Pannello(QWidget):
                 sezione = campo.sezione
                 titolo = QLabel(TITOLI.get(sezione, sezione).upper())
                 titolo.setObjectName("sezione")
-                titolo.setContentsMargins(0, 16, 0, 4)
+                titolo.setContentsMargins(0, tema.S5, 0, tema.S1)
                 self.corpo.addWidget(titolo)
                 self._titoli.append((sezione, titolo))
             self.corpo.addWidget(self._riga(campo))
@@ -123,17 +141,31 @@ class Pannello(QWidget):
         riga = QFrame()
         riga.setObjectName("riga")
         L = QHBoxLayout(riga)
-        L.setContentsMargins(6, 3, 6, 3)
-        L.setSpacing(10)
+        L.setContentsMargins(tema.S2, tema.S1, tema.S2, tema.S1)
+        L.setSpacing(tema.S3)
 
         nome = QLabel(campo.nome)
         nome.setObjectName("nomeCampo")
-        nome.setFixedWidth(210)
+        nome.setFixedWidth(216)
+        nome.setToolTip(campo.percorso)
         L.addWidget(nome)
 
         w = self._manopola(campo)
-        w.setFixedWidth(200)
-        L.addWidget(w)
+        w.setFixedWidth(196)
+        # **Le caselle di spunta si allineano con le altre manopole.** Senza, una
+        # riga booleana sembrava rientrata rispetto a quella sopra, e la colonna
+        # dei valori si spezzava a ogni booleano — che in questo albero sono
+        # trenta. Un allineamento rotto trenta volte non e' una rifinitura.
+        if isinstance(w, QCheckBox):
+            guscio = QWidget()
+            G = QHBoxLayout(guscio)
+            G.setContentsMargins(0, 0, 0, 0)
+            G.addWidget(w)
+            G.addStretch(1)
+            guscio.setFixedWidth(196)
+            L.addWidget(guscio)
+        else:
+            L.addWidget(w)
         self._widget[campo.percorso] = w
         self._campi[campo.percorso] = campo
 
@@ -302,10 +334,14 @@ class Pannello(QWidget):
     def _filtra(self) -> None:
         cerca = self.casella.text().strip().lower() if hasattr(self, "casella") else ""
         caldi = self.solo_caldi.isChecked() if hasattr(self, "solo_caldi") else False
+        scelto = (LIVELLI[self.v_livello.currentIndex()]
+                  if hasattr(self, "v_livello") else "esperto")
         visti = 0
         vive: set[str] = set()
         for campo, riga in self._righe:
             ok = True
+            if not self.solo and not visibile_a(campo.percorso, scelto):
+                ok = False
             if caldi and not campo.caldo:
                 ok = False
             if cerca and cerca not in campo.percorso.lower() and cerca not in campo.aiuto.lower():
@@ -317,7 +353,15 @@ class Pannello(QWidget):
         # Un titolo di sezione senza campi sotto e' rumore.
         for sezione, titolo in self._titoli:
             titolo.setVisible(sezione in vive)
-        self.stato.setText(f"{visti} parametri mostrati")
+        # **Il conteggio dice anche quanto si sta nascondendo.** «12 parametri»
+        # da solo fa credere che il programma ne abbia dodici; «12 di 166» dice
+        # che c'e' altro e dove trovarlo, che e' la differenza fra semplificare e
+        # nascondere.
+        totale = len(self._righe)
+        if visti == totale:
+            self.stato.setText(f"{visti} parametri")
+        else:
+            self.stato.setText(f"{visti} parametri mostrati, {totale - visti} nascosti")
 
     def _dillo(self, testo: str, errore: bool = False) -> None:
         # **Il colore si chiede alla tavolozza viva, non a una costante.** Con

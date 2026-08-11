@@ -128,7 +128,7 @@ class Finestra(QMainWindow):
         L.addWidget(self.schede, 1)
         contenitore = QWidget()
         C = QVBoxLayout(contenitore)
-        C.setContentsMargins(12, 12, 12, 12)
+        C.setContentsMargins(tema.S3, tema.S3, tema.S3, tema.S3)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         # **Un tetto alle righe.** Senza, una sessione di tre ore se lo mangia
@@ -268,7 +268,7 @@ class Finestra(QMainWindow):
     def _in_margine(w: QWidget) -> QWidget:
         fuori = QWidget()
         L = QVBoxLayout(fuori)
-        L.setContentsMargins(12, 12, 12, 12)
+        L.setContentsMargins(tema.S3, tema.S3, tema.S3, tema.S3)
         L.addWidget(w)
         return fuori
 
@@ -276,8 +276,8 @@ class Finestra(QMainWindow):
         w = QWidget()
         w.setObjectName("testata")
         L = QHBoxLayout(w)
-        L.setContentsMargins(18, 12, 18, 12)
-        L.setSpacing(12)
+        L.setContentsMargins(tema.S5, tema.S3, tema.S5, tema.S3)
+        L.setSpacing(tema.S3)
         nome = QLabel("livedub")
         nome.setObjectName("nomeApp")
         L.addWidget(nome)
@@ -303,8 +303,8 @@ class Finestra(QMainWindow):
     def _barra(self) -> QWidget:
         w = QWidget()
         L = QHBoxLayout(w)
-        L.setContentsMargins(18, 12, 18, 8)
-        L.setSpacing(8)
+        L.setContentsMargins(tema.S5, tema.S3, tema.S5, tema.S2)
+        L.setSpacing(tema.S2)
         for testo in ("Scegli finestra", "Seleziona area"):
             b = QPushButton(testo)
             b.setEnabled(False)
@@ -318,7 +318,17 @@ class Finestra(QMainWindow):
             "tools/ui.py. Per doppiare dal vivo: python -m tools.ui"
         )
         L.addWidget(self.b_avvia)
-        L.addSpacing(16)
+        # **Un filo di separazione fra due cose diverse.** A sinistra ci sono le
+        # *azioni* (scegli, avvia); a destra le *impostazioni della sessione*
+        # (colore, soglia). Erano tutte in fila e si leggevano come un'unica
+        # barra di comandi, quindi la casella sembrava un bottone che fa qualcosa
+        # adesso invece di un interruttore che vale finche' non lo si cambia.
+        L.addSpacing(tema.S4)
+        filo = QWidget()
+        filo.setObjectName("separatore")
+        filo.setFixedWidth(1)
+        L.addWidget(filo)
+        L.addSpacing(tema.S4)
 
         self.c_colorati = QCheckBox("Ignora i sottotitoli colorati")
         self.c_colorati.setChecked(bool(self.cfg.vision.exclude_colored))
@@ -346,7 +356,7 @@ class Finestra(QMainWindow):
         self.striscia = QWidget()
         self.striscia.setObjectName("striscia")
         L = QHBoxLayout(self.striscia)
-        L.setContentsMargins(14, 8, 8, 8)
+        L.setContentsMargins(tema.S4, tema.S2, tema.S2, tema.S2)
         self.l_attesa = QLabel("")
         L.addWidget(self.l_attesa, 1)
         lascia = QPushButton("Lascia stare")
@@ -359,7 +369,7 @@ class Finestra(QMainWindow):
         self.striscia.setVisible(False)
         fuori = QWidget()
         F = QVBoxLayout(fuori)
-        F.setContentsMargins(18, 0, 18, 6)
+        F.setContentsMargins(tema.S5, 0, tema.S5, tema.S2)
         F.addWidget(self.striscia)
         self._guscio_striscia = fuori
         return fuori
@@ -367,7 +377,7 @@ class Finestra(QMainWindow):
     def _scheda_aree(self) -> QWidget:
         w = QWidget()
         L = QVBoxLayout(w)
-        L.setContentsMargins(12, 12, 12, 12)
+        L.setContentsMargins(tema.S3, tema.S3, tema.S3, tema.S3)
         nota = QLabel(
             "Piu' zone da leggere sullo stesso schermo. Se due si accavallano, la parte in "
             "comune viene letta una volta sola e resta a quella piu' in alto nell'elenco: "
@@ -379,9 +389,11 @@ class Finestra(QMainWindow):
         L.addWidget(nota)
 
         corpo = QHBoxLayout()
+        corpo.setSpacing(tema.S3)
         self.elenco_aree = QListWidget()
         corpo.addWidget(self.elenco_aree, 1)
         bottoni = QVBoxLayout()
+        bottoni.setSpacing(tema.S2)
         for testo, modo in (("Aggiungi (testo + audio)", "testo_audio"),
                             ("Aggiungi (solo testo)", "testo")):
             b = QPushButton(testo)

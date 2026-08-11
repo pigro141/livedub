@@ -234,3 +234,39 @@ def _leggibile(cfg: Config, percorso: str) -> bool:
         return True
     except KeyError:
         return False
+
+
+def test_livelli(c) -> None:
+    """I tre livelli dell'utente: base, medio, esperto.
+
+    **Un elenco scritto a mano che si scolla dall'albero e' lo stesso difetto
+    contro cui esiste `core/schema.py`.** Se qualcuno rinomina un campo, il
+    livello base smette di mostrarlo e non se ne accorge nessuno: la finestra
+    sembra piu' semplice e ha perso una manopola.
+    """
+    from core.config import Config
+    from core.schema import BASE, LIVELLI, MEDIO, campi, livello, visibile_a
+
+    c.group("schema")
+
+    elenco = campi(Config())
+    noti = {k.percorso for k in elenco}
+    c.eq([p for p in BASE if p not in noti], [], "ogni campo del livello base esiste davvero")
+    c.eq([p for p in MEDIO if p not in noti], [], "e ogni campo del livello medio")
+    c.eq(len(set(BASE)), len(BASE), "nessun doppione nel livello base")
+    c.ok(set(BASE) <= set(MEDIO), "il medio contiene il base: i livelli si annidano")
+
+    # I tre livelli devono davvero **nascondere** qualcosa, se no non servono.
+    quanti = {liv: sum(1 for k in elenco if visibile_a(k.percorso, liv)) for liv in LIVELLI}
+    c.eq(quanti["esperto"], len(elenco), "il livello esperto mostra tutto")
+    c.ok(quanti["base"] < quanti["medio"] < quanti["esperto"],
+         f"e i tre sono davvero diversi ({quanti})")
+    c.ok(8 <= quanti["base"] <= 14,
+         f"il livello base sta in una schermata ({quanti['base']} parametri)")
+
+    # Le cose senza cui il programma non si usa **devono** stare nel base.
+    for percorso in ("vision.roi", "tts.backend", "vision.exclude_colored"):
+        c.eq(livello(percorso), "base", f"{percorso} e' roba da primo avvio")
+    # E le tarature no: sono il motivo per cui i livelli esistono.
+    for percorso in ("speaker.merge_similarity", "vision.color_word_gap", "timing.learn_decay"):
+        c.eq(livello(percorso), "esperto", f"{percorso} e' una taratura, non una manopola")

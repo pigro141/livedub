@@ -3034,7 +3034,7 @@ from tools.selftest_vision import (  # noqa: E402
     test_tracker,
 )
 from tools.selftest_gioco2 import test_gioco2  # noqa: E402
-from tools.selftest_schema import test_schema  # noqa: E402
+from tools.selftest_schema import test_livelli, test_schema  # noqa: E402
 from tools.selftest_aree import test_aree, test_aree_catena  # noqa: E402
 
 def test_session(c: Check) -> None:
@@ -3522,6 +3522,7 @@ GROUPS = {
     # su una macchina senza il modello».
     "gioco2": test_gioco2,
     "schema": test_schema,
+    "livelli": test_livelli,
     "aree": test_aree,
     "aree_catena": test_aree_catena,
 }

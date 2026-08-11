@@ -186,8 +186,19 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
 ## I. Prestazioni e risorse (91–96)
 
 91. **Quanta RAM usa una sessione lunga?** ❓ Mai misurato.
-92. **La memoria cresce nel tempo?** ❓ Mai misurato — ed è la domanda che conta
-    per una sessione di gioco da tre ore.
+92. **La memoria cresce nel tempo?** ✅ **[fatto]** Misurato con
+    `tools/bench_memoria.py`: **+10,4 MB** su 3600 battute, cioè tre ore di
+    gioco. Sotto la soglia dichiarata *prima* della prova (50 MB) — ma **cresceva
+    senza limite**: 3600 `SpokenLine` vive su 3600 battute, una maratona da dieci
+    ore ne fa 36. Dal vivo ora se ne tengono 400 (venti minuti di conversazione,
+    cento volte quello che serve al cancello anti-doppioni); sul banco tutte,
+    perché `tools/dub.py` le usa per scrivere i sottotitoli. Il conteggio è
+    separato dalla lista, se no il rapporto avrebbe cominciato a mentire.
+    → **E la prima misura era rotta**: stampava `0.0 MB` per un processo Python,
+    che ne usa 28 prima di importare qualcosa. `psapi.GetProcessMemoryInfo`
+    chiamata senza dichiarare i tipi non solleva, torna zero. Un numero
+    impossibile è più utile di un numero sbagliato — e quello stesso giro aveva
+    già detto la cosa vera, contando 3600 oggetti vivi.
 93. **Quanto ruba al gioco in fps?** ❓ Mai misurato con un frame counter.
 94. **La VRAM di Kokoro (1128 MB) su una scheda da 6 GB con GTA V acceso?** ❓
 95. **Il programma scalda la CPU al punto di far throttlare il gioco?** ❓
@@ -210,16 +221,16 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
 
 | | quante |
 |---|---|
-| ✅ a posto, verificato | 39 |
+| ✅ a posto, verificato | 40 |
 | ❌ difetti veri | 32 |
-| ❓ mai provato | 29 |
+| ❓ mai provato | 28 |
 
 **I ❓ sono la parte interessante.** Ventinove domande a cui nessuno ha risposto,
 e quasi tutte si chiudono in mezz'ora ciascuna con una misura. Le tre che
 chiuderei per prime, perché riguardano una sessione di gioco vera e non un caso
 di bordo:
 
-1. **la memoria cresce in tre ore?** (92) — un contatore ogni minuto, e si sa;
+1. ~~la memoria cresce in tre ore?~~ **fatta**: +10,4 MB, e il tetto messo.
 2. **le cuffie staccate a metà partita** (39) — è il guasto più probabile di tutti;
 3. **quanto ruba al gioco in fps** (93) — è la domanda che decide se uno lo tiene
    acceso o no.

@@ -280,3 +280,61 @@ def _tono():
     from speak.base import make_tts
 
     return make_tts(type("T", (), {"backend": "tone", "samplerate": 22050})())
+
+
+def test_memoria(c) -> None:
+    """Il tetto alle battute tenute in memoria (domanda 92).
+
+    **Le due meta' vanno verificate insieme**, se no il rimedio e' peggio del
+    difetto: con il tetto la lista si accorcia, ma il conteggio deve restare
+    vero e il cancello anti-doppioni deve continuare a scattare. Un tetto che
+    zittisce il cancello farebbe ridire le battute — cioe' curerebbe dieci
+    megabyte creando il difetto peggiore del prodotto.
+    """
+    from core.clock import VirtualClock
+    from core.config import Config
+    from core.pipeline import DubPipeline
+    from core.types import LineClass, SubtitleEvent
+
+    c.group("memoria")
+
+    def catena(tetto: int):
+        cfg = Config()
+        cfg.tts.backend, cfg.speaker.backend, cfg.vad.backend = "tone", "none", "energy"
+        cfg.vision.use_lexicon = False
+        o = VirtualClock()
+        r = DubPipeline(cfg, _tono(), clock=o, samplerate=48000)
+        r.start_live(warmup=False)
+        r.max_spoken = tetto
+        return r, o, cfg
+
+    # -- senza tetto si tengono tutte: e' quello che serve al banco -----------
+    r, o, _ = catena(0)
+    for i in range(50):
+        o.set(i * 3.0)
+        r._speak(SubtitleEvent(text=f"Battuta {i} diversa da tutte le altre.",
+                               cls=LineClass.WHITE, t_on=i * 3.0))
+    c.eq(len(r.spoken), 50, "senza tetto si tengono tutte (il banco scrive i sottotitoli)")
+    c.eq(r.dette, 50, "e il conteggio le conta")
+
+    # -- col tetto la lista si accorcia, il conteggio no ---------------------
+    r, o, _ = catena(10)
+    for i in range(50):
+        o.set(i * 3.0)
+        r._speak(SubtitleEvent(text=f"Battuta {i} diversa da tutte le altre.",
+                               cls=LineClass.WHITE, t_on=i * 3.0))
+    c.eq(len(r.spoken), 10, "col tetto in memoria restano solo le ultime")
+    c.eq(r.dette, 50, "ma il conteggio resta vero — il rapporto non deve mentire")
+    c.ok("49" in r.spoken[-1].text, "e quelle che restano sono le ultime, non le prime")
+
+    # -- e il cancello anti-doppioni deve ancora scattare --------------------
+    # Guarda indietro di **secondi**, non di righe: e' per questo che un tetto di
+    # 400 righe non lo tocca. Verificato invece che con un tetto assurdo (1) e
+    # una ripetizione immediata il cancello regga lo stesso.
+    r, o, cfg = catena(1)
+    o.set(0.0)
+    testo = "Non me ne frega niente di quello che dici."
+    r._speak(SubtitleEvent(text=testo, cls=LineClass.WHITE, t_on=0.0))
+    o.set(1.0)
+    doppione = SubtitleEvent(text=testo, cls=LineClass.WHITE, t_on=1.0)
+    c.ok(r._gia_detta(doppione), "col tetto al minimo il cancello anti-doppioni scatta ancora")

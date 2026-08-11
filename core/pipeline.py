@@ -399,6 +399,22 @@ class DubPipeline:
         self.speaker_log = None  # file di testo aperto, una riga JSON per evento
 
         self.spoken: list[SpokenLine] = []
+        # **Quante battute sono state dette davvero**, che non e' `len(spoken)`
+        # appena si mette un tetto a quella lista. Tenerli separati e' l'unico
+        # modo perche' il rapporto di fine sessione resti vero.
+        self.dette = 0
+        # **Il tetto alle battute tenute in memoria, e perche' non e' sempre lo
+        # stesso.** Misurato con `tools/bench_memoria.py`: 3600 battute -- tre ore
+        # di gioco -- lasciano vive 3600 `SpokenLine` per +10,4 MB. Sotto la
+        # soglia dichiarata di 50, ma **cresce senza limite**: una maratona da
+        # dieci ore ne fa 36, e non c'e' niente che la fermi.
+        #
+        # Non si taglia sempre, pero', ed e' il punto: `tools/dub.py` le vuole
+        # **tutte** per scrivere i sottotitoli di tutta la registrazione. Dal vivo
+        # invece l'unico che le rilegge e' il cancello anti-doppioni, che guarda
+        # indietro di **secondi** (`repeat.window_s`) e si ferma da solo. Quindi
+        # il tetto lo mette chi sa in quale dei due mondi sta: zero = tutte.
+        self.max_spoken = 0
         self.closed: list[SubtitleEvent] = []
         # **Quali sottotitoli sono a schermo adesso**, per `t_on` — che e'
         # l'identita' stabile di una battuta: il testo puo' migliorare mentre e'
@@ -661,6 +677,15 @@ class DubPipeline:
     @reader.setter
     def reader(self, lettore: SubtitleReader) -> None:
         self.lettori[0] = (lettore, self.lettori[0][1])
+
+    def _ricorda(self, line: SpokenLine) -> None:
+        """Mette la battuta fra quelle dette, rispettando il tetto."""
+        self.spoken.append(line)
+        self.dette += 1
+        if self.max_spoken and len(self.spoken) > self.max_spoken:
+            # Si taglia dal fondo in blocco e non una per volta: `del` su una
+            # lista lunga sposta tutto quello che resta a ogni chiamata.
+            del self.spoken[: len(self.spoken) - self.max_spoken]
 
     def _leggi_tutte(self, frame) -> TrackerOutput:
         """Fa passare il frame da tutti i lettori e ne unisce le uscite.
@@ -987,7 +1012,7 @@ class DubPipeline:
         )
         self._t_latency.add(line.latency_ms)
         self._t_live.add(line.live_latency_ms)
-        self.spoken.append(line)
+        self._ricorda(line)
         # **La traccia: una riga per battuta con tutto quello che le e'
         # successo, dal frame all'altoparlante.**
         #
@@ -1286,7 +1311,7 @@ class DubPipeline:
 
         self._t_latency.add(line.latency_ms)
         self._t_live.add(line.live_latency_ms)
-        self.spoken.append(line)
+        self._ricorda(line)
         udito = self.udito_fino_a
         self._registra_riga(
             {
@@ -1790,7 +1815,7 @@ class DubPipeline:
 
     def report(self) -> str:
         righe = [
-            f"battute doppiate: {len(self.spoken)}",
+            f"battute doppiate: {self.dette}",
             f"personaggi sentiti: {len(self.pool)}",
             "",
             self.tracker.report() if self.tracker is not None else "(tracker spento)",

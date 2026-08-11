@@ -911,6 +911,12 @@ class App:
             self.coda.put(("nota", f"carico {self.cfg.tts.backend}..."))
             tts = costruisci_tts(self.cfg.tts.backend, self.cfg)
             self.pipeline = DubPipeline(self.cfg, tts, samplerate=sr)
+            # **Dal vivo si tengono le ultime, non tutte.** Una sessione di tre
+            # ore lascia vive 3600 battute per +10,4 MB (misurato con
+            # `tools/bench_memoria.py`), e cresce senza limite. Chi le rilegge e'
+            # il cancello anti-doppioni, che guarda indietro di secondi: 400 sono
+            # venti minuti di conversazione, cioe' cento volte quello che serve.
+            self.pipeline.max_spoken = 400
             self.sessione = None if self.args.no_save else Session(samplerate=sr)
             # **Il registro delle impronte anche dal vivo.** Senza, di una
             # sessione dal vivo si sa cosa e' stato detto ma non cosa il
@@ -1098,7 +1104,7 @@ class App:
                     if n % 30 == 0:
                         p = len(self.pipeline.tracker) if self.pipeline.tracker else 0
                         self.coda.put(("stato",
-                                       f"in corso  |  {n} frame  |  {len(self.pipeline.spoken)} battute"
+                                       f"in corso  |  {n} frame  |  {self.pipeline.dette} battute"
                                        f"  |  {p} personaggi  |  {len(self.pipeline.pool)} voci"))
 
             for f in (ciclo_audio, ciclo_video):

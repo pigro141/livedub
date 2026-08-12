@@ -17,11 +17,15 @@ interroga quello **prima** di partire a grep:
 graphify query "<domanda>"
 ```
 
-Costruirlo è caro, interrogarlo no. Si aggiorna con `/graphify . --update` dopo
-modifiche grosse — e l'8-11 agosto ne sono state fatte parecchie (front-end Qt,
-`core/schema.py`, `vision/aree.py`, `core/preferenze.py`, `core/registro.py`,
-`core/versione.py`), quindi **il primo comando della sessione è
-`/graphify . --update`** se non risulta già fatto.
+Costruirlo è caro, interrogarlo no. **È stato aggiornato a fine sessione l'11
+agosto**, quindi conosce già tutto quello che è stato scritto fino a qui: il
+front-end Qt, `core/schema.py`, `vision/aree.py`, `core/preferenze.py` (con
+`riprendi`), `core/registro.py`, `core/versione.py`, e i pezzi nuovi della
+cattura — `capture.screen.SoloRoi`, `apri_cattura`, `regione_da_roi`,
+`capture.audio.find_output`, `vision.aree.da_leggere`.
+
+Si riaggiorna con `/graphify . --update` **dopo** modifiche grosse, non prima di
+ogni task.
 
 ## Le cento domande: finite
 
@@ -94,16 +98,25 @@ non fa girare la catena non avrebbe niente da mostrare. Le altre sono limiti ver
 — testo scuro su fondo chiaro, sottotitoli in fumetti, lingue non latine, Python
 dello Store — e stanno nel README.
 
-## Quindi il lavoro di adesso è uno solo
+## Quindi il lavoro di adesso, in ordine
 
-**Portare Avvia nella finestra Qt**, con l'overlay. È il pezzo su cui questo
-progetto ha trovato i difetti peggiori (il programma che leggeva se stesso, la
-finestra dimensionata sul testo sbagliato), quindi va portato con le stesse
-verifiche, non di fretta. Chiude sei domande e rende la finestra Tk cancellabile.
+1. **L'HUD pronunciata**, che è l'unico difetto vero lasciato aperto dalla prova
+   dal vivo dell'11 agosto — e aspetta una decisione dell'utente fra due strade,
+   perché una delle due tocca una soglia che vale per tutti i sottotitoli. La
+   misura è già fatta: le letture consecutive di `Sali sul <spazzatura>` si
+   somigliano fra **0,58 e 0,77** e `vision.continue_similarity` vale 0,75, quindi
+   dieci su dodici aprono una battuta nuova invece di continuare quella di prima.
+   L'altra strada è una regola sul **prefisso comune**, che non tocca il caso
+   generale. Da chiedere prima di toccare.
+2. **Portare Avvia nella finestra Qt**, con l'overlay. È il pezzo su cui questo
+   progetto ha trovato i difetti peggiori (il programma che leggeva se stesso, la
+   finestra dimensionata sul testo sbagliato), quindi va portato con le stesse
+   verifiche, non di fretta. Chiude sei domande e rende la finestra Tk
+   cancellabile.
 
 ## Dove siamo
 
-Suite verde a **1403 verifiche**. `SviluppoProgetto.md`: **16 step su 19**.
+Suite verde a **1416 verifiche**. `SviluppoProgetto.md`: **16 step su 19**.
 
 **La finestra è stata rifatta in Qt** (`tools/ui_qt.py`, PySide6, che è il
 binding ufficiale di The Qt Company ed è LGPL-3, compatibile con la nostra
@@ -152,7 +165,7 @@ battute aperte) e quello lo giudica l'ascolto. Basta una prova con
 ## Come si prova quello che scrivi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                    # 1403 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest                    # 1416 verifiche
 .\.venv\Scripts\python.exe -m tools.ui_qt --profile gtav        # la finestra nuova
 .\.venv\Scripts\python.exe -m tools.ui --profile live           # il dal vivo, ancora Tk
 .\.venv\Scripts\python.exe -m tools.bench_memoria --battute 3600

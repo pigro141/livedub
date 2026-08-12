@@ -1,9 +1,37 @@
 # La tua prova, e cosa guardare
 
 Questo file e' il foglio della **prova d'ascolto**: come si accende, cosa
-guardare, e cosa mi serve nel tuo report. La suite e' verde (1164 verifiche) ma
+guardare, e cosa mi serve nel tuo report. La suite e' verde (1416 verifiche) ma
 la suite non sente niente: ogni difetto serio di questo progetto e' stato trovato
 dal tuo orecchio, con la suite verde.
+
+---
+
+## Aggiornamento dell'11 agosto, a sera: tre di queste domande hanno gia' una risposta
+
+La catena e' stata accesa **dal vivo in autonomia** — una registrazione a schermo
+intero in Chrome al posto del gioco, cattura vera, OCR vero, audio vero da
+Voicemeeter — quindi non serve che tu accenda niente per sapere queste tre cose.
+
+**La compressione (punto 3): si e' staccata dal tetto.** `dub.rate_x1000` al p50
+vale **1000** invece di 1250, ed era la previsione scritta *prima*: se fosse
+rimasta a 1250 la diagnosi su `accepted_delay_ms` era sbagliata. Non lo era.
+Latenza p50 **665 ms** e `mix.underrun` **0**, cioe' i numeri dichiarati.
+
+**Il difetto che resta e che si sente**: l'HUD del gioco (*«Sali sul \[tasto]»*)
+sta nella stessa fascia dei sottotitoli, il glifo del tasto l'OCR lo legge come
+spazzatura **diversa a ogni fotogramma**, e ogni fotogramma apre una battuta
+nuova. Misurato: **8 battute su 17** in una passata dal vivo, e **11 su 46**
+rigiocando lo stesso pezzo dal file — quindi non e' la cattura, e' la catena.
+Sono le battute che senti come parole tronche una sull'altra, tutte accelerate al
+massimo. **Aspetto la tua scelta fra due strade** (stanno in fondo a
+`SviluppoProgetto.md`), perche' una delle due tocca una soglia che vale per tutti
+i sottotitoli e non solo per l'HUD.
+
+**Chi parla, sulle scene di battibecco, non lo riconosce quasi mai** — e non e'
+un difetto del vivo: sullo stesso tratto il banco fa uguale (81% contro 78% di
+voce neutra), e il caso nullo dice che non c'e' soglia da tarare. Serve piu'
+parlato per battuta, non un numero diverso.
 
 ---
 

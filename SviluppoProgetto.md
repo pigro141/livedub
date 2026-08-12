@@ -5,11 +5,48 @@
 **Feature: 14 su 14.** Tutte chiuse, comprese quelle che si sono chiuse con un
 "no" misurato (i tag del TTS, la correzione automatica per distanza di edit, Qwen).
 
-**Step finali: 4 su 19.** La grafica del sottotitolo tradotto è chiusa: scritta,
-**guardata a schermo**, corretta e coperta da verifiche. Le altre due spuntate —
-colore/dimensione dei sottotitoli e scelta delle lingue — sono fatte **come
-meccanismo**: i parametri esistono e si regolano da `--set`. Quello che manca è
-la UI che li espone.
+**Step finali: 16 su 19.** Restano tre voci, e sono **tutte e tre una decisione
+tua, non un lavoro**: creare il repo GitHub (è pronto), il link donazioni, il
+sito. Il resto — interfaccia, selettore delle tecnologie, impostazioni con la
+spiegazione accanto, modifica a caldo, aree multiple, installatore, exe, licenza,
+README col diagramma — è fatto e guardato a schermo.
+
+**Suite: 1416 verifiche verdi** (`tools/selftest.py`).
+
+## E adesso è stato provato dal vivo per intero, in autonomia
+
+L'11 agosto 2026, a sera, la catena è stata accesa **davvero**: gioco sostituito da una
+registrazione a schermo intero in Chrome, cattura vera dello schermo, OCR vero,
+audio vero da Voicemeeter, voce nelle casse. Non un banco: la stessa strada che
+fa il programma quando lo usa una persona.
+
+**I numeri dichiarati reggono**, e uno di loro era la domanda aperta:
+
+| | misurato dal vivo | dichiarato |
+|---|---|---|
+| latenza p50 | **665 ms** | ~670 ms (piper) |
+| sintesi p50 | 57 ms | ~50 ms |
+| `mix.underrun` | **0** | 0 |
+| `dub.rate_x1000` p50 | **1000** | doveva staccarsi da 1250 |
+
+L'ultima riga chiude quello che `DA_VERIFICARE.md` chiedeva di guardare: la cura
+su `accepted_delay_ms` era giusta, e la compressione non è più incollata al tetto.
+
+**Quello che la prova ha trovato, e che nessun banco aveva visto:**
+
+| | esito |
+|---|---|
+| l'HUD del gioco («Sali sul \[tasto]») viene **letta e pronunciata**: 8 battute su 17 dal vivo, 11 su 46 rigiocando il file | **aperto**, con la misura in mano |
+| `--output` non poteva funzionare: cercava il dispositivo fra i **loopback**, che hanno zero canali di uscita | corretto |
+| la cattura dello schermo intero costava **32,4 ms** su 33 di budget a 30 Hz | corretto: si prende solo la fascia, **+35% di letture e cinque sottotitoli in più** |
+| `tools/live.py` non scriveva `speaker.jsonl` | corretto |
+
+**E due conclusioni sbagliate sono state ritirate**, il che vale quanto le
+correzioni: «dal vivo si perde il 60% delle righe» e «dal vivo riconosce molto
+peggio del banco» erano **tutte e due false**, prodotte confrontando *tratti
+diversi della stessa scena* (una volta il video era perfino finito a metà prova).
+Allineando i tratti: 31 battute contro 33, e voce neutra 81% contro 78%. La
+regola che ne è uscita sta in `CLAUDE.md`.
 
 ## Il cancello è passato — e questo è il fatto che conta
 
@@ -42,19 +79,26 @@ Riproduce sul banco la frammentazione delle identità e il tetto di compressione
 Prima serviva una sessione intera dell'utente per provare una modifica sul
 riconoscimento; adesso sono tre minuti.
 
-## Cosa resta: quindici voci, tre blocchi
+## Cosa resta: tre voci, e sono tutte tue
 
-| blocco | cosa | quanti |
+| | cosa | chi decide |
 |---|---|---|
-| **UI** | interfaccia, selettore tecnologie, impostazioni avanzate con spiegazioni, modifica a caldo, aree multiple | 5 |
-| **distribuzione** | installabile, exe, licenza | 3 |
-| **repo** | il repo più i suoi sette punti | 8 |
+| repo GitHub | è pronto: README col diagramma, `LICENZE.md`, `installa.ps1`, `livedub.spec`, `livedub.bat`. Da decidere prima: 167 commit su 170 hanno il trailer `Co-Authored-By: Claude` | **tu** |
+| link donazioni | hai detto «dopo» | **tu** |
+| sito | idem | **tu** |
 
-**Nessuno aspetta una misura.** L'unico che poggiava su dati — i requisiti minimi
-— ce li ha già tutti. Da qui in poi è lavoro di interfaccia e di confezione, non
-di misura: il contrario di tutto quello che è venuto prima. **Chi riprende non
-deve tornare a misurare**: le cose tecniche ancora aperte sono elencate in fondo
-a `PROSSIMA_SESSIONE.md` e sono dichiarate *fuori dal lavoro di adesso*.
+Più due cose tecniche, dichiarate e non dimenticate:
+
+- **l'HUD pronunciata** (`Sali sul …`), l'unico difetto vero che la prova dal vivo
+  ha lasciato aperto. La misura c'è già: le letture consecutive si somigliano fra
+  **0,58 e 0,77**, e `vision.continue_similarity` vale 0,75 — dieci su dodici
+  cadono appena sotto. Due strade: tarare quella soglia (serve il metodo
+  dell'altopiano, non un valore indovinato) oppure una regola dedicata sul
+  prefisso comune, che non tocca il caso generale;
+- **portare Avvia nella finestra Qt**, che chiude sei delle domande dichiarate.
+
+**Niente di tutto questo aspetta una misura**, ed è il contrario di com'era prima:
+le misure sono fatte e stanno nei file. Chi riprende non deve tornare a misurare.
 
 **Il cancello resta come strumento**: `tools\prova.ps1` accende la catena con i
 controlli fatti prima (venv, scheda di cattura, traduttore), accetta
@@ -374,9 +418,16 @@ che si sono chiuse con un "no".)*
     l'HUD incollata dentro le battute e pronunciata (`'Raggiungi i'`, `'Sali sul'`,
     `.San An`) — era l'11% delle battute e non faceva scattare niente, perché per la
     catena erano righe lette con successo.
-    → Corretti tutti e quattro, suite a **1172 verifiche**. Il dettaglio e le misure
-    stanno in `CLAUDE.md` e in `PROSSIMA_SESSIONE.md`.
+    → Corretti tutti e quattro, suite a **1172 verifiche** (oggi 1416). Il dettaglio
+    e le misure stanno in `CLAUDE.md` e in `PROSSIMA_SESSIONE.md`.
     → **Il cancello è aperto: da qui si va sulla UI.**
+    → **E l'11 agosto, a sera, la prova è stata rifatta in autonomia**, senza chiedertela:
+    registrazione a schermo intero in Chrome al posto del gioco, cattura vera, OCR
+    vero, audio vero. Da lì è uscito che l'HUD **non era chiusa** (8 battute su 17
+    dal vivo, e 11 su 46 rigiocando il file: quindi non è la cattura, è la catena),
+    che `--output` non poteva funzionare, e che la cattura dello schermo intero si
+    mangiava il 90% del budget di un fotogramma. I primi due erano invisibili al
+    banco per costruzione.
   * \[x]  rendere il tutto facilmente installabile plug and play
     → `installa.ps1`: Python, venv, dipendenze, OneOCR, modelli, e chiude con la suite.
     **Verifica di aver ottenuto quello che ha chiesto** invece di dire «fatto» — compreso

@@ -243,7 +243,7 @@ latino, cirillico, greco, cinese, giapponese e coreano.
 
 ## Come è fatto, e perché ci si può fidare dei numeri
 
-Non c'è pytest: la suite è un modulo eseguibile, **1346 verifiche**.
+Non c'è pytest: la suite è un modulo eseguibile, **1416 verifiche**.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest
@@ -259,6 +259,14 @@ senza il gioco: stesso codice, OCR vero, audio vero, sintesi vera.
 L'MP4 che ne esce mostra il gioco, la traccia doppiata e in alto il testo **letto
 dall'OCR** con la voce assegnata: senza, non si distingue «ha sbagliato a
 leggere» da «ha sbagliato a dire».
+
+**E il banco non basta, per costruzione.** Gli ultimi tre difetti veri sono usciti
+accendendo la catena davvero — con una registrazione a schermo intero al posto del
+gioco, cattura vera dello schermo e audio vero: l'HUD del gioco letta come se fosse
+un sottotitolo, l'opzione `--output` che cercava il dispositivo nell'elenco
+sbagliato, e la cattura dello schermo intero che si mangiava il 90% del budget di
+un fotogramma. Il banco non poteva vedere i primi due, perché legge da file e non
+apre nessun dispositivo audio.
 
 Ogni numero in questo README viene da lì o da una sessione dal vivo archiviata.
 Le misure che hanno cambiato una decisione sono scritte accanto al parametro che

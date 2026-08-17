@@ -66,7 +66,6 @@ guardato il vivo.
 from __future__ import annotations
 
 import sys
-import tkinter as tk
 from functools import lru_cache
 
 # Il colore che Windows rende trasparente. Quasi nero, e non magenta: i pixel di
@@ -501,7 +500,7 @@ def inchiostro(frame, cfg):
     return pezzo, bande, rett, (canali[2], canali[1], canali[0])
 
 
-def _fascia(frame, cfg):
+def _fascia(frame, cfg, roi=None):
     """La fascia attorno ai sottotitoli e dove sta nel fotogramma.
 
     Un posto solo a deciderla, perche' la usano in due — `inchiostro()`, che
@@ -509,13 +508,20 @@ def _fascia(frame, cfg):
     devono ritagliare **esattamente** la stessa cosa: `ritaglia()` e
     `Overlay.aggiorna()` confrontano la forma del pezzo con quella salvata, e uno
     scarto di un pixel spegne il rinfresco della sfocatura senza dire niente.
+
+    **`roi` serve alle aree in piu'.** I rettangoli di `SpokenLine.boxes` sono in
+    coordinate dell'area che ha letto quella battuta, non della ROI principale:
+    con due aree dichiarate, prendere sempre `cfg.vision.roi` vorrebbe dire
+    disegnare la traduzione di un cartello dentro la fascia del dialogo — cioe'
+    nel posto sbagliato, senza nessun errore. Vuoto vuol dire «la ROI», che e' il
+    caso di sempre.
     """
     import numpy as np
 
     from vision.roi import roi_pixels
 
     h_f, w_f = frame.shape[:2]
-    rx, ry, rw, rh = roi_pixels(frame.shape, cfg.vision.roi)
+    rx, ry, rw, rh = roi_pixels(frame.shape, tuple(roi) if roi else cfg.vision.roi)
     respiro = int(max(0.6 * rh, 0.03 * h_f))
     ay0, ay1 = max(0, ry - respiro), min(h_f, ry + rh + respiro)
     pezzo = np.ascontiguousarray(frame[ay0:ay1, rx : rx + rw])
@@ -523,7 +529,7 @@ def _fascia(frame, cfg):
     return pezzo, rett, ry - ay0, rh
 
 
-def inchiostro_da_box(frame, cfg, boxes, ink):
+def inchiostro_da_box(frame, cfg, boxes, ink, roi=None):
     """Come `inchiostro()`, ma i rettangoli sono **quelli che l'OCR ha letto**.
 
     E' la differenza fra chiedere "dov'e' il testo?" a dei pixel vecchi di due
@@ -547,7 +553,7 @@ def inchiostro_da_box(frame, cfg, boxes, ink):
     """
     if not boxes:
         return None, None, None, None
-    pezzo, rett, dy, _rh = _fascia(frame, cfg)
+    pezzo, rett, dy, _rh = _fascia(frame, cfg, roi)
     if pezzo.size == 0:
         return None, None, None, None
     h_pezzo, w_pezzo = pezzo.shape[:2]
@@ -1042,14 +1048,25 @@ def su_chiave(tela):
     return Image.fromarray(arr)
 
 
-class Overlay:
-    """Una finestra senza bordi sopra il gioco, con dentro il testo tradotto."""
+class OverlayBase:
+    """Il sottotitolo tradotto: **tutto quello che non e' una finestra**.
+
+    Geometria, misura del carattere, cosa disegnare e quando sparire stanno qui;
+    chi eredita mette solo i pixel a schermo. E' la stessa ragione per cui
+    `dipingi()` e' puro e lo usano la finestra dal vivo **e** `tools/overlay_mp4`:
+    due disegnatori diversi mostrano due cose diverse, ed e' esattamente cosi'
+    che sono nati i difetti di questo pezzo. Adesso i front-end sono due — Tk e
+    Qt — e la tentazione di scriverne un secondo era la stessa.
+
+    Chi eredita implementa cinque cose: `_dipingi`, `_apri`, `_chiudi`,
+    `geometria` ed `esclusione`. Tutto il resto e' gia' qui e non si riscrive.
+    """
 
     def __init__(
         self,
-        root: tk.Misc,
         roi: tuple[float, float, float, float],
         *,
+        schermo: tuple[int, int],
         colore: str = "",
         fondo: str = "#000000",
         font: str = "Arial",
@@ -1062,16 +1079,18 @@ class Overlay:
         trasparente: bool = True,
     ) -> None:
         self.blur = max(0.0, blur)
-        # **Spegnerla serve solo a fotografarla.** La finestra e' esclusa dalla
-        # cattura, e uno screenshot *e'* una cattura: con l'esclusione accesa
-        # l'overlay non compare in nessuna immagine, nemmeno nelle nostre. Per
-        # guardarlo si spegne, e si riaccende — non e' un'opzione da config,
-        # perche' spenta l'OCR ricomincia a leggere noi.
+        # **Spegnere l'esclusione serve solo a fotografarla.** La finestra e'
+        # esclusa dalla cattura, e uno screenshot *e'* una cattura: con
+        # l'esclusione accesa l'overlay non compare in nessuna immagine, nemmeno
+        # nelle nostre. Per guardarlo si spegne, e si riaccende — non e'
+        # un'opzione da config, perche' spenta l'OCR ricomincia a leggere noi.
         self.escludi_cattura = escludi_cattura
-        # `trasparente` = il buco e' un colore-chiave. Spento, la finestra e'
-        # opaca e il buco lo riempiono i pixel del gioco: piu' rozzo (la scena
-        # dietro e' ferma fra un rinfresco e l'altro) ma **si vede sempre**.
+        # `trasparente` = il buco e' un colore-chiave (Tk) o vero alfa (Qt).
+        # Spento, la finestra e' opaca e il buco lo riempiono i pixel del gioco:
+        # piu' rozzo (la scena dietro e' ferma fra un rinfresco e l'altro) ma
+        # **si vede sempre**.
         self.trasparente = trasparente
+        self.opacita = max(0.1, min(1.0, opacita))
         self.modo = (modo or "cancella").lower()
         self.nome_font = font
         self.contorno = contorno
@@ -1084,8 +1103,8 @@ class Overlay:
         self.t_on = -1.0     # quale sottotitolo del gioco sta traducendo
         self._vuoti = 0      # giri di seguito senza inchiostro del gioco
         # L'ultima tela disegnata e dove sta sullo schermo. La legge la
-        # telecamera virtuale: **gli stessi pixel** che sono a schermo, non
-        # una seconda composizione che divergerebbe al primo ritocco.
+        # telecamera virtuale: **gli stessi pixel** che sono a schermo, non una
+        # seconda composizione che divergerebbe al primo ritocco.
         self.ultima = None
         self.vision = None   # le soglie con cui ritrovare l'inchiostro
         self.rett = None
@@ -1093,32 +1112,105 @@ class Overlay:
         # sotto la toppa a ogni rinfresco. Un `#rrggbb` esplicito vince.
         self.fondo_rgb = self._rgb(fondo) if fondo else None
         self.font_frac = font_frac
-        self._foto = None
-        self.schermo = (root.winfo_screenwidth(), root.winfo_screenheight())
+        self.schermo = (int(schermo[0]), int(schermo[1]))
         # **Dove sta il gioco.** Catturando una finestra, le coordinate del
         # fotogramma sono le sue, non quelle dello schermo: senza questo
-        # rettangolo l'overlay cadrebbe sulla stessa *frazione* di schermo
-        # invece che sulla stessa frazione di finestra, cioe' quasi sempre
-        # altrove. `None` = si cattura lo schermo intero, ed e' come prima.
+        # rettangolo l'overlay cadrebbe sulla stessa *frazione* di schermo invece
+        # che sulla stessa frazione di finestra, cioe' quasi sempre altrove.
+        # `None` = si cattura lo schermo intero, ed e' come prima.
         self.ancora = None
-
-        self.top = tk.Toplevel(root)
-        self.top.overrideredirect(True)
-        self.top.attributes("-topmost", True)
-        self.top.configure(bg=CHIAVE)
-        try:
-            self.top.attributes("-alpha", max(0.1, min(1.0, opacita)))
-        except tk.TclError:  # pragma: no cover - dipende dal window manager
-            pass
-        self.etichetta = tk.Label(self.top, bd=0, highlightthickness=0, bg=CHIAVE,
-                                  padx=0, pady=0)
-        self.etichetta.pack(expand=True, fill="both")
-
+        # `geom` e' il ripiego dalla ROI (dove andrebbe la finestra se non
+        # avesse ancora disegnato niente); `_geom_ora` e' dove sta davvero
+        # adesso. Tenerli separati evita che un `riposiziona` a battuta accesa
+        # sposti una toppa gia' calcolata.
         self.geom = self._geom_roi(roi)
-        self.top.geometry("%dx%d+%d+%d" % self.geom)
-        self._passante()
-        self.top.withdraw()
+        self._geom_ora = self.geom
         self._visibile = False
+
+    def ristila(
+        self,
+        *,
+        colore: str | None = None,
+        fondo: str | None = None,
+        font: str | None = None,
+        font_frac: float | None = None,
+        opacita: float | None = None,
+        modo: str | None = None,
+        blur: float | None = None,
+        contorno: float | None = None,
+    ) -> None:
+        """Cambia l'aspetto **a finestra aperta**, senza ricostruirla.
+
+        Il colore del testo, il carattere, il blur e il modo di coprire non sono
+        in `FREDDI`, cioe' la finestra dichiara che si possono cambiare a
+        sessione accesa e non ci mette il marchio «all'avvio». Non era vero:
+        `OverlayBase.__init__` se li **copia** dentro, e la sessione continuava
+        con quelli di partenza. Una promessa scritta nella UI e non mantenuta e'
+        peggio di un campo assente — l'utente cambia il colore, non vede niente,
+        e non ha modo di sapere se ha sbagliato lui o il programma.
+
+        La battuta **gia' a schermo** non cambia, ed e' voluto: la sua geometria
+        e' congelata apposta (rifarla a meta' riga faceva tremare e sparire il
+        testo). Il nuovo aspetto parte dalla battuta dopo, e chi chiama lo dice.
+        """
+        if colore is not None:
+            self.colore = self._rgb(colore) if colore else None
+        if fondo is not None:
+            self.fondo_rgb = self._rgb(fondo) if fondo else None
+        if font is not None:
+            self.nome_font = font
+        if font_frac is not None:
+            self.font_frac = font_frac
+        if opacita is not None:
+            self.opacita = max(0.1, min(1.0, opacita))
+        if modo is not None:
+            self.modo = (modo or "cancella").lower()
+        if blur is not None:
+            self.blur = max(0.0, blur)
+        if contorno is not None:
+            self.contorno = contorno
+
+    # -- quello che il front-end deve saper fare ----------------------------
+
+    def _dipingi(self, tela, geom) -> None:
+        """Mette la tela RGBA a schermo. `geom` `None` = non muovere niente."""
+        raise NotImplementedError
+
+    def _apri(self) -> None:
+        """La finestra compare (senza rubare il fuoco)."""
+        raise NotImplementedError
+
+    def _chiudi(self) -> None:
+        """La finestra sparisce, senza essere distrutta."""
+        raise NotImplementedError
+
+    def geometria(self) -> str:
+        """Dove sta e quanto e' grande, in chiaro.
+
+        **La riga che divide in due il problema**: se qui c'e' scritto un
+        riquadro e a schermo non si vede niente, il difetto e' della finestra e
+        non nostro (traduzione, OCR, geometria). Senza, le due ipotesi si
+        confondono e si cerca per ore dalla parte sbagliata.
+        """
+        w, h, x, y = self._geom_ora
+        return f"{w}x{h}+{x}+{y}"
+
+    def esclusione(self, attiva: bool) -> None:
+        """Accende o spegne `WDA_EXCLUDEFROMCAPTURE` a finestra gia' aperta.
+
+        **Serve solo a chi cattura lo schermo intero.** Li' la nostra finestra
+        rientra nel fotogramma dato all'OCR — misurato, il 100% dei suoi pixel —
+        e va nascosta. Scegliendo la finestra del gioco non rientra affatto
+        (misurato: zero righe lette che fossero nostre su quattro), e allora
+        nasconderla a **tutte** le catture e' un prezzo pagato per niente: e'
+        quello che la rende invisibile anche a OBS.
+        """
+        self.escludi_cattura = bool(attiva)
+
+    def distruggi(self) -> None:
+        raise NotImplementedError
+
+    # -- geometria ----------------------------------------------------------
 
     @staticmethod
     def _rgb(s: str) -> tuple[int, int, int]:
@@ -1142,77 +1234,6 @@ class Overlay:
         al desktop.
         """
         self.ancora = tuple(int(v) for v in rett_px) if rett_px else None
-
-    def _passante(self) -> None:
-        """Tre proprieta' di Windows, e nessuna e' una rifinitura.
-
-        **Fuori dalla cattura** (`WDA_EXCLUDEFROMCAPTURE`): senza, la finestra
-        finisce nel fotogramma che diamo all'OCR — misurato, il 100% dei suoi
-        pixel — e l'OCR smette di leggere il gioco per leggere noi.
-
-        **Trasparente ai clic** (`WS_EX_TRANSPARENT`): una finestra sopra il
-        gioco che intercetta il mouse rende ingiocabile il gioco.
-
-        **Incapace di prendere il fuoco** (`WS_EX_NOACTIVATE`): comparendo,
-        toglierebbe il fuoco al gioco, che in molti giochi vuol dire mettere in
-        pausa o perdere il puntatore.
-        """
-        if sys.platform != "win32":
-            print("overlay: clic passanti ed esclusione dalla cattura non "
-                  "disponibili qui — l'OCR leggera' il nostro testo", file=sys.stderr)
-            return
-        import ctypes
-        from ctypes import wintypes
-
-        GWL_EXSTYLE = -20
-        WS_EX_LAYERED = 0x00080000
-        WS_EX_TRANSPARENT = 0x00000020
-        WS_EX_NOACTIVATE = 0x08000000
-        WS_EX_TOOLWINDOW = 0x00000080
-        WDA_EXCLUDEFROMCAPTURE = 0x00000011
-
-        self.top.update_idletasks()
-        u32 = ctypes.windll.user32
-        hwnd = u32.GetParent(self.top.winfo_id())
-        u32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
-        u32.GetWindowLongW.restype = ctypes.c_long
-        u32.SetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_long]
-        stile = u32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-        u32.SetWindowLongW(
-            hwnd, GWL_EXSTYLE,
-            stile | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
-        )
-        # Il colore che sparisce. Va messo **dopo** WS_EX_LAYERED.
-        if self.trasparente:
-            try:
-                self.top.attributes("-transparentcolor", CHIAVE)
-            except tk.TclError:  # pragma: no cover
-                print("overlay: colore trasparente non disponibile", file=sys.stderr)
-        self._dichiara_esclusione()
-
-    def esclusione(self, attiva: bool) -> None:
-        """Accende o spegne l'esclusione dalla cattura, a finestra gia' aperta.
-
-        **Serve solo a chi cattura lo schermo intero.** Li' la nostra finestra
-        rientra nel fotogramma dato all'OCR — misurato, il 100% dei suoi pixel —
-        e va nascosta. Scegliendo la finestra del gioco non rientra affatto
-        (misurato: zero righe lette che fossero nostre su quattro), e allora
-        nascondere l'overlay a **tutte** le catture e' un prezzo pagato per
-        niente: e' quello che lo rende invisibile anche a OBS, e sospettato di
-        renderlo invisibile e basta quando si somma al colore-chiave.
-
-        Si rimette a `WDA_NONE` invece di omettere la chiamata: l'affinita' e'
-        una proprieta' della finestra, e ometterla lascia quella di prima.
-        """
-        self.escludi_cattura = bool(attiva)
-        if sys.platform != "win32":
-            return
-        import ctypes
-
-        WDA_EXCLUDEFROMCAPTURE = 0x00000011
-        u32 = ctypes.windll.user32
-        hwnd = u32.GetParent(self.top.winfo_id()) or self.top.winfo_id()
-        u32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE if attiva else 0)
 
     def _dichiara_esclusione(self) -> None:
         """Applica l'esclusione decisa alla nascita, e dice se non ci riesce.
@@ -1250,12 +1271,10 @@ class Overlay:
             fatto = None
         if fatto is None:
             return
-        self._foto, geom = fatto
-        self.etichetta.configure(image=self._foto)
-        self.top.geometry("%dx%d+%d+%d" % geom)
+        tela, geom = fatto
+        self._dipingi(tela, geom)
         if not self._visibile:
-            self.top.deiconify()
-            self.top.attributes("-topmost", True)
+            self._apri()
             self._visibile = True
 
     def aggiorna(self, pezzo) -> None:
@@ -1264,9 +1283,9 @@ class Overlay:
         Arriva gia' ritagliato: mandare tutto il fotogramma trenta volte al
         secondo vorrebbe dire copiare 11 MB a giro per usarne mezzo.
 
-        La geometria non si tocca — se no il sottotitolo balla — ma i pixel
-        sotto sono quelli di adesso, se no la macchia sfocata resta indietro
-        rispetto alla scena che scorre.
+        La geometria non si tocca — se no il sottotitolo balla — ma i pixel sotto
+        sono quelli di adesso, se no la macchia sfocata resta indietro rispetto
+        alla scena che scorre.
         """
         if self.sost is None or not self._visibile or pezzo is None:
             return
@@ -1276,17 +1295,10 @@ class Overlay:
             tela, _ = self.sost.disegna(pezzo, opaco=not self.trasparente)
         except Exception:  # pragma: no cover - meglio una toppa vecchia che un crollo
             return
-        from PIL import ImageTk
-
-        self._foto = ImageTk.PhotoImage(
-            su_chiave(tela) if self.trasparente else tela.convert("RGB"), master=self.top
-        )
-        self.etichetta.configure(image=self._foto)
-        self.ultima = (tela, self.top.winfo_x(), self.top.winfo_y())
+        self._dipingi(tela, None)
+        self.ultima = (tela, self._geom_ora[2], self._geom_ora[3])
 
     def _prepara(self, testo, pezzo, bande, rett, inchiostro, originale=""):
-        from PIL import ImageTk
-
         sw, sh = self.schermo
         ax, ay, aw, ah = self.ancora or (0, 0, sw, sh)
         h_pezzo, w_pezzo = pezzo.shape[:2]
@@ -1305,25 +1317,143 @@ class Overlay:
         self.rett = rett
         self._vuoti = 0
         tela, (ox, oy) = self.sost.disegna(pezzo, opaco=not self.trasparente)
-        piatta = su_chiave(tela) if self.trasparente else tela.convert("RGB")
-        foto = ImageTk.PhotoImage(piatta, master=self.top)
         x = ax + int(rett[0] * aw) + ox
         y = ay + int(rett[1] * ah) + oy
-        geom = (piatta.width, piatta.height,
-                max(0, min(sw - piatta.width, x)), max(0, min(sh - piatta.height, y)))
+        geom = (tela.width, tela.height,
+                max(0, min(sw - tela.width, x)), max(0, min(sh - tela.height, y)))
+        self._geom_ora = geom
         self.ultima = (tela, geom[2], geom[3])
-        return foto, geom
+        return tela, geom
 
     def nascondi(self) -> None:
         self.sost = None
         self.ultima = None
         self.t_on = -1.0
         if self._visibile:
-            self.top.withdraw()
+            self._chiudi()
             self._visibile = False
 
+
+class Overlay(OverlayBase):
+    """La finestra senza bordi sopra il gioco, in **Tkinter**.
+
+    Il buco trasparente e' un **colore-chiave**: Tk non sa fare l'alfa per
+    pixel, quindi si dichiara un colore che sparisce e si sta attenti che il
+    disegno non lo contenga per caso (`su_chiave`).
+    """
+
+    def __init__(self, root, roi: tuple[float, float, float, float], **kw) -> None:
+        import tkinter as tk
+
+        super().__init__(
+            roi, schermo=(root.winfo_screenwidth(), root.winfo_screenheight()), **kw
+        )
+        self._foto = None
+        self.top = tk.Toplevel(root)
+        self.top.overrideredirect(True)
+        self.top.attributes("-topmost", True)
+        self.top.configure(bg=CHIAVE)
+        try:
+            self.top.attributes("-alpha", self.opacita)
+        except tk.TclError:  # pragma: no cover - dipende dal window manager
+            pass
+        self.etichetta = tk.Label(self.top, bd=0, highlightthickness=0, bg=CHIAVE,
+                                  padx=0, pady=0)
+        self.etichetta.pack(expand=True, fill="both")
+
+        self.top.geometry("%dx%d+%d+%d" % self.geom)
+        self._passante()
+        self.top.withdraw()
+
+    # -- le cinque cose che il front-end deve fare --------------------------
+
+    def _dipingi(self, tela, geom) -> None:
+        from PIL import ImageTk
+
+        piatta = su_chiave(tela) if self.trasparente else tela.convert("RGB")
+        self._foto = ImageTk.PhotoImage(piatta, master=self.top)
+        self.etichetta.configure(image=self._foto)
+        if geom is not None:
+            self.top.geometry("%dx%d+%d+%d" % geom)
+
+    def _apri(self) -> None:
+        self.top.deiconify()
+        self.top.attributes("-topmost", True)
+
+    def _chiudi(self) -> None:
+        self.top.withdraw()
+
+    def geometria(self) -> str:
+        return self.top.geometry()
+
     def distruggi(self) -> None:
+        import tkinter as tk
+
         try:
             self.top.destroy()
         except tk.TclError:  # pragma: no cover
             pass
+
+    # -- Windows ------------------------------------------------------------
+
+    def _passante(self) -> None:
+        """Tre proprieta' di Windows, e nessuna e' una rifinitura.
+
+        **Fuori dalla cattura** (`WDA_EXCLUDEFROMCAPTURE`): senza, la finestra
+        finisce nel fotogramma che diamo all'OCR — misurato, il 100% dei suoi
+        pixel — e l'OCR smette di leggere il gioco per leggere noi.
+
+        **Trasparente ai clic** (`WS_EX_TRANSPARENT`): una finestra sopra il
+        gioco che intercetta il mouse rende ingiocabile il gioco.
+
+        **Incapace di prendere il fuoco** (`WS_EX_NOACTIVATE`): comparendo,
+        toglierebbe il fuoco al gioco, che in molti giochi vuol dire mettere in
+        pausa o perdere il puntatore.
+        """
+        import tkinter as tk
+
+        if sys.platform != "win32":
+            print("overlay: clic passanti ed esclusione dalla cattura non "
+                  "disponibili qui — l'OCR leggera' il nostro testo", file=sys.stderr)
+            return
+        import ctypes
+        from ctypes import wintypes
+
+        GWL_EXSTYLE = -20
+        WS_EX_LAYERED = 0x00080000
+        WS_EX_TRANSPARENT = 0x00000020
+        WS_EX_NOACTIVATE = 0x08000000
+        WS_EX_TOOLWINDOW = 0x00000080
+
+        self.top.update_idletasks()
+        u32 = ctypes.windll.user32
+        hwnd = u32.GetParent(self.top.winfo_id())
+        u32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+        u32.GetWindowLongW.restype = ctypes.c_long
+        u32.SetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_long]
+        stile = u32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        u32.SetWindowLongW(
+            hwnd, GWL_EXSTYLE,
+            stile | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+        )
+        # Il colore che sparisce. Va messo **dopo** WS_EX_LAYERED.
+        if self.trasparente:
+            try:
+                self.top.attributes("-transparentcolor", CHIAVE)
+            except tk.TclError:  # pragma: no cover
+                print("overlay: colore trasparente non disponibile", file=sys.stderr)
+        self._dichiara_esclusione()
+
+    def esclusione(self, attiva: bool) -> None:
+        """Si rimette a `WDA_NONE` invece di omettere la chiamata: l'affinita' e'
+        una proprieta' della finestra, e ometterla lascia quella di prima.
+        """
+        super().esclusione(attiva)
+        if sys.platform != "win32":
+            return
+        import ctypes
+
+        WDA_EXCLUDEFROMCAPTURE = 0x00000011
+        u32 = ctypes.windll.user32
+        hwnd = u32.GetParent(self.top.winfo_id()) or self.top.winfo_id()
+        u32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE if attiva else 0)

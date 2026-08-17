@@ -125,6 +125,61 @@ FAMIGLIE = {
     "kokoro": tuple(k for k in NATIVE if k.startswith("kokoro-")),
 }
 
+# **Per quali lingue esiste una voce, motore per motore.** Il nome di una voce
+# non dice la lingua — `supertonic-M1` potrebbe parlare qualunque cosa — quindi
+# questa e' una dichiarazione e non una deduzione.
+#
+# Serve perche' tradurre verso una lingua per cui il motore montato non ha voci
+# non da' errore: `build_pool` ripiega sulla famiglia del backend e la battuta
+# esce **con una voce italiana che pronuncia il giapponese**, cioe' un modello
+# fonemizzato con le regole sbagliate. E' la stessa forma del ripiego silenzioso
+# gia' pagata con `preload_dlls()`: nessun contatore lo mostra, l'audio esce, la
+# suite e' verde.
+#
+# Kokoro non sta qui: le sue lingue le dichiara `PER_LINGUA` in
+# `speak/backends/kokoro.py`, e copiarle sarebbe il secondo posto che dice la
+# stessa cosa. `lingue_con_voce` le va a leggere la', e una verifica tiene
+# insieme le due.
+LINGUE_VOCE: dict[str, tuple[str, ...]] = {
+    "piper": ("it",),         # le due voci sono `it_IT-paola` e `it_IT-riccardo`
+    "supertonic": ("it",),    # dieci voci, tutte italiane
+}
+
+# I motori che non pronunciano parole: un bip e il silenzio non hanno lingua, e
+# avvisare che «non c'e' una voce giapponese» per un bip sarebbe rumore.
+SENZA_LINGUA: tuple[str, ...] = ("tone", "silent", "none", "")
+
+
+def lingue_con_voce(backend: str) -> tuple[str, ...]:
+    """Le lingue per cui `backend` ha almeno una voce nativa.
+
+    Vuoto vuol dire «non si sa», non «nessuna»: un motore che questo modulo non
+    conosce non deve far comparire un avviso inventato.
+    """
+    nome = (backend or "").strip().lower()
+    if nome == "kokoro":
+        from speak.backends.kokoro import PER_LINGUA
+
+        return tuple(PER_LINGUA)
+    return LINGUE_VOCE.get(nome, ())
+
+
+def ha_voce(backend: str, lingua: str) -> bool:
+    """C'e' una voce di `backend` che parla `lingua`?
+
+    Col dubbio si risponde di si', come per `Copertura.sa_fare`: un avviso su una
+    cosa che funziona fa smettere di leggere gli avvisi veri.
+    """
+    nome = (backend or "").strip().lower()
+    if nome in SENZA_LINGUA:
+        return True
+    note = lingue_con_voce(nome)
+    if not note:
+        return True
+    # `zh-CN` e `pt-BR` sono varianti di una lingua che il pool tratta intera:
+    # e' la stessa riga che `build_pool` usa per scegliere la famiglia.
+    return (lingua or "it").replace("_", "-").split("-")[0].lower() in note
+
 
 def build_pool(
     voices: tuple[str, ...] | None = None,

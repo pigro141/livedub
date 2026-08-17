@@ -208,6 +208,16 @@ class SpokenLine:
     # letto delle parole.
     boxes: tuple[tuple[int, int, int, int], ...] = ()
     ink: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    # **Di quale area sono quei rettangoli.** `boxes` e' in coordinate dell'area
+    # che ha letto la battuta: con due aree dichiarate, chi disegna prendendo
+    # sempre `cfg.vision.roi` metterebbe la traduzione di un cartello dentro la
+    # fascia del dialogo — nel posto sbagliato e senza nessun errore. Vuoto vuol
+    # dire «la ROI», che e' il caso di sempre.
+    roi: tuple = ()
+    # Una battuta letta e **non** pronunciata: viene da un'area `modo="testo"`.
+    # Non ha voce, non ha audio e non ha occupato il mixer; ha un testo tradotto
+    # e una geometria, che e' tutto quello che serve per disegnarla.
+    muta: bool = False
 
     @property
     def latency_ms(self) -> float:
@@ -245,6 +255,7 @@ class DubPipeline:
         clock: Clock | None = None,
         metrics: MetricsRegistry | None = None,
         samplerate: int = 48000,
+        dillo=None,
     ) -> None:
         self.cfg = cfg
         self.tts = tts
@@ -273,13 +284,43 @@ class DubPipeline:
             cfg.vision.ocr_backend, cfg.vision.ocr_device
         )
         pezzi = dividi(da_config(cfg.vision))
+        # **Un'area troppo alta non e' meno precisa: e' muta.** Si dice qui,
+        # all'avvio, perche' e' l'unico punto che le vede tutte e perche' il
+        # sintomo — non succede niente — non lascia altre tracce.
+        from vision.aree import troppo_grande
+
+        for pezzo in pezzi:
+            guaio = troppo_grande(pezzo.roi)
+            if guaio and dillo is not None:
+                dillo(guaio)
         self.lettori: list[tuple[SubtitleReader, str]] = []
         for pezzo in pezzi:
-            vista = cfg.vision if len(pezzi) == 1 else _replace(cfg.vision, roi=pezzo.roi)
+            # **Il rettangolo si passa a parte; la config resta quella viva.**
+            #
+            # Qui c'era `cfg.vision if len(pezzi) == 1 else _replace(cfg.vision,
+            # roi=pezzo.roi)`: un'ottimizzazione («con un pezzo solo non serve
+            # copiare la config») che con **una** area dichiarata buttava via il
+            # suo rettangolo e leggeva `vision.roi`. Il caso senza aree
+            # continuava a funzionare — li' `da_config` ripiega gia' sulla ROI,
+            # quindi i due rettangoli coincidono — e quello con due aree pure,
+            # perche' li' il ramo era l'altro. Restava rotto **solo** il caso di
+            # mezzo, che e' precisamente quello che si ottiene aggiungendo la
+            # prima zona dalla finestra. Il sintomo era muto: la catena leggeva
+            # diligentemente il posto sbagliato.
+            #
+            # **E la prima cura costava piu' del difetto.** Passava una copia
+            # (`_replace`) a *tutti* i lettori: trentuno campi di `vision` sono
+            # dichiarati caldi — `exclude_colored`, `sat_max`, `max_ocr_hz` — e
+            # si cambiano dal pannello a sessione accesa. Su una copia
+            # smettevano di fare effetto **continuando a mostrare il valore
+            # nuovo**, che e' esattamente il difetto contro cui quel pannello
+            # esiste. Il rettangolo e' l'unica cosa che cambia per lettore:
+            # quello va a parte, tutto il resto resta condiviso.
             self.lettori.append((
                 SubtitleReader(
-                    vista,
+                    cfg.vision,
                     motore,
+                    roi=pezzo.roi,
                     metrics=self.metrics,
                     clock=clock,
                     on_error="bypass",  # in gioco una battuta persa e' meglio di una sessione persa
@@ -296,6 +337,10 @@ class DubPipeline:
         # Le battute che si leggono ma **non** si pronunciano (`modo="testo"`):
         # un cartello di missione va tradotto e disegnato, non detto a voce.
         self._muti: set[int] = set()
+        # E **da quale area** viene ogni evento, per dare a chi disegna il
+        # rettangolo giusto. Senza, la geometria di una seconda area verrebbe
+        # letta contro la ROI principale.
+        self._area_di: dict[int, tuple] = {}
         # Il pool segue il backend: senza, una sessione SuperTonic riceverebbe
         # in dote le voci di Piper e non saprebbe pronunciarle.
         # **La lingua del pool e' quella che si parlera'**: se si traduce, quella
@@ -332,12 +377,18 @@ class DubPipeline:
             )
         # La traduzione, con cache e tetto di tempo. `None` quando e' spenta, cosi'
         # la catena non paga nemmeno una chiamata a vuoto per battuta.
+        # `dillo` arriva fin qui perche' il traduttore locale, costruendosi, puo'
+        # dover **scaricare** il suo modello: cento megabyte in silenzio sono una
+        # finestra che sembra bloccata. Le righe di dopo (i fallimenti battuta
+        # per battuta) passano invece da `Traduzioni.dillo`, agganciato da chi ci
+        # costruisce sopra.
         self.traduci = (
             Traduzioni(
-                make_traduttore(cfg.translate),
+                make_traduttore(cfg.translate, dillo),
                 da=cfg.translate.source,
                 a=cfg.translate.target,
                 max_ms=cfg.translate.timeout_ms,
+                dillo=dillo,
             )
             if cfg.translate.enabled
             else None
@@ -672,11 +723,83 @@ class DubPipeline:
         # una voce. E' il motivo per cui il modo esiste: pronunciare un cartello
         # di missione e' esattamente il difetto che l'11% delle battute di GTA V
         # aveva.
-        return [
-            self._speak(ev)
-            for ev in pronte
-            if id(ev) not in self._muti and not self._gia_detta(ev)
-        ]
+        fuori: list[SpokenLine] = []
+        for ev in pronte:
+            if self._gia_detta(ev):
+                continue
+            if id(ev) in self._muti:
+                # **Muta non vuol dire buttata.** Qui c'era un filtro che le
+                # scartava e basta, sotto un commento che diceva «restano lette e
+                # chiuse — quindi tradotte e disegnate sopra il gioco». Non era
+                # vero: la traduzione avviene dentro `_speak`, e `SpokenLine` e'
+                # l'unica cosa che arriva a chi disegna. Misurato con un
+                # traduttore finto che **cambia davvero** il testo: due
+                # sottotitoli aperti, una sola battuta in uscita, e il traduttore
+                # non aveva mai visto la riga muta.
+                #
+                # La verifica che c'era provava solo la meta' negativa («non
+                # viene pronunciata»), quindi restava verde su un comportamento
+                # dichiarato e mai scritto — il settimo campo di questa forma in
+                # questo progetto.
+                riga = self._mostra(ev)
+                if riga is not None:
+                    fuori.append(riga)
+                continue
+            fuori.append(self._speak(ev))
+        return fuori
+
+    def _mostra(self, event: SubtitleEvent) -> "SpokenLine | None":
+        """Una battuta che si legge e si disegna, ma non si dice.
+
+        E' `_speak` senza la meta' che costa: niente voce dal pool, niente
+        sintesi, niente prenotazione sul mixer. Restano le tre cose che servono a
+        chi disegna — il testo **tradotto**, l'originale (che e' cio' che va
+        coperto) e la geometria delle righe che l'OCR ha letto.
+
+        Torna `None` se non c'e' niente da mostrare: senza traduzione si
+        coprirebbe il sottotitolo del gioco con se' stesso, che e' lavoro per
+        niente e un fotogramma peggiore di quello di partenza.
+        """
+        # **La ROI si prende adesso, prima di qualunque `replace`.** Ogni
+        # correzione crea un oggetto nuovo, quindi un `id()` nuovo: leggendola in
+        # fondo si troverebbe sempre vuoto, e il rettangolo tornerebbe a essere
+        # quello della ROI principale — cioe' il difetto che questo campo esiste
+        # per togliere, ricreato dentro la sua stessa cura.
+        roi_area = self._area_di.get(id(event), ())
+        if self.revisore is not None:
+            r = self.revisore.rivedi(event.text)
+            if r.cambiato:
+                self._n_corrette.inc(len(r.cambi))
+                event = replace(event, text=r.testo)
+        etichetta = self._etichetta(event)
+        if etichetta is not None and etichetta.testo != event.text:
+            event = replace(event, text=etichetta.testo)
+        originale = event.text
+        if self.traduci is not None:
+            t = self.traduci(event.text)
+            if t.tradotto:
+                event = replace(event, text=t.testo)
+        if event.text == originale:
+            return None
+        boxes_lette, tinta_letta = geometria_lette(event)
+        riga = SpokenLine(
+            text=event.text,
+            speaker_id="",
+            voice_id="",
+            cls=event.cls.value,
+            t_subtitle=event.t_on,
+            # Non c'e' niente da programmare: la battuta e' gia' pronta adesso.
+            t_scheduled=self.clock.now(),
+            synth_ms=0.0,
+            duration=0.0,
+            text_original=originale,
+            boxes=boxes_lette,
+            ink=tinta_letta,
+            roi=roi_area,
+            muta=True,
+        )
+        self._ricorda(riga)
+        return riga
 
     @property
     def reader(self) -> SubtitleReader:
@@ -714,6 +837,8 @@ class DubPipeline:
             parziale = lettore.run(frame)
             if modo != "testo_audio":
                 self._muti.update(id(ev) for ev in parziale.opened)
+            for ev in parziale.opened:
+                self._area_di[id(ev)] = lettore.roi
             aperte.extend(parziale.opened)
             chiuse.extend(parziale.closed)
             aggiornate.extend(parziale.updated)
@@ -721,6 +846,11 @@ class DubPipeline:
 
     def _speak(self, event: SubtitleEvent) -> SpokenLine:
         """Da battuta letta a audio programmato."""
+        # **Prima di qualunque `replace`**: ogni correzione crea un oggetto
+        # nuovo, e con lui un `id()` nuovo. Vale anche qui e non solo per le
+        # battute mute — una seconda area `testo_audio` viene detta *e*
+        # disegnata, e il riquadro deve stare dove stava la sua riga.
+        roi_area = self._area_di.get(id(event), ())
         decisione = self._speaker_for(event)
         # **Il nome non si pronuncia.** Leggere ad alta voce «Franklin due punti
         # come va bello» sarebbe peggio che non avere l'etichetta: si toglie il
@@ -818,7 +948,7 @@ class DubPipeline:
         if self._streaming:
             return self._speak_streaming(
                 event, voice, decisione, p, stima=stima, richiesta=richiesta,
-                originale=originale,
+                originale=originale, roi_area=roi_area,
             )
 
         t0 = time.perf_counter()
@@ -1023,6 +1153,7 @@ class DubPipeline:
             rate=rate,
             boxes=boxes_lette,
             ink=tinta_letta,
+            roi=roi_area,
         )
         self._t_latency.add(line.latency_ms)
         self._t_live.add(line.live_latency_ms)
@@ -1102,6 +1233,7 @@ class DubPipeline:
         stima: float,
         richiesta: float,
         originale: str = "",
+        roi_area: tuple = (),
     ) -> SpokenLine:
         """La battuta si programma **prima di esistere**, e i campioni la
         raggiungono mentre suona.
@@ -1181,6 +1313,7 @@ class DubPipeline:
             rate=rate,
             boxes=boxes_lette,
             ink=tinta_letta,
+            roi=roi_area,
         )
 
         # **La frequenza del motore non e' quella del mixer**, e in streaming la

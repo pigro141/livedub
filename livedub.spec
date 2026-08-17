@@ -28,7 +28,12 @@ from pathlib import Path
 RADICE = Path(SPECPATH)
 
 a = Analysis(
-    ["tools/ui.py"],
+    # **La finestra Qt, non quella Tk.** L'eseguibile impacchettava
+    # `tools/ui.py`, cioe' il front-end vecchio: chi installava il pacchetto
+    # riceveva un'altra interfaccia da quella descritta in
+    # `docs/interfaccia.md`, con la suite verde e senza un errore da nessuna
+    # parte. La Tk resta nel sorgente per il confronto, ma non e' il prodotto.
+    ["tools/ui_qt.py"],
     pathex=[str(RADICE)],
     binaries=[],
     # I profili di calibrazione servono: senza, la prima cosa che l'utente vede
@@ -39,7 +44,18 @@ a = Analysis(
     # dentro l'archivio, e i commenti il bytecode li ha buttati via. Senza questa
     # riga l'exe partiva e moriva alla costruzione del pannello — trovato
     # facendolo partire, non leggendo lo spec.
-    datas=[("profiles", "profiles"), ("core/config.py", "core")],
+    # **E il logo.** E' l'unica immagine dell'interfaccia, sta in testata, si
+    # scambia col guasto e diventa l'icona della finestra: senza questa riga il
+    # pacchetto parte, non da' errore, e mostra una tessera vuota — che e'
+    # esattamente il tipo di difetto che non si vede finche' non lo si guarda.
+    # **E i cataloghi della lingua della finestra.** `ui/lingua.py` li cerca in
+    # `ui/lingue/*.json` accanto a se stesso: PyInstaller mette il codice
+    # nell'archivio e i JSON no, quindi senza questa riga `disponibili()`
+    # tornerebbe la sola voce «it» e l'eseguibile sarebbe **solo in italiano**.
+    # Non darebbe errore: darebbe un menu con una voce sola, e sembrerebbe una
+    # scelta. E' la stessa forma del difetto di `core/config.py` qui sopra.
+    datas=[("profiles", "profiles"), ("core/config.py", "core"),
+           ("assets/logo", "assets/logo"), ("ui/lingue", "ui/lingue")],
     # **Gli import che PyInstaller non puo' vedere**, perche' qui i backend si
     # costruiscono per nome (`make_tts`, `make_ocr`) e non con un `import` in
     # cima. E' il prezzo della factory unica, ed e' un prezzo che val la pena
@@ -55,13 +71,33 @@ a = Analysis(
         "translate.llm",
         "translate.ollama",
         "translate.google",
+        # Argos carica il suo modello per nome, e `sbd.py` importa questi due
+        # anche quando non li usa (il modo di spezzare le frasi di serie e'
+        # `ARGOSTRANSLATE`): senza, l'analisi statica non li vede.
+        "argostranslate.translate",
+        "argostranslate.package",
+        "stanza",
+        "minisbd",
+        "ctranslate2",
+        "sentencepiece",
         "PIL._tkinter_finder",
     ],
     hookspath=[],
     runtime_hooks=[],
-    # Torch non c'e' e non deve entrare: le prove GPU di questo progetto girano
-    # in venv separati apposta per non avvicinarlo a questo.
-    excludes=["torch", "torchaudio", "matplotlib", "pytest", "IPython"],
+    # **Torch adesso deve entrare, e non perche' serva.** Questa riga diceva
+    # «torch non c'e' e non deve entrare», ed era vera finche' la traduzione
+    # offline era opzionale. Ora `translate.locale` e' il default installato di
+    # serie, e la catena e' obbligata: argostranslate importa `stanza` in cima a
+    # `sbd.py`, e stanza importa torch. Torch non traduce niente — Argos gira su
+    # CTranslate2 — ma senza di lui l'eseguibile muore alla prima battuta
+    # tradotta con un `ModuleNotFoundError`, cioe' proprio dove l'utente finale
+    # non puo' farci niente.
+    #
+    # Il prezzo e' misurato: +712 MB nel venv (3120 -> 3832), e nel pacchetto
+    # sara' lo stesso ordine. Chi volesse un eseguibile piccolo ha una strada
+    # dichiarata: rimettere `torch` qui dentro e cambiare il default a
+    # `translate.backend=llm` (444 ms invece di 38, ma zero dipendenze nuove).
+    excludes=["torchaudio", "matplotlib", "pytest", "IPython"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)
@@ -76,6 +112,9 @@ exe = EXE(
     strip=False,
     upx=False,  # UPX rompe le DLL di ONNX Runtime: comprime e poi non caricano
     console=False,  # e' una finestra, non un terminale
+    # Windows non ridimensiona bene un PNG nella barra delle applicazioni: serve
+    # un `.ico` multi-risoluzione, e lo genera `ui.qt_tema.icona()`.
+    icon="assets/logo/livedub.ico",
 )
 coll = COLLECT(
     exe,

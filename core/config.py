@@ -913,6 +913,21 @@ class TtsConfig:
     #     1,35              1,16                          68%
     #     1,50              1,18                          70%
     #     1,55              (si veda la prova sotto)
+    #
+    # **E adesso il campo arriva a 3,0, restando 1,55 di default.** L'intervallo
+    # e' stato alzato da 2,5 a 3,0 su richiesta, per poter chiedere il triplo
+    # senza toccare il codice. Cosa succede davvero chiedendolo, motore per
+    # motore, perche' qui un tetto alzato non e' una velocita' ottenuta:
+    #
+    #     piper        nessun tetto proprio: esegue la fretta chiesta per intero
+    #     kokoro       taglia a 1,30 (`VELOCITA_INTEGRA`), oltre salta sillabe
+    #     supertonic   taglia a 1,10, per la stessa ragione misurata
+    #
+    # Il residuo fra quel che si chiede e quel che il motore fa non si perde:
+    # cade su WSOLA, che si ferma a `timing.rate_max` e schiaccia invece di
+    # articolare. Quindi con SuperTonic e Kokoro portare questo campo a 3,0
+    # sposta lavoro fino al loro tetto e **non oltre**: il triplo, su quei due,
+    # si puo' solo schiacciare.
     native_rate_max: float = 1.55
     # Caratteri al secondo alla velocita' nominale, per stimare quanto durera'
     # la battuta **prima** di sintetizzarla.
@@ -1036,6 +1051,15 @@ class TimingConfig:
     # in su (3,4, poi 1,7). Non e' una scelta di gusto, e' dove sta il gradino.
     # La fretta oltre questa soglia la fa il sintetizzatore, che articola
     # invece di schiacciare.
+    #
+    # **Il campo si puo' portare fino a 3,0, il default no.** L'intervallo
+    # dichiarato in `core.schema.LIMITI` e' stato alzato da 2,0 a 3,0 su
+    # richiesta: serve a poter provare il triplo, non a consigliarlo. Il gradino
+    # misurato qui sopra non si e' spostato — a 1,30 la fine della battuta e'
+    # gia' sostituita da audio ripetuto — quindi da 1,25 in su non si compra
+    # velocita', si comprano parole mangiate, e a 3,0 se ne mangia due terzi.
+    # Chi vuole parlato veloce **intero** alza `tts.native_rate_max`, che lo
+    # chiede a chi articola.
     rate_max: float = 1.25
     lead_ms: int = 0  # anticipo/ritardo fisso sull'attacco
     # **Il ritardo che si accetta invece di recuperarlo, in millisecondi.**
@@ -1193,6 +1217,32 @@ class UiConfig:
     enabled: bool = False
     log_dir: str = "runs"
     save_mix: bool = True
+    # **La lingua della finestra, che non e' la lingua del doppiaggio.**
+    # `translate.source` e `translate.target` decidono cosa viene *detto*;
+    # questa decide cosa c'e' *scritto sui bottoni*. Confonderle e' facile e
+    # costa una sessione: si mette `en` qui credendo di aver acceso la
+    # traduzione, e la catena continua a doppiare in italiano.
+    #
+    # `auto` segue la lingua di Windows, e **se per quella lingua non c'e' un
+    # catalogo torna all'italiano** invece di lasciare la finestra a meta'.
+    # I cataloghi stanno in `ui/lingue/*.json`, sono scritti nel repo e si
+    # rifanno con `tools/traduci_ui.py`: chiederli alla rete mentre la finestra
+    # si apre vorrebbe dire una finestra in bianco quando la rete non c'e'.
+    #
+    # Si applica **a caldo**, come il tema: la finestra si ripercorre e i testi
+    # cambiano senza riavviare niente.
+    #
+    # Non si traducono: il registro, la barra della misura e le **spiegazioni
+    # dei parametri**. Quelle vengono dai commenti di questo file, misure
+    # comprese, e passarle a un traduttore automatico e' esattamente il
+    # «riscriverli e perdere le misure» contro cui esiste `core/schema.py`.
+    #
+    # **Il default e' `auto`**, cioe' chi apre il programma lo trova nella lingua
+    # in cui usa il computer, senza sapere che questa manopola esiste. Su una
+    # Windows italiana `auto` **e'** l'italiano, quindi per chi ha scritto il
+    # programma non cambia niente e per tutti gli altri cambia tutto. La scelta
+    # esplicita resta, e il tutorial iniziale la propone come primo passo.
+    lingua: str = "auto"
 
 
 @dataclass
@@ -1365,9 +1415,34 @@ class TranslateConfig:
     # un'altra e va rimisurata invece che ereditata. Ma il default segue la
     # misura, non l'intenzione.
     context_lines: int = 0
+    # **La lingua di partenza**, in codice ISO. L'elenco non sta in questo
+    # commento: sono centotrentatre voci, e un elenco di centotrentatre nomi
+    # dentro un commento non e' una spiegazione, e' una tabella che nessuno
+    # rilegge. Sta in `translate/lingue.py`, e la finestra lo prende da li'
+    # (`ui.qt_controlli.SceltaLingua`) con la casella in cui si digita per
+    # filtrare — perche' con centotrentatre voci un menu liscio non si usa.
+    #
     # `auto` lo capisce solo Google: i modelli offline sono **di** una coppia di
     # lingue, quindi con `locale` un `auto` diventa `en` e viene detto.
     source: str = "auto"
+    # **La lingua di arrivo**, in codice ISO. Il menu che la offre dice la
+    # verita' su due cose che altrimenti restano mute.
+    #
+    # La prima: cosa sa fare il backend scelto. Google le fa tutte;
+    # `locale` (Argos) esiste solo per **coppie** pubblicate, e quella che manca
+    # si scarica ad Avvia; `llm` e `ollama` dipendono dal modello montato. La
+    # forma scelta e' **mostrarle tutte e dichiarare**, non filtrare: filtrare
+    # richiederebbe un elenco chiuso per ogni backend, e per tre su quattro
+    # quell'elenco non esiste — si toglierebbero scelte che funzionano e
+    # passerebbero quelle che non funzionano, con l'aria di sapere. Quindi
+    # `translate.lingue.copertura()` torna un elenco chiuso **solo dove lo e'
+    # davvero** (Google) e altrove torna la frase che dice da cosa dipende.
+    #
+    # La seconda: se il sintetizzatore montato ha una voce per questa lingua.
+    # Non ce l'ha quasi mai — Piper e SuperTonic parlano solo italiano, Kokoro
+    # italiano e inglese — e senza avviso la battuta esce con una voce italiana
+    # che pronuncia il giapponese: nessun errore, nessun contatore, audio che
+    # esce. La regola sta in `speak.pool.ha_voce`, fuori dalla finestra.
     target: str = "it"
     # Oltre questo tempo la traduzione e' comunque usata ma **contata come
     # lenta**: sta sulla strada critica, e se succede spesso quel backend non e'
@@ -1671,6 +1746,32 @@ def _coerce(value: Any, current: Any, path: str) -> Any:
         items = value if isinstance(value, (list, tuple)) else str(value).split(",")
         proto = current[0] if current else 0.0
         return tuple(_coerce(x, proto, path) for x in items)
+    if isinstance(current, dict):
+        # **I due dizionari sono tabelle di personaggi**, e finche' `_coerce` non
+        # li trattava non erano scrivibili da nessuna parte: ne' da `--set`, ne'
+        # dal pannello, che infatti li mostrava spenti con scritto «non
+        # modificabile». Cioe' `label.voices` — «chi ha quale voce, deciso da
+        # te», la cosa che vince su tutto — si poteva dichiarare solo aprendo un
+        # file di profilo a mano.
+        #
+        # La forma testuale e' `Franklin=riccardo, Lamar=paolo`: i nomi dei
+        # personaggi possono avere spazi, quindi si divide sulle virgole e poi
+        # sul **primo** uguale, non su ogni uguale.
+        if isinstance(value, dict):
+            return {str(k): str(v) for k, v in value.items()}
+        fuori: dict[str, str] = {}
+        for pezzo in str(value).split(","):
+            pezzo = pezzo.strip()
+            if not pezzo:
+                continue
+            chiave, sep, val = pezzo.partition("=")
+            if not sep:
+                raise ValueError(
+                    f"{path}: atteso «nome=valore» separato da virgole, "
+                    f"ricevuto {pezzo!r}"
+                )
+            fuori[chiave.strip()] = val.strip()
+        return fuori
     if isinstance(current, str):
         return str(value)
     raise TypeError(f"{path}: tipo non gestito {type(current).__name__}")

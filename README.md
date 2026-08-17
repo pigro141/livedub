@@ -149,7 +149,7 @@ powershell -ExecutionPolicy Bypass -File installa.ps1 -SenzaGpu
 ### Partire
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.ui --profile live
+.\.venv\Scripts\python.exe -m tools.ui_qt --profile live
 ```
 
 Nella finestra: **Scegli finestra** (il gioco) → **Seleziona area** (tira il
@@ -200,6 +200,17 @@ Su un gioco vero non l'ha mai provato nessuno.
 **Non è previsto**: sottotitoli dentro fumetti che seguono il personaggio, o
 posizioni che cambiano da una battuta all'altra.
 
+**E non traduce tutto lo schermo.** Si possono dichiarare più aree — anche
+«mute», lette e tradotte ma non pronunciate, per i cartelli di missione — ma
+ognuna va tirata **stretta attorno al testo**. Il motivo è misurato: il
+controllo che decide se vale la pena rileggere lo schermo guarda la *frazione*
+di pixel cambiati, e lo stesso sottotitolo diluito in un'area grande non la
+supera più. A schermo intero, misurato: 14 fotogrammi guardati, 14 saltati,
+**zero letture**. Sopra 0,30 di altezza il programma lo dice mentre tiri il
+rettangolo. Un traduttore di tutto lo schermo è un altro prodotto: vorrebbe OCR
+multi-riga sul fotogramma intero, contro una catena costruita per **una** riga
+alla volta con la latenza sotto controllo.
+
 ### E GTA VI
 
 Rockstar ha annunciato i sottotitoli e il doppiaggio in poche lingue. livedub è
@@ -243,7 +254,7 @@ latino, cirillico, greco, cinese, giapponese e coreano.
 
 ## Come è fatto, e perché ci si può fidare dei numeri
 
-Non c'è pytest: la suite è un modulo eseguibile, **1416 verifiche**.
+Non c'è pytest: la suite è un modulo eseguibile, **1678 verifiche**.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

@@ -17,12 +17,13 @@ interroga quello **prima** di partire a grep:
 graphify query "<domanda>"
 ```
 
-Costruirlo è caro, interrogarlo no. **È stato aggiornato a fine sessione l'11
+Costruirlo è caro, interrogarlo no. **È stato aggiornato a fine sessione il 17
 agosto**, quindi conosce già tutto quello che è stato scritto fino a qui: il
-front-end Qt, `core/schema.py`, `vision/aree.py`, `core/preferenze.py` (con
-`riprendi`), `core/registro.py`, `core/versione.py`, e i pezzi nuovi della
-cattura — `capture.screen.SoloRoi`, `apri_cattura`, `regione_da_roi`,
-`capture.audio.find_output`, `vision.aree.da_leggere`.
+tema Menta (`ui/qt_tema.py` con `R(h)`, `contrasto`, `delta_e`, `carattere_log`),
+la finestra rifatta (`tools/ui_qt.py`), `tools/scatta.py`, le regole fuori dalle
+finestre (`core.motore.gravita`, `barra_misura`, `Misura`), `SpokenLine.roi` e
+`.muta`, `DubPipeline._mostra`, `SubtitleReader.roi` e
+`vision.aree.troppo_grande`.
 
 Si riaggiorna con `/graphify . --update` **dopo** modifiche grosse, non prima di
 ogni task.
@@ -65,7 +66,8 @@ difetti — le *correzioni* dei difetti, tutte consegnate con la suite verde:
 
 Quattro su cinque stanno nella finestra Qt o al suo confine, che è l'unica parte
 del programma **senza nessuna verifica**. Adesso la parte provabile senza aprire
-Qt sta fuori da Qt (`core.preferenze.riprendi`, `tools.ui.colore_stato`).
+Qt sta fuori da Qt (`core.preferenze.riprendi`, `core.motore.colore_stato`, e
+adesso anche `gravita`, `barra_misura` e tutto `ui/qt_tema.py`).
 
 ## E la catena è stata provata dal vivo, davvero
 
@@ -91,61 +93,114 @@ del banco». Falso tutte e due — confrontavo **tratti diversi della stessa sce
 (una volta il video era perfino finito a metà prova). Allineando i tratti: 31
 battute contro 33, e voce neutra 81% contro 78%.
 
-**Le 16 dichiarate non sono lavoro dimenticato.** Sei si chiudono tutte insieme
-**quando Avvia arriverà nella finestra Qt** (l'indicatore di latenza, l'underrun
-a schermo, il selettore d'area col mouse): un indicatore vivo in una finestra che
-non fa girare la catena non avrebbe niente da mostrare. Le altre sono limiti veri
+**Le 16 dichiarate non sono lavoro dimenticato.** Sei si sono chiuse insieme con
+Avvia nella finestra Qt e con la barra della misura: l'indicatore di latenza,
+l'underrun a schermo e il selettore d'area col mouse ci sono. Le altre sono limiti veri
 — testo scuro su fondo chiaro, sottotitoli in fumetti, lingue non latine, Python
 dello Store — e stanno nel README.
 
 ## Quindi il lavoro di adesso, in ordine
 
-1. **L'HUD pronunciata**, che è l'unico difetto vero lasciato aperto dalla prova
-   dal vivo dell'11 agosto — e aspetta una decisione dell'utente fra due strade,
-   perché una delle due tocca una soglia che vale per tutti i sottotitoli. La
-   misura è già fatta: le letture consecutive di `Sali sul <spazzatura>` si
-   somigliano fra **0,58 e 0,77** e `vision.continue_similarity` vale 0,75, quindi
-   dieci su dodici aprono una battuta nuova invece di continuare quella di prima.
-   L'altra strada è una regola sul **prefisso comune**, che non tocca il caso
-   generale. Da chiedere prima di toccare.
-2. **Portare Avvia nella finestra Qt**, con l'overlay. È il pezzo su cui questo
-   progetto ha trovato i difetti peggiori (il programma che leggeva se stesso, la
-   finestra dimensionata sul testo sbagliato), quindi va portato con le stesse
-   verifiche, non di fretta. Chiude sei domande e rende la finestra Tk
-   cancellabile.
+1. **Provare Menta e le aree dal vivo, col gioco acceso.** È la cosa che manca a
+   tutto il resto: gli screenshot dicono che la finestra è quella del documento,
+   ma non possono dire come sta **accanto a una partita** — se i numeri della
+   barra in fondo distraggono, se l'alone sulla spia serve, se il log senza
+   monospazio si legge ancora a colpo d'occhio. E le tre correzioni sulle aree
+   (§ sotto) sono verificate sul banco e **mai viste a schermo**: una zona muta
+   tirata su un cartello di missione, con `translate.enabled=true`, è la prova.
+
+   ```powershell
+   .\.venv\Scripts\python.exe -m tools.ui_qt --profile live
+   ```
+
+   ⚠ **senza `--no-save`**, se no la sessione non finisce in `runs/` e non si può
+   rileggere con `tools/reopen`. È già successo.
+
+2. **Il carattere del log: una decisione d'occhio, non di codice.** Era
+   monospazio, ora è quello dell'interfaccia con le **cifre tabulari** e i campi
+   separati dai punti (`12.4s · M1 · it_riccardo · 620 ms · testo`). Le colonne
+   rigide sono tornabili in una riga (`tema.carattere_log`), e la domanda è solo
+   se scandirlo mentre si gioca funziona ancora.
+
+3. **L'HUD pronunciata**, l'unico difetto vero lasciato aperto dalla prova dal
+   vivo dell'11 agosto, e aspetta una decisione fra due strade perché una tocca
+   una soglia che vale per tutti i sottotitoli. La misura è già fatta: le letture
+   consecutive di `Sali sul <spazzatura>` si somigliano fra **0,58 e 0,77** e
+   `vision.continue_similarity` vale 0,75, quindi dieci su dodici aprono una
+   battuta nuova invece di continuare quella di prima. L'altra strada è una
+   regola sul **prefisso comune**, che non tocca il caso generale. Da chiedere
+   prima di toccare.
+
+4. **Cancellare la finestra Tk**, quando la Qt avrà fatto una sessione vera senza
+   sorprese. Oggi resta solo per il confronto (`prova.ps1 -Tk`), non è vestita
+   Menta e non è più l'entry point di niente.
+
+## Cosa è successo il 17 agosto
+
+**La finestra è Menta**, costruita da `docs/interfaccia.md`. Il riassunto di cosa
+conta è in `CLAUDE.md`, sezione «La finestra: Menta» — inclusa la sottosezione
+**«Quello che il documento diceva e che a schermo era sbagliato»**, che è la
+parte da leggere prima di toccare l'interfaccia: cinque prescrizioni del disegno
+sono cadute alla prima occhiata dell'utente, e nessuna dava errore.
+
+**E tre difetti sulle aree**, che tenevano ferma una funzione intera: aggiungere
+una zona «solo testo» non faceva niente.
+
+| | cosa | come si è visto |
+|---|---|---|
+| 1 | una sola area **perdeva il rettangolo** e leggeva la vecchia ROI | il lettore era su `(0.15,0.72,...)` invece che sull'area |
+| 2 | le battute mute non erano **tradotte né disegnate** | traduttore finto: 2 sottotitoli aperti, 1 battuta uscita |
+| 3 | un'area grande **non legge** | a schermo intero: 14 fotogrammi, 14 saltati, 0 letture |
+
+Il terzo è un **limite dichiarato**, non un difetto: la frazione di pixel
+cambiati ha l'area al denominatore, quindi `troppo_grande()` lo dice sopra 0,30.
+Tradurre tutto lo schermo è un altro prodotto.
+
+**E la cura del primo si era mangiata trentuno manopole calde** — passava una
+copia di `cfg.vision` a ogni lettore. È la lezione della sessione, ed è già in
+`CLAUDE.md`: *una cura che copia un oggetto condiviso rompe tutto ciò che
+contava sul fatto che fosse condiviso*, e la domanda che la prende è «cosa faceva
+prima che adesso non fa più?».
 
 ## Dove siamo
 
-Suite verde a **1416 verifiche**. `SviluppoProgetto.md`: **16 step su 19**.
+Suite verde a **1678 verifiche**. `SviluppoProgetto.md`: **16 step su 19**.
 
-**La finestra è stata rifatta in Qt** (`tools/ui_qt.py`, PySide6, che è il
-binding ufficiale di The Qt Company ed è LGPL-3, compatibile con la nostra
-GPL-3). Perché si è cambiato motore: in Tkinter gli angoli stondati sono costati
-tre giri di prove a schermo — sostituendo il bordo di un bottone spariva la
-scritta, riscrivendo il layout di un contatore il numero si schiacciava — e in Qt
-sono `border-radius: 8px`.
+**La finestra è quella Qt, ed è vestita Menta.** `tools/ui_qt.py` (PySide6, il
+binding ufficiale di The Qt Company, LGPL-3 e quindi compatibile con la nostra
+GPL-3) è **il prodotto**: è quella che impacchetta `livedub.spec`, quella che
+apre `livedub.bat`, quella che lancia `tools/prova.ps1`. La Tk (`tools/ui.py`)
+resta raggiungibile con `prova.ps1 -Tk` per il confronto, e non verrà vestita.
 
-Cosa c'è nella finestra Qt:
+Il disegno è `docs/interfaccia.md`; i suoi numeri stanno in `ui/qt_tema.py`, che
+è la sua traduzione in codice — **si cerca lì e non si inventa**. Il riassunto di
+cosa conta è in `CLAUDE.md`, sezione «La finestra: Menta».
 
-- quattro schede (Sessione, Tecnologie, Aree, Impostazioni avanzate);
-- **tre livelli di utente** — l'essenziale (10 parametri), le principali (33),
-  tutto (166) — perché 166 manopole uguali sono la risposta giusta a una domanda
-  che quasi nessuno fa;
+Cosa c'è nella finestra:
+
+- i due cicli **fuori da qualunque finestra** (`core/motore.py`), Avvia e Ferma,
+  l'overlay, il selettore d'area col mouse e quello di finestra;
+- **sei schede** (Preparazione, Sessione, Voce, Traduzione, Aree, Tutte le
+  impostazioni) e **tre livelli di utente** — l'essenziale (10 parametri), le
+  principali (33), tutto (166);
 - le impostazioni **generate percorrendo l'albero** (`core/schema.py`), con il
-  `?` che apre il commento di `core/config.py` così com'è scritto, misure
-  comprese;
-- **il tema segue Windows** (chiaro/scuro) e cambia in diretta, con sei colori
-  dei personaggi rifatti per il chiaro;
+  ⓘ che apre il commento di `core/config.py` così com'è scritto, misure comprese;
+- **il tema segue Windows** (chiaro/scuro) e cambia in diretta, con due tavolozze
+  che non sono l'una l'inverso dell'altra;
+- il **pannello dei tre passi** al posto della riga di log che spariva sotto la
+  prima decina di messaggi; la **pillola di stato** col logo che cambia faccia
+  sulla stessa regola; le **marche di gravità** nel margine del log; la
+  **tessera del guasto col bottone dentro**; la **barra della misura** a 2 Hz;
 - la striscia **«Applica ora»** per i parametri che si leggono solo all'avvio;
 - versione (F1), diagnostica negli appunti (Ctrl+L), profili (Ctrl+S / Ctrl+O),
-  geometria ricordata, registro su file, gestore globale delle eccezioni.
+  geometria ricordata, registro su file, dialogo del crash.
 
-**Ma il bottone Avvia non è ancora portato.** I due cicli — audio a 10 ms e video
-a 30 Hz — vivono in `tools/ui.py` intrecciati con l'overlay, che è ancora Tk.
-**Per doppiare dal vivo si usa ancora `python -m tools.ui`**, e la finestra Qt lo
-scrive nel log invece di offrire un bottone che non fa niente. Le due convivono
-di proposito finché la seconda non è pari: riscrivere dentro quella che funziona
-era il modo più rapido di restare senza nessuna delle due.
+**Come si guarda senza aprire il gioco.** Si costruisce la finestra con
+`WA_DontShowOnScreen`, si forza `tema.attuale` alla tavolozza voluta e si chiama
+`grab()`: due temi, sei schede, trenta secondi. **Non con
+`QT_QPA_PLATFORM=offscreen`**, che ha *zero* caratteri installati e restituisce
+una finestra di quadratini — cioè una fotografia che non può mostrare il difetto
+che si sta cercando.
 
 ## Le due decisioni ferme, che aspettano te
 
@@ -165,9 +220,11 @@ battute aperte) e quello lo giudica l'ascolto. Basta una prova con
 ## Come si prova quello che scrivi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                    # 1416 verifiche
-.\.venv\Scripts\python.exe -m tools.ui_qt --profile gtav        # la finestra nuova
-.\.venv\Scripts\python.exe -m tools.ui --profile live           # il dal vivo, ancora Tk
+.\.venv\Scripts\python.exe -m tools.selftest                    # 1678 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest menta menta_regole menta_finestra
+.\.venv\Scripts\python.exe -m tools.selftest area_sola aree_muta area_grande
+.\.venv\Scripts\python.exe -m tools.ui_qt --profile live        # la finestra, dal vivo
+.\.venv\Scripts\python.exe -m tools.scatta runs\menta          # 14 schermate, due temi
 .\.venv\Scripts\python.exe -m tools.bench_memoria --battute 3600
 
 # la catena su una registrazione, senza gioco

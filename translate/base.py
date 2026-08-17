@@ -118,6 +118,14 @@ class Traduzioni:
     n_falliti: int = 0
     n_cache: int = 0
     n_lenti: int = 0
+    # **Chi lo dice a chi sta guardando.** Il ripiego «si tiene l'originale» e'
+    # giusto — una battuta muta e' peggio di una nella lingua sbagliata — ma
+    # taceva: l'errore andava su `stderr`, che dietro una finestra non lo legge
+    # nessuno e dentro un eseguibile non esiste. Nella sessione dell'utente
+    # questo ha voluto dire **zero traduzioni su diciannove battute**, quattro
+    # sessioni di fila, con la finestra che diceva «il tradotto si disegna sopra
+    # il gioco». Un ripiego che non si dichiara e' peggio di un errore.
+    dillo: object = None
 
     def __call__(self, testo: str) -> Traduzione:
         t = (testo or "").strip()
@@ -130,10 +138,12 @@ class Traduzioni:
             return Traduzione(pronta, testo, self.traduttore.name, da_cache=True)
 
         t0 = time.perf_counter()
+        perche = "il backend ha risposto vuoto"
         try:
             fuori = self.traduttore.traduci(t, self.da, self.a)
         except Exception as e:  # pragma: no cover - dipende dalla rete/modello
             print(f"traduzione: {e!r}", file=sys.stderr)
+            perche = str(e).splitlines()[0] if str(e) else repr(e)
             fuori = None
         ms = (time.perf_counter() - t0) * 1000.0
 
@@ -142,6 +152,13 @@ class Traduzioni:
             # difetto; una battuta muta e' un buco, e questo progetto sfora, non
             # scarta.
             self.n_falliti += 1
+            # **Ma lo si dice, una volta.** Al primo fallimento e non a ogni
+            # battuta: se il traduttore non c'e' fallisce sempre, e trenta righe
+            # identiche nel log seppelliscono tutto il resto — che e' un altro
+            # modo di non dirlo.
+            if self.n_falliti == 1 and self.dillo is not None:
+                self.dillo(f"! la traduzione non riesce ({self.traduttore.name}): {perche}"
+                           f" — le battute escono **in lingua originale**")
             return Traduzione(testo, testo, self.traduttore.name, ms=ms)
 
         if ms > self.max_ms:
@@ -154,12 +171,17 @@ class Traduzioni:
         return Traduzione(fuori, testo, self.traduttore.name, ms=ms)
 
 
-def make_traduttore(cfg):
+def make_traduttore(cfg, dillo=None):
     """Il traduttore richiesto. Un nome sconosciuto **solleva**.
 
     E `google` lo dichiara: da quel momento ogni sottotitolo esce dalla macchina,
     e chi accende quella riga deve saperlo dal registro e non dalla
     documentazione.
+
+    `dillo` e' dove finiscono le righe che l'utente deve leggere **prima** che la
+    sessione parta — oggi lo scaricamento del modello offline. Senza, quella riga
+    va su `stderr`, che dietro una finestra non legge nessuno e dentro un
+    eseguibile non esiste: e' la stessa ragione per cui `Traduzioni` ha il suo.
     """
     if not cfg.enabled:
         return NessunTraduttore()
@@ -171,7 +193,14 @@ def make_traduttore(cfg):
     if nome in ("locale", "local", "argos"):
         from translate.locale import TraduttoreLocale
 
-        return TraduttoreLocale(modello=cfg.local_model)
+        tr = TraduttoreLocale(
+            modello=cfg.local_model, da=cfg.source, a=cfg.target, dillo=dillo)
+        # **Il modello si prende adesso, non a meta' battuta.** Costruire e' il
+        # momento in cui l'utente ha appena premuto Avvia e sta guardando il
+        # registro; la prima battuta e' il momento in cui sta giocando.
+        if tr.prepara():
+            tr.scalda()
+        return tr
     if nome == "llm":
         from translate.llm import TraduttoreLlm
 

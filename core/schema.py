@@ -65,6 +65,35 @@ FREDDI: tuple[str, ...] = (
     "translate.model",
     "translate.model_dir",
     "translate.host",
+    # **Tutta la traduzione si decide ad Avvia**, e finora undici campi
+    # dichiaravano il contrario. `Traduzioni(make_traduttore(cfg.translate),
+    # da=…, a=…, max_ms=…)` si costruisce nel costruttore della pipeline: la
+    # coppia di lingue, i tempi, il registro e il modello finiscono **dentro**
+    # quell'oggetto, che non si rilegge piu'. Peggio: con la traduzione spenta
+    # `self.traduci` resta `None`, quindi accenderla a sessione avviata non
+    # faceva assolutamente niente — e la finestra, non mettendoci il marchio
+    # «all'avvio», prometteva che funzionasse. E' il difetto che l'utente ha
+    # descritto come «l'applicazione del traduttore si bugga».
+    #
+    # Freddo non vuol dire «alla partenza del programma»: vuol dire «premi
+    # Avvia». Accendere la traduzione **prima** di avviare funziona, ed e' il
+    # caso normale.
+    "translate.enabled",
+    "translate.source",
+    "translate.target",
+    "translate.timeout_ms",
+    "translate.net_timeout_ms",
+    "translate.preserve_register",
+    "translate.context_lines",
+    "translate.llm_model",
+    "translate.ollama_model",
+    "translate.ollama_host",
+    "translate.local_model",
+    # E la finestra del tradotto si costruisce li' pure. Il suo **aspetto** no:
+    # colore, carattere, blur e modo di coprire si cambiano a sessione accesa
+    # (`OverlayBase.ristila`), e restano caldi perche' adesso e' vero.
+    "translate.overlay",
+    "translate.transparent",
     "correct.backend",
     "correct.model",
     "correct.host",
@@ -97,14 +126,22 @@ class Campo:
     def modificabile(self) -> bool:
         """Se `Config.set` sa scrivere questo tipo.
 
-        **Non tutti i campi sono manopole**, e fingere che lo siano e' peggio
-        che ometterli: `label.colors` e' un dizionario nome->colore e
-        `_coerce` non lo tratta, quindi una casella di testo che lo mostra
-        accetterebbe una modifica che non arriva da nessuna parte. Il pannello
-        lo mostra spento, con scritto perche'. Trovato dal giro di andata e
-        ritorno della verifica, non leggendo il codice.
+        **Non tutti i campi sono manopole**, e fingere che lo siano e' peggio che
+        ometterli: una casella di testo che accetta una modifica che non arriva
+        da nessuna parte e' il difetto contro cui esiste il pannello. Era il caso
+        dei due dizionari (`label.colors`, `label.voices`), che `_coerce` non
+        trattava — trovato dal giro di andata e ritorno della verifica, non
+        leggendo il codice.
+
+        **Adesso li tratta**, ed era il difetto piu' grosso di tutti: quei due
+        *sono* la tabella dei personaggi, cioe' «chi ha quale voce, deciso da
+        te». Restava dichiarabile solo aprendo un file di profilo a mano. Il
+        pannello ci mette una tabella vera (`ui.qt_controlli.Tabella`), non una
+        casella di testo: una voce che non sta nel pool viene **ignorata** dal
+        motore con un messaggio su stderr, cioe' un ripiego silenzioso — e
+        l'unico modo di non poterla scrivere e' non poterla nemmeno digitare.
         """
-        return self.tipo != "dict"
+        return True
 
     @property
     def sommario(self) -> str:
@@ -369,6 +406,9 @@ SENZA_AIUTO_MAX = 50
 
 # Quello che serve per far funzionare il programma, e nient'altro.
 BASE: tuple[str, ...] = (
+    # La lingua della finestra e' l'essenziale degli essenziali: e' l'unica
+    # scelta che si possa fare **prima** di saper leggere le altre.
+    "ui.lingua",
     "vision.roi",
     "vision.exclude_colored",
     "vision.sat_max",
@@ -485,9 +525,40 @@ LIMITI: dict[str, tuple[float, float]] = {
     "tts.samplerate": (8000, 48000),
     # **Il tetto della fretta: sopra 1,5 le consonanti spariscono.** Misurato:
     # l'integrita' cade a 1,10 su SuperTonic e 1,30 su Kokoro.
-    "timing.rate_max": (1.0, 2.0),
+    #
+    # **L'intervallo arriva a 3,0 su richiesta, e non e' la stessa cosa del
+    # default.** Il gradino di WSOLA sta dove stava — la fine della battuta
+    # sopravvive fino a 1,25 e crolla da 1,30 in su — quindi `timing.rate_max`
+    # resta 1,25 e chi lo alza sa cosa compra: sopra il gradino WSOLA non
+    # accelera, **butta via**, e a 3,0 butta via due terzi. Il limite serve a
+    # rendere possibile la prova, non a consigliarla.
+    "timing.rate_max": (1.0, 3.0),
+    # **La velocita' del parlato non aveva un intervallo, quindi restava una
+    # casella di testo** — proprio il campo che la gente vuole toccare per primo.
+    # I capi sono quelli oltre cui non e' piu' parlato: sotto 0,7 e' un disco
+    # rallentato, sopra 1,5 le consonanti spariscono (misurato sul tetto di WSOLA).
+    "tts.speed": (0.7, 1.5),
+    "tts.kokoro_speed": (0.7, 1.5),
+    "tts.gap_seconds": (0.0, 2.0),
+    "translate.overlay_min_s": (0.0, 10.0),
+    "translate.outline": (0.0, 8.0),
+    "translate.context_lines": (0, 8),
+    "vision.hold_frames": (0, 120),
+    "speaker.name_min_score": (0.0, 1.0),
     "timing.rate_min": (0.3, 1.0),
-    "tts.native_rate_max": (1.0, 2.5),
+    # **Fino a 3,0, ma chi consegna quel numero e' uno solo.** Questa e' la
+    # fretta che si **chiede** al motore, e ogni motore la taglia al proprio
+    # tetto di integrita' prima di parlare: SuperTonic a 1,10, Kokoro a 1,30
+    # (`velocita_effettiva` nei due backend), Piper non ha tetto e la esegue
+    # tutta. Il residuo non si perde — cade su WSOLA, che a sua volta si ferma a
+    # `timing.rate_max`. Alzare questo campo da solo non fa quindi correre
+    # SuperTonic e Kokoro: sposta soltanto piu' lavoro sul motore quando il
+    # motore lo sa fare.
+    #
+    # Il tetto duro della catena resta 3,0 anche a monte: `core/pipeline.py`
+    # chiude la richiesta con `min(nativo * gain, 3.0)`, e i due numeri sono lo
+    # stesso numero apposta.
+    "tts.native_rate_max": (1.0, 3.0),
     "timing.accepted_delay_ms": (0, 5000),
     "audio.samplerate": (8000, 192000),
     "audio.blocksize": (32, 4800),

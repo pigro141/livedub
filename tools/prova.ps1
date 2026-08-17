@@ -29,6 +29,7 @@ param(
     [string]$A = 'en',
     [string]$Profilo = 'live',
     [string]$Loopback = 'voicemeeter',
+    [switch]$Tk,                            # la vecchia finestra Tkinter, per confronto
     [switch]$Avvia,                         # non aspetta il tasto: parte da solo
     [switch]$Opaco,                         # niente colore trasparente: finestra normale
     [switch]$Catturabile,                   # l'overlay entra negli screenshot (per fotografarlo)
@@ -82,6 +83,24 @@ Write-Host "  cattura     ok  ($Loopback)"
 # aperta contro i ~630 di TranslateGemma) ed e' l'unico misurato 6 su 6 sul
 # registro volgare — gli altri riscrivono «vaffanculo» in «vattene».
 $modello = 'translategemma:4b'
+# **`locale` va controllato come gli altri.** Senza argostranslate ogni battuta
+# ricade sull'originale: il programma continua a funzionare benissimo, la voce
+# parla, e non si traduce niente. Successo davvero — quattro sessioni di fila,
+# zero traduzioni su diciannove battute.
+if ($Traduci -and $Traduttore -eq 'locale') {
+    # `find_spec` e non `import`: importare stampa il traceback su stderr, e con
+    # `ErrorActionPreference = 'Stop'` PowerShell lo tratta come un guasto suo —
+    # il messaggio utile qui sotto non veniva mai stampato.
+    $ok = & $python -c "import importlib.util as u; print('si' if u.find_spec('argostranslate') else 'no')"
+    if ($ok -ne 'si') {
+        Write-Host "  ! argostranslate non e' installato: ogni battuta resterebbe in italiano" -ForegroundColor Red
+        Write-Host "    si installa con:  .\.venv\Scripts\python.exe -m pip install argostranslate"
+        Write-Host "    poi:              .\.venv\Scripts\python.exe -m translate.locale --scarica $Da $A"
+        Write-Host "    oppure, accettando che i sottotitoli escano dal PC:  -Traduttore google"
+        exit 1
+    }
+    Write-Host "  traduttore  ok  (argos locale, $Da -> $A)"
+}
 if ($Traduci -and $Traduttore -eq 'google') {
     Write-Host "  traduttore  google: **ogni sottotitolo viene inviato ai server di Google**" -ForegroundColor Yellow
     try {
@@ -147,9 +166,16 @@ if ($Traduci) {
 }
 foreach ($s in $Set) { $opzioni += @('--set', $s) }
 
+# La finestra e' quella Qt: e' quella vestita Menta, ed e' quella che ha
+# Avvia, l'overlay, la barra della misura e i tre passi. La Tk resta
+# raggiungibile con -Tk perche' serve a confrontare, non a doppiare.
+$modulo = 'tools.ui_qt'
+if ($Tk) { $modulo = 'tools.ui' }
+
 Write-Host ""
 Write-Host "  motore      $Motore"
 Write-Host "  profilo     $Profilo"
+Write-Host "  finestra    $modulo"
 if ($Opaco) { Write-Host "  overlay     finestra opaca (niente colore trasparente)" }
 if ($Catturabile) { Write-Host "  overlay     catturabile: entra negli screenshot, e l'OCR lo legge" -ForegroundColor Yellow }
 if ($Traduci) {
@@ -170,9 +196,9 @@ Write-Host ""
 
 if ($Prova) {
     Write-Host "prova: non parte niente." -ForegroundColor Yellow
-    Write-Host "  $python -m tools.ui $($opzioni -join ' ')"
+    Write-Host "  $python -m $modulo $($opzioni -join ' ')"
     exit 0
 }
 
 Push-Location $radice
-try { & $python -m tools.ui @opzioni } finally { Pop-Location }
+try { & $python -m $modulo @opzioni } finally { Pop-Location }

@@ -56,10 +56,25 @@ class SubtitleReader(Stage):
         metrics: MetricsRegistry | None = None,
         clock: Clock | None = None,
         tap: Callable[[float, list, bool], None] | None = None,
+        roi: tuple | None = None,
         **kw,
     ) -> None:
         super().__init__("vision.read", metrics=metrics, clock=clock, **kw)
         self.cfg = cfg
+        # **Il rettangolo si passa a parte, la config resta viva.** Con piu' aree
+        # ogni lettore ha il suo rettangolo, ma *tutti* devono continuare a
+        # vedere `cfg.vision` — l'oggetto, non una copia. Trentuno campi di
+        # `vision` sono dichiarati caldi (`exclude_colored`, `sat_max`,
+        # `max_ocr_hz`…) e si cambiano dal pannello a sessione accesa: dando al
+        # lettore una copia, quelle manopole smetterebbero di fare effetto **e
+        # continuerebbero a mostrare il valore nuovo**, che e' il difetto contro
+        # cui esiste tutto quel pannello.
+        #
+        # E' successo qui: la prima stesura della cura al rettangolo perduto
+        # passava `dataclasses.replace(cfg.vision, roi=...)` a tutti, e nel caso
+        # normale — nessuna area dichiarata — congelava la lettura sui valori
+        # dell'avvio. Una cura piu' larga del difetto.
+        self._roi = tuple(roi) if roi is not None else None
         self.ocr = ocr if ocr is not None else NullOcr()
         self.tap = tap
         self.diff = RoiDiff(
@@ -119,6 +134,11 @@ class SubtitleReader(Stage):
         self._n_closed = m.counter("vision.subtitles.closed")
         self._n_gated = m.counter("vision.frames.gated")
 
+    @property
+    def roi(self) -> tuple:
+        """Il rettangolo che questo lettore guarda: il suo, o quello di config."""
+        return self._roi if self._roi is not None else tuple(self.cfg.roi)
+
     def bypass(self, frame=None) -> TrackerOutput:
         return TrackerOutput()
 
@@ -126,7 +146,7 @@ class SubtitleReader(Stage):
         if frame is None:
             return TrackerOutput()
         now = self.clock.now()
-        roi = crop(frame, self.cfg.roi)
+        roi = crop(frame, self.roi)
 
         t0 = time.perf_counter()
         d = self.diff.update(roi)

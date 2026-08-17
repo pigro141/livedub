@@ -149,5 +149,5 @@ if ($mancano.Count -eq 0) {
     foreach ($m in $mancano) { Write-Host "  - $($m.Key): $($m.Value.nota)" -ForegroundColor Yellow }
     Write-Host ""
 }
-Write-Host "  .\.venv\Scripts\python.exe -m tools.ui --profile live" -ForegroundColor White
+Write-Host "  .\.venv\Scripts\python.exe -m tools.ui_qt --profile live" -ForegroundColor White
 Write-Host "  (nella finestra: Scegli finestra -> Seleziona area -> Avvia)`n" -ForegroundColor DarkGray

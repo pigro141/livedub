@@ -156,11 +156,31 @@ def test_schema(c) -> None:
     # Il pannello deve saperlo **prima** di disegnarli: una casella che accetta
     # una modifica che non arriva da nessuna parte e' peggio di un campo assente.
     c.eq(per_nome["label.colors"].tipo, "dict", "un dizionario si dichiara per quello che e'")
-    c.ok(not per_nome["label.colors"].modificabile, "e si sa che non e' una manopola")
-    c.ok(per_nome["vision.roi"].modificabile, "la ROI invece si scrive (quaterna di numeri)")
+    c.ok(per_nome["vision.roi"].modificabile, "la ROI si scrive (quaterna di numeri)")
+
+    # **I due dizionari adesso si scrivono, ed erano la funzione principale.**
+    # Erano gli unici campi spenti nel pannello, con scritto «non modificabile»:
+    # onesto, perche' `_coerce` non li trattava, ma quei due *sono* la tabella
+    # dei personaggi — «chi ha quale voce, deciso da te», che vince su ogni
+    # assegnazione automatica. Restava dichiarabile solo scrivendo un profilo a
+    # mano.
+    #
+    # La verifica che conta e' il giro di andata e ritorno: `modificabile` da'
+    # solo un permesso, e un permesso senza `_coerce` dietro sarebbe di nuovo
+    # una casella che accetta una modifica che non arriva da nessuna parte.
     non_scrivibili = [k.percorso for k in elenco if not k.modificabile]
-    c.eq(non_scrivibili, ["label.colors", "label.voices"],
-         "e oggi sono i due dizionari di `label`")
+    c.eq(non_scrivibili, [], "nessun campo resta senza manopola")
+    prova = Config()
+    prova.set("label.voices", {"Franklin": "riccardo"})
+    c.eq(prova.label.voices, {"Franklin": "riccardo"}, "un dizionario si scrive come dizionario")
+    prova.set("label.voices", "Franklin=riccardo, Lamar Davis=paola")
+    c.eq(prova.label.voices, {"Franklin": "riccardo", "Lamar Davis": "paola"},
+         "e da `--set`, con i nomi che hanno gli spazi dentro")
+    try:
+        prova.set("label.colors", "Franklin")
+        c.ok(False, "una tabella senza `=` deve fermarsi, non indovinare")
+    except ValueError:
+        c.ok(True, "e una riga senza `=` e' un errore, non una chiave a caso")
 
     # -- caldo o freddo: **ogni** campo deve essere classificato ---------------
     # E' la meta' che protegge dal difetto peggiore: cambiare a caldo qualcosa
@@ -295,7 +315,18 @@ def test_limiti(c) -> None:
     # E i limiti fisici, dove il numero non e' un'opinione.
     c.ok(fuori_scala("vision.sat_max", 300), "una saturazione oltre 255 non vuol dire niente")
     c.ok(fuori_scala("mix.duck_db", 10), "un ducking positivo alzerebbe il gioco invece di abbassarlo")
-    c.ok(fuori_scala("timing.rate_max", 3.0), "una fretta al triplo non e' parlato")
+    # **La fretta al triplo adesso si puo' chiedere, e prima no.** L'intervallo
+    # di `timing.rate_max` e' stato portato da 2,0 a 3,0 e quello di
+    # `tts.native_rate_max` da 2,5 a 3,0: il gradino misurato non si e' spostato
+    # — a 1,30 WSOLA sostituisce la fine della battuta — ma il limite serve a
+    # rendere possibile la prova, non a giudicarla. Restano i default, che sono
+    # la misura, e resta un tetto: sopra 3,0 si rifiuta ancora, perche' la
+    # catena chiude comunque la richiesta a `min(nativo * gain, 3.0)` e un campo
+    # che accetta un numero che nessuno puo' consegnare e' un campo che mente.
+    c.ok(not fuori_scala("timing.rate_max", 3.0), "il triplo si puo' chiedere a WSOLA")
+    c.ok(not fuori_scala("tts.native_rate_max", 3.0), "e lo si puo' chiedere al motore")
+    c.ok(fuori_scala("timing.rate_max", 3.5), "oltre il triplo no")
+    c.ok(fuori_scala("tts.native_rate_max", 3.5), "ne' all'uno ne' all'altro")
 
     # **Il messaggio e' per l'utente**: dice cosa fare, non che c'e' stato un no.
     c.ok("fra 0 e 255" in fuori_scala("vision.sat_max", 300), "e dice qual e' l'intervallo")

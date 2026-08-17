@@ -41,10 +41,23 @@ from core.schema import (
     Campo,
     campi,
     fuori_scala,
+    limiti,
     livello,
     visibile_a,
 )
+from ui import lingua
 from ui import qt_tema as tema
+from ui.qt_controlli import (
+    Elidibile,
+    Rettangolo,
+    Tabella,
+    blocca_rotella,
+    collega,
+    leggi,
+    nome_umano,
+    per_campo,
+    scrivi,
+)
 
 
 class Pannello(QWidget):
@@ -58,10 +71,20 @@ class Pannello(QWidget):
         solo: tuple[str, ...] = (),
         cerca: bool = True,
         intestazione: str = "",
+        su_disegna=None,
+        scorre: bool = True,
     ) -> None:
         super().__init__()
+        # Trasparente: il pannello sta dentro la pagina di una scheda, che e'
+        # `superficie`. Un fondo suo ci disegnerebbe sopra un rettangolo del
+        # colore della finestra, e la linguetta scelta smetterebbe di saldarsi.
+        self.setObjectName("gruppo")
         self.cfg = cfg
         self.al_cambio = al_cambio
+        # Chi sa aprire il selettore d'area: il pannello non lo fa da se', e' la
+        # finestra ad avere lo schermo. Senza, `vision.roi` tornerebbe un campo
+        # di testo con dentro quattro frazioni.
+        self.su_disegna = su_disegna
         self.solo = tuple(solo)
         self._campi: dict[str, Campo] = {}
         self._widget: dict[str, QWidget] = {}
@@ -91,39 +114,70 @@ class Pannello(QWidget):
             # vuole sentire il doppiaggio, non tarare `merge_similarity`.
             # Mostrarle tutte allo stesso modo non e' neutrale, e' scegliere
             # l'ultimo dei tre utenti e far pagare agli altri due.
-            barra.addWidget(QLabel("mostra"))
+            # **Senza l'etichetta «mostra».** Le tre voci si leggono da sole
+            # («l'essenziale», «le principali», «tutto») e quella parola costava
+            # novanta pixel su una riga che al minimo della finestra sforava:
+            # un'etichetta che ripete cio' che il controllo dice gia' e' la prima
+            # cosa da togliere quando lo spazio finisce.
             self.v_livello = QComboBox()
-            self.v_livello.addItems(["l'essenziale", "le principali", "tutto"])
+            self.v_livello.addItems(["mostra l'essenziale", "mostra le principali",
+                                     "mostra tutto"])
             self.v_livello.setToolTip(
                 "l'essenziale: le dieci che servono per far funzionare il programma\n"
                 "le principali: piu' lettura, chi parla e tempi\n"
                 "tutto: tutti i parametri, compresi quelli di taratura"
             )
             self.v_livello.currentIndexChanged.connect(self._filtra)
-            self.v_livello.setFixedWidth(140)
+            # 140 era la misura di «l'essenziale»; con «mostra» dentro le voci
+            # l'ultima parola finiva sotto la freccia. Il numero viene dal testo,
+            # non da un'occhiata: e' la voce piu' lunga piu' la freccia.
+            self.v_livello.setFixedWidth(
+                self.v_livello.fontMetrics().horizontalAdvance('mostra le principali')
+                + 2 * tema.S3 + 22)
             barra.addWidget(self.v_livello)
             self.solo_caldi = QCheckBox("solo a caldo")
             self.solo_caldi.setToolTip("Nascondi i parametri che si leggono solo all'avvio")
             self.solo_caldi.toggled.connect(self._filtra)
             barra.addWidget(self.solo_caldi)
-            azzera = QPushButton("Riporta ai default")
+            # **Il testo dipende da cosa tocca davvero**, e la condizione era
+            # sbagliata: `solo is None` non e' mai vero (il default e' `()`),
+            # quindi il pannello che mostra *tutti* i campi si offriva di
+            # riportare ai default «questa scheda». Adesso il caso pieno lo dice.
+            azzera = QPushButton(
+                "Riporta tutto ai default" if not solo else "Default di questa scheda")
+            azzera.setToolTip(
+                "Rimette i valori di fabbrica dei campi mostrati qui, non di tutta "
+                "la configurazione.")
             azzera.clicked.connect(self.ripristina)
             barra.addWidget(azzera)
             fuori.addLayout(barra)
 
         self.stato = QLabel("")
         self.stato.setObjectName("tenue")
+        # Riga viva: «12 parametri mostrati, 154 nascosti», oppure il valore
+        # rifiutato con dentro il numero che c'e' in config. Sono f-string, non
+        # chiavi: metterle nel catalogo vorrebbe dire una chiave nuova a ogni
+        # conteggio diverso — un catalogo che cresce e non traduce mai niente.
+        self.stato.setProperty(lingua.MARCHIO, True)
         fuori.addWidget(self.stato)
 
-        area = QScrollArea()
-        area.setWidgetResizable(True)
+        # **Un'area che scorre dentro una che scorre gia' e' un difetto.** Due
+        # barre di scorrimento annidate: la rotellina ne muove una sola — quale,
+        # dipende da dove sta il puntatore — e meta' della pagina sembra bloccata.
+        # Chi mette il pannello dentro una pagina che scorre gia' lo dice, e qui
+        # il corpo va dritto nel layout.
         dentro = QWidget()
         dentro.setObjectName("pannello")
         self.corpo = QVBoxLayout(dentro)
         self.corpo.setContentsMargins(tema.S4, tema.S3, tema.S4, tema.S4)
         self.corpo.setSpacing(1)
-        area.setWidget(dentro)
-        fuori.addWidget(area, 1)
+        if scorre:
+            area = QScrollArea()
+            area.setWidgetResizable(True)
+            area.setWidget(dentro)
+            fuori.addWidget(area, 1)
+        else:
+            fuori.addWidget(dentro, 1)
 
         self._costruisci()
         self.corpo.addStretch(1)
@@ -152,14 +206,33 @@ class Pannello(QWidget):
         L.setContentsMargins(tema.S2, tema.S1, tema.S2, tema.S1)
         L.setSpacing(tema.S3)
 
-        nome = QLabel(campo.nome)
-        nome.setObjectName("nomeCampo")
-        nome.setFixedWidth(216)
+        etichetta = nome_umano(campo.percorso, campo.nome)
+        nome = QLabel(etichetta)
+        # Il nome umano si legge come una frase; l'identificatore resta in
+        # monospazio, perche' e' un nome di codice e chi lo cerca lo cerca cosi'.
+        nome.setObjectName("nomeCampo" if etichetta == campo.nome else "etichettaCampo")
+        # **Larghezza preferita, non fissa.** Con `setFixedWidth` la riga aveva un
+        # minimo di 248 + 300 + i marchi + la spiegazione, cioe' piu' della
+        # finestra al suo minimo: le tre schede di parametri **sforavano**, e
+        # «all'avvio» finiva sopra il bottone ⓘ. Con un minimo piu' basso la
+        # colonna resta allineata quando c'e' spazio e cede quando non ce n'e'.
+        nome.setMinimumWidth(150)
+        nome.setMaximumWidth(248)
+        nome.setWordWrap(True)
         nome.setToolTip(campo.percorso)
         L.addWidget(nome)
 
         w = self._manopola(campo)
-        w.setFixedWidth(196)
+        # **Una colonna fissa allinea le manopole, ma una tabella non e' una
+        # manopola.** 300 px tengono un cursore, un elenco o un colore; una riga
+        # di tabella e' nome + valore + il bottone per toglierla, e a 300 px i
+        # tre pezzi si schiacciano l'uno sull'altro. Le tabelle prendono lo
+        # spazio che resta, le altre restano in colonna.
+        if isinstance(w, Tabella):
+            w.setMinimumWidth(300)
+        else:
+            w.setMinimumWidth(200)
+            w.setMaximumWidth(300)
         # **Il nome accessibile e' il percorso del campo, non «casella».** Uno
         # screen reader legge il nome, e trenta caselle di spunta chiamate tutte
         # allo stesso modo non sono navigabili: e' l'unica cosa che le distingue.
@@ -180,7 +253,8 @@ class Pannello(QWidget):
             G.setContentsMargins(0, 0, 0, 0)
             G.addWidget(w)
             G.addStretch(1)
-            guscio.setFixedWidth(196)
+            guscio.setMinimumWidth(200)
+            guscio.setMaximumWidth(300)
             L.addWidget(guscio)
         else:
             L.addWidget(w)
@@ -208,10 +282,31 @@ class Pannello(QWidget):
         aiuto.clicked.connect(lambda _=False, c=campo: self.spiega(c))
         L.addWidget(aiuto)
 
-        if campo.sommario:
-            desc = QLabel(_una_riga(campo.sommario))
+        sommario = campo.sommario
+        # **La spiegazione non ripete la manopola.** Dove il commento e' l'elenco
+        # dei valori (`piper | supertonic | kokoro`), quello adesso e' il menu a
+        # tendina: scriverlo anche accanto e' rumore, e rumore proprio nella
+        # colonna che dovrebbe dire la cosa che il menu non dice.
+        if campo.scelte and sommario.replace("`", "").strip().startswith(campo.scelte[0]):
+            sommario = sommario.partition(".")[2].strip()
+        if sommario:
+            desc = Elidibile(_una_riga(sommario))
             desc.setObjectName("tenue")
-            L.addWidget(desc, 1)
+            desc.setToolTip(_una_riga(sommario, 400))
+            # **Questa riga non si traduce, e sta scritto perche'.** Viene dal
+            # commento di `core/config.py` cosi' com'e', tabella di misure
+            # compresa, e `core/schema.py` esiste apposta per non riscriverla:
+            # riscriverla vorrebbe dire perdere le misure e inventare rischi al
+            # loro posto. Un traduttore automatico farebbe quello, su
+            # centosessantasei campi per lingua.
+            desc.setProperty(lingua.MARCHIO, True)
+            # **In seconda posizione, non in fondo.** I marchi e il ⓘ sono gia'
+            # nel layout: aggiungendo la spiegazione dopo di loro finirebbe in
+            # coda alla riga, e sarebbero i marchi a stringersi per primi — cioe'
+            # «all'avvio» sopra il bottone. Cosi' invece cede la spiegazione, che
+            # e' l'unica cosa qui che si puo' accorciare senza perdere niente:
+            # per esteso sta nel suggerimento e nella finestra del ⓘ.
+            L.insertWidget(2, desc, 1)
         else:
             L.addStretch(1)
 
@@ -219,38 +314,27 @@ class Pannello(QWidget):
         return riga
 
     def _manopola(self, campo: Campo) -> QWidget:
-        if not campo.modificabile:
-            w = QLineEdit(_testo(campo.valore))
-            w.setEnabled(False)
-            return w
-        if campo.tipo == "bool":
-            w = QCheckBox()
-            w.setChecked(bool(campo.valore))
-            w.toggled.connect(lambda _=False, c=campo: self.applica(c))
-            return w
-        if campo.scelte:
-            w = QComboBox()
-            w.addItems(list(campo.scelte))
-            w.setCurrentText(str(campo.valore))
-            w.currentTextChanged.connect(lambda _="", c=campo: self.applica(c))
-            return w
-        w = QLineEdit(_testo(campo.valore))
-        # Si applica quando si e' finito di scrivere: a ogni tasto vorrebbe dire
-        # applicare `1` mentre si sta digitando `12`.
-        w.editingFinished.connect(lambda c=campo: self.applica(c))
-        return w
+        """Il controllo, scelto da `ui.qt_controlli` guardando **cosa vuol dire**
+        il campo e non di che tipo Python sia.
+
+        Qui resta solo l'aggancio: il valore si scrive quando la manopola dice di
+        essere cambiata, e la rotellina non deve poter cambiare niente
+        attraversando la pagina.
+        """
+        w = per_campo(campo, limiti=limiti, cfg=self.cfg)
+        scrivi(w, campo.valore)
+        if campo.modificabile:
+            collega(w, lambda c=campo: self.applica(c))
+        if isinstance(w, Rettangolo) and self.su_disegna is not None:
+            w.disegna.connect(self.su_disegna)
+        return blocca_rotella(w)
 
     # -- applicare ---------------------------------------------------------
 
     def applica(self, campo: Campo) -> None:
         """Scrive in config e **rilegge quello che c'e' davvero**."""
         w = self._widget[campo.percorso]
-        if isinstance(w, QCheckBox):
-            grezzo: Any = w.isChecked()
-        elif isinstance(w, QComboBox):
-            grezzo = w.currentText()
-        else:
-            grezzo = w.text()
+        grezzo: Any = leggi(w)
         # **Fuori scala si rifiuta e si dice, non si corregge di nascosto.**
         # `Config.set` controlla il tipo e non il senso: `capture.fps = -5` passa
         # e ferma la cattura, `decide_after_ms = 99999` passa e rende il
@@ -285,16 +369,7 @@ class Pannello(QWidget):
             self.al_cambio(campo, vero)
 
     def _rileggi(self, campo: Campo) -> None:
-        w = self._widget[campo.percorso]
-        vero = self.cfg.get(campo.percorso)
-        w.blockSignals(True)
-        if isinstance(w, QCheckBox):
-            w.setChecked(bool(vero))
-        elif isinstance(w, QComboBox):
-            w.setCurrentText(str(vero))
-        else:
-            w.setText(_testo(vero))
-        w.blockSignals(False)
+        scrivi(self._widget[campo.percorso], self.cfg.get(campo.percorso))
 
     def aggiorna(self) -> None:
         """Rilegge tutti i campi: due viste della stessa config non devono divergere."""
@@ -302,6 +377,20 @@ class Pannello(QWidget):
             self._rileggi(campo)
 
     def ripristina(self) -> None:
+        """Riporta ai default **i campi di questo pannello**, e lo dice.
+
+        Due cose che non erano vere prima. La prima: il bottone sta in un
+        pannello che spesso e' filtrato (`solo=`), quindi tocca i campi di
+        *quella* scheda e non tutta la configurazione — scritto sul bottone,
+        perche' «Riporta ai default» in una scheda intitolata Voce si legge come
+        «riporta tutto».
+
+        La seconda: cambiava la config senza avvisare nessuno. Le altre schede
+        continuavano a mostrare i valori di prima, e la sessione accesa non
+        veniva informata che un campo freddo era tornato indietro. Ogni campo
+        toccato ora passa da `al_cambio`, cioe' dalla stessa porta di una
+        modifica fatta a mano — che e' quello che e'.
+        """
         n = 0
         for campo, _ in self._righe:
             if not campo.modificabile:
@@ -309,6 +398,8 @@ class Pannello(QWidget):
             if self.cfg.get(campo.percorso) != campo.default:
                 self.cfg.set(campo.percorso, campo.default)
                 n += 1
+                if self.al_cambio is not None:
+                    self.al_cambio(campo, campo.default)
         self.aggiorna()
         self._dillo(f"riportati ai default {n} campi")
 
@@ -325,15 +416,19 @@ class Pannello(QWidget):
         testata = QWidget()
         testata.setObjectName("testata")
         T = QVBoxLayout(testata)
-        T.setContentsMargins(18, 14, 18, 12)
+        T.setContentsMargins(tema.S5, tema.S4, tema.S5, tema.S3)
         alto = QHBoxLayout()
         nome = QLabel(campo.percorso)
-        nome.setStyleSheet(f'font-family: "{tema.MONO}"; font-size: 13pt; font-weight: 600;')
+        nome.setStyleSheet(f'font-family: "{tema.MONO}", "{tema.MONO_RIPIEGO}"; '
+                           f'font-size: {tema.C_STATO}pt; font-weight: 600;')
         alto.addWidget(nome)
         alto.addStretch(1)
         t = tema.attuale(QApplication.instance())
         quando = QLabel("si applica subito" if campo.caldo else "si legge solo all’avvio")
-        quando.setStyleSheet(f"color: {t.verde if campo.caldo else t.ambra};")
+        # `accento` e non un verde suo: in Menta c'e' un colore acceso solo, e
+        # vuol dire interazione e vita. Ambra e rosso non sono colori
+        # d'interfaccia, sono **stati**, e compaiono solo dove c'e' uno stato.
+        quando.setStyleSheet(f"color: {t.accento if campo.caldo else t.ambra};")
         alto.addWidget(quando)
         T.addLayout(alto)
         dati = QLabel(
@@ -346,6 +441,9 @@ class Pannello(QWidget):
 
         corpo = QTextEdit()
         corpo.setReadOnly(True)
+        # Stessa ragione della riga di spiegazione: qui c'e' il commento intero,
+        # con dentro le tabelle delle misure.
+        corpo.setProperty(lingua.MARCHIO, True)
         corpo.setPlainText(
             campo.aiuto
             or "Questo campo non ha ancora una spiegazione scritta in core/config.py.\n\n"
@@ -355,7 +453,7 @@ class Pannello(QWidget):
         L.addWidget(corpo, 1)
 
         piede = QHBoxLayout()
-        piede.setContentsMargins(18, 10, 18, 14)
+        piede.setContentsMargins(tema.S5, tema.S3, tema.S5, tema.S4)
         piede.addStretch(1)
         chiudi = QPushButton("Chiudi")
         chiudi.clicked.connect(d.accept)

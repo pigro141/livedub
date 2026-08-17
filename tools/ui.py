@@ -31,21 +31,20 @@ from __future__ import annotations
 import argparse
 import queue
 import sys
-import threading
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from capture.audio import Loopback, Player, find_loopback, find_output, list_devices  # noqa: E402
-from capture.screen import apri_cattura, make_screen  # noqa: E402
-from core.clock import RealClock, set_clock  # noqa: E402
 from core.config import Config, load_profile  # noqa: E402
-from core.pipeline import DubPipeline  # noqa: E402
-from tools.live import costruisci_tts  # noqa: E402
-from tools.session import Session  # noqa: E402
-from ui.overlay import inchiostro, inchiostro_da_box, ritaglia  # noqa: E402
-from vision.aree import da_leggere  # noqa: E402
+from core.motore import (  # noqa: E402  (`colore_stato` si rilegge da qui: la regola sta col motore)
+    STATO_GUASTO,
+    Motore,
+    Opzioni,
+    colore_stato,
+    in_coda,
+    righe_guasto_audio,
+)
 
 
 class SelettoreArea:
@@ -171,23 +170,6 @@ class SelettoreFinestra:
         self.al_termine(f)
 
 
-def colore_stato(testo: str, tema) -> str:
-    """Di che colore va il pallino, dato quello che c'e' scritto accanto.
-
-    **Sta fuori dalla finestra perche' e' una regola, non un disegno**, e una
-    regola si verifica senza aprire niente. E' servito: «audio interrotto»
-    veniva **verde** — il colore del «va tutto bene» sopra una catena morta —
-    perche' non contiene ne' `!` ne' «guasto», e nessuno poteva accorgersene
-    senza staccare le cuffie a meta' sessione.
-    """
-    basso = testo.lower()
-    if "!" in testo or "error" in basso or "guast" in basso or "interrott" in basso:
-        return tema.ROSSO
-    if "ferm" in basso or "pront" in basso:
-        return tema.TESTO_FIOCO
-    return tema.VERDE
-
-
 class App:
     # **Ogni quanto la finestra guarda la coda, in millisecondi.** Erano 100, poi
     # 33 per allinearsi alla cattura. Ma questo passo e' un **ritardo aggiunto**:
@@ -213,13 +195,12 @@ class App:
         if args.tts:
             self.cfg.tts.backend = args.tts
         self.coda: queue.Queue = queue.Queue()
-        self.stop = threading.Event()
-        self.threads: list[threading.Thread] = []
-        self.pipeline: DubPipeline | None = None
-        # La finestra scelta. `None` = tutto lo schermo, che e' il vecchio modo
-        # e resta possibile: su un gioco in fullscreen esclusivo e' l'unico.
-        self.finestra = None
-        self.sessione: Session | None = None
+        # **I due cicli non stanno piu' qui.** Vivono in `core/motore.py`, che
+        # non sa cosa sia una finestra: da quando i front-end sono due, tenerli
+        # dentro Tkinter voleva dire copiarli — e una strada parallela che non
+        # eredita le cure dell'altra e' un difetto gia' pagato due volte in
+        # questo progetto.
+        self.motore = Motore(self.cfg, Opzioni.da_args(args), in_coda(self.coda))
 
         self.root = tk.Tk()
         self.root.title("livedub")
@@ -229,30 +210,11 @@ class App:
         # ROI. Solo se si traduce **e** l'overlay e' acceso — coprire il
         # sottotitolo originale con la sua stessa traduzione mancante non
         # servirebbe a niente.
-        self.overlay = None
-        self._overlay_fino_a = 0.0
-        if self.cfg.translate.enabled and self.cfg.translate.overlay:
-            from ui.overlay import Overlay
-
-            self.overlay = Overlay(
-                self.root, self.cfg.vision.roi,
-                colore=self.cfg.translate.color,
-                fondo=self.cfg.translate.background,
-                font=self.cfg.translate.font,
-                font_frac=self.cfg.translate.font_frac,
-                opacita=self.cfg.translate.background_opacity,
-                contorno=self.cfg.translate.outline,
-                # **Due campi che nessuno leggeva.** `background_mode` e
-                # `blur_strength` valevano solo per l'MP4: dal vivo l'overlay
-                # sfocava sempre, qualunque cosa dicesse la config. E' lo stesso
-                # difetto di `max_ocr_hz` e di `tts.device`, un campo dichiarato
-                # e mai letto — che qui vuol dire una prova fatta con una
-                # configurazione diversa da quella che si crede.
-                modo=self.cfg.translate.background_mode,
-                blur=self.cfg.translate.blur_strength,
-                trasparente=self.cfg.translate.transparent,
-                escludi_cattura=not getattr(args, "overlay_catturabile", False),
-            )
+        # **Non si costruisce qui.** Si costruisce quando parte la catena, con
+        # la configurazione di allora: accendendo la traduzione dalle
+        # impostazioni — cioe' il modo dichiarato di accenderla — questo blocco
+        # aveva gia' deciso di no, e la catena traduceva senza che nessuno
+        # disegnasse. Si veda `Motore.prepara_overlay`.
 
         # **La testata.** Nome, stato e cosa si sta guardando, sempre visibili.
         # Il pallino colorato dice se sta girando prima di qualunque parola: la
@@ -379,13 +341,6 @@ class App:
             self.log.tag_config(f"s{i}", foreground=c)
         self.log.tag_config("nota", foreground=tema.TESTO_TENUE)
         self.noti: dict[str, int] = {}
-        # Quanto vecchio e' il ritaglio quando finisce a schermo. Senza questo
-        # numero il ritardo del blur si poteva solo guardare, e guardandolo si
-        # discute; misurandolo si corregge.
-        from core.metrics import MetricsRegistry
-
-        self._metriche = MetricsRegistry()
-        self._t_ritardo = self._metriche.timer("overlay.ritardo")
 
         self.root.protocol("WM_DELETE_WINDOW", self.chiudi)
         self.root.after(self.PASSO_UI, self._svuota_coda)
@@ -426,7 +381,7 @@ class App:
         ).pack(fill="x", padx=12, pady=(12, 0))
         self.p_tecnologie = Pannello(
             tecnologie, self.cfg, al_cambio=self._campo_cambiato,
-            sessione_accesa=lambda: self.pipeline is not None,
+            sessione_accesa=lambda: self.motore.pipeline is not None,
             solo=self.TECNOLOGIE, cerca=False,
         )
         self.p_tecnologie.pack(fill="both", expand=True)
@@ -437,7 +392,7 @@ class App:
         self.schede.add(avanzate, text="Impostazioni avanzate")
         self.p_avanzate = Pannello(
             avanzate, self.cfg, al_cambio=self._campo_cambiato,
-            sessione_accesa=lambda: self.pipeline is not None,
+            sessione_accesa=lambda: self.motore.pipeline is not None,
         )
         self.p_avanzate.pack(fill="both", expand=True)
 
@@ -470,7 +425,7 @@ class App:
         self._mostra_attesa()
 
     def _mostra_attesa(self) -> None:
-        if not self._in_attesa or self.pipeline is None:
+        if not self._in_attesa or self.motore.pipeline is None:
             self.striscia.pack_forget()
             return
         quante = len(self._in_attesa)
@@ -495,7 +450,7 @@ class App:
         fin qui ripartono da quello che il file `cast.json` ha salvato. Non e' un
         cambio a caldo travestito: e' un riavvio, fatto per te, in un clic.
         """
-        if self.pipeline is None:
+        if self.motore.pipeline is None:
             self._in_attesa.clear()
             self._mostra_attesa()
             return
@@ -644,7 +599,7 @@ class App:
             self.scrivi(f"{campo.percorso} = {valore}")
         else:
             self.scrivi(f"{campo.percorso} = {valore}   (si legge solo all'avvio)")
-            if self.pipeline is not None:
+            if self.motore.pipeline is not None:
                 self._segna_in_attesa(campo.percorso)
 
     # -- ROI ---------------------------------------------------------------
@@ -708,7 +663,7 @@ class App:
     def _applica_finestra(self, finestra) -> None:
         from capture.finestre import rettangolo_client
 
-        self.finestra = finestra
+        self.motore.finestra = finestra
         if finestra is None:
             self.scrivi("cattura: tutto lo schermo", tag="nota")
             if self.overlay is not None:
@@ -727,25 +682,8 @@ class App:
                 self.overlay.esclusione(False)
         self.l_roi.config(text=self._testo_roi())
         self._riallinea_pannelli()
-        if self.pipeline is not None:
+        if self.motore.pipeline is not None:
             self.scrivi("(vale dalla prossima partenza)", tag="nota")
-
-    def _segui_finestra(self) -> None:
-        """Il gioco si sposta, e il sottotitolo deve seguirlo.
-
-        Una finestra spostata senza che l'overlay la segua e' un sottotitolo
-        tradotto in mezzo al desktop. Costa una chiamata a Windows, e si fa
-        insieme allo svuotamento della coda invece che a ogni fotogramma.
-        """
-        if self.finestra is None or self.overlay is None:
-            return
-        from capture.finestre import rettangolo_client, viva
-
-        if not viva(self.finestra.hwnd):
-            return
-        r = rettangolo_client(self.finestra.hwnd)
-        if r and r != self.overlay.ancora:
-            self.overlay.aggancia(r)
 
     def scegli_area(self) -> None:
         SelettoreArea(self.root, self._applica_roi)
@@ -757,7 +695,7 @@ class App:
         # conversione l'area finirebbe sulla stessa frazione di *schermo* invece
         # che sulla stessa frazione di *finestra*: cioe' quasi sempre altrove, e
         # sarebbe la prima cosa che si rompe usando il programma come si deve.
-        if self.finestra is not None:
+        if self.motore.finestra is not None:
             from capture.finestre import rettangolo_client
 
             r = rettangolo_client(self.finestra.hwnd)
@@ -797,7 +735,7 @@ class App:
         if self.overlay is not None:
             self.overlay.riposiziona(roi)
         self.scrivi(f"area impostata: {self._testo_roi()}", tag="nota")
-        if self.pipeline is not None:
+        if self.motore.pipeline is not None:
             self.scrivi("(vale dalla prossima partenza)", tag="nota")
 
     # -- log ---------------------------------------------------------------
@@ -848,18 +786,18 @@ class App:
                             self.overlay.mostra(testo, pezzo, bande, rett, tinta,
                                                 originale)
                             self.overlay.t_on = t_on
-                            if not (self.pipeline is None
-                                    or self.pipeline.a_schermo(t_on)):
+                            if not (self.motore.pipeline is None
+                                    or self.motore.pipeline.a_schermo(t_on)):
                                 fine = max(fine, time.perf_counter()
                                            + self.cfg.translate.overlay_min_s)
-                            self._overlay_fino_a = fine
+                            self.motore.overlay_fino_a = fine
                         # **La riga che divide in due il problema.** Se qui c'e'
                         # scritto un riquadro e a schermo non si vede niente, il
                         # difetto e' di Windows (finestra) e non nostro
                         # (traduzione, OCR, geometria). Senza, le due ipotesi si
                         # confondono e si cerca per ore dalla parte sbagliata.
                         self.scrivi(
-                            f"overlay  {self.overlay.top.geometry()}  "
+                            f"overlay  {self.overlay.geometria()}  "
                             f"{'visibile' if self.overlay._visibile else 'NASCOSTO'}",
                             tag="nota",
                         )
@@ -871,6 +809,11 @@ class App:
                     self.stato(dato)
                 elif tipo == "guasto":
                     self._audio_guasto(dato)
+                elif tipo == "finito":
+                    # I bottoni li rimette a posto **il thread della finestra**:
+                    # il motore si spegne anche da solo (avvio fallito, device
+                    # sparito) e da li' non si tocca Tk.
+                    self._fine_thread()
                 elif tipo == "nota":
                     self.scrivi(dato, tag="nota")
         except queue.Empty:
@@ -878,10 +821,10 @@ class App:
         if ultimo_ritaglio is not None and self.overlay is not None:
             pezzo, quando = ultimo_ritaglio
             self.overlay.aggiorna(pezzo)
-            self._t_ritardo.add((time.perf_counter() - quando) * 1000.0)
+            self.motore.ritardo((time.perf_counter() - quando) * 1000.0)
         # **Il sottotitolo tradotto sparisce da solo.** Una banda perenne in
         # mezzo allo schermo e' peggio dell'originale che copriva.
-        self._segui_finestra()
+        self.motore.segui_finestra()
         # **Anche qui si aspetta il conto dei giri vuoti.** Questa riga spegneva
         # sul solo orologio, quindi scavalcava l'isteresi del ciclo video e la
         # rendeva inutile: il tradotto spariva lo stesso al primo buco di
@@ -889,8 +832,8 @@ class App:
         # ciclo video si sia fermato — li' i giri vuoti non arrivano piu', e una
         # finestra che non si spegne resta in mezzo allo schermo.
         if self.overlay is not None and self.overlay._visibile:
-            scaduto = time.perf_counter() >= self._overlay_fino_a
-            fermo = time.perf_counter() >= self._overlay_fino_a + 2.0
+            scaduto = time.perf_counter() >= self.motore.overlay_fino_a
+            fermo = time.perf_counter() >= self.motore.overlay_fino_a + 2.0
             if fermo or (scaduto and self.overlay._vuoti
                          >= self.cfg.translate.overlay_hold_frames):
                 self.overlay.nascondi()
@@ -898,310 +841,56 @@ class App:
 
     # -- avvio e arresto ---------------------------------------------------
 
+    @property
+    def overlay(self):
+        """**Uno solo, e ce l'ha il motore.** Tenerne una copia qui vorrebbe dire
+        che a un certo punto le due divergono, ed e' gia' successo.
+        """
+        return self.motore.overlay
+
+    def _nuovo_overlay(self):
+        """Una finestra senza bordi sopra il gioco, con la config di **adesso**.
+
+        `background_mode` e `blur_strength` si leggono qui e non altrove: erano
+        due campi che valevano solo per l'MP4 — dal vivo l'overlay sfocava
+        sempre, qualunque cosa dicesse la config.
+        """
+        from ui.overlay import Overlay
+
+        return Overlay(
+            self.root, self.cfg.vision.roi,
+            colore=self.cfg.translate.color,
+            fondo=self.cfg.translate.background,
+            font=self.cfg.translate.font,
+            font_frac=self.cfg.translate.font_frac,
+            opacita=self.cfg.translate.background_opacity,
+            contorno=self.cfg.translate.outline,
+            modo=self.cfg.translate.background_mode,
+            blur=self.cfg.translate.blur_strength,
+            trasparente=self.cfg.translate.transparent,
+            escludi_cattura=not getattr(self.args, "overlay_catturabile", False),
+        )
+
     def avvia(self) -> None:
-        if self.threads:
+        if self.motore.acceso:
             return
-        self.stop.clear()
+        # **L'overlay si costruisce adesso, con la configurazione di adesso**, e
+        # si dice a chiare lettere se c'e' o no: una traduzione che esce e non si
+        # vede e' un difetto che non lascia tracce da nessuna parte.
+        self.motore.prepara_overlay(self._nuovo_overlay)
+        if self.cfg.translate.enabled:
+            self.scrivi(
+                f"traduzione {self.cfg.translate.source}→{self.cfg.translate.target} "
+                f"con {self.cfg.translate.backend}: "
+                + ("il tradotto si disegna sopra il gioco" if self.overlay is not None
+                   else "! solo voce, niente a schermo (translate.overlay e' spento)"),
+                tag="nota",
+            )
         self.b_start.config(state="disabled")
         self.b_stop.config(state="normal")
         self.b_area.config(state="disabled")
         self.b_finestra.config(state="disabled")
-        threading.Thread(target=self._prepara, daemon=True).start()
-
-    def _prepara(self) -> None:
-        try:
-            set_clock(RealClock())
-            loops, default = list_devices()
-            entrata = find_loopback(self.args.loopback)
-            uscita = default
-            if self.args.output:
-                # **Fra le uscite, non fra i loopback**: quelli hanno zero canali
-                # di uscita, quindi il nome giusto dava `OSError -9998` e il nome
-                # sbagliato dava la predefinita **in silenzio**, cioe' il
-                # doppiaggio che suona da un'altra parte senza dirlo.
-                uscita = find_output(self.args.output)
-            if entrata.index == uscita.index:
-                self.coda.put(("nota", "! cattura e uscita sono lo stesso device: rientrerebbe"))
-                self._fine_thread()
-                return
-            sr = 48000
-            self.coda.put(("nota", f"carico {self.cfg.tts.backend}..."))
-            tts = costruisci_tts(self.cfg.tts.backend, self.cfg)
-            self.pipeline = DubPipeline(self.cfg, tts, samplerate=sr)
-            # **Dal vivo si tengono le ultime, non tutte.** Una sessione di tre
-            # ore lascia vive 3600 battute per +10,4 MB (misurato con
-            # `tools/bench_memoria.py`), e cresce senza limite. Chi le rilegge e'
-            # il cancello anti-doppioni, che guarda indietro di secondi: 400 sono
-            # venti minuti di conversazione, cioe' cento volte quello che serve.
-            self.pipeline.max_spoken = 400
-            # **`ui.save_mix` era dichiarato e non lo leggeva nessuno**: il
-            # quinto campo di questa forma, dopo `max_ocr_hz`, `tts.device`,
-            # `background_mode` e `overlay.ritardo`. Chi lo metteva a `false` si
-            # ritrovava lo stesso 660 MB di RAM e 340 MB di WAV per mezz'ora.
-            self.sessione = None if self.args.no_save else Session(
-                samplerate=sr, salva_mix=bool(self.cfg.ui.save_mix)
-            )
-            if self.sessione is not None and self.cfg.ui.save_mix:
-                self.coda.put(("nota", "registro l'audio: ~11 MB al minuto su disco, "
-                                       "fino a 660 MB di RAM (ui.save_mix=false lo spegne)"))
-            # **Il registro delle impronte anche dal vivo.** Senza, di una
-            # sessione dal vivo si sa cosa e' stato detto ma non cosa il
-            # riconoscitore ha visto — e quando dal vivo va peggio che sul banco
-            # non c'e' modo di sapere se cambia il segnale, il ritaglio o il
-            # modello. Costa due decimi di megabyte e si rigioca con
-            # `tools.recluster`.
-            if self.sessione is not None:
-                self._registro = (self.sessione.dir / "speaker.jsonl").open(
-                    "w", encoding="utf-8"
-                )
-                self.pipeline.speaker_log = self._registro
-            self.coda.put(("nota", f"catturo: {entrata}"))
-            self.coda.put(("nota", f"suono su: {uscita}"))
-            self.coda.put(("nota", f"{self._testo_roi()}   attesa voce "
-                                   f"{self.cfg.speaker.decide_after_ms} ms"))
-            pronto = threading.Event()
-            t_avvio = time.perf_counter()
-
-            def ciclo_audio() -> None:
-                # **Il guasto piu' probabile di tutti: le cuffie staccate a meta'
-                # partita.** WASAPI non aspetta: il device sparisce e la lettura
-                # solleva. Senza questo, il thread moriva **in silenzio** — il
-                # doppiaggio ammutoliva, la finestra continuava a dire «in
-                # corso», e non c'era niente da leggere. E' esattamente la forma
-                # dei difetti che questo progetto ha imparato a temere: non un
-                # errore, un silenzio.
-                #
-                # Non si prova a riaprire il device da soli: il flusso audio ha
-                # una linea temporale (`_marche`) che riparte da zero, e riprendere
-                # a meta' vorrebbe dire programmare battute su un orologio che non
-                # esiste piu'. Si ferma tutto e **si dice cosa e' successo**, che
-                # per l'utente vuol dire «rimetti le cuffie e ripremi Avvia».
-                try:
-                    with Loopback(entrata, block=self.args.block, samplerate=sr) as ing, Player(
-                        uscita, block=self.args.block, samplerate=sr
-                    ) as alt:
-                        self.pipeline.start_live()
-                        pronto.set()
-                        while not self.stop.is_set():
-                            gioco = ing.read()
-                            quando = self.pipeline.mixer.now
-                            fuori = self.pipeline.on_audio(gioco, n=len(gioco))
-                            alt.write(fuori)
-                            if self.sessione is not None:
-                                self.sessione.audio(fuori, quando)
-                except Exception as guasto:
-                    pronto.set()  # se no il ciclo video aspetta dieci secondi per niente
-                    self.stop.set()  # il video senza audio non serve a niente
-                    # **Fermare i cicli non e' fermare la sessione**, e la prima
-                    # versione di questa cura si era fermata a meta': i due
-                    # thread uscivano, ma Avvia restava spento (lo riaccende solo
-                    # `ferma`), la sessione restava aperta col WAV non scritto, e
-                    # lo stato «audio interrotto» usciva **verde**, che e' il
-                    # colore del «va tutto bene». Il messaggio diceva «ricollega
-                    # e premi Avvia» indicando un bottone disabilitato.
-                    #
-                    # Il riordino lo deve fare il thread dell'interfaccia — da
-                    # qui non si tocca Tkinter — quindi si manda un messaggio e
-                    # ci pensa `_svuota_coda`.
-                    self.coda.put(("guasto", f"{type(guasto).__name__}: {guasto}"))
-
-            def ciclo_video() -> None:
-                # La sorgente si apre **nel thread che la usa**: dxcam sta su COM,
-                # e creata altrove non solleva — restituisce `None` a ogni grab.
-                hwnd = self.finestra.hwnd if self.finestra is not None else None
-                # **Solo la fascia che si legge, se richiesto.** Lo schermo
-                # intero a 1440p costa 32,4 ms contro 11,7: a 30 Hz e' il 90% del
-                # giro speso a copiare pixel che nessuno guarda.
-                def apri():
-                    rois = da_leggere(self.cfg) if self.cfg.capture.solo_roi else ()
-                    return rois, apri_cattura(
-                        self.args.backend, monitor=self.args.monitor, hwnd=hwnd,
-                        rois=rois, margine=self.cfg.capture.roi_margin,
-                        dillo=lambda riga: self.coda.put(("nota", riga)),
-                    )
-
-                rois_aperte, schermo = apri()
-                self.coda.put(("nota", f"cattura: {schermo.name}"))
-                pronto.wait(timeout=10.0)
-                periodo = 1.0 / max(1e-6, self.cfg.capture.fps)
-                prossimo = time.perf_counter()
-                n = vuoti = 0
-                while not self.stop.is_set():
-                    ora = time.perf_counter()
-                    if ora < prossimo:
-                        time.sleep(min(0.002, prossimo - ora))
-                        continue
-                    prossimo += periodo
-                    # **Se si e' rimasti indietro, si riparte da adesso.**
-                    # Sommando il periodo e basta, un giro lento lascia
-                    # `prossimo` nel passato: il ciclo smette di dormire e gira a
-                    # tutta velocita' per rimettersi in pari, prendendosi la CPU
-                    # che serve al thread audio. Misurato nella sessione
-                    # dell'utente: `speaker.ring_lag` a 4674 ms, cioe' quasi
-                    # cinque secondi di campioni mai arrivati, e il riconoscimento
-                    # di chi parla che lavorava su audio vecchio di secondi.
-                    # Saltare i giri arretrati costa qualche fotogramma; non
-                    # saltarli costa l'audio.
-                    if prossimo < ora:
-                        prossimo = ora + periodo
-                    # **L'area si sposta col mouse a sessione accesa, e la
-                    # fascia catturata deve seguirla.** Senza, spostare il
-                    # rettangolo con la cattura ridotta darebbe il difetto
-                    # peggiore possibile: si legge il **nero** fuori dalla
-                    # vecchia fascia, e a schermo non succede piu' niente. Il
-                    # confronto costa un paio di tuple per fotogramma; riaprire
-                    # succede solo quando l'utente tira il rettangolo.
-                    if rois_aperte and da_leggere(self.cfg) != rois_aperte:
-                        schermo.close()
-                        rois_aperte, schermo = apri()
-                        self.coda.put(("nota", "area cambiata: rifaccio la cattura"))
-                        continue
-                    g = schermo.grab()
-                    if not g.ok:
-                        # **`None` vuol dire due cose diverse, e si distinguono
-                        # solo dal tempo.** Desktop Duplication risponde `None`
-                        # quando lo schermo non e' cambiato — normale — e
-                        # risponde `None` anche quando non funziona affatto, che
-                        # su questa macchina e' il caso: 1071 grab, zero
-                        # fotogrammi, con un video a tutto schermo. La seconda
-                        # non finisce mai, e senza questo ripiego la finestra
-                        # resta li' a non fare niente **senza dire perche'**.
-                        vuoti += 1
-                        # `startswith` e non `==`: con la fascia sola il nome
-                        # diventa `dxcam+roi`, e un confronto esatto avrebbe
-                        # spento il ripiego proprio nella configurazione nuova —
-                        # cioe' la finestra ferma a non dire perche', che e' il
-                        # difetto per cui questo ripiego esiste.
-                        if (n == 0 and vuoti > 2 * self.cfg.capture.fps
-                                and schermo.name.startswith("dxcam")):
-                            schermo.close()
-                            rois_aperte = (
-                                da_leggere(self.cfg) if self.cfg.capture.solo_roi else ()
-                            )
-                            schermo = apri_cattura(
-                                "mss", monitor=self.args.monitor,
-                                rois=rois_aperte, margine=self.cfg.capture.roi_margin,
-                            )
-                            self.coda.put((
-                                "nota",
-                                "! la cattura veloce non restituisce fotogrammi: passo a mss",
-                            ))
-                            vuoti = 0
-                        continue
-                    n += 1
-                    # **Il ritaglio per la sfocatura parte subito, prima
-                    # dell'OCR.** Stava in fondo al giro, dopo `on_frame`, e
-                    # quindi pagava tutto il costo del riconoscimento prima di
-                    # essere spedito: misurato nella sessione dell'utente,
-                    # `vision.ocr` sta a **84 ms al p50 e 137 al massimo** — cioe'
-                    # la macchia arrivava a schermo con quattro fotogrammi di
-                    # ritardo sulla scena, e in panoramica si vede eccome.
-                    #
-                    # Quei millisecondi non sono suoi: per sfocare non serve
-                    # sapere cosa c'e' scritto. I pixel sono gia' in mano appena
-                    # il fotogramma e' stato preso, e da li' devono partire.
-                    # Ridisegnare costa 10 ms, quindi il costo non e' mai stato
-                    # nel disegno: era nell'attesa.
-                    if self.overlay is not None and self.overlay._visibile:
-                        pezzo = ritaglia(g.frame, self.overlay.rett)
-                        if pezzo is not None:
-                            self.coda.put(("aggiorna", (pezzo, time.perf_counter())))
-                    for riga in self.pipeline.on_frame(g.frame):
-                        if self.sessione is not None:
-                            self.sessione.line(riga)
-                        self.coda.put((
-                            "riga",
-                            (riga.speaker_id, riga.voice_id, riga.text,
-                             riga.live_latency_ms, time.perf_counter() - t_avvio),
-                        ))
-                        # **La sostituzione grafica dal vivo.** Si passa dalla
-                        # coda come tutto il resto: disegnare da qui vorrebbe
-                        # dire toccare Tkinter dal thread video, che e' il modo
-                        # piu' rapido di far cadere l'interfaccia. Si manda solo
-                        # se c'e' stata una traduzione — se no si coprirebbe il
-                        # sottotitolo originale con sé stesso.
-                        if self.overlay is not None and riga.text_original:
-                            # **Quanto resta a schermo il tradotto: quanto il
-                            # sottotitolo del gioco, non quanto la nostra voce.**
-                            # La durata dell'audio doppiato e' quasi sempre piu'
-                            # corta della permanenza del sottotitolo: usando
-                            # quella, la finestra spariva mentre l'originale era
-                            # ancora li', e per l'ultimo pezzo di battuta si
-                            # tornava a vedere l'italiano. La permanenza prevista
-                            # e' `D = a + b*n`, che la catena stima gia' e corregge
-                            # mentre gira.
-                            resta = self.pipeline.timing.predict(riga.text)
-                            fine = time.perf_counter() + max(riga.duration, resta)
-                            # **Il fotogramma ce l'abbiamo gia' in mano.** Serviva
-                            # all'OCR; per sfocare il sottotitolo vecchio basta
-                            # ritagliarlo, e non c'e' nessuna seconda cattura da
-                            # pagare — cosa che avevo scritto e che era falsa.
-                            # **La geometria viene dal fotogramma in cui il
-                            # sottotitolo c'era, non da questo.** Fra la lettura
-                            # e adesso sono passati piu' di due secondi: qui
-                            # `inchiostro()` cercava l'inchiostro su una scena
-                            # gia' cambiata, e cio' che trovava era scenario.
-                            # `riga.boxes` sono le bande che il riconoscitore ha
-                            # accettato allora. `inchiostro()` resta come
-                            # ripiego, per i profili senza box.
-                            trovato = inchiostro_da_box(
-                                g.frame, self.cfg, riga.boxes, riga.ink
-                            )
-                            if trovato[0] is None:
-                                trovato = inchiostro(g.frame, self.cfg)
-                            self.coda.put(
-                                ("overlay",
-                                 (riga.text, riga.text_original, fine,
-                                  riga.t_subtitle, *trovato))
-                            )
-                    # **Il blur e' un filtro dal vivo, a ogni fotogramma.**
-                    # A 10 Hz si vedeva: la scena scorre e la macchia sfocata
-                    # resta indietro di un decimo, che su una panoramica sono
-                    # decine di pixel. Costa poco perche' non si manda tutto lo
-                    # schermo — 11 MB a giro — ma **solo il ritaglio** attorno al
-                    # sottotitolo, che e' mezzo megabyte.
-                    #
-                    # E chi decide se il tradotto resta a schermo e' il lettore,
-                    # non un orologio e nemmeno i pixel: prima si prolungava il
-                    # timer finche' la finestra era visibile — un anello chiuso
-                    # su se' stesso — e la finestra non spariva piu'.
-                    if self.overlay is not None and self.overlay._visibile:
-                        # I pixel li ha gia' spediti il ritaglio di sopra, che
-                        # gira **prima** dell'OCR: qui resta solo decidere se la
-                        # finestra deve restare accesa. Il rinfresco non sta piu'
-                        # dentro il ramo `a_schermo` perche' durante un buco di
-                        # letture la toppa si congelava — un rettangolo di
-                        # immagine vecchia proprio nei fotogrammi in cui si stava
-                        # decidendo se spegnerla.
-                        #
-                        # **Si contano i giri vuoti, non si guarda l'orologio.**
-                        # L'OCR perde una riga per qualche fotogramma e la
-                        # ritrova subito: spegnere al primo giro vuoto fa
-                        # lampeggiare il tradotto. Si spegne quando il buco e'
-                        # abbastanza lungo da essere una sparizione vera.
-                        if self.pipeline.a_schermo(self.overlay.t_on):
-                            self.overlay._vuoti = 0
-                            self._overlay_fino_a = time.perf_counter() + 0.4
-                        else:
-                            self.overlay._vuoti += 1
-                            if (self.overlay._vuoti
-                                    >= self.cfg.translate.overlay_hold_frames
-                                    and time.perf_counter() >= self._overlay_fino_a):
-                                self.coda.put(("spegni", None))
-                    if n % 30 == 0:
-                        p = len(self.pipeline.tracker) if self.pipeline.tracker else 0
-                        self.coda.put(("stato",
-                                       f"in corso  |  {n} frame  |  {self.pipeline.dette} battute"
-                                       f"  |  {p} personaggi  |  {len(self.pipeline.pool)} voci"))
-
-            for f in (ciclo_audio, ciclo_video):
-                t = threading.Thread(target=f, daemon=True)
-                t.start()
-                self.threads.append(t)
-            self.coda.put(("stato", "in corso"))
-        except Exception as exc:  # un errore di device non deve chiudere la finestra
-            self.coda.put(("nota", f"! avvio fallito: {type(exc).__name__}: {exc}"))
-            self._fine_thread()
+        self.motore.avvia()
 
     def _audio_guasto(self, dettaglio: str) -> None:
         """Il ciclo audio e' morto: si chiude la sessione come se fosse un Ferma.
@@ -1213,68 +902,33 @@ class App:
         via d'uscita era premere Ferma, che nessuno pensa di premere quando ha
         appena letto «premi Avvia».
         """
-        self.scrivi(f"! l'audio si e' fermato: {dettaglio}", tag="nota")
-        self.scrivi("! probabile: cuffie o altoparlanti staccati, oppure il device e' "
-                    "cambiato. Ricollega e premi Avvia.", tag="nota")
-        if self.threads or self.pipeline is not None:
+        for riga in righe_guasto_audio(dettaglio):
+            self.scrivi(riga, tag="nota")
+        if self.motore.acceso or self.motore.pipeline is not None:
             self.ferma()  # chiude la sessione, salva il WAV, riaccende Avvia
+        else:
+            # **E se la catena era gia' morta, i bottoni li rimette comunque
+            # qualcuno.** Senza questo ramo il messaggio dice «premi Avvia»
+            # indicando un bottone spento: e' lo stesso difetto di prima, che
+            # sopravvive dentro la sua stessa cura.
+            self._fine_thread()
         # Dopo `ferma`, se no lo stato «fermo» che manda lei arriverebbe dopo
         # questo e cancellerebbe il rosso. Il colore e' dichiarato: «audio
         # interrotto» senza il punto esclamativo verrebbe **verde**, cioe' il
         # colore di «va tutto bene» sopra una catena morta.
-        self.coda.put(("stato", "! audio interrotto"))
+        self.coda.put(("stato", STATO_GUASTO))
 
     def _fine_thread(self) -> None:
         self.b_start.config(state="normal")
         self.b_stop.config(state="disabled")
         self.b_area.config(state="normal")
         self.b_finestra.config(state="normal")
-        self.threads.clear()
 
     def ferma(self) -> None:
-        self.stop.set()
-        for t in self.threads:
-            t.join(timeout=2.0)
-        self.threads.clear()
-        if self.pipeline is not None:
-            self.pipeline.finish()
-            self.coda.put(("nota", "--- personaggi ---"))
-            if self.pipeline.tracker is not None:
-                for r in self.pipeline.tracker.report().splitlines():
-                    self.coda.put(("nota", r))
-            self.coda.put(("nota", self.pipeline.pool.report()))
-        if self.sessione is not None:
-            try:
-                if getattr(self, "_registro", None) is not None:
-                    self._registro.close()
-                    self._registro = None
-                # **Il riepilogo va nella cartella, non solo sul terminale.**
-                # Senza, `mix.underrun` e `speak.first_sample` restano nella
-                # finestra e muoiono con lei — e sono esattamente i due numeri che
-                # dicono se lo streaming ha retto. Dopo la prima prova dal vivo di
-                # Qwen la diagnosi si e' dovuta **dedurre**, perche' i contatori
-                # non erano stati scritti da nessuna parte.
-                # **Le metriche della finestra vanno nel report, e non ci
-                # andavano.** `overlay.ritardo` — quanto vecchio e' il ritaglio
-                # quando arriva a schermo — veniva misurato a ogni giro e poi
-                # buttato, perche' qui si scriveva solo il rapporto della
-                # catena. E' esattamente la domanda «il blur va in differita?»,
-                # con la risposta gia' raccolta e mai letta da nessuno.
-                rapporto = self.pipeline.report() if self.pipeline is not None else ""
-                rapporto = f"{rapporto}\n\n-- finestra --\n{self._metriche.report()}"
-                self.coda.put(
-                    ("nota", f"sessione salvata in {self.sessione.close(self.cfg, rapporto)}")
-                )
-            except Exception as exc:
-                self.coda.put(("nota", f"! salvataggio fallito: {exc}"))
-        self.pipeline = None
-        self.sessione = None
-        self._registro = None
-        self.coda.put(("stato", "fermo"))
-        self._fine_thread()
+        self.motore.ferma()
 
     def chiudi(self) -> None:
-        if self.threads:
+        if self.motore.acceso:
             self.ferma()
         self.root.destroy()
 

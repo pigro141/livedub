@@ -2119,6 +2119,28 @@ def test_traduzione(c: Check) -> None:
     except ValueError:
         c.ok(True, "un backend sconosciuto solleva invece di ripiegare")
 
+    # -- l'ambiente della traduzione offline --------------------------------
+    # **Il guardiano della GPU.** `pip install argostranslate` tira `minisbd`,
+    # che dipende da `onnxruntime` (CPU): quel pacchetto scrive nella stessa
+    # cartella di `onnxruntime-gpu` e la sintesi Kokoro torna su CPU — 725 ms a
+    # battuta invece di 207, **senza un errore**. E' il ripiego silenzioso gia'
+    # pagato con `preload_dlls()`, e qui e' a un `pip install` di distanza da
+    # chiunque. Questa riga e' l'unica cosa che se ne accorgerebbe.
+    from tools.controlla_traduzione import controlla
+
+    bene, righe = controlla(vuole_cuda=False)
+    c.ok(bene, "l'ambiente della traduzione e' a posto: " + " | ".join(righe))
+
+    # E la coppia di lingue si risolve **una volta sola**: `auto` diventa `en`
+    # sia quando si sceglie cosa scaricare sia quando si traduce. Risolverlo in
+    # un posto e non nell'altro vuol dire scaricare un modello e usarne un altro.
+    from translate.locale import TraduttoreLocale, coppia
+
+    c.eq(coppia("auto", "it"), ("en", "it"), "`auto` non esiste offline: e' l'inglese")
+    c.eq(coppia("", ""), ("en", "it"), "e senza niente, la coppia di serie")
+    c.eq(TraduttoreLocale(da="auto", a="fr").coppia(), ("en", "fr"),
+         "la stessa regola per il modello da scaricare e per la battuta")
+
     # -- tradurre, e la cache ----------------------------------------------
     finto = _Finto({"Hello there": "Ciao"})
     t = Traduzioni(finto, da="en", a="it")
@@ -3034,10 +3056,18 @@ from tools.selftest_vision import (  # noqa: E402
     test_tracker,
 )
 from tools.selftest_gioco2 import test_gioco2  # noqa: E402
+from tools.selftest_menta import (  # noqa: E402
+    test_finestra_menta,
+    test_menta,
+    test_regole_finestra,
+)
 from tools.selftest_schema import test_limiti, test_livelli, test_schema  # noqa: E402
 from tools.selftest_aree import (  # noqa: E402
     test_aree,
+    test_area_sola,
+    test_area_troppo_grande,
     test_aree_catena,
+    test_aree_muta,
     test_memoria,
     test_sessione,
     test_due_sessioni,
@@ -3045,6 +3075,11 @@ from tools.selftest_aree import (  # noqa: E402
     test_guasto_audio,
     test_uscita_audio,
     test_solo_roi,
+    test_motore,
+    test_overlay_base,
+    test_overlay_quando,
+    test_manopole,
+    test_coerenza,
 )
 
 def test_session(c: Check) -> None:
@@ -3480,6 +3515,346 @@ def test_non_ripetere(c: Check) -> None:
 
 
 
+def test_lingue(c: Check) -> None:
+    """Le lingue: la tabella, chi dichiara di saperle fare, e chi ha una voce.
+
+    Sono tre regole che vivono **fuori dalla finestra**, ed e' apposta: la parte
+    che si puo' provare senza aprire Qt deve stare fuori da Qt, che e' la
+    lezione gia' pagata quattro volte su cinque difetti.
+    """
+    c.group("lingue")
+
+    from speak.pool import ha_voce, lingue_con_voce
+    from translate.lingue import (
+        AUTO,
+        LINGUE,
+        PER_CODICE,
+        TUTTE,
+        copertura,
+        etichetta,
+        lingua,
+        nome_en,
+        nome_it,
+        normalizza,
+    )
+
+    # -- la tabella ---------------------------------------------------------
+    c.eq(len(LINGUE), 133, "le lingue di Google Translate sono centotrentatre")
+    c.eq(len(PER_CODICE), len(LINGUE), "e nessun codice e' ripetuto")
+    nomi = [x.italiano.lower() for x in LINGUE]
+    c.eq(nomi, sorted(nomi),
+         "in ordine alfabetico italiano, che e' l'ordine in cui si cerca "
+         "con l'occhio — e ordinato dal codice, non a mano")
+    c.ok(all(x.italiano and x.inglese and x.codice for x in LINGUE),
+         "ogni voce ha codice, nome italiano e nome inglese")
+    # Il nome inglese non e' decorazione: e' quello che entra nel prompt.
+    c.eq(nome_en("ja"), "Japanese", "il nome inglese serve al template del modello")
+    c.eq(nome_it("ht"), "Creolo haitiano", "e quello italiano al menu")
+    c.eq(etichetta("ja"), "Giapponese (ja)",
+         "nel menu si legge il nome e si cerca il codice")
+
+    # -- i codici scritti in un altro modo ----------------------------------
+    # `zh-Hans` sta nei vecchi profili, `he` e' l'ISO moderno, `it_IT` e' come
+    # lo scrive Piper. Senza gli alias diventerebbero lingue sconosciute, cioe'
+    # un avviso su una scelta che funziona.
+    c.eq(normalizza("zh-Hans"), "zh-CN", "il vecchio codice cinese torna in tabella")
+    c.eq(normalizza("he"), "iw", "e l'ebraico moderno diventa quello di Google")
+    c.eq(normalizza("it_IT"), "it", "e la forma di Piper pure")
+    c.eq(normalizza("IT"), "it", "maiuscolo compreso")
+    # **Ma un codice che non si conosce torna com'e'.** Mapparlo su un ripiego
+    # ragionevole sarebbe l'ennesima correzione silenziosa: la sessione
+    # girerebbe con una lingua diversa da quella scritta.
+    c.eq(normalizza("xx"), "xx", "un codice sconosciuto non si sostituisce")
+    c.ok(lingua("xx") is None, "e si sa che non e' in tabella")
+
+    # -- chi dichiara di saper fare cosa ------------------------------------
+    g = copertura("google")
+    c.eq(g.codici, TUTTE, "google e' l'unico elenco chiuso: tutte quelle in tabella")
+    c.ok(g.auto, "e l'unico che riconosce la lingua da solo")
+    c.ok(g.sa_fare("ja") and not g.sa_fare("xx"),
+         "quindi un codice inventato viene marcato anche con google")
+
+    for nome in ("locale", "llm", "ollama"):
+        cop = copertura(nome)
+        c.ok(cop.codici is None,
+             f"«{nome}» non ha un elenco chiuso, e `None` non vuol dire «tutte»")
+        c.ok(not cop.auto and not cop.sa_fare(AUTO),
+             f"«{nome}» non capisce `auto`: la coppia gli arriva gia' risolta")
+        c.ok("en" in cop.nota,
+             f"e la nota di «{nome}» dice **quale** lingua verrebbe usata al suo posto")
+        c.ok(cop.sa_fare("ja"),
+             f"ma col dubbio si risponde di si': marcare cio' che potrebbe "
+             f"funzionare fa smettere di leggere gli avvisi veri ({nome})")
+
+    # **Il caso nullo della copertura**: se `sa_fare` dicesse sempre di si', la
+    # riga di sopra passerebbe lo stesso. Serve un `no` da qualche parte.
+    c.ok(not copertura("locale").sa_fare("auto") and copertura("google").sa_fare("auto"),
+         "e i due backend rispondono diverso sulla stessa domanda")
+
+    # -- e la voce, che e' l'altra meta' -------------------------------------
+    # Tradurre verso il giapponese con Piper non da' errore: esce una voce
+    # italiana che pronuncia il giapponese.
+    c.ok(ha_voce("piper", "it"), "piper ha voci italiane")
+    c.ok(not ha_voce("piper", "ja"), "e non ne ha giapponesi, e va detto")
+    c.ok(not ha_voce("supertonic", "en"),
+         "le dieci di supertonic sono tutte italiane")
+    c.ok(ha_voce("kokoro", "en") and ha_voce("kokoro", "it"),
+         "kokoro e' l'unico con due lingue")
+    c.ok(not ha_voce("kokoro", "de"), "ma non tutte")
+    c.ok(ha_voce("kokoro", "en-GB"),
+         "e una variante e' la sua lingua: `en-GB` e' inglese")
+    # Un bip non ha lingua: avvisare che «non c'e' una voce giapponese» per un
+    # bip e' rumore, e il rumore fa smettere di leggere gli avvisi veri.
+    c.ok(ha_voce("tone", "ja") and ha_voce("silent", "ja"),
+         "i motori che non pronunciano parole non hanno una lingua da avvisare")
+    c.ok(ha_voce("motore-mai-visto", "ja"),
+         "e di un motore sconosciuto non si inventa un avviso")
+
+    # **Le lingue di Kokoro non sono scritte due volte.** Copiarle in `pool.py`
+    # sarebbe il secondo posto che dice la stessa cosa, e il secondo posto non
+    # lo aggiorna nessuno.
+    from speak.backends.kokoro import PER_LINGUA
+
+    c.eq(set(lingue_con_voce("kokoro")), set(PER_LINGUA),
+         "e le lingue di kokoro le dichiara kokoro, non il pool")
+
+    # -- il nome per esteso arriva **dentro il prompt** ----------------------
+    # Era il difetto muto: `LINGUE.get(a, a)` ripiegava sul codice, quindi con
+    # `target=ja` il modello leggeva «into ja» invece di «into Japanese».
+    # Risponde lo stesso, e risponde peggio, senza che niente lo dichiari.
+    from translate.ollama import LINGUE as NOMI_OLLAMA
+    from translate.ollama import prompt_translategemma
+
+    c.eq(NOMI_OLLAMA["it"], "Italian", "il template vuole il nome, non il codice")
+    c.eq(len(NOMI_OLLAMA), len(LINGUE),
+         "e adesso ce l'hanno tutte e centotrentatre, non tredici")
+    p = prompt_translategemma("Ciao", "it", "ja")
+    c.ok("Japanese" in p and "into ja\n" not in p,
+         "una lingua fuori dalle tredici scritte a mano non finisce piu' "
+         "nel prompt come codice nudo")
+    c.ok("Chinese (Simplified)" in prompt_translategemma("Ciao", "it", "zh-Hans"),
+         "e un codice scritto in un altro modo si risolve lo stesso")
+
+    # -- la scelta arriva davvero al traduttore ------------------------------
+    # **Una manopola che scrive in config un valore che nessuno rilegge e' il
+    # difetto tipico di questa codebase** (`max_ocr_hz`, `tts.device`,
+    # `background_mode`, `overlay.ritardo`). Qui si prova la catena intera: si
+    # scrive la lingua come la scriverebbe il pannello e si guarda cosa riceve
+    # il traduttore.
+    from core.config import Config
+    from core.pipeline import DubPipeline
+    from core.types import LineClass, SubtitleEvent
+    from speak.base import ToneTts
+
+    visto: list[tuple[str, str]] = []
+
+    class _Spia:
+        name = "spia"
+
+        def traduci(self, testo, da, a):
+            visto.append((da, a))
+            return f"[{a}] {testo}"
+
+    cfg = Config()
+    cfg.vision.ocr_backend = "none"
+    cfg.speaker.backend = "none"
+    cfg.translate.enabled = True
+    cfg.translate.backend = "prova"
+    cfg.set("translate.source", "en")     # la stessa porta del pannello
+    cfg.set("translate.target", "ja")
+    p = DubPipeline(cfg, ToneTts(), clock=VirtualClock(), samplerate=48000)
+    p.start_live(warmup=False)
+    p.traduci.traduttore = _Spia()
+    p._speak(SubtitleEvent(text="Hello there", cls=LineClass.WHITE, t_on=0.0))
+    c.eq(visto, [("en", "ja")],
+         "la coppia scritta in config e' quella che riceve il traduttore: "
+         "una lingua scelta nel menu e mai riletta sarebbe il difetto di sempre")
+
+
+def test_ui_lingua(c: Check) -> None:
+    """La lingua della **finestra**: i cataloghi, e cosa resta in italiano.
+
+    Non apre Qt per la parte che non ne ha bisogno — i cataloghi, il conteggio
+    delle chiavi mancanti, la regola su cosa non si traduce — e ne apre il meno
+    possibile per l'unica cosa che lo richiede: che rimettere l'italiano
+    **rimetta l'italiano** invece di tradurre una traduzione.
+    """
+    c.group("lingue")
+
+    from ui import lingua as L
+
+    # -- i cataloghi ci sono e sono pieni ------------------------------------
+    chiavi = L.chiavi()
+    c.ok(len(chiavi) > 100,
+         f"l'elenco delle chiavi e' estratto e non vuoto ({len(chiavi)})")
+    c.ok(all(isinstance(k, str) and k.strip() for k in chiavi),
+         "e non contiene stringhe vuote")
+    lingue = L.disponibili()
+    c.eq(lingue[0], "it", "l'italiano viene per primo: e' la lingua del sorgente")
+    c.ok(len(lingue) > 20, f"e ci sono {len(lingue)} lingue fra cui scegliere")
+    c.eq(L.carica("it"), {},
+         "l'italiano non ha catalogo: e' quello che c'e' scritto nel sorgente")
+
+    # **Quante chiavi mancano, per ogni lingua.** Una finestra mezza tradotta
+    # senza che niente lo dica e' peggio di una finestra in italiano: si crede
+    # che quella parola non esista invece che non sia stata tradotta. Il tetto
+    # e' zero perche' i cataloghi sono generati tutti insieme; una stringa nuova
+    # nel codice lo alza, e la suite lo dice invece di lasciarlo scivolare.
+    buchi = {x: len(L.mancanti(x)) for x in lingue if x != "it"}
+    peggio = max(buchi.values(), default=0)
+    c.eq(peggio, 0,
+         f"nessun catalogo ha buchi (il peggiore ne ha {peggio}): "
+         f"rilancia `tools/traduci_ui.py` se questa diventa rossa")
+
+    # -- quanto cresce il testo, che e' la meta' esplicita della richiesta ---
+    # «Il testo non deve sforare nessun riquadro». Il pixel lo misura
+    # `tools/traduci_ui.py --misura`, con la finestra vera e il **carattere
+    # vero**: misurato su tutti i cataloghi, la piu' larga e' il tamil a 934 px
+    # sul minimo di 960, e nessuna sfora. Qui non si puo' rifare quella misura —
+    # la suite gira offscreen, dove non c'e' nessun carattere installato e il
+    # ripiego e' molto piu' largo: provato, dava per rotte trentuno lingue su
+    # quarantadue. Una misura che non puo' esprimere la risposta va cambiata,
+    # non interpretata.
+    #
+    # Quello che si puo' misurare qui e' la **crescita in caratteri**, che non
+    # dipende da nessun carattere tipografico. Non e' il pixel, ed e' scritto:
+    # e' il cricchetto che si accorge di una traduzione lunga il triplo — quelle
+    # che fanno sforare — il giorno in cui si rigenera un catalogo.
+    lunghe: list[str] = []
+    for codice in lingue:
+        if codice == "it":
+            continue
+        catalogo = L.carica(codice)
+        for chiave, valore in catalogo.items():
+            # Sotto i dieci caratteri il rapporto non vuol dire niente: «Voce»
+            # in ungherese e' «Hang», ma «Avvia» -> «Uruchomienie» e' il doppio
+            # senza che nessuna riga si allarghi.
+            if len(chiave) >= 10 and len(valore) > 2.2 * len(chiave):
+                lunghe.append(f"{codice}: {chiave[:28]!r} -> {valore[:28]!r}")
+    c.ok(not lunghe,
+         "nessuna traduzione e' piu' del doppio abbondante dell'italiano"
+         + (f" — {len(lunghe)}: {lunghe[:3]}" if lunghe else ""))
+
+    # -- i pezzi composti a runtime, e il modo di non perderli ---------------
+    # La riga «da fare nella preparazione: …» nasce unendo dei pezzi, quindi
+    # nessuna passeggiata sui widget puo' vederli separati: nel catalogo era
+    # finita **una combinazione sola**, quella dell'istante dell'estrazione, e
+    # nelle schermate si vedeva — finestra in tedesco, quella riga in italiano.
+    # I pezzi ora stanno in `COMPOSTE`, e il rischio ovvio di un elenco a mano e'
+    # che diverga da quello che il codice chiede davvero. Quindi non lo si
+    # rilegge a occhio: si legge il **sorgente** di `tools/ui_qt.py` e si
+    # pretende che i due coincidano, che e' la stessa strada di `core/schema.py`
+    # con i commenti di config.
+    import ast
+    from pathlib import Path
+
+    sorgente = Path(__file__).resolve().parent / "ui_qt.py"
+    albero = ast.parse(sorgente.read_text(encoding="utf-8"))
+    chieste = {
+        n.args[0].value
+        for n in ast.walk(albero)
+        if isinstance(n, ast.Call) and n.args
+        and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str)
+        and (
+            (isinstance(n.func, ast.Name) and n.func.id == "dillo")
+            or (isinstance(n.func, ast.Attribute) and n.func.attr == "traduci")
+        )
+    }
+    c.ok(chieste, f"il sorgente compone davvero delle frasi ({len(chieste)} pezzi)")
+    c.eq(sorted(chieste - set(L.COMPOSTE)), [],
+         "ogni pezzo composto nella finestra sta in `COMPOSTE`, se no uscirebbe "
+         "in italiano in mezzo a una finestra tradotta")
+    c.eq(sorted(set(L.COMPOSTE) - chieste), [],
+         "e non ce ne sono di avanzati, che sarebbero chiavi tradotte per niente")
+    c.eq(sorted(set(L.COMPOSTE) - set(chiavi)), [],
+         "e stanno tutti nell'elenco delle chiavi: `--estrai` li aggiunge")
+
+    # -- cosa **non** si traduce, e sono regole ------------------------------
+    c.ok(not L._traducibile("vision.sat_max"),
+         "un percorso di config non e' una frase: tradotto, non si cerca piu'")
+    c.ok(not L._traducibile("roi_margin"), "e nemmeno il nome nudo di un campo")
+    c.ok(not L._traducibile("—") and not L._traducibile("12"),
+         "un glifo e un numero non sono testo")
+    c.ok(not L._traducibile("<b>ciao</b>"), "e l'HTML del log si lascia stare")
+    c.ok(L._traducibile("Seleziona area"), "una frase invece si'")
+
+    # -- da destra a sinistra ------------------------------------------------
+    c.ok(L.da_destra("ar") and L.da_destra("iw") and L.da_destra("fa"),
+         "arabo, ebraico e persiano si scrivono da destra")
+    c.ok(L.da_destra("he"), "anche scritto con l'ISO moderno")
+    c.ok(not L.da_destra("it") and not L.da_destra("ja"),
+         "e l'italiano e il giapponese no")
+
+    # -- `auto` e il ripiego dichiarato --------------------------------------
+    c.ok(L.risolvi("auto") in lingue,
+         "`auto` finisce sempre su una lingua che ha un catalogo")
+    c.eq(L.risolvi("codice-che-non-esiste"), "it",
+         "e una lingua senza catalogo torna all'italiano invece di lasciare "
+         "la finestra a meta'")
+    c.eq(L.risolvi(""), "it", "come il vuoto")
+
+    # **E perche' e' rimasta in italiano non e' una domanda sola.** La finestra
+    # scriveva «! nessun catalogo per "auto"» su un Windows italiano, cioe'
+    # marcava come guasto il caso in cui `auto` aveva funzionato: visto nel
+    # registro di una prova vera, due volte. Un `!` dove non e' successo niente
+    # e' il ripiego silenzioso girato dall'altra parte.
+    c.eq(L.perche_italiano("de"), "", "in tedesco non e' rimasta in italiano")
+    c.eq(L.perche_italiano("it"), "scelto", "l'italiano si puo' volere")
+    c.eq(L.perche_italiano(""), "scelto", "e il vuoto e' l'italiano")
+    c.eq(L.perche_italiano("codice-che-non-esiste"), "senza catalogo",
+         "un codice senza catalogo e' un ripiego, e si dichiara")
+    c.ok(L.perche_italiano("auto") in ("", "sistema"),
+         "`auto` o trova la lingua di Windows o resta in italiano — "
+         "e in nessuno dei due casi e' un guasto")
+
+    # -- e adesso il pezzo che ha bisogno di Qt ------------------------------
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QVBoxLayout, QWidget
+
+    QApplication.instance() or QApplication([])
+
+    # Una finestrella con dentro una chiave vera del catalogo, una marcata
+    # `nontradurre` e un percorso di config.
+    chiave = next(k for k in chiavi if k == "Avvia")
+    radice = QWidget()
+    layout = QVBoxLayout(radice)
+    bottone = QPushButton(chiave)
+    layout.addWidget(bottone)
+    spiega = QLabel("Quanto acceso e' «colorato»")
+    spiega.setProperty(L.MARCHIO, True)
+    layout.addWidget(spiega)
+    percorso = QLabel("vision.sat_max")
+    layout.addWidget(percorso)
+
+    raccolte = L.raccogli(radice)
+    c.ok(chiave in raccolte, "l'estrazione vede il testo del bottone")
+    c.ok("Quanto acceso e' «colorato»" not in raccolte,
+         "e non vede quello marcato `nontradurre` — le spiegazioni dei campi "
+         "vengono dai commenti di config, misure comprese, e non si traducono")
+    c.ok("vision.sat_max" not in raccolte, "ne' il percorso del campo")
+
+    tradotte, italiane = L.applica(radice, "en")
+    c.ok(tradotte >= 1, f"applicando l'inglese qualcosa cambia ({tradotte})")
+    c.eq(bottone.text(), L.carica("en")[chiave], "e il bottone dice quello del catalogo")
+    c.eq(spiega.text(), "Quanto acceso e' «colorato»", "il marcato resta com'era")
+    c.eq(percorso.text(), "vision.sat_max", "e il percorso pure")
+
+    # **Il giro di ritorno, che e' la meta' che si dimentica.** Senza la memoria
+    # dell'originale su ogni widget, il secondo cambio di lingua tradurrebbe una
+    # traduzione: `Start` non e' una chiave del catalogo tedesco, quindi
+    # resterebbe `Start` per sempre e l'italiano non tornerebbe piu'.
+    L.applica(radice, "de")
+    c.eq(bottone.text(), L.carica("de")[chiave],
+         "cambiando lingua si riparte dall'italiano, non dall'inglese")
+    L.applica(radice, "it")
+    c.eq(bottone.text(), chiave, "e tornando all'italiano si ritrova il sorgente")
+    c.eq(italiane + tradotte, len(raccolte),
+         "il conto torna: ogni stringa e' o tradotta o lasciata in italiano")
+    radice.deleteLater()
+
+
 GROUPS = {
     "clock": test_clock,
     "session": test_session,
@@ -3536,6 +3911,12 @@ GROUPS = {
     "limiti": test_limiti,
     "aree": test_aree,
     "aree_catena": test_aree_catena,
+    # Le tre cose che un'area in piu' deve fare e non faceva: essere letta
+    # dove sta, essere tradotta e disegnata anche se muta, e dire quando e'
+    # troppo grande per funzionare.
+    "area_sola": test_area_sola,
+    "aree_muta": test_aree_muta,
+    "area_grande": test_area_troppo_grande,
     "memoria": test_memoria,
     "sessione_mix": test_sessione,
     "due_sessioni": test_due_sessioni,
@@ -3543,6 +3924,26 @@ GROUPS = {
     "guasto_audio": test_guasto_audio,
     "uscita_audio": test_uscita_audio,
     "solo_roi": test_solo_roi,
+    # I due cicli fuori dalle finestre, e le due finestre che li chiamano.
+    "motore": test_motore,
+    "overlay_base": test_overlay_base,
+    "overlay_quando": test_overlay_quando,
+    # I controlli della finestra: quale manopola per quale campo, e la
+    # rotellina che non deve toccare niente attraversando la pagina.
+    "manopole": test_manopole,
+    # Una configurazione, sei schede: le viste non possono divergere.
+    "coerenza": test_coerenza,
+    # **Menta**: la tavolozza, la geometria e le due regole del documento che,
+    # rotte, non danno errore — la marca di gravita' e le soglie della barra
+    # della misura. Gira senza aprire una finestra, che e' il punto: quello che
+    # si puo' provare senza Qt deve stare fuori da Qt.
+    "menta": test_menta,
+    "menta_regole": test_regole_finestra,
+    "menta_finestra": test_finestra_menta,
+    # Le lingue: quelle del doppiaggio (la tabella, chi le sa fare, chi ha una
+    # voce) e quella della finestra (i cataloghi, e cosa resta in italiano).
+    "lingue": test_lingue,
+    "ui_lingua": test_ui_lingua,
 }
 
 

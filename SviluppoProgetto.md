@@ -11,7 +11,42 @@ sito. Il resto — interfaccia, selettore delle tecnologie, impostazioni con la
 spiegazione accanto, modifica a caldo, aree multiple, installatore, exe, licenza,
 README col diagramma — è fatto e guardato a schermo.
 
-**Suite: 1416 verifiche verdi** (`tools/selftest.py`).
+**Suite: 1678 verifiche verdi** (`tools/selftest.py`).
+
+## 17 agosto 2026 — la finestra è **Menta**, e tre difetti sulle aree
+
+L'interfaccia descritta in `docs/interfaccia.md` è stata costruita: tavolozza a
+quattordici ruoli su due temi, `R(h)` ricavata dal logo, scala delle distanze a
+passi di quattro, cinque corpi. E i pezzi che prima non c'erano — il pannello dei
+tre passi al posto della riga di log che spariva, le marche di gravità nel
+margine, la tessera del guasto **col bottone dentro**, la barra della misura a
+2 Hz, il logo che cambia faccia sulla stessa regola del colore.
+
+**La finestra Qt è il prodotto**: `livedub.spec`, `livedub.bat`, `installa.ps1`,
+`README.md` e `tools/prova.ps1` puntano tutti lì. La Tk resta per il confronto
+(`prova.ps1 -Tk`) e non è vestita.
+
+**Cinque prescrizioni del documento sono cadute alla prima occhiata dell'utente**,
+e nessuna dava errore: i punti di rottura che facevano sparire i numeri, lo stato
+detto in tre posti, il monospazio ovunque, la tessera dietro al logo, i tre passi
+che si spuntavano da soli. Più il minimo dichiarato (960) che non era il minimo
+vero (978), perché tre `QLabel` normali impongono la larghezza del loro testo.
+
+**E poi le aree.** Aggiungere una zona «solo testo» non faceva niente, per **tre**
+motivi impilati e tutti muti:
+
+| | cosa |
+|---|---|
+| 1 | una sola area dichiarata **perdeva il proprio rettangolo** (`len(pezzi) == 1`) e leggeva la vecchia ROI |
+| 2 | le battute mute non venivano **tradotte né disegnate**: filtrate prima di `_speak`, dove avviene la traduzione |
+| 3 | un'area grande **non legge**, e non è una soglia da ritoccare: a schermo intero 14 fotogrammi guardati, 14 saltati, zero letture |
+
+Il terzo è un limite dichiarato, non un difetto: ora `troppo_grande()` lo dice
+sopra 0,30 di altezza, mentre si tira il rettangolo e all'avvio della catena.
+
+**E la cura del primo si era mangiata trentuno manopole**: passava una *copia* di
+`cfg.vision` a ogni lettore, e i campi caldi smettevano di arrivare continuando a
+mostrare il valore nuovo. Rifatta passando il rettangolo a parte.
 
 ## E adesso è stato provato dal vivo per intero, in autonomia
 
@@ -362,7 +397,8 @@ che si sono chiuse con un "no".)*
   * \[x]  scegliere lingua input lingua output
     → `translate.source` / `translate.target`. `auto` lo capisce solo Google: i modelli
     offline sono **di** una coppia di lingue, quindi con `locale` un `auto` diventa `en`
-    e viene detto, invece di esserlo in silenzio. **Manca la UI**, non il meccanismo.
+    e viene detto, invece di esserlo in silenzio. La UI adesso **c'è**: si veda la voce
+    «adattare l'interfaccia per più lingue» più sotto.
   * \[x]  selettore delle tecnologie da usare
     → **fatto**, e non è un elenco scritto a mano: le scelte escono dai commenti di
     `core/config.py` con la convenzione `a | b | c` già in uso. Vengono da sole cinque
@@ -418,7 +454,7 @@ che si sono chiuse con un "no".)*
     l'HUD incollata dentro le battute e pronunciata (`'Raggiungi i'`, `'Sali sul'`,
     `.San An`) — era l'11% delle battute e non faceva scattare niente, perché per la
     catena erano righe lette con successo.
-    → Corretti tutti e quattro, suite a **1172 verifiche** (oggi 1416). Il dettaglio
+    → Corretti tutti e quattro, suite a **1172 verifiche** (oggi 1678). Il dettaglio
     e le misure stanno in `CLAUDE.md` e in `PROSSIMA_SESSIONE.md`.
     → **Il cancello è aperto: da qui si va sulla UI.**
     → **E l'11 agosto, a sera, la prova è stata rifatta in autonomia**, senza chiedertela:
@@ -428,13 +464,46 @@ che si sono chiuse con un "no".)*
     che `--output` non poteva funzionare, e che la cattura dello schermo intero si
     mangiava il 90% del budget di un fotogramma. I primi due erano invisibili al
     banco per costruzione.
-  * \[x]  rendere il tutto facilmente installabile plug and play
+  * \[ ]  rendere il tutto facilmente installabile plug and play
     → `installa.ps1`: Python, venv, dipendenze, OneOCR, modelli, e chiude con la suite.
     **Verifica di aver ottenuto quello che ha chiesto** invece di dire «fatto» — compreso
     il provider CUDA vero (`get_available_providers`), perché qui un ripiego silenzioso è
     già costato due volte. Quello che manca lo elenca col perché e cosa comporta.
     → `-SenzaGpu` installa `onnxruntime` al posto di quello GPU: i due **non convivono**.
-  * \[x]  fare exe
+  * \[x]  adattare linterfaccia per più lingue quante sono quelle disponibili per google translate, (controlla che il testo non sfori su nessun riquadro)
+    → **Due cose diverse, e confonderle costa una sessione.** La lingua del *doppiaggio*
+    (`translate.source`/`target`) e la lingua della *finestra* (`ui.lingua`). La prima sta
+    nella scheda Traduzione, la seconda nella Preparazione, apposta lontane.
+    → Le **133 lingue di Google** stanno in `translate/lingue.py` — codice, nome italiano,
+    nome inglese — scritte nel repo e non scaricate: un elenco che dipende dalla rete si
+    svuota quando la rete non c'è, e un menu vuoto non dà errore. Il menu è filtrabile
+    (`QCompleter` a contenuto: `giapp`, `ja` e `pones` trovano la stessa riga).
+    → **Il menu dice la verità per il backend scelto** (`lingue.copertura`): elenco chiuso
+    solo dove lo è davvero (Google); per `locale`, `llm` e `ollama` niente filtro e la
+    frase che dice da cosa dipende. E `auto` è marcato su tutti tranne Google, perché lì
+    diventa `en` in silenzio.
+    → **E dichiara quando manca la voce** (`speak.pool.ha_voce`): Piper e SuperTonic solo
+    italiano, Kokoro italiano e inglese. Senza avviso, tradurre in giapponese dà una voce
+    italiana che pronuncia il giapponese — nessun errore, audio che esce.
+    → I nomi inglesi della stessa tabella entrano ora nel prompt di TranslateGemma: erano
+    tredici scritti a mano, e `target=ja` faceva leggere al modello «into ja».
+    → **La finestra**: `ui.lingua` (`auto` segue Windows), **42 cataloghi × 168 chiavi** in
+    `ui/lingue/*.json`, generati con `tools/traduci_ui.py` e committati. Si applica a
+    caldo come il tema. Le chiavi non si scrivono: si **percorre la finestra**
+    (`ui/lingua.py`), la stessa passeggiata che poi la riveste — così estrattore e
+    applicatore non possono vedere due elenchi diversi.
+    → **Non si traducono** le spiegazioni dei 166 campi (vengono dai commenti di
+    `core/config.py`, misure comprese), il registro, la barra della misura, i percorsi dei
+    campi, i nomi dei caratteri e dei dispositivi: marcati `nontradurre`, col perché.
+    → **Il testo non sfora**, misurato con la finestra vera e il carattere vero
+    (`tools/traduci_ui.py --misura`): la più larga è il tamil a **872 px sul minimo di
+    960**, nessuna scheda sfora. La stessa misura fatta offscreen dava trentuno lingue su
+    quarantadue «rotte» — la piattaforma senza caratteri ha un ripiego molto più largo, e
+    una misura che non può esprimere la risposta va cambiata, non interpretata.
+    → Da destra a sinistra (arabo, ebraico, persiano, urdu): `setLayoutDirection`, e
+    guardato in una schermata.
+  * \[ ]  Creare un tutorial iniziale per un neofita dove spiega tutta linterfaccia, con anche la spiegazione se va installato qualcosa, es VoiceMeeter.
+  * \[ ]  fare exe
     → `livedub.spec` (PyInstaller), 528 MB in cartella — non `onefile`, perché lì mezzo
     giga viene scompattato a ogni avvio e i percorsi relativi a `__file__` cambiano ogni
     volta.
@@ -456,19 +525,19 @@ che si sono chiuse con un "no".)*
     (OneOCR e i pesi) e cosa servirebbe per tornare permissivi.
   * \[ ]  repo github senza collaboratore claude
 
-    * \[x]  repo professionale dove spiega tutte le feature e lingue supportate
+    * \[ ]  repo professionale dove spiega tutte le feature e lingue supportate
       → `README.md` riscritto per chi arriva da fuori; il vecchio (architettura estesa) è
       diventato `docs/architettura.md`. Feature, lingue di lettura/voce/traduzione, la
       finestra, l'installazione, e il capitolo onesto «Funziona con il mio gioco?».
-    * \[x]  spiegazione con un diagramma di flusso di cosa avviene nel programma
+    * \[ ]  spiegazione con un diagramma di flusso di cosa avviene nel programma
       → diagramma Mermaid nel README (GitHub lo disegna da solo, niente immagini da
       rigenerare): i due domini, il punto di fusione, e la strada dell'overlay.
-    * \[x]  valorizzazione dell'uso completamente locale ed estrema privacy
+    * \[ ]  valorizzazione dell'uso completamente locale ed estrema privacy
       → non uno slogan ma **la lista di cosa esce dal computer**, stadio per stadio.
       L'unico modo di far uscire del testo è chiedere `translate.backend=google`, che
       lo dichiara su stderr a ogni battuta. Nessuna telemetria, nessun account, nessun
       server nostro — non esiste un server nostro.
-    * \[x]  scrivere requisiti minimi richiesti, e quelli per la migliore esperienza in assoluto
+    * \[ ]  scrivere requisiti minimi richiesti, e quelli per la migliore esperienza in assoluto
       → scritti nel README con i numeri misurati: minimi 4 core e nessuna GPU (Piper,
       ~670 ms di latenza), migliore Kokoro su CUDA (257 ms, 1128 MB di VRAM, ~1150 ms
       totali). Con la tabella del costo per numero di core, e la riga che conta:
@@ -478,7 +547,7 @@ che si sono chiuse con un "no".)*
       l'unico punto degli step finali che poggia su misure, e le misure sono fatte.
     * \[ ]  fare anche un link paypal o qualcosa del genere per prendere delle donazioni
     * \[ ]  fare sito github dove c'è spiegato tutto
-    * \[x]  fruttare hype di gtavi per dire che è compatibile anche con quello
+    * \[ ]  sfruttare hype di gtavi per dire che è compatibile anche con quello
       → nel README, e detto in modo che regga: livedub è costruito su **quello che c'è a
       schermo**, non su file del gioco. Niente da estrarre, niente anti-cheat da toccare —
       guarda lo schermo e suona nelle cuffie come farebbe un giocatore.

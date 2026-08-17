@@ -177,7 +177,7 @@ def test_aree_catena(c) -> None:
     # -- senza aree dichiarate non cambia niente ------------------------------
     r = DubPipeline(cfg, _tono(), clock=VirtualClock(), samplerate=48000)
     c.eq(len(r.lettori), 1, "senza aree dichiarate c'e' un lettore solo")
-    c.eq(r.lettori[0][0].cfg.roi, cfg.vision.roi, "e legge la ROI di sempre")
+    c.eq(r.lettori[0][0].roi, cfg.vision.roi, "e legge la ROI di sempre")
     c.eq(r.lettori[0][1], "testo_audio", "e parla")
 
     # -- `self.reader` deve restare una vista, non una copia ------------------
@@ -211,7 +211,7 @@ def test_aree_catena(c) -> None:
     cfg3.vision = sovra
     cfg3.tts.backend, cfg3.speaker.backend, cfg3.vad.backend = "tone", "none", "energy"
     r3 = DubPipeline(cfg3, _tono(), clock=VirtualClock(), samplerate=48000)
-    rettangoli = [lettore.cfg.roi for lettore, _ in r3.lettori]
+    rettangoli = [lettore.roi for lettore, _ in r3.lettori]
     c.ok(not si_sovrappongono(rettangoli), "i rettangoli che arrivano ai lettori sono disgiunti")
     c.eq(len(rettangoli), len(dividi(da_config(sovra))), "e sono i pezzi che la divisione ha prodotto")
 
@@ -487,11 +487,21 @@ def test_guasto_audio(c) -> None:
 
     c.group("memoria")
 
+    class FintoMotore:
+        """I due cicli, ridotti a quello che la finestra gli chiede."""
+
+        def __init__(self) -> None:
+            self.threads = [object()]
+            self.pipeline = object()
+
+        @property
+        def acceso(self) -> bool:
+            return bool(self.threads)
+
     class Finta:
         def __init__(self) -> None:
             self.righe: list[str] = []
-            self.threads = [object()]
-            self.pipeline = object()
+            self.motore = FintoMotore()
             self.coda: _queue.Queue = _queue.Queue()
             self.fermata = False
 
@@ -500,8 +510,8 @@ def test_guasto_audio(c) -> None:
 
         def ferma(self) -> None:
             self.fermata = True
-            self.threads.clear()
-            self.pipeline = None
+            self.motore.threads.clear()
+            self.motore.pipeline = None
             self.coda.put(("stato", "fermo"))
 
     f = Finta()
@@ -697,3 +707,881 @@ def test_due_sessioni(c) -> None:
                     s._lines.close()
                 except Exception:
                     pass
+
+
+def test_motore(c) -> None:
+    """I due cicli fuori dalle finestre, e le due finestre che li chiamano.
+
+    **Il difetto che questo gruppo esiste per prendere non e' un calcolo: e' una
+    strada parallela.** I cicli vivevano dentro Tkinter; con un secondo
+    front-end la via breve era copiarli, ed e' esattamente la forma che in questo
+    progetto e' gia' costata due volte — il ricampionamento e il taglio del
+    silenzio in coda, scritti nel ramo normale e mancanti in quello in
+    streaming. La domanda che li avrebbe presi e' **«cosa fa la strada vecchia
+    che questa non fa?»**, e qui si fa a una a una: ogni messaggio che il motore
+    sa mandare deve essere gestito da **tutte e due** le finestre.
+
+    Gira senza aprire niente: non serve ne' Tk ne' un server grafico, perche'
+    quello che si prova sono regole, non disegno.
+    """
+    import re
+    from pathlib import Path
+
+    from core.motore import STATO_GUASTO, Motore, Opzioni, colore_stato, righe_guasto_audio
+
+    c.group("motore")
+
+    # -- le opzioni arrivano dalla riga di comando, quelle che ci sono --------
+    class FintiArgs:
+        loopback, output, block, backend, monitor = "vb-audio", None, 240, "mss", 2
+        no_save = True
+
+    o = Opzioni.da_args(FintiArgs())
+    c.eq(o.loopback, "vb-audio", "le opzioni della riga di comando arrivano al motore")
+    c.eq(o.block, 240, "anche i numeri, non solo le stringhe")
+    c.eq(o.output, None, "e un campo assente resta al suo default invece di diventare None a mano")
+    c.eq(Opzioni.da_args(object()).loopback, "voicemeeter",
+         "un chiamante che non passa niente ottiene i default, non un guasto")
+
+    # -- il protocollo: chi manda e chi ascolta ------------------------------
+    # I `tipo` che il motore emette, letti dal suo sorgente: un tipo nuovo
+    # aggiunto li' e dimenticato in una finestra sarebbe un messaggio buttato in
+    # **silenzio**, che e' la forma di difetto peggiore qui dentro.
+    radice = Path(__file__).resolve().parent.parent
+    sorgente = (radice / "core" / "motore.py").read_text(encoding="utf-8")
+    mandati = set(re.findall(r'self\.manda\(\s*"([a-z]+)"', sorgente))
+    c.ok(len(mandati) >= 6, f"il motore manda piu' di un tipo di messaggio ({sorted(mandati)})")
+    for nome, quale in (("tools/ui.py", "Tk"), ("tools/ui_qt.py", "Qt")):
+        testo = (radice / nome).read_text(encoding="utf-8")
+        gestiti = set(re.findall(r'tipo == "([a-z]+)"', testo))
+        mancanti = sorted(mandati - gestiti)
+        c.ok(not mancanti,
+             f"la finestra {quale} gestisce tutti i messaggi del motore (mancano: {mancanti})")
+
+    # -- fermare una catena mai accesa non deve esplodere --------------------
+    # Succede davvero: si preme Ferma dopo un avvio fallito, o si chiude la
+    # finestra prima di aver premuto Avvia. E deve **finire lo stesso**, se no i
+    # bottoni restano come stavano — cioe' Avvia spento a catena morta, che e'
+    # il difetto gia' pagato col guasto dell'audio.
+    # **Con l'adattatore vero, non con uno scritto per la verifica.** La prima
+    # stesura di questo gruppo usava un `lambda` suo e passava; le finestre
+    # passavano `coda.put`, che prende `(oggetto, bloccante, timeout)` — quindi
+    # `manda("nota", riga)` infilava il **solo tipo** usando la riga come flag di
+    # blocco, e dall'altra parte `tipo, dato = "nota"` esplodeva lontanissimo da
+    # dove stava lo sbaglio. La verifica provava una catena che nessuno faceva
+    # girare: adesso monta `in_coda` e spacchetta **come fa il giro della coda**.
+    import queue as _q
+
+    from core.config import Config
+    from core.motore import in_coda
+
+    coda: _q.Queue = _q.Queue()
+    m = Motore(Config(), Opzioni(no_save=True), in_coda(coda))
+    c.ok(not m.acceso, "un motore appena costruito non e' acceso")
+    m.ferma()
+    grezzi = []
+    while not coda.empty():
+        grezzi.append(coda.get_nowait())
+    c.ok(grezzi and all(isinstance(x, tuple) and len(x) == 2 for x in grezzi),
+         "ogni messaggio arriva come coppia (tipo, dato): e' la riga che le due "
+         "finestre spacchettano, e mutilata esplode lontano da dove sta lo sbaglio")
+    tipi = [t for t, _ in grezzi]
+    c.ok("finito" in tipi, "fermare una catena mai accesa manda comunque «finito»")
+    stati = [d for t, d in grezzi if t == "stato"]
+    c.eq(stati, ["fermo"], "e lo stato torna «fermo»")
+
+    # -- il colore del pallino vale per tutte e due le finestre --------------
+    # La regola era verificata sul tema Tk. La finestra Qt ha una tavolozza di
+    # forma diversa, e riscrivere tre righe di adattamento e' esattamente il modo
+    # in cui una regola sola diventa due.
+    from tools.ui_qt import ComeTk
+    from ui import qt_tema
+
+    for tavolozza in (qt_tema.SCURA, qt_tema.CHIARA):
+        vestita = ComeTk(tavolozza)
+        c.eq(colore_stato(STATO_GUASTO, vestita), tavolozza.rosso,
+             f"«{STATO_GUASTO}» accende il rosso anche in Qt ({tavolozza.nome})")
+        # **Non «verde»: menta.** In Menta c'e' un colore acceso solo, e vuol
+        # dire interazione e vita — il bottone che si preme, la spia quando la
+        # catena gira. Il verde «sta funzionando» e il blu «questo si preme»
+        # erano due colori per una cosa sola.
+        c.eq(colore_stato("in corso  |  120 frame", vestita), tavolozza.accento,
+             "una sessione viva prende l'accento")
+        c.eq(colore_stato("fermo", vestita), tavolozza.testo_fioco, "e una ferma resta fioca")
+
+    c.eq(len(righe_guasto_audio("OSError")), 2,
+         "il guasto dell'audio dice cosa e' successo **e** cosa fare")
+    c.ok(any("Avvia" in r for r in righe_guasto_audio("OSError")),
+         "e indica il bottone da premere, che deve essere premibile")
+
+    # -- la traduzione che fallisce lo deve **dire** -------------------------
+    # Trovato dal vivo: con `locale` e argostranslate non installato, **zero
+    # traduzioni su 19 battute** in quattro sessioni di fila. Il ripiego («si
+    # tiene l'originale») e' giusto, ma parlava solo a `stderr` — che dietro una
+    # finestra non lo legge nessuno e dentro un eseguibile non esiste. Un
+    # ripiego che non si dichiara e' peggio di un errore.
+    from translate.base import Traduzioni
+
+    class Rotto:
+        name = "finto-rotto"
+
+        def traduci(self, testo, da, a):
+            raise RuntimeError("argostranslate non installato")
+
+    detti_t: list[str] = []
+    tr = Traduzioni(Rotto(), da="it", a="en", dillo=detti_t.append)
+    fuori = tr("Voglio vedere i soldi!")
+    c.eq(fuori.testo, "Voglio vedere i soldi!",
+         "fallendo si tiene l'originale: una battuta muta e' peggio di una in italiano")
+    c.eq(len(detti_t), 1, "e la finestra lo viene a sapere")
+    c.ok("argostranslate" in detti_t[0], f"col motivo vero, non «non ha funzionato» ({detti_t[0]})")
+    for _ in range(5):
+        tr("un'altra battuta ancora diversa %d" % _)
+    c.eq(len(detti_t), 1,
+         "detto una volta sola: trenta righe identiche seppelliscono tutto il resto")
+    c.eq(tr.n_falliti, 6, "ma il conto va avanti, ed e' quello che finisce nella testata")
+
+
+def test_overlay_base(c) -> None:
+    """La geometria dell'overlay, senza aprire nessuna finestra.
+
+    Da quando i front-end sono due, `OverlayBase` e' l'unico posto in cui si
+    decide **dove** va il sottotitolo tradotto: Tk e Qt mettono i pixel e basta.
+    Se questa parte fosse duplicata, le due finestre disegnerebbero in due punti
+    diversi — ed e' proprio cosi' che sono nati i difetti di questo pezzo, con
+    un secondo disegnatore che mostrava una cosa mentre il vivo ne faceva
+    un'altra.
+    """
+    from ui.overlay import OverlayBase
+
+    c.group("motore")
+
+    class Finto(OverlayBase):
+        """Un front-end che non disegna: conta soltanto cosa gli viene chiesto."""
+
+        def __init__(self, *a, **k) -> None:
+            self.fatti: list[str] = []
+            super().__init__(*a, **k)
+
+        def _dipingi(self, tela, geom) -> None:
+            self.fatti.append("dipingi")
+
+        def _apri(self) -> None:
+            self.fatti.append("apri")
+
+        def _chiudi(self) -> None:
+            self.fatti.append("chiudi")
+
+    o = Finto((0.25, 0.9, 0.5, 0.06), schermo=(2560, 1440))
+    c.eq(o.geom, (1280, 86, 640, 1296), "senza finestra agganciata la ROI e' dello schermo")
+
+    # **Agganciata a una finestra, la ROI e' della finestra.** Senza, l'overlay
+    # cadrebbe sulla stessa frazione di *schermo* invece che di *finestra*: cioe'
+    # quasi sempre altrove, e sarebbe la prima cosa che si rompe usando il
+    # programma come si deve.
+    o.aggancia((100, 50, 1280, 720))
+    o.riposiziona((0.25, 0.9, 0.5, 0.06))
+    c.eq(o.geom, (640, 43, 420, 698), "agganciata al gioco, la ROI e' della sua finestra")
+    o.aggancia(None)
+    o.riposiziona((0.25, 0.9, 0.5, 0.06))
+    c.eq(o.geom, (1280, 86, 640, 1296), "e sganciandola si torna allo schermo")
+
+    # -- non si disegna a caso ----------------------------------------------
+    # Meglio nessun sottotitolo tradotto che un cartello piazzato dove il testo
+    # non c'e': e' il difetto che tutte le misure di *quanto* non potevano
+    # vedere, perche' lo sbaglio era *dove*.
+    o.fatti.clear()
+    o.mostra("ciao", pezzo=None, bande=None, rett=None)
+    c.eq(o.fatti, [], "senza sapere dove sta il sottotitolo non si disegna niente")
+    o.mostra("")
+    c.eq(o.fatti, [], "e una battuta vuota non apre la finestra")
+
+    # -- nascondere e' un'operazione sola, e non si ripete -------------------
+    o._visibile = True
+    o.sost = object()
+    o.t_on = 12.5
+    o.nascondi()
+    c.eq(o.fatti, ["chiudi"], "nascondere chiude la finestra")
+    c.eq(o.t_on, -1.0, "e dimentica quale sottotitolo stava traducendo")
+    o.nascondi()
+    c.eq(o.fatti, ["chiudi"], "nasconderla di nuovo non fa niente")
+
+    c.ok("+" in o.geometria(), f"la geometria si legge nel log ({o.geometria()})")
+
+
+def test_overlay_quando(c) -> None:
+    """**Quando** si costruisce l'overlay, che non e' un dettaglio di tempi.
+
+    Trovato dal vivo, con la suite verde: si costruiva alla nascita della
+    finestra, leggendo `translate.enabled` com'era all'avvio del programma.
+    Accendendo la traduzione dalle impostazioni — cioe' il modo dichiarato di
+    accenderla — la catena traduceva e **nessuno disegnava**: nella sessione
+    dell'utente 26 battute su 27 tradotte, `translate.overlay` a `true` nel
+    `config.json` salvato, e zero sottotitoli a schermo. Nessun contatore lo
+    diceva, perche' per la catena non era successo niente.
+
+    La domanda che lo prende in un secondo e' quella gia' scritta in `CLAUDE.md`
+    per le cure a meta': **cosa succede se questo valore cambia dopo?**
+    """
+    from core.config import Config
+    from core.motore import Motore, Opzioni, in_coda
+
+    c.group("motore")
+
+    class FintoOverlay:
+        vivi = 0
+
+        def __init__(self) -> None:
+            FintoOverlay.vivi += 1
+            self.ancora = self.roi = None
+            self.escluso = None
+
+        def riposiziona(self, roi) -> None:
+            self.roi = roi
+
+        def aggancia(self, r) -> None:
+            self.ancora = r
+
+        def esclusione(self, attiva) -> None:
+            self.escluso = attiva
+
+        def distruggi(self) -> None:
+            FintoOverlay.vivi -= 1
+
+    import queue as _q
+
+    cfg = Config()
+    m = Motore(cfg, Opzioni(no_save=True), in_coda(_q.Queue()))
+
+    # -- traduzione spenta: niente da disegnare ------------------------------
+    cfg.translate.enabled = False
+    m.prepara_overlay(FintoOverlay)
+    c.eq(m.overlay, None, "senza traduzione non si costruisce nessun overlay")
+
+    # -- accesa **dopo**, che e' il caso vero --------------------------------
+    cfg.translate.enabled = True
+    cfg.translate.overlay = True
+    cfg.vision.roi = (0.2, 0.88, 0.6, 0.07)
+    m.prepara_overlay(FintoOverlay)
+    c.ok(m.overlay is not None,
+         "accendendo la traduzione a finestra gia' aperta, l'overlay c'e' comunque")
+    c.eq(m.overlay.roi, (0.2, 0.88, 0.6, 0.07), "e sta sull'area di adesso, non su quella di ieri")
+    c.eq(m.overlay.escluso, True,
+         "catturando lo schermo si nasconde alla cattura, se no l'OCR legge noi")
+
+    # -- e si rifa' a ogni partenza, se no mostra la config di prima ---------
+    primo = m.overlay
+    m.prepara_overlay(FintoOverlay)
+    c.ok(m.overlay is not primo,
+         "ripartendo se ne fa uno nuovo: taglia, colore e raggio si leggono alla costruzione")
+    c.eq(FintoOverlay.vivi, 1, "e il vecchio viene distrutto, non lasciato sullo schermo")
+
+    # -- rispenta: sparisce ---------------------------------------------------
+    cfg.translate.overlay = False
+    m.prepara_overlay(FintoOverlay)
+    c.eq(m.overlay, None, "spegnendo `translate.overlay` la finestra sparisce davvero")
+    c.eq(FintoOverlay.vivi, 0, "senza lasciarne una in giro")
+
+
+def test_coerenza(c) -> None:
+    """**Una configurazione, quattro schede.** Le viste non possono divergere.
+
+    Segnalato dall'utente: disegnata un'area in Preparazione, «Tutte le
+    impostazioni» non la mostrava; cambiato il traduttore di la', la scheda
+    Traduzione restava indietro. La causa e' una cura a meta' della
+    riprogettazione: `_riallinea` elencava a mano `p_tecnologie` e `p_avanzate`,
+    e i gruppi erano stati **rinominati**. `getattr(self, "p_tecnologie", None)`
+    trasformava il nome morto in «niente da fare» invece che in un errore, cosi'
+    tre schede su quattro non si aggiornavano piu' — con la suite verde, perche'
+    nessuna verifica guardava due schede insieme.
+
+    Due schede della stessa finestra che dichiarano due valori diversi sono
+    peggio di una scheda sola: la seconda **sembra** dire la verita'.
+    """
+    import argparse
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+
+    from core.config import Config
+    from tools.ui_qt import Finestra
+    from ui.qt_controlli import leggi
+    from ui.qt_pannello import Pannello
+
+    c.group("coerenza")
+    app = QApplication.instance() or QApplication([])
+
+    args = argparse.Namespace(
+        profile=None, set=None, loopback=None, output=None,
+        block=None, backend=None, monitor=None, no_save=True,
+    )
+    f = Finestra(Config(), args)
+    pannelli = f.findChildren(Pannello)
+    c.ok(len(pannelli) >= 4, f"la finestra ha piu' viste sulla stessa config ({len(pannelli)})")
+
+    # -- un campo cambiato in una scheda si vede in tutte --------------------
+    p_tutte = f.p_avanzate
+    p_tutte._widget["tts.speed"].imposta(1.4)
+    p_tutte.applica(p_tutte._campi["tts.speed"])
+    app.processEvents()
+    c.close(f.cfg.tts.speed, 1.4, "il valore arriva in configurazione", 0.001)
+    c.close(float(leggi(f.p_voce._widget["tts.speed"])), 1.4,
+            "e la scheda Voce mostra quello, non quello di prima", 0.001)
+
+    # E nell'altro verso, che e' quello che l'utente ha provato.
+    f.p_traduzione._widget["translate.blur_strength"].imposta(30.0)
+    f.p_traduzione.applica(f.p_traduzione._campi["translate.blur_strength"])
+    app.processEvents()
+    c.close(float(leggi(f.p_avanzate._widget["translate.blur_strength"])), 30.0,
+            "e un cambio nella scheda Traduzione si vede in «Tutte le impostazioni»", 0.001)
+
+    # -- l'area disegnata e' un cambio come gli altri ------------------------
+    f._applica_roi((0.10, 0.50, 0.30, 0.05))
+    app.processEvents()
+    c.eq(tuple(leggi(f.p_avanzate._widget["vision.roi"])), (0.1, 0.5, 0.3, 0.05),
+         "l'area tirata col mouse si vede anche nel pannello dei parametri")
+
+    # -- «riporta ai default» avvisa, invece di cambiare di nascosto ---------
+    # Senza, la scheda torna ai default e le altre continuano a mostrare i
+    # valori vecchi: la stessa divergenza, da un'altra porta.
+    visti: list[str] = []
+    vecchio = f._campo_cambiato
+    f._campo_cambiato = lambda campo, valore: (visti.append(campo.percorso),
+                                               vecchio(campo, valore))[1]
+    for p in pannelli:
+        p.al_cambio = f._campo_cambiato
+    f.p_voce.ripristina()
+    app.processEvents()
+    c.ok("tts.speed" in visti, f"riportando ai default, ogni campo toccato passa di li' ({len(visti)})")
+    c.close(f.cfg.tts.speed, Config().tts.speed,
+            "e il valore torna davvero al default", 0.001)
+    c.close(float(leggi(f.p_avanzate._widget["tts.speed"])), Config().tts.speed,
+            "anche nelle altre schede", 0.001)
+
+    # -- l'aspetto del sottotitolo si cambia a sessione accesa ---------------
+    # `translate.color` e compagni non sono in `FREDDI`: la finestra dichiara
+    # che si cambiano a caldo e non ci mette il marchio «all'avvio». Ma
+    # `OverlayBase.__init__` se li copiava dentro, quindi la sessione continuava
+    # con quelli di partenza — una promessa scritta nella UI e non mantenuta.
+    from core.schema import campi
+
+    caldi = {k.percorso: k.caldo for k in campi(f.cfg)}
+    for percorso in Finestra.STILE:
+        c.ok(caldi.get(percorso, False),
+             f"{percorso} e' dichiarato modificabile a caldo")
+
+    # **E la traduzione, al contrario, e' fredda — con la prova del perche'.**
+    # Undici campi dicevano «a caldo» ed erano letti nel costruttore della
+    # catena: con la traduzione spenta `self.traduci` resta `None`, quindi
+    # accenderla a sessione avviata non faceva niente, e la finestra — non
+    # mettendoci il marchio «all'avvio» — prometteva il contrario. E' il
+    # «l'applicazione del traduttore si bugga» segnalato dall'utente.
+    #
+    # La classificazione da sola sarebbe un'opinione: qui c'e' accanto il
+    # comportamento che la giustifica. Se un giorno la catena imparasse a
+    # cambiare traduttore da viva, questa riga diventa rossa e ricorda di
+    # togliere il campo da `FREDDI` — che e' esattamente quando va tolto.
+    from core.clock import VirtualClock
+    from core.pipeline import DubPipeline
+    from speak.base import ToneTts
+
+    spenta = Config()
+    spenta.translate.enabled = False
+    catena = DubPipeline(spenta, ToneTts(), clock=VirtualClock(), samplerate=22050)
+    spenta.translate.enabled = True
+    c.eq(catena.traduci, None,
+         "accendendo la traduzione a catena gia' costruita non succede niente…")
+    for percorso in ("translate.enabled", "translate.source", "translate.target"):
+        c.ok(not caldi.get(percorso, True), f"…e infatti {percorso} e' dichiarato freddo")
+
+    class FintoOverlay:
+        # **Un finto incompleto fa uscire un'eccezione dal giro della coda**, che
+        # Qt ingoia e stampa: la verifica resta verde e nel mezzo dei risultati
+        # compare un traceback che sembra un guasto vero. I tre campi sono quelli
+        # che `ui.overlay.OverlayBase` dichiara e che la finestra legge a ogni
+        # giro.
+        _visibile, _vuoti, t_on = False, 0, 0.0
+
+        def __init__(self) -> None:
+            self.stile = {}
+
+        def ristila(self, **kw) -> None:
+            self.stile = kw
+
+        def distruggi(self) -> None:
+            """La finestra chiudendosi distrugge l'overlay: un finto che non sa
+            morire fa esplodere la verifica alla riga dopo l'ultimo controllo."""
+
+    finto = FintoOverlay()
+    f.motore.overlay = finto
+    f.cfg.translate.color = "#ff0000"
+    f._campo_cambiato(next(k for k in campi(f.cfg) if k.percorso == "translate.color"), "#ff0000")
+    c.eq(finto.stile.get("colore"), "#ff0000",
+         "cambiando il colore, la finestra gia' aperta lo viene a sapere")
+    c.eq(finto.stile.get("blur"), f.cfg.translate.blur_strength,
+         "e riceve l'aspetto intero, non il solo campo toccato")
+
+    # **Le due liste devono restare d'accordo.** `STILE` dice quali percorsi
+    # fanno ristilare, `_stile()` dice cosa si manda: se una cresce e l'altra no,
+    # il campo nuovo si cambia in config e non si vede — che e' il difetto di
+    # partenza, ricreato.
+    c.eq(len(Finestra.STILE), len(f._stile()),
+         "i campi che fanno ristilare sono tanti quanti quelli mandati")
+    from ui.overlay import OverlayBase
+    import inspect
+
+    accettati = set(inspect.signature(OverlayBase.ristila).parameters) - {"self"}
+    c.eq(sorted(set(f._stile()) - accettati), [],
+         "e l'overlay accetta tutte le chiavi che gli si mandano")
+
+    f.close()
+
+
+def test_manopole(c) -> None:
+    """Il controllo giusto per ogni campo, e la rotellina che non tocca niente.
+
+    Due difetti visti a schermo dall'utente, tutti e due invisibili al codice.
+
+    **Il primo**: il controllo si sceglieva dal *tipo Python*, quindi tutto cio'
+    che non era booleano o elenco dichiarato diventava un campo di testo. Un
+    rettangolo (`0.204, 0.8843, 0.592, 0.07`), un guadagno in dB, una lingua e un
+    colore: quattro cose che nessuno puo' digitare, tutte come testo libero.
+
+    **Il secondo**: passando il mouse sopra un elenco mentre si scorre la pagina,
+    Qt cambia il valore. Si scende di tre righe e si e' cambiato il motore di
+    sintesi senza saperlo — e la finestra mostra il valore nuovo, quindi sembra
+    una scelta dell'utente. Nessun contatore poteva dirlo.
+    """
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication, QComboBox, QLineEdit
+
+    from core.config import Config
+    from core.schema import Campo, limiti
+    from ui.qt_controlli import (
+        Cursore,
+        Rettangolo,
+        SceltaColore,
+        SceltaFra,
+        SceltaLingua,
+        per_campo,
+    )
+
+    c.group("manopole")
+    app = QApplication.instance() or QApplication([])
+
+    def campo(percorso, valore, tipo, scelte=()):
+        sez, _, nome = percorso.rpartition(".")
+        return Campo(percorso=percorso, sezione=sez, nome=nome, valore=valore,
+                     default=valore, tipo=tipo, aiuto="", caldo=True, scelte=scelte)
+
+    # -- il controllo dice cosa e' lecito ------------------------------------
+    atteso = [
+        ("vision.roi", (0.2, 0.9, 0.6, 0.07), "tuple", (), Rettangolo,
+         "un rettangolo si tira col mouse, non si digita"),
+        ("translate.color", "", "str", (), SceltaColore,
+         "un colore si prende da una tavolozza"),
+        ("translate.target", "it", "str", (), SceltaLingua,
+         "una lingua si sceglie da un elenco, non si scrive `it`"),
+        ("mix.duck_db", -14.0, "float", (), Cursore,
+         "un guadagno in dB ha un intervallo dichiarato: e' un cursore"),
+        ("tts.backend", "piper", "str", ("piper", "kokoro"), SceltaFra,
+         "un valore fra pochi e' un elenco"),
+        ("tts.kokoro_weights", "modello.onnx", "str", (), QLineEdit,
+         "e un nome di file resta testo, perche' testo e'"),
+    ]
+    for percorso, valore, tipo, scelte, classe, perche in atteso:
+        w = per_campo(campo(percorso, valore, tipo, scelte), limiti=limiti)
+        c.ok(isinstance(w, classe), f"{percorso}: {perche} ({type(w).__name__})")
+
+    # **Tirandolo, un valore fuori scala non si puo' esprimere.** E' meglio che
+    # rifiutarlo dopo: `mix.duck_db` positivo alzerebbe il gioco invece di
+    # abbassarlo, ed era digitabile in una casella di testo.
+    cur = per_campo(campo("mix.duck_db", -14.0, "float"), limiti=limiti)
+    cur.slider.setValue(cur.passi)          # tirato tutto a destra
+    c.ok(cur.valore() <= 0.0, f"tirato a fondo corsa resta nell'intervallo ({cur.valore()})")
+    cur.slider.setValue(0)
+    c.ok(cur.valore() >= -60.0, f"e dall'altra parte pure ({cur.valore()})")
+
+    # **Ma un valore fuori scala gia' in config si mostra com'e'.** Pinzarlo qui
+    # vorrebbe dire una finestra che mostra -14 dove c'e' scritto 999: la
+    # configurazione in uso e quella a schermo diverse, che e' il difetto contro
+    # cui esiste tutto il pannello.
+    cur.imposta(999)
+    c.eq(cur.valore(), 999.0, "un 999 arrivato da un profilo scritto a mano non si pinza di nascosto")
+    c.ok(cur.fuori_scala() and "⚠" in cur.numero.text(), "ma si dichiara fuori scala")
+    cur.imposta(-14.0)
+    c.close(cur.valore(), -14.0, "e un valore buono resta quello che e'", 0.001)
+    c.ok(not cur.fuori_scala(), "senza il marchio")
+
+    # -- la rotellina scorre la pagina, non i valori --------------------------
+    from ui.qt_pannello import Pannello
+
+    cfg = Config()
+    pannello = Pannello(cfg, solo=("tts.backend", "mix.duck_db"), cerca=False)
+    combo = pannello._widget["tts.backend"].findChild(QComboBox)
+    slider = pannello._widget["mix.duck_db"].slider
+
+    def rotella(w, giri=-3):
+        ev = QWheelEvent(QPointF(5, 5), w.mapToGlobal(QPoint(5, 5)),
+                         QPoint(0, giri * 120), QPoint(0, giri * 120),
+                         Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
+        QApplication.sendEvent(w, ev)
+
+    prima = (cfg.tts.backend, cfg.mix.duck_db)
+    for _ in range(3):
+        rotella(combo)
+        rotella(slider)
+    app.processEvents()
+    c.eq((cfg.tts.backend, cfg.mix.duck_db), prima,
+         "la rotellina sopra le impostazioni non cambia niente")
+
+    # **Il caso nullo: col fuoco l'evento deve passare.** Senza questa meta', un
+    # filtro che spegne la rotellina del tutto passerebbe la verifica di sopra, e
+    # la verifica direbbe «protetto» di un controllo che non si puo' piu' usare.
+    #
+    # Si prova la **regola** e non la finestra: senza un gestore di finestre
+    # `setFocus` non da' il fuoco (la finestra non e' attiva), quindi provarlo a
+    # schermo qui direbbe sempre «bloccato» — una verifica che non puo' fallire.
+    from ui.qt_controlli import _Rotella
+
+    class ConFuoco:
+        def hasFocus(self):
+            return True
+
+    class SenzaFuoco:
+        def hasFocus(self):
+            return False
+
+        def parentWidget(self):
+            return None
+
+    ev = QWheelEvent(QPointF(5, 5), QPointF(5, 5), QPoint(0, -120), QPoint(0, -120),
+                     Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
+    filtro = _Rotella()
+    c.ok(not filtro.eventFilter(ConFuoco(), ev),
+         "col fuoco la rotellina passa: chi ci ha cliccato sopra la vuole usare")
+    c.ok(filtro.eventFilter(SenzaFuoco(), ev),
+         "senza fuoco no: quella rotellina sta scorrendo la pagina")
+
+    # -- un menu non puo' offrire cio' che il motore non sa fare --------------
+    #
+    # L'elenco delle forme del nome era ricopiato a mano dentro la finestra e si
+    # era scollato da `vision/label.py` in tutti e due i versi: offriva tre forme
+    # che li' non esistono — e sceglierne una fa **sollevare** il lettore appena
+    # si preme Avvia, cioe' una voce del menu che rompe la sessione — e ne
+    # nascondeva quattro vere. Nessuna verifica poteva accorgersene, perche' le
+    # due liste erano d'accordo con se stesse.
+    #
+    # Questa e' la sola verifica che le tiene insieme, e oggi **fallisce** sulla
+    # versione ricopiata: e' il caso nullo di se stessa.
+    from dataclasses import replace as _replace
+
+    from vision.label import FORME, LabelReader
+    from ui.qt_controlli import ESEMPI_FORMA, SCELTE_A_MANO
+
+    forme_menu, esempi = SCELTE_A_MANO["label.form"]
+    c.eq(set(forme_menu), set(FORME),
+         "il menu offre esattamente le forme che il lettore sa leggere")
+
+    base = _replace(Config().label, enabled=True, regex="", names=(), require_names=False)
+    for f in forme_menu:
+        try:
+            lettore = LabelReader(_replace(base, form=f))
+            costruito = True
+        except Exception as e:
+            lettore, costruito = None, False
+            c.ok(False, f"forma {f!r} offerta ma il lettore la rifiuta: {e}")
+        if not costruito:
+            continue
+        # **E l'esempio non e' decorazione.** E' l'unica cosa che l'utente legge
+        # per scegliere: se mostra una riga che quella forma non prende, sceglie
+        # la forma sbagliata e il gioco «non scrive i nomi». La nota dopo i tre
+        # spazi e' commento per l'occhio, non parte della riga.
+        riga_esempio = esempi[f].split("   ")[0]
+        et = lettore.dal_testo(riga_esempio)
+        c.ok(et is not None and et.nome.lower().startswith("franklin")
+             and et.testo.startswith("come va"),
+             f"forma {f!r}: l'esempio «{riga_esempio}» si legge davvero ({et})")
+
+    c.ok(all(f in ESEMPI_FORMA for f in FORME),
+         "e ogni forma ha il suo esempio: senza, il menu mostra la chiave nuda")
+
+    # -- la tabella dei personaggi -------------------------------------------
+    #
+    # `label.voices` e' «chi ha quale voce, deciso da te», e vince su ogni
+    # assegnazione automatica: e' la funzione per cui uno accende i nomi. Il
+    # pannello la mostrava **spenta** («non modificabile»), quindi si poteva
+    # dichiarare solo aprendo a mano un file di profilo. Senza, la voce non e'
+    # del personaggio: e' del turno in cui compare.
+    from ui.qt_controlli import Tabella, leggi as _leggi, voci_del_pool
+
+    cfg2 = Config()
+    cfg2.label.enabled = True
+    cfg2.label.voices = {"Franklin": "riccardo"}
+    pann = Pannello(cfg2, solo=("label.voices",), cerca=False)
+    tab = pann._widget["label.voices"]
+    c.ok(isinstance(tab, Tabella), f"le voci dei personaggi sono una tabella ({type(tab).__name__})")
+    c.eq(_leggi(tab), {"Franklin": "riccardo"}, "che parte da quello che c'e' in config")
+
+    # **Le voci offerte sono quelle che la sessione avra' davvero.** Il pool e'
+    # tagliato a `tts.pool_size`, e una voce fuori dal pool il motore la scarta
+    # con un messaggio su stderr che dal vivo non legge nessuno: offrirne una in
+    # piu' vorrebbe dire una scelta che non fa niente.
+    offerte = [v for v, _ in voci_del_pool(cfg2)]
+    from speak.pool import build_pool
+
+    vere = [v.voice_id for v in build_pool(
+        cfg2.tts.voices, cfg2.tts.pool_size, backend=cfg2.tts.backend, lingua="it")]
+    c.eq(offerte, vere, "il menu offre esattamente le voci che il pool costruira'")
+
+    # Andata e ritorno vero: aggiungere una riga deve arrivare **in config**,
+    # perche' e' la config che la catena legge.
+    tab._aggiungi("Lamar", vere[1])
+    app.processEvents()
+    c.eq(cfg2.label.voices, {"Franklin": vere[0], "Lamar": vere[1]},
+         "aggiungere un personaggio arriva in configurazione")
+    tab._togli(tab._righe[0][2])
+    app.processEvents()
+    c.eq(cfg2.label.voices, {"Lamar": vere[1]}, "e toglierlo pure")
+
+    # **Il caso nullo: un valore che l'elenco non conosce non diventa un altro
+    # valore.** `SceltaFra.imposta` non faceva niente su un valore sconosciuto,
+    # quindi l'elenco restava sulla prima voce e `valore()` rispondeva quella —
+    # e il pannello, che dopo ogni modifica rilegge e riscrive, la archiviava. Un
+    # profilo con un motore tolto sarebbe diventato `piper` in silenzio.
+    from ui.qt_controlli import SceltaFra
+
+    sf = SceltaFra(("piper", "kokoro"))
+    sf.imposta("qwen")
+    c.eq(sf.valore(), "qwen", "un valore fuori elenco resta quello che e'")
+    c.ok("⚠" in sf.combo.currentText(), "ma si vede che non e' fra quelli disponibili")
+    sf.imposta("kokoro")
+    c.eq(sf.valore(), "kokoro", "e tornando a uno valido l'intruso sparisce")
+    c.eq(sf.combo.count(), 2, "senza lasciare voci finte nell'elenco")
+
+
+def test_aree_muta(c) -> None:
+    """Un'area `modo="testo"` viene **tradotta e disegnata**, non solo zittita.
+
+    La verifica che c'era provava mezza frase. `test_aree_catena` chiedeva «la
+    battuta di solo testo non viene pronunciata» — ed era vero — ma nessuno
+    chiedeva l'altra meta', cioe' quella scritta nel commento di
+    `core/pipeline.py`: «restano lette e chiuse, quindi tradotte e disegnate
+    sopra il gioco». Non lo erano. Le battute mute venivano scartate **prima**
+    di `_speak`, che e' il posto in cui avviene la traduzione e in cui nasce
+    `SpokenLine` — l'unica cosa che arriva a chi disegna.
+
+    Il difetto e' rimasto dietro una suite verde perche' una verifica che prova
+    solo il ramo negativo non puo' fallire quando manca quello positivo.
+
+    **Il traduttore finto deve cambiare davvero il testo**, se no «tradotto» e
+    «lasciato com'era» sono la stessa stringa e la prova non puo' perdere.
+    """
+    import numpy as np
+
+    from core.clock import VirtualClock
+    from core.config import Config
+    from core.pipeline import DubPipeline
+    from tools.frames import WHITE, empty_frame, font_available, render_subtitles
+    from translate.base import Traduzioni
+
+    c.group("aree")
+
+    if not font_available():  # pragma: no cover - macchina senza font
+        c.ok(False, "niente font di sistema: la prova sull'area muta non si puo' fare")
+        return
+
+    class Finto:
+        name = "finto"
+
+        def __init__(self) -> None:
+            self.visti: list[str] = []
+
+        def traduci(self, testo, da, a):
+            self.visti.append(testo)
+            return "[EN] " + testo
+
+    frame = empty_frame((1080, 1920))
+    frame[80:160, 200:1400] = render_subtitles(
+        [("CARTELLO raggiungi il molo", WHITE)], size=(80, 1200))
+    frame[940:1020, 600:1300] = render_subtitles([("Andiamo via", WHITE)], size=(80, 700))
+
+    cfg = Config()
+    cfg.tts.backend, cfg.speaker.backend, cfg.vad.backend = "tone", "none", "energy"
+    cfg.vision.use_lexicon = False
+    cfg.vision.aree = ("0.30:0.86:0.40:0.09:testo_audio", "0.10:0.07:0.65:0.08:testo")
+    cfg.speaker.decide_after_ms = cfg.speaker.max_wait_ms = 0
+    cfg.translate.enabled = True
+
+    orologio = VirtualClock()
+    r = DubPipeline(cfg, _tono(), ocr=_OcrPerArea(), clock=orologio, samplerate=48000)
+    finto = Finto()
+    r.traduci = Traduzioni(finto, da="it", a="en")
+    r.start_live(warmup=False)
+
+    dette = []
+    for k in range(14):
+        orologio.set(k * 0.1)
+        dette.extend(r.on_frame(np.zeros_like(frame) if k == 0 else frame))
+
+    c.eq(len(dette), 2, f"escono tutte e due le battute, non solo quella che parla "
+                        f"({[d.text for d in dette]})")
+    c.eq(len(finto.visti), 2,
+         f"e il traduttore le ha viste tutte e due ({finto.visti}): prima ne vedeva una")
+
+    mute = [d for d in dette if d.muta]
+    parlate = [d for d in dette if not d.muta]
+    c.eq(len(mute), 1, "una sola e' muta")
+    c.eq(len(parlate), 1, "e una sola parla")
+    c.ok("molo" in mute[0].text, f"la muta e' quella del cartello ({mute[0].text!r})")
+    c.ok(mute[0].text.startswith("[EN] "), "ed e' **tradotta**, che era la meta' mancante")
+    c.ok(mute[0].text_original and not mute[0].text_original.startswith("[EN] "),
+         "porta con se' l'originale, che e' cio' che va coperto a schermo")
+
+    # **Senza `text_original` non arriva a chi disegna**: il giro della coda
+    # manda il messaggio `overlay` solo per le righe che ne hanno uno. E' la
+    # condizione vera, non una sua parafrasi.
+    c.ok(bool(mute[0].text_original), "quindi il giro della coda la manderebbe all'overlay")
+
+    # -- e resta muta davvero ------------------------------------------------
+    c.eq(mute[0].voice_id, "", "la battuta muta non prende una voce dal pool")
+    c.eq(mute[0].duration, 0.0, "e non produce audio")
+    cont = r.metrics.snapshot()["counters"]
+    c.eq(cont.get("mix.utterances", 0), 1,
+         "una sola battuta arriva al mixer: la muta non occupa la voce")
+
+    # -- la geometria e' quella della **sua** area ---------------------------
+    # `boxes` e' in coordinate dell'area che ha letto la battuta. Chi disegna
+    # prendeva sempre `cfg.vision.roi`: con due aree, la traduzione del cartello
+    # sarebbe finita dentro la fascia del dialogo — nel posto sbagliato e senza
+    # nessun errore.
+    c.eq(tuple(round(v, 2) for v in mute[0].roi), (0.10, 0.07, 0.65, 0.08),
+         f"la battuta muta sa da che rettangolo viene ({mute[0].roi})")
+    c.eq(tuple(round(v, 2) for v in parlate[0].roi), (0.30, 0.86, 0.40, 0.09),
+         f"e anche quella parlata ({parlate[0].roi})")
+
+
+def test_area_sola(c) -> None:
+    """Una sola area dichiarata deve essere letta **dove sta**.
+
+    Il difetto piu' insidioso dei tre, perche' viveva dentro un'ottimizzazione
+    che sembrava innocua: «con un pezzo solo non serve copiare la config», cioe'
+    `cfg.vision if len(pezzi) == 1 else replace(...)`. Con **una** area
+    dichiarata quel ramo buttava via il suo rettangolo e leggeva `vision.roi`.
+
+    Perche' nessuno se n'era accorto: senza aree i due rettangoli coincidono
+    (`da_config` ripiega gia' sulla ROI) e con due aree il ramo e' l'altro.
+    Restava rotto solo il caso di mezzo — che e' precisamente quello che si
+    ottiene aggiungendo la **prima** zona dalla finestra.
+
+    E il sintomo era muto: la catena leggeva diligentemente il posto sbagliato.
+    """
+    from core.clock import VirtualClock
+    from core.config import Config
+    from core.pipeline import DubPipeline
+
+    c.group("aree")
+
+    def catena(aree):
+        cfg = Config()
+        cfg.tts.backend, cfg.speaker.backend, cfg.vad.backend = "tone", "none", "energy"
+        cfg.vision.use_lexicon = False
+        cfg.vision.aree = aree
+        return DubPipeline(cfg, _tono(), clock=VirtualClock(), samplerate=48000)
+
+    difetto = Config().vision.roi
+
+    r = catena(())
+    c.eq(r.lettori[0][0].roi, difetto, "senza aree si legge la ROI, come sempre")
+
+    # Il caso che era rotto, e il **caso nullo che lo isola**: il rettangolo
+    # dichiarato e' diverso dalla ROI di default, quindi «ha letto l'area» e «ha
+    # letto la ROI» non possono dare la stessa risposta.
+    una = (0.05, 0.40, 0.90, 0.10)
+    c.ok(una != difetto, "il rettangolo di prova e' diverso dalla ROI: se no la "
+                         "verifica non potrebbe distinguere i due casi")
+    r = catena((f"{una[0]}:{una[1]}:{una[2]}:{una[3]}:testo",))
+    c.eq(len(r.lettori), 1, "una area, un lettore")
+    c.eq(tuple(round(v, 4) for v in r.lettori[0][0].roi), una,
+         f"e legge **il suo** rettangolo, non la ROI ({r.lettori[0][0].roi})")
+    c.eq(r.lettori[0][1], "testo", "col suo modo")
+
+    r = catena(("0.0:0.0:1.0:0.5:testo", "0.0:0.5:1.0:0.5:testo_audio"))
+    c.eq([tuple(lettore.roi) for lettore, _ in r.lettori],
+         [(0.0, 0.0, 1.0, 0.5), (0.0, 0.5, 1.0, 0.5)],
+         "e con due aree ognuno resta al suo posto")
+
+    # -- e il prezzo che la prima cura si era portata dietro ------------------
+    # Quella stesura dava a ogni lettore una **copia** di `cfg.vision`. Il
+    # rettangolo tornava giusto e trentuno campi caldi smettevano di arrivare:
+    # cambiando «Ignora i sottotitoli colorati» a sessione accesa, il pannello
+    # mostrava il valore nuovo e la catena continuava con quello vecchio — il
+    # difetto contro cui quel pannello esiste, ricreato dalla sua cura.
+    from core.schema import campi as _campi
+
+    prova = Config()
+    prova.tts.backend, prova.speaker.backend, prova.vad.backend = "tone", "none", "energy"
+    prova.vision.use_lexicon = False
+    prova.vision.aree = ("0.05:0.40:0.90:0.10:testo", "0.05:0.60:0.90:0.10:testo_audio")
+    viva = DubPipeline(prova, _tono(), clock=VirtualClock(), samplerate=48000)
+    caldi = sorted(x.percorso for x in _campi(prova)
+                   if x.percorso.startswith("vision.") and x.caldo)
+    c.ok(len(caldi) > 20, f"«vision» ha {len(caldi)} campi dichiarati caldi")
+    prova.vision.sat_max = 99
+    prova.vision.exclude_colored = not prova.vision.exclude_colored
+    c.ok(all(lettore.cfg is prova.vision for lettore, _ in viva.lettori),
+         "ogni lettore tiene **l'oggetto** di config, non una copia")
+    c.eq([lettore.cfg.sat_max for lettore, _ in viva.lettori], [99, 99],
+         "quindi una manopola calda arriva a tutti i lettori a sessione accesa")
+    c.eq([tuple(lettore.roi) for lettore, _ in viva.lettori],
+         [(0.05, 0.40, 0.90, 0.10), (0.05, 0.60, 0.90, 0.10)],
+         "senza che nessuno perda il proprio rettangolo")
+
+
+def test_area_troppo_grande(c) -> None:
+    """Un'area grande non e' meno precisa: e' **muta**, e adesso lo dice.
+
+    La misura che sta dietro la soglia: il cancello che decide se rileggere lo
+    schermo guarda la **frazione** di pixel cambiati contro `diff_threshold =
+    0,004`, e quella frazione ha l'area al denominatore. Lo stesso sottotitolo,
+    con l'area che cresce attorno: 0,0225 a 0,08 di altezza, 0,0081 a 0,30,
+    0,0043 a 0,70, **0,0032 a schermo intero** — cioe' sotto la soglia. Misurato
+    a schermo intero: 14 fotogrammi in, 14 fermati, zero chiamate all'OCR.
+
+    Il difetto non lascia tracce: per la catena quei fotogrammi non contenevano
+    niente di nuovo, e nessun contatore distingue «non c'era testo» da «non l'ho
+    guardato».
+    """
+    from vision.aree import ALTEZZA_MASSIMA, troppo_grande
+
+    c.group("aree")
+
+    c.eq(troppo_grande((0.15, 0.72, 0.70, 0.22)), "",
+         "una fascia da sottotitoli non dice niente")
+    c.eq(troppo_grande((0.0, 0.0, 1.0, ALTEZZA_MASSIMA)), "",
+         "e nemmeno una esattamente al limite")
+    grande = troppo_grande((0.0, 0.0, 1.0, 1.0))
+    c.ok(grande.startswith("!"), "tutto lo schermo invece avvisa")
+    c.ok("zero letture" in grande,
+         "e dice il numero misurato, non «potrebbe funzionare peggio»")
+
+    # **E l'avviso arriva alla finestra**, che e' l'unico posto dove qualcuno lo
+    # legge: scritto in una funzione e mai chiamato sarebbe l'ottavo campo
+    # dichiarato e mai letto di questo progetto.
+    from core.clock import VirtualClock
+    from core.config import Config
+    from core.pipeline import DubPipeline
+
+    detti: list[str] = []
+    cfg = Config()
+    cfg.tts.backend, cfg.speaker.backend, cfg.vad.backend = "tone", "none", "energy"
+    cfg.vision.use_lexicon = False
+    cfg.vision.aree = ("0.0:0.0:1.0:1.0:testo",)
+    DubPipeline(cfg, _tono(), clock=VirtualClock(), samplerate=48000, dillo=detti.append)
+    c.ok(any("legge poco o niente" in d for d in detti),
+         f"la catena lo dice all'avvio, dove il log lo raccoglie ({detti})")

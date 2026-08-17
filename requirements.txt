@@ -51,10 +51,44 @@ kokoro-onnx==0.5.0          # richiede la GPU; tira espeakng-loader + phonemizer
 # `models/llm/` alla prima chiamata.
 llama-cpp-python==0.3.34
 
-# La traduzione **leggera** in locale, per chi non vuole spendere calcolo. Non e'
-# installata di default: `pip install argostranslate`, poi
-# `python -m translate.locale --scarica en it`.
-# argostranslate
+# --- la traduzione offline, e le sue due trappole ----------------------------
+# **Adesso e' installata di serie**: e' il default di `translate.backend`, e un
+# default che non funziona senza un `pip install` fatto a mano non e' un default.
+# Chi apre l'eseguibile deve trovarsela pronta; la **coppia di lingue** invece e'
+# un modello e si scarica al primo uso, come gia' fanno silero ed ECAPA.
+#
+# Le righe qui sotto sembrano barocche e non lo sono. `pip install argostranslate`
+# e basta fa **due** danni, misurati con `--dry-run` prima di installare:
+#
+#  1. tira `minisbd`, che dipende da `onnxruntime` (CPU). Quel pacchetto e
+#     `onnxruntime-gpu` scrivono nella stessa cartella: installarlo spegne la
+#     CUDA di Kokoro **in silenzio** — 725 ms a battuta invece di 207, con i log
+#     verdi. Per questo `minisbd` va messo con `--no-deps`: `onnxruntime-gpu` e'
+#     gia' un superset e fornisce lo stesso modulo.
+#  2. tira `spacy` (~100 MB) che ad argos serve solo se si sceglie quel modo di
+#     spezzare le frasi: il default e' `ARGOSTRANSLATE`, e `sbd.py` importa spacy
+#     dentro un `try`. Con `--no-deps` sull'argostranslate e le dipendenze vere
+#     elencate a mano, resta fuori.
+#
+# Quello che **non** si puo' evitare: `argostranslate/sbd.py` importa `stanza` in
+# cima al modulo, e stanza dipende da `torch`. Sono +712 MB di venv (misurati:
+# 3120 -> 3832 MB) per una traduzione che gira su CTranslate2 e non usa torch per
+# niente. E' il prezzo della traduzione offline, ed e' scritto qui perche' chi
+# ricostruisce l'ambiente lo sappia prima e non dopo.
+#
+# **E per questo non stanno in questo file.** Un `requirements.txt` non sa dire
+# «questo pacchetto senza le sue dipendenze»: `--no-deps` esiste solo come
+# opzione globale, e globale spegnerebbe le dipendenze di *tutto* il resto.
+# Scriverli qui come righe normali vorrebbe dire che il prossimo `pip install -r`
+# reinstalla `onnxruntime` CPU e spegne la GPU — cioe' il file che serve a
+# rendere l'ambiente ricostruibile lo romperebbe. Stanno in uno script, che fa
+# la sequenza giusta ed e' rieseguibile:
+#
+#   powershell -ExecutionPolicy Bypass -File tools\installa_traduzione.ps1
+#
+# Le versioni installate e verificate: argostranslate 1.11.0, minisbd 0.9.5,
+# ctranslate2 4.8.1, sentencepiece 0.2.2, sacremoses 0.1.1, stanza 1.10.1
+# (+ torch 2.13.0, che si porta dietro stanza).
 
 # --- visione e riconoscimento ------------------------------------------------
 rapidocr-onnxruntime==1.4.4

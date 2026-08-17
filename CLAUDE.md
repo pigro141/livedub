@@ -37,7 +37,7 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest              # 1164 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest              # 1753 verifiche
 .\.venv\Scripts\python.exe -m tools.selftest speaker pool # gruppi scelti
 .\.venv\Scripts\python.exe -m tools.selftest -v           # con i verdi in chiaro
 
@@ -48,7 +48,7 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 
 .\.venv\Scripts\python.exe -m tools.reopen runs\<cartella> [secondo]
 .\.venv\Scripts\python.exe -m tools.recluster runs\<cartella>\speaker.jsonl --profile gtav
-.\.venv\Scripts\python.exe -m tools.ui --profile live --loopback voicemeeter --set vision.ocr_backend=oneocr
+.\.venv\Scripts\python.exe -m tools.ui_qt --profile live --loopback voicemeeter --set vision.ocr_backend=oneocr
 # Nella finestra: **Scegli finestra** (il gioco) -> Seleziona area -> Avvia.
 
 # la prova d'ascolto, con i controlli fatti prima (venv, cattura, Ollama e il suo
@@ -57,13 +57,26 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 powershell -ExecutionPolicy Bypass -File tools\prova.ps1 [-Traduci] [-Motore piper] `
     [-Set translate.background_mode=riquadro]   # -Set e' ripetibile, e viene stampato
 
+# le schermate della finestra nei due temi, senza aprirla e senza il gioco:
+# 14 PNG in trenta secondi. Dopo ogni ritocco alla grafica si guarda un'immagine.
+# `--lingua` la veste con un catalogo: una lingua lunga (de) e una da destra a
+# sinistra (ar) sono le due che fanno vedere i difetti di disposizione.
+.\.venv\Scripts\python.exe -m tools.scatta runs\menta --profile gtav [--lingua de]
+
+# i cataloghi della finestra: si estraggono guardandola, si traducono una volta
+# e si committano. `--misura` e' il «non sfora» con il carattere vero.
+.\.venv\Scripts\python.exe -m tools.traduci_ui --estrai
+.\.venv\Scripts\python.exe -m tools.traduci_ui de ja ar --backend google
+.\.venv\Scripts\python.exe -m tools.traduci_ui --controlla   # quanto manca a ognuna
+.\.venv\Scripts\python.exe -m tools.traduci_ui --misura      # le schede stanno nel minimo?
+
 # come si vedrebbe l'overlay, senza accendere il gioco: stesso pittore del vivo.
 # `--frames N` sputa N PNG invece del video, e si guardano subito.
 .\.venv\Scripts\python.exe -m tools.overlay_mp4 testGameplayFattoDaMe.mp4 runs\<passata> `
     --profile gtav --offset 1240 --start 1240 --end 1285 --out runs\ov\overlay.mp4
 
 # dal vivo con traduzione, grafica e audio (serve `ollama serve` acceso)
-.\.venv\Scripts\python.exe -m tools.ui --profile live --loopback voicemeeter `
+.\.venv\Scripts\python.exe -m tools.ui_qt --profile live --loopback voicemeeter `
     --set vision.ocr_backend=oneocr --set tts.backend=kokoro --set tts.device=cuda `
     --set translate.enabled=true --set translate.backend=ollama `
     --set translate.source=it --set translate.target=en
@@ -438,6 +451,282 @@ max 70**.
 
 **`core/onnx.py`** — la porta unica per aprire una sessione ONNX, che esiste per
 la riga `preload_dlls()`. Si veda la regola piu' sotto.
+
+## La finestra: **Menta**, e dove sta ogni pezzo
+
+Il disegno per esteso e' `docs/interfaccia.md`. **Non leggerlo per intero se
+serve un numero**: i numeri stanno in `ui/qt_tema.py`, che e' la sua traduzione
+in codice. Chi scrive un pezzo di finestra li cerca li' e non li inventa; se il
+numero non c'e', lo **ricava con la regola** (`R(h)`, la scala `S0..S7`) e lo
+aggiunge alla tabella.
+
+La finestra e' `tools/ui_qt.py` (PySide6), ed e' **il prodotto**: e' quella che
+impacchetta `livedub.spec`, quella che apre `livedub.bat`, quella che lancia
+`tools/prova.ps1`. La Tk (`tools/ui.py`, `ui/tema.py`) resta per il confronto e
+si raggiunge con `prova.ps1 -Tk`, ma non e' vestita Menta e non lo sara'.
+
+**Tutto viene dal logo, letteralmente campionato dal PNG**: sei dei quattordici
+colori e la regola del raggio (`R(h) = clamp(round(0.20*h), 4, 18)`, dal 19,8%
+del logo). Il riferimento non e' un documento che qualcuno deve ricordarsi, e' un
+file che sta nel repo.
+
+**Un colore acceso solo, e vuol dire interazione e vita.** Prima ce n'erano tre
+con significati che si accavallavano — un verde «sta funzionando», un blu «questo
+si preme» e un `#39d353` scritto a mano nel selettore d'area, fuori da qualunque
+tavolozza e mai guardato nel tema chiaro. Ambra e rosso restano ma non sono
+colori d'interfaccia: sono **stati**, e compaiono solo dove c'e' uno stato.
+
+**La menta e' un riempimento, non un testo, ed e' il numero che avrebbe fatto
+sbagliare tutto.** `#43f1c1` fa **12,9:1** sul fondo scuro e **1,44:1** sul
+bianco: chi la prova sullo scuro conclude che funziona. Quindi sul tema chiaro
+`accento` e' una menta scurita (`#07785d`, 5,4:1) per testo e contorni, e la
+menta resta il solo riempimento. Il guadagno e' che **Avvia e' lo stesso colore
+nei due temi**, ed e' l'unico elemento della finestra che non cambia col tema.
+
+**La regola dei canali, che e' quella che tiene in piedi il sistema.** Sei voci
+piu' tre stati fanno nove tinte, e nove tinte non stanno sul cerchio dei colori
+con margini comodi: la voce 1 (`#ffb86b`) e l'ambra (`#f5b544`) distano **ΔE
+16,0**, cioe' si confondono. La soluzione non e' cercare nove tinte perfette —
+non ci sono — e' che **le due famiglie non usino mai lo stesso canale**: le sei
+voci sono *colore del testo* e vivono solo nel log; menta, ambra e rosso sono
+riempimenti, marche e contorni. Quindi una riga di errore **non e' rossa**: ha
+una marca da 3 px nel margine. Rotta questa regola il log smette di rispondere
+alla sua unica domanda — e non smette di colpo, smette per gradi, mentre tutto
+continua a funzionare. La verifica `menta` lo prende cercando i sei colori delle
+voci **dentro il foglio di stile**: non ce ne deve essere nessuno.
+
+**Le regole stanno fuori dalla finestra**, che e' la lezione gia' pagata (quattro
+dei cinque difetti trovati rileggendo le cure a freddo stavano in Qt o al suo
+confine, l'unica parte del programma senza nessuna verifica):
+
+| regola | dove | cosa decide |
+|---|---|---|
+| `colore_stato` | `core/motore.py` | di che colore va la pillola **e quindi la faccia del logo** |
+| `gravita` | `core/motore.py` | che marca va nel margine di una riga di log |
+| `barra_misura` | `core/motore.py` | quali numeri sono fuori norma in fondo alla finestra |
+| `R(h)`, tavolozze, `contrasto`, `delta_e` | `ui/qt_tema.py` | la geometria e i colori |
+
+`ui/qt_tema.py` **non importa PySide6 al livello del modulo** apposta: Qt entra
+solo dentro `attuale()` e negli aiuti che toccano un widget, cosi' i gruppi
+`menta` e `menta_regole` girano senza aprire niente.
+
+**Il logo cambia sulla stessa regola, non su una seconda**
+(`rotto = self._colore_stato == self.tavolozza.rosso`). Un elenco di stati brutti
+scritto in testata si separerebbe da `colore_stato` al primo stato nuovo, e si
+separerebbe **in silenzio**. E al cambio di tema il confronto va rifatto contro
+la tavolozza **nuova**, perche' `rosso` e' `#ff6b5e` sullo scuro e `#cc372c` sul
+chiaro: e' esattamente il punto in cui una condizione scritta su una stringa di
+colore congelata smette di funzionare senza dare errore.
+
+**La barra della misura esiste perche' questo progetto misura tutto e poi non lo
+guarda finche' non finisce la sessione.** OCR in Hz, battute, latenza p50,
+compressione, underrun e ROI, a **2 Hz** e non a trenta. Le soglie sono tutte
+gia' misurate altrove in questo file: OCR sotto 15 Hz (schermo intero 14,7 contro
+fascia 19,9 = cinque sottotitoli in meno), latenza oltre 2,5 s (la soglia
+dichiarata prima della prova di Qwen), compressione oltre 1,30 (dove le
+consonanti spariscono), e `underrun > 0` che e' l'unico rosso — non e' un numero
+fuori norma, e' una battuta che non si e' sentita.
+
+**Tre cose che il foglio di stile fa e che a schermo non danno errore.** Qt non
+dipinge il fondo di una **sottoclasse** di `QWidget` finche' non glielo si chiede
+(`WA_StyledBackground`): la regola c'e', e non si vede niente. Una regola
+discendente (`#pannello QLabel`) batte una a un solo identificatore (`#passo`),
+quindi il numero del passo perdeva il fondo menta e restava scuro su scuro —
+adesso c'e' una sola `QLabel { background: transparent }` e non c'e' piu' niente
+da ricordarsi. E `url()` con un nome inventato disegna un **quadrato pieno**
+invece della spunta: la verifica controlla che ogni immagine del foglio esista
+davvero sul disco.
+
+**E il modo di verificare tutto questo resta guardarlo.** Le verifiche prendono
+quello che non si vede (i contrasti, le ΔE, i raggi, le soglie); quello che si
+vede si prende con `tools/scatta.py`, che fa quattordici schermate nei due temi
+in trenta secondi senza aprire il gioco: costruisce la finestra con
+`WA_DontShowOnScreen`, forza `tema.attuale` e chiama `grab()`. **Non con
+`QT_QPA_PLATFORM=offscreen`**, che ha **zero caratteri** installati e restituisce
+una finestra di quadratini — cioe' una fotografia che non puo' mostrare il
+difetto che si sta cercando.
+
+### Quello che il documento diceva e che a schermo era sbagliato
+
+Il disegno e' stato scritto prima di essere costruito, e **cinque delle sue
+prescrizioni sono cadute alla prima occhiata dell'utente**. Nessuna dava errore.
+
+**I punti di rottura erano tre e ne e' rimasto uno.** Sotto i 720 px di altezza
+la barra della misura doveva ridursi a tre valori: provato, i numeri
+**sparivano uno dopo l'altro** mentre si rimpiccioliva la finestra, e i primi ad
+andarsene erano OCR, compressione e underrun — cioe' esattamente quelli che si
+guardano quando qualcosa non va. Un'informazione che se ne va in silenzio e'
+peggio di una riga stretta. Quello sulla ROI e' caduto da solo: era scritta due
+volte a quindici centimetri di distanza, e ne e' stata tolta una.
+
+**Lo stato era detto in tre posti**: una pillola in testata, la barra in fondo e
+la faccia del logo — due angoli opposti della stessa finestra per una parola
+sola. Resta la barra, dove ci sono gia' gli altri numeri, piu' la faccia del
+logo, che e' l'unica cosa che si vede senza leggere.
+
+**Il monospazio e' uscito da tutto tranne il log**, e nel log e' diventato
+`carattere_log()`: quello dell'interfaccia con le **cifre tabulari** (`tnum`).
+Le colonne servivano ai numeri, non ai nomi — e i nomi adesso si separano con dei
+punti invece che con degli spazi di riempimento, che e' una cosa che non chiede
+niente al carattere. Una finestra intera in Cascadia Mono sembra un terminale.
+
+**I tre passi si spuntavano da soli.** Il secondo diceva «fatto» perche' il
+*profilo* portava gia' una ROI: la finestra si apriva con una spunta sopra una
+cosa che l'utente non aveva toccato, e il primo passo — quello vero da fare —
+restava sotto. Un indicatore che dice «fatto» per una cosa non fatta toglie a
+quel pannello l'unica informazione che deve dare.
+
+**E il minimo dichiarato non era il minimo vero.** `MIN_LARGO = 960` stava in
+tavolozza e la finestra ne chiedeva **978**, perche' tre `QLabel` normali — una
+spiegazione da centoventi caratteri, la riga «da fare nella preparazione», i
+248+300 px fissi di ogni riga di parametro — impongono la larghezza del loro
+testo intero e nessun ridimensionamento gliela toglie. Da qui `Elidibile`, che si
+accorcia con i puntini e tiene il testo intero nel suggerimento. **Il minimo di
+un widget non si vede guardando**: si vede quando la finestra si rifiuta di
+stringersi, ed e' per questo che la verifica ora chiede
+`pagina.minimumSizeHint().width() <= MIN_LARGO` per ogni scheda.
+
+## Le lingue, che sono **due cose diverse** e vanno tenute lontane
+
+`translate.source`/`translate.target` decidono in che lingua il programma
+**parla**; `ui.lingua` decide in che lingua il programma **scrive sui bottoni**.
+Confonderle costa una sessione — si mette `en` nel posto sbagliato credendo di
+aver acceso la traduzione, e la catena continua a doppiare in italiano — quindi
+la prima sta nella scheda Traduzione e la seconda nella Preparazione, apposta a
+due schede di distanza.
+
+**Le 133 lingue di Google stanno in `translate/lingue.py`, scritte nel repo.**
+Codice, nome italiano, nome inglese. Non si chiedono alla rete: un elenco che
+dipende dalla rete si svuota quando la rete non c'e', e un menu vuoto **non da'
+errore**. Un elenco fermo invecchia, ma invecchia in modo visibile.
+
+**Il menu dice la verita' per il backend scelto, e la forma e' «mostrare tutte e
+dichiarare», non filtrare.** `copertura()` torna un elenco chiuso **solo dove lo
+e' davvero** — Google — e altrove torna `None` piu' la frase che dice da cosa
+dipende: `locale` esiste solo per coppie Argos pubblicate, `llm` e `ollama`
+dipendono dal modello. Filtrare richiederebbe un elenco chiuso per tre backend
+che non ce l'hanno: si toglierebbero scelte che funzionano e passerebbero quelle
+che non funzionano, con l'aria di sapere. L'unica cosa certa e universale e'
+`auto`, che **solo Google** capisce: per gli altri diventa `en` dentro
+`locale.coppia()`, ed e' marcato.
+
+**E il menu dichiara quando manca la voce** (`speak.pool.ha_voce`). Piper e
+SuperTonic hanno solo voci italiane, Kokoro italiano e inglese: tradurre verso il
+giapponese senza una voce giapponese non da' errore — esce una voce italiana che
+pronuncia il giapponese, cioe' un modello fonemizzato con le regole sbagliate,
+con l'audio che esce e la suite verde.
+
+**Lo stesso elenco entra nel prompt.** `translate/ollama.py` aveva tredici nomi
+scritti a mano e `LINGUE.get(a, a)` ripiegava sul codice: con `target=ja` il
+modello leggeva «translate into ja». Risponde lo stesso, e risponde peggio, senza
+che niente lo dichiari — settima volta della forma «una tabella scritta due
+volte, e la seconda non l'aggiorna nessuno».
+
+### La lingua della finestra: 42 cataloghi, e nessun `tr()` da ricordarsi
+
+`ui/lingua.py`. La chiave **e'** la stringa italiana, quindi non ci sono
+identificatori da inventare e una stringa nuova nel codice compare da sola fra le
+mancanti invece di sparire. E non si traduce chiamando `T()` in quattrocento
+punti: **si costruisce la finestra e la si percorre**, che e' la stessa scelta di
+`core/schema.py` per le impostazioni — l'elenco non si scrive, si ricava, quindi
+non puo' scollarsi. `tools/traduci_ui.py --estrai` fa **la stessa passeggiata**
+che poi riveste i widget: estrattore e applicatore non possono vedere due elenchi
+diversi.
+
+Il prezzo e' dichiarato: si traduce quello che sta **scritto sui widget**, non
+quello che ci finisce dopo. Restano in italiano il registro, la barra della
+misura, i messaggi di stato, i percorsi dei campi, i nomi dei caratteri e dei
+dispositivi — e **le spiegazioni dei 166 campi**, perche' vengono dai commenti di
+`core/config.py` misure comprese, e `core/schema.py` esiste apposta per non
+riscriverle. Sono marcate `nontradurre`.
+
+**Rimettere l'italiano deve rimettere l'italiano**, e non e' scontato: senza la
+memoria dell'originale su ogni widget il secondo cambio di lingua tradurrebbe una
+traduzione, e a ogni giro ci si allontanerebbe dal sorgente.
+
+**«Il testo non sfora» si misura con il carattere vero.** `tools/traduci_ui.py
+--misura` costruisce la finestra con ogni catalogo addosso e chiede a ogni scheda
+la larghezza minima: la piu' larga e' il tamil a **872 px sul minimo di 960**, e
+nessuna sfora. La stessa misura fatta **offscreen** dava trentuno lingue su
+quarantadue «rotte» (tedesco 1353, tamil 1470), perche' quella piattaforma non ha
+caratteri installati e il suo ripiego e' molto piu' largo. Una misura che
+dichiara rotto cio' che funziona non e' prudente, e' inservibile — quindi nella
+suite resta la parte che **quella** misura puo' esprimere: la crescita in
+caratteri, che non dipende da nessun carattere tipografico.
+
+**E quella verifica ha trovato tre traduzioni sbagliate, non solo lunghe.** «solo
+a caldo» -> «seulement quand il fait chaud» (il tempo atmosferico), «Apri il
+registro» -> «apri il registro di sistema di Windows», e `uk — Ucraino` ->
+«Regno Unito — ucraino»: il catalogo aveva trasformato un **codice di lingua in
+un paese**. Da li' la regola che un'etichetta con dentro un valore tecnico non
+passa dal catalogo. Un cricchetto sulla lunghezza costa dieci righe e prende
+errori di significato che nessuno andrebbe a cercare in quarantadue file.
+
+## Le aree in piu', e i tre difetti che le tenevano ferme
+
+**Aggiungere una zona `solo testo` non faceva niente**, e non per un motivo:
+per tre, impilati. Tutti e tre muti — nessun errore, nessun contatore, la suite
+verde.
+
+**Uno.** Una sola area dichiarata **perdeva il proprio rettangolo**. In
+`core/pipeline.py` c'era `cfg.vision if len(pezzi) == 1 else replace(cfg.vision,
+roi=pezzo.roi)`: un'ottimizzazione che con *una* area buttava via la sua
+geometria e leggeva `vision.roi`. Senza aree i due rettangoli coincidono e con
+due aree il ramo e' l'altro — restava rotto **solo** il caso di mezzo, che e'
+esattamente quello che si ottiene aggiungendo la prima zona dalla finestra.
+
+**Due.** Le battute mute **non venivano tradotte ne' disegnate**. `_pronte` le
+filtrava prima di `_speak`, che e' il posto dove avviene la traduzione e dove
+nasce `SpokenLine` — l'unica cosa che arriva a chi disegna. Il commento accanto
+diceva il contrario («restano lette e chiuse, quindi tradotte e disegnate sopra
+il gioco»): un comportamento **dichiarato e mai scritto**. Misurato con un
+traduttore finto che *cambia davvero* il testo: due sottotitoli aperti, una sola
+battuta in uscita, e il traduttore non aveva mai visto la riga muta. La verifica
+che c'era provava solo la meta' negativa («non viene pronunciata»), e una
+verifica che prova un ramo solo non puo' fallire quando manca l'altro.
+
+**Tre, e questo non e' un difetto ma un limite dell'architettura.** Un'area
+grande **non legge**, e non e' una soglia da ritoccare: il cancello che decide
+se rileggere lo schermo (`RoiDiff`) guarda la **frazione** di pixel cambiati
+contro `diff_threshold = 0,004`, e quella frazione ha l'area al denominatore.
+Lo stesso sottotitolo, con l'area che cresce attorno:
+
+| altezza dell'area | variazione | il cancello si apre? |
+|---|---|---|
+| 0,08 | 0,0225 | si' |
+| 0,12 | 0,0153 | si' |
+| 0,30 | 0,0081 | si' |
+| 0,70 | 0,0043 | si' per un pelo |
+| 1,00 | **0,0032** | **no** |
+
+A schermo intero, misurato: **14 fotogrammi in, 14 fermati, zero chiamate
+all'OCR**. E su una scena che si *muove* il difetto si rovescia — il cancello si
+apre sempre e l'OCR gira sull'intero fotogramma, che e' il costo che
+`max_ocr_hz` esiste per limitare (52 s di lavoro per 60 di scena, su una
+striscia). Quindi `vision.aree.troppo_grande()` lo **dice** sopra 0,30, mentre
+si tira il rettangolo e all'avvio della catena: un limite dichiarato vale piu'
+di un silenzio.
+
+**Tradurre tutto lo schermo e' un altro prodotto**, non una taratura di questo:
+vorrebbe OCR multi-riga sul fotogramma intero e piu' riquadri di overlay, contro
+una catena costruita per **una** riga di sottotitolo alla volta con la latenza
+sotto controllo.
+
+### E la cura si era mangiata trentuno manopole
+
+La prima stesura della correzione **uno** passava a ogni lettore una *copia* di
+`cfg.vision`. Il rettangolo tornava giusto, e trentuno campi di `vision`
+dichiarati caldi — `exclude_colored`, `sat_max`, `max_ocr_hz` — smettevano di
+arrivare: cambiandoli dal pannello a sessione accesa, la finestra mostrava il
+valore nuovo e la catena continuava col vecchio. Cioe' il difetto contro cui
+quel pannello esiste, ricreato dentro la sua cura, e in silenzio.
+
+Adesso il rettangolo si passa **a parte** (`SubtitleReader(cfg.vision,
+roi=pezzo.roi)`) e la config resta condivisa. La regola generale, che in questo
+progetto e' gia' costata due volte: **una cura che copia un oggetto condiviso
+rompe tutto cio' che contava sul fatto che fosse condiviso**, e la prova che
+serve non e' «il difetto e' sparito» ma «cosa faceva prima che adesso non fa
+piu'».
 
 ## Banco e vivo: la cosa che costa di piu' capire
 
@@ -861,7 +1150,7 @@ Quattro di quei cinque stavano nella finestra Qt o al suo confine, che era
 l'unica parte del programma senza **nessuna** verifica. Il rimedio non e'
 verificare Qt: e' che la parte che si puo' provare senza aprirlo **stia fuori da
 Qt** — `core.preferenze.riprendi` (con che configurazione si riapre) e
-`tools.ui.colore_stato` (di che colore va il pallino) sono regole, non disegno, e
+`core.motore.colore_stato` (di che colore va la pillola) sono regole, non disegno, e
 adesso si verificano in una suite che gira senza hardware.
 
 **Due passate della stessa scena non sono la stessa scena se non sono lo stesso

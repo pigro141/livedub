@@ -51,23 +51,20 @@ import json
 import urllib.error
 import urllib.request
 
+from translate.lingue import LINGUE as _TABELLA
+from translate.lingue import nome_en
+
 # Le lingue che il template nomina per esteso. TranslateGemma vuole **il nome e
 # il codice**, non solo il codice.
-LINGUE: dict[str, str] = {
-    "it": "Italian",
-    "en": "English",
-    "es": "Spanish",
-    "fr": "French",
-    "de": "German",
-    "pt": "Portuguese",
-    "ru": "Russian",
-    "ja": "Japanese",
-    "zh-Hans": "Chinese",
-    "ko": "Korean",
-    "ar": "Arabic",
-    "nl": "Dutch",
-    "pl": "Polish",
-}
+#
+# **Erano tredici, scritte qui a mano, ed era un difetto muto.** `LINGUE.get(a,
+# a)` ripiega sul codice, quindi con `translate.target=ja` il prompt diceva
+# «translate the following it text into ja»: il modello risponde lo stesso, e
+# risponde peggio o in un'altra lingua, senza che niente lo dichiari. Adesso i
+# nomi vengono da `translate/lingue.py`, che e' lo stesso elenco che riempie il
+# menu della finestra — cosi' una lingua scegliibile e' anche una lingua
+# nominabile, e non ci sono due tabelle da tenere d'accordo.
+LINGUE: dict[str, str] = {x.codice: x.inglese for x in _TABELLA}
 
 
 # **La riga che serve a non farsi riscrivere i dialoghi.** Misurata: senza,
@@ -90,7 +87,10 @@ def prompt_translategemma(testo: str, da: str, a: str, registro: bool = True) ->
     materiale una traduzione un po' peggiore e fedele vale piu' di una elegante
     che dice un'altra cosa.
     """
-    l_da, l_a = LINGUE.get(da, da), LINGUE.get(a, a)
+    # `nome_en` e non `LINGUE.get`: risolve anche i codici scritti in un altro
+    # modo (`zh-Hans`, `he`, `it_IT`), che con la ricerca secca sarebbero
+    # ripiegati sul codice nudo dentro il prompt.
+    l_da, l_a = nome_en(da), nome_en(a)
     coda = (
         REGISTRO.replace("{LINGUA}", l_a)
         if registro

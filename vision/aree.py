@@ -130,6 +130,56 @@ def dividi(aree: list[Area], minimo: float = 1e-4) -> list[Pezzo]:
     return pezzi
 
 
+# **Quanto puo' essere alta un'area prima di smettere di funzionare.** Non e' una
+# preferenza estetica come il consiglio sui 0,12 della ROI: e' il punto in cui la
+# catena **smette di leggere**, e il numero viene da una misura.
+#
+# Il cancello che decide se vale la pena rileggere lo schermo (`RoiDiff`) guarda
+# la **frazione** di pixel cambiati, contro `vision.diff_threshold = 0.004`.
+# Quella frazione ha l'area al denominatore, quindi lo stesso sottotitolo diluito
+# in un'area piu' grande la fa scendere. Misurato su una riga vera, facendo
+# crescere l'area attorno:
+#
+# | altezza dell'area | variazione | il cancello si apre? |
+# |---|---|---|
+# | 0,08 | 0,0225 | si' |
+# | 0,12 | 0,0153 | si' |
+# | 0,30 | 0,0081 | si' |
+# | 0,50 | 0,0056 | si' |
+# | 0,70 | 0,0043 | si' (per un pelo) |
+# | 1,00 | **0,0032** | **NO** |
+#
+# A schermo intero il cancello non si apre mai: misurato, 14 fotogrammi in, 14
+# fermati, **zero chiamate all'OCR**. Il difetto e' muto — nessun contatore lo
+# dice, perche' per la catena quei fotogrammi semplicemente non contenevano
+# niente di nuovo.
+#
+# La soglia dell'avviso sta a 0,30 e non a 0,70: li' il margine sopra la soglia
+# e' gia' sceso da 5,6 volte a 2, e su una scena che si muove il difetto si
+# rovescia — il cancello si apre **sempre** e l'OCR gira sull'intero fotogramma,
+# che e' il costo che `max_ocr_hz` esiste per limitare.
+ALTEZZA_MASSIMA = 0.30
+
+
+def troppo_grande(roi: Rettangolo) -> str:
+    """Se l'area e' troppo alta per essere letta, dice perche'. Se no, `""`.
+
+    Un'area grande non e' «meno precisa»: e' **muta**. Dirlo qui, come regola,
+    vuol dire poterlo dire sia all'avvio della catena sia mentre si tira il
+    rettangolo col mouse — e verificarlo senza aprire niente.
+    """
+    h = float(roi[3])
+    if h <= ALTEZZA_MASSIMA:
+        return ""
+    return (
+        f"! l'area e' alta {h:.2f} dello schermo: sopra {ALTEZZA_MASSIMA:.2f} la "
+        f"catena legge poco o niente. Il cancello che decide se rileggere guarda "
+        f"la **frazione** di schermo cambiata, e lo stesso sottotitolo diluito in "
+        f"un'area grande non la supera piu' (misurato: a schermo intero, zero "
+        f"letture). Tira l'area stretta attorno alla riga."
+    )
+
+
 def superficie(rettangoli: list[Rettangolo]) -> float:
     """Quanta superficie, in frazione di schermo. Usata per verificare."""
     return sum(w * h for _, _, w, h in rettangoli)

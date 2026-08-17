@@ -1,7 +1,7 @@
 # La tua prova, e cosa guardare
 
 Questo file e' il foglio della **prova d'ascolto**: come si accende, cosa
-guardare, e cosa mi serve nel tuo report. La suite e' verde (1416 verifiche) ma
+guardare, e cosa mi serve nel tuo report. La suite e' verde (1678 verifiche) ma
 la suite non sente niente: ogni difetto serio di questo progetto e' stato trovato
 dal tuo orecchio, con la suite verde.
 

@@ -126,6 +126,31 @@ def uscite() -> list[Device]:
         p.terminate()
 
 
+def nome_scheda(d: Device) -> str:
+    """Il nome della scheda, senza il marchio del loopback.
+
+    `Cuffie (Realtek USB2.0 Audio) [Loopback]` e `Cuffie (Realtek USB2.0 Audio)`
+    **sono la stessa scheda**, viste dai due versi.
+    """
+    return d.name.replace("[Loopback]", "").strip().lower()
+
+
+def stesso_dispositivo(a: Device, b: Device) -> bool:
+    """Catturare e suonare qui vorrebbe dire creare un anello.
+
+    **Confrontare gli indici non funziona, ed e' il difetto che questa funzione
+    esiste per chiudere.** WASAPI numera i loopback in uno spazio suo: su questa
+    macchina `Cuffie` e' l'uscita 23 e `Cuffie [Loopback]` e' l'ingresso 32.
+    La guardia scritta come `entrata.index == uscita.index` quindi **non poteva
+    scattare mai** proprio nel caso per cui era stata scritta — quello in cui
+    l'utente sceglie la stessa scheda da tutti e due i lati e si ritrova il
+    doppiaggio che rientra, viene ri-doppiato e diventa un fischio.
+
+    Si confronta il nome, che e' l'unica cosa che i due versi condividono.
+    """
+    return nome_scheda(a) == nome_scheda(b)
+
+
 def find_output(needle: str) -> Device:
     """Il dispositivo di uscita il cui nome contiene `needle`.
 

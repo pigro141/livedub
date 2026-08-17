@@ -545,7 +545,13 @@ che si sono chiuse con un "no".)*
       → **i numeri ci sono già, manca scriverli**: senza GPU si gira con Piper o SuperTonic
       (CPU, e sotto i 6 core **solo** Piper); Kokoro vuole CUDA e 1128 MB di VRAM. È
       l'unico punto degli step finali che poggia su misure, e le misure sono fatte.
-    * \[ ]  fare anche un link paypal o qualcosa del genere per prendere delle donazioni
+    * \[x]  fare anche un link paypal o qualcosa del genere per prendere delle donazioni
+      → Ko-fi: <https://ko-fi.com/filippodebenedittis>, col titolo **«Buy me a token!»**.
+      Sta nel README in un capitolo suo, prima della licenza, e dice le due cose
+      che tolgono l'imbarazzo a chi legge: che non sblocca niente, e che non c'e'
+      niente da sbloccare. Nessun account, nessun server, nessun limite da
+      togliere — sarebbe l'unica riga del README in contraddizione con il
+      capitolo sulla privacy.
     * \[ ]  fare sito github dove c'è spiegato tutto
     * \[ ]  sfruttare hype di gtavi per dire che è compatibile anche con quello
       → nel README, e detto in modo che regga: livedub è costruito su **quello che c'è a

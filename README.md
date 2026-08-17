@@ -254,7 +254,7 @@ latino, cirillico, greco, cinese, giapponese e coreano.
 
 ## Come è fatto, e perché ci si può fidare dei numeri
 
-Non c'è pytest: la suite è un modulo eseguibile, **1678 verifiche**.
+Non c'è pytest: la suite è un modulo eseguibile, **1762 verifiche**.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest
@@ -283,6 +283,18 @@ Ogni numero in questo README viene da lì o da una sessione dal vivo archiviata.
 Le misure che hanno cambiato una decisione sono scritte accanto al parametro che
 hanno deciso, dentro [`core/config.py`](core/config.py) — ed è lo stesso testo
 che la finestra mostra quando premi `?`.
+
+---
+
+## Sostieni il progetto
+
+livedub è gratuito, gira tutto sulla tua macchina e non ha né account né
+server: non c'è niente da vendere e nessun dato da raccogliere. Se ti è utile e
+vuoi contribuire:
+
+**[☕ Buy me a token!](https://ko-fi.com/filippodebenedittis)**
+
+Non sblocca funzioni e non toglie limiti — non ce ne sono.
 
 ---
 

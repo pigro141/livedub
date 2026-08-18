@@ -33,8 +33,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QEvent, QObject, Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtCore import (
+    QEasingCurve,
+    QEvent,
+    QObject,
+    QPropertyAnimation,
+    Property,
+    Qt,
+    Signal,
+)
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -163,6 +171,258 @@ class Elidibile(QLabel):
             self._intero, Qt.ElideRight, max(0, self.width()))
         if corto != super().text():
             super().setText(corto)
+
+
+# ------------------------------------------------------ il caricamento -------
+
+
+class BarraCarico(QWidget):
+    """La barra menta del caricamento, nei **due modi che vogliono dire due cose**.
+
+    `riempi(ms)` — si sa quanto dura: la barra cresce da zero a tutta la
+    larghezza e arriva in fondo esattamente quando il lavoro e' finito. E' il
+    caso del cambio di lingua, dove il lavoro e' misurato (596 stringhe in ~35 ms)
+    e la durata la decidiamo noi.
+
+    `scorre(ms)` — non si sa quanto dura: una barra corta va e torna. E' il caso
+    dell'avvio della catena, dove il costo e' caricare un modello e dipende dal
+    motore e dal disco. Una barra determinata che finisce e poi resta li' piena
+    mentre non e' finito niente dice una cosa falsa; una che va e torna dice
+    «sto lavorando» e non promette niente.
+
+    **Il colore e' la menta e basta**, che in Menta vuol dire interazione e vita.
+    Ambra e rosso sono stati, e un caricamento non e' uno stato: e' una cosa che
+    sta succedendo.
+
+    **E si ferma sempre.** Il documento dice che niente si muove in un angolo
+    mentre il gioco gira: qui il movimento e' legato a una cosa che finisce — un
+    velo di due decimi, o l'attesa fra Avvia e la prima riga di stato — e
+    `ferma()` e' chiamata da chi l'ha accesa. Una girandola che nessuno spegne
+    sarebbe esattamente la cosa vietata.
+    """
+
+    # Quanto della larghezza occupa la barretta che va e torna. Piu' corta
+    # sembra un puntino che rimbalza, piu' lunga non si capisce che si muove.
+    PARTE = 0.28
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setFixedHeight(4)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        # Non c'e' niente da tradurre qui dentro, e la passeggiata dei cataloghi
+        # non deve nemmeno provarci.
+        self.setProperty(MARCHIO, True)
+        self._t = 0.0
+        self._pieno = True
+        self._binario = tema.SCURA.superficie_alta
+        self._anim = None
+
+    # -- il tema -----------------------------------------------------------
+
+    def veste(self, tavolozza) -> None:
+        """Il binario cambia col tema; la menta no, ed e' il punto di `MENTA`."""
+        self._binario = tavolozza.superficie_alta
+        self.update()
+
+    # -- la proprieta' animata ---------------------------------------------
+
+    def _leggi(self) -> float:
+        return self._t
+
+    def _scrivi(self, v: float) -> None:
+        self._t = float(v)
+        self.update()
+
+    avanzamento = Property(float, _leggi, _scrivi)
+
+    # -- accendere e spegnere ----------------------------------------------
+
+    def riempi(self, ms: int) -> None:
+        """Da vuota a piena in `ms`, una volta sola."""
+        self._parti(ms, pieno=True, giri=1, curva=QEasingCurve.InOutCubic)
+
+    def scorre(self, ms: int = 1100) -> None:
+        """Va e torna finche' non la si ferma, un giro ogni `ms`."""
+        self._parti(ms, pieno=False, giri=-1, curva=QEasingCurve.InOutSine)
+
+    def _parti(self, ms: int, *, pieno: bool, giri: int, curva) -> None:
+        self.ferma()
+        self._pieno = pieno
+        self.setVisible(True)
+        if ms <= 0:
+            # Il sistema chiede meno movimento: si mostra il risultato, non il
+            # viaggio. Una barra ferma a meta' sarebbe peggio di nessuna barra.
+            self._scrivi(1.0 if pieno else 0.0)
+            return
+        self._anim = QPropertyAnimation(self, b"avanzamento", self)
+        self._anim.setDuration(ms)
+        self._anim.setStartValue(0.0)
+        self._anim.setEndValue(1.0)
+        self._anim.setEasingCurve(curva)
+        self._anim.setLoopCount(giri)
+        self._anim.start()
+
+    def ferma(self) -> None:
+        if self._anim is not None:
+            self._anim.stop()
+            self._anim = None
+        self.setVisible(False)
+
+    def posa(self, t: float, *, pieno: bool = True) -> None:
+        """La ferma a un punto preciso, **per fotografarla**.
+
+        Un'animazione non si vede in uno screenshot, e in questo progetto un
+        pezzo che nessuno ha guardato non e' «scritto», e' «supposto». Provare a
+        prendere il fotogramma al volo con un `processEvents` darebbe
+        un'immagine diversa a ogni giro e nessuna quando serve: qui il
+        fotogramma si **sceglie**, e `tools/scatta.py` ne salva tre.
+        """
+        self.ferma()
+        self._pieno = pieno
+        self._t = float(t)
+        self.setVisible(True)
+        self.update()
+
+    # -- il disegno ---------------------------------------------------------
+
+    def paintEvent(self, _e) -> None:  # noqa: N802 (nome imposto da Qt)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setPen(Qt.NoPen)
+        largo, alto = self.width(), self.height()
+        raggio = alto / 2.0
+        p.setBrush(QColor(self._binario))
+        p.drawRoundedRect(0, 0, largo, alto, raggio, raggio)
+        p.setBrush(QColor(tema.MENTA))
+        if self._pieno:
+            p.drawRoundedRect(0, 0, max(alto, largo * self._t), alto, raggio, raggio)
+            return
+        # Va e torna senza scatti al giro: l'animazione va sempre da 0 a 1, e il
+        # triangolo la ripiega. Un'animazione che torna indietro da sola
+        # (`setDirection`) al riavvio del ciclo salta, e il salto si vede.
+        u = 2.0 * self._t if self._t < 0.5 else 2.0 * (1.0 - self._t)
+        corta = largo * self.PARTE
+        p.drawRoundedRect(u * (largo - corta), 0, corta, alto, raggio, raggio)
+
+
+class Velo(QWidget):
+    """Il velo che copre un rifacimento dell'interfaccia, e **quanto dura**.
+
+    Il cambio di lingua ripercorre l'albero dei widget e riscrive 596 stringhe:
+    misurato, 32-43 ms secondo il catalogo. Non e' lento — e' **istantaneo**, ed
+    e' proprio quello il difetto: a schermo la finestra cambia tutta insieme,
+    senza che niente colleghi il prima al dopo, e si legge come uno scatto.
+
+    Il velo mette un principio e una fine attorno a quel salto: entra, il lavoro
+    si fa mentre non si vede niente, esce. `MS_CARICO` per parte, che e' la
+    durata dichiarata per un controllo e non per un pannello: piu' lungo si
+    aspetterebbe. Cronometrato con un ciclo di eventi vero, dal clic alla
+    scomparsa passano **341 ms**, di cui 61 sono il rifacimento — cioe' l'unica
+    parte che non si puo' accorciare.
+
+    **Cosa vuol dire «non blocca».** Chi chiama `copri` torna subito e la finestra
+    resta viva: il lavoro parte da un timer, dentro il giro degli eventi. I 35 ms
+    del rifacimento vero restano sul thread dell'interfaccia e non possono
+    andarsene — riscrivere un widget da un altro thread e' il modo piu' rapido di
+    far cadere Qt — quindi il velo li **copre** invece di fingere di toglierli.
+
+    E a sessione accesa non c'e' velo affatto: si veda `tema.durata_carico`.
+    """
+
+    def __init__(self, padre: QWidget) -> None:
+        super().__init__(padre)
+        self.setProperty(MARCHIO, True)
+        self._fondo = tema.SCURA.superficie
+        self._opacita = 1.0
+        self.barra = BarraCarico()
+        L = QVBoxLayout(self)
+        L.addStretch(1)
+        riga = QHBoxLayout()
+        riga.addStretch(2)
+        riga.addWidget(self.barra, 3)
+        riga.addStretch(2)
+        L.addLayout(riga)
+        L.addStretch(1)
+        self._anim = None
+        self.hide()
+
+    def veste(self, tavolozza) -> None:
+        self._fondo = tavolozza.superficie
+        self.barra.veste(tavolozza)
+
+    # -- la proprieta' animata ---------------------------------------------
+
+    def _leggi(self) -> float:
+        return self._opacita
+
+    def _scrivi(self, v: float) -> None:
+        self._opacita = float(v)
+        self.update()
+
+    velatura = Property(float, _leggi, _scrivi)
+
+    # -- l'unica cosa che si chiede da fuori --------------------------------
+
+    def copri(self, meta_ms: int, lavoro) -> None:
+        """Entra, fa `lavoro`, esce. `meta_ms = 0` fa solo il lavoro.
+
+        **Il lavoro si fa comunque**, ed e' la meta' che si dimentica: un velo
+        spento non deve voler dire una lingua che non cambia.
+        """
+        if meta_ms <= 0:
+            lavoro()
+            return
+        padre = self.parentWidget()
+        if padre is not None:
+            self.setGeometry(padre.rect())
+        self.show()
+        self.raise_()
+        self.barra.riempi(2 * meta_ms)
+        self._sfuma(0.0, 1.0, meta_ms, lambda: self._a_meta(meta_ms, lavoro))
+
+    def _a_meta(self, meta_ms: int, lavoro) -> None:
+        try:
+            lavoro()
+        finally:
+            self._sfuma(1.0, 0.0, meta_ms, self._finito)
+
+    def _finito(self) -> None:
+        self.barra.ferma()
+        self.hide()
+
+    def posa(self, velatura: float, avanzamento: float) -> None:
+        """Un fotogramma scelto del velo, per `tools/scatta.py`. Si veda
+        `BarraCarico.posa`: e' la stessa ragione, ed e' meta' del metodo di
+        questo progetto."""
+        padre = self.parentWidget()
+        if padre is not None:
+            self.setGeometry(padre.rect())
+        self.show()
+        self.raise_()
+        self._scrivi(velatura)
+        self.barra.posa(avanzamento)
+
+    def _sfuma(self, da: float, a: float, ms: int, poi) -> None:
+        self._anim = QPropertyAnimation(self, b"velatura", self)
+        self._anim.setDuration(ms)
+        self._anim.setStartValue(da)
+        self._anim.setEndValue(a)
+        self._anim.setEasingCurve(QEasingCurve.OutCubic)
+        self._anim.finished.connect(poi)
+        self._anim.start()
+
+    def paintEvent(self, _e) -> None:  # noqa: N802 (nome imposto da Qt)
+        # Dipinto a mano e non da un foglio di stile: un `QWidget` derivato non
+        # prende il fondo dal foglio finche' non glielo si chiede, e qui l'opacita'
+        # cambia trenta volte al secondo — un `unpolish/polish` per fotogramma
+        # sarebbe il modo piu' caro possibile di fare una dissolvenza.
+        p = QPainter(self)
+        p.setOpacity(self._opacita)
+        colore = QColor(self._fondo)
+        # Non del tutto opaco: si intuisce che sotto c'e' la finestra, ed e'
+        # quello che rende il velo un velo invece di un pannello che compare.
+        colore.setAlphaF(0.96)
+        p.fillRect(self.rect(), colore)
 
 
 # ------------------------------------------------------- i nomi umani --------

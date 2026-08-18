@@ -153,6 +153,12 @@ class _Pending:
     lines: tuple = ()
     last_seen: float = 0.0
     missing: int = 0
+    # Da quale area viene. Il tracker non la guarda mai — l'identita' di una
+    # battuta e' il suo testo, e lo resta — ma la deve **riconsegnare**: la
+    # candidata entra da un lettore e l'evento confermato esce di qui, e in
+    # mezzo l'oggetto viene ricostruito. Senza questa riga il campo si perderebbe
+    # proprio nel punto in cui la battuta comincia a esistere.
+    marca: object = None
 
 
 @dataclass(slots=True)
@@ -276,6 +282,7 @@ class SubtitleTracker:
                     cls=cand.cls,
                     lines=cand.lines,
                     last_seen=t,
+                    marca=cand.marca,
                 )
             else:
                 pending = self._pending[pid]
@@ -335,7 +342,8 @@ class SubtitleTracker:
                 out.closed.append(old.event.closed(t))
 
             event = SubtitleEvent(
-                text=pending.text, cls=pending.cls, t_on=pending.first_t, lines=pending.lines
+                text=pending.text, cls=pending.cls, t_on=pending.first_t,
+                lines=pending.lines, marca=pending.marca,
             )
             self._active[pid] = _Tracked(event, last_seen=t)
             matched_active.add(pid)

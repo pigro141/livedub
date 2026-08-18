@@ -711,6 +711,8 @@ class Sostituzione:
         asse: float | None = None,
         sospetta: bool = False,
         sfuma: float = 0.0,
+        stringi: bool = False,
+        corpo_min: int = 11,
     ) -> None:
         from PIL import Image, ImageDraw
 
@@ -788,12 +790,59 @@ class Sostituzione:
         # sta. Quello che **non** si fa mai e' lasciarla uscire dai lati o
         # tagliarla — un sottotitolo illeggibile e' peggio di uno un po' piccolo.
         testo = (testo or "").strip()
-        righe_max = 3
+        self.stringi = bool(stringi)
+        self.corpo_min = max(6, int(corpo_min))
+        # **E c'e' un secondo modo di stare, che e' l'opposto del primo.**
+        #
+        # Per un sottotitolo la cosa giusta e' quella qui sopra: la traduzione
+        # cresce quanto le serve e il riquadro la segue, perche' sotto c'e'
+        # mezzo schermo di scena e nessuno si accorge se la fascia si allarga di
+        # una riga.
+        #
+        # Per una scritta in mezzo allo schermo no. Li' il riquadro **e'**
+        # l'oggetto — un cartello, una voce di menu, un contatore — e attorno
+        # c'e' altra roba: allargarsi vuol dire coprire cio' che sta accanto, che
+        # e' spesso un'altra scritta che si sta traducendo nello stesso
+        # fotogramma. Quindi la larghezza e l'altezza dell'inchiostro originale
+        # comandano, e a cedere e' il corpo del carattere.
+        #
+        # **Il pavimento e' dichiarato e si vede.** Sotto `corpo_min` non si
+        # stringe piu' e si lascia sforare: illeggibile e' peggio di sforare —
+        # una scritta un po' larga si legge, e si capisce anche cos'e'
+        # successo. `self.stretto` dice che e' capitato, se no il caso peggiore
+        # sarebbe l'unico muto.
+        self.stretto = False
+        if self.stringi:
+            # In coordinate gia' scalate, come `limite`.
+            largo_orig = max(1, bx1 - bx0)
+            alto_orig = max(1, by1 - by0)
+            limite = max(1, largo_orig)
+            righe_max = max(1, len(bande))
+        else:
+            righe_max = 3
         self.righe = _righe(misura, testo, self.font, limite)
-        while len(self.righe) > righe_max and self.corpo > 10:
-            self.corpo = max(10, int(self.corpo * 0.92))
-            self.font = carica_font(nome_font, self.corpo)
-            self.righe = _righe(misura, testo, self.font, limite)
+
+        def _sta(corpo: int, righe: list[str]) -> bool:
+            """Il testo a questo corpo ci sta nel riquadro dell'originale?"""
+            passo = corpo * 1.22
+            largo = max(misura.textlength(r, font=carica_font(nome_font, corpo))
+                        for r in righe)
+            # Il 5% di tolleranza su tutti e due i lati: il contorno e
+            # l'antialiasing sbordano di un pixel o due, e inseguire quel pixel
+            # costerebbe due punti di corpo per niente.
+            return largo <= 1.05 * largo_orig and passo * len(righe) <= 1.05 * alto_orig
+
+        if self.stringi:
+            while self.corpo > self.corpo_min and not _sta(self.corpo, self.righe):
+                self.corpo = max(self.corpo_min, int(self.corpo * 0.94))
+                self.font = carica_font(nome_font, self.corpo)
+                self.righe = _righe(misura, testo, self.font, limite)
+            self.stretto = not _sta(self.corpo, self.righe)
+        else:
+            while len(self.righe) > righe_max and self.corpo > 10:
+                self.corpo = max(10, int(self.corpo * 0.92))
+                self.font = carica_font(nome_font, self.corpo)
+                self.righe = _righe(misura, testo, self.font, limite)
         self.passo = int(round(self.corpo * 1.22))
         largh = int(max(misura.textlength(r, font=self.font) for r in self.righe))
 

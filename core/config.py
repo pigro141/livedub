@@ -457,6 +457,88 @@ class VisionConfig:
     # raffinatezza: gli stessi pixel letti due volte diventano due battute e due
     # voci sovrapposte, che e' il difetto peggiore del prodotto.
     aree: tuple[str, ...] = ()
+    # ------------------------------------------------- l'area grande, `schermo` --
+    #
+    # Un'area in modo `schermo` legge **tutte** le scritte che ci sono dentro,
+    # anche sparse per il fotogramma, e non ne pronuncia nessuna. I tre campi qui
+    # sotto valgono solo per lei: con l'elenco `aree` vuoto — il caso di sempre —
+    # non li legge nessuno e la catena a una riga e' identica.
+    #
+    # **Il cancello del diff, tagliato a celle.** Lato della cella in pixel gia'
+    # sottocampionati (quindi `diff_stride` volte tanti pixel veri): la frazione
+    # di pixel cambiati si misura per cella e si prende la peggiore, cosi' non ha
+    # piu' l'area al denominatore. 0 = spento, cioe' la media sull'area di sempre.
+    #
+    # La modalita' `schermo` lo accende da sola a 32 se e' rimasto a 0, e lo fa
+    # perche' senza **non legge affatto** — misurato, a schermo intero 14
+    # fotogrammi in e 14 fermati. Un default globale diverso da 0 cambierebbe
+    # invece la catena a una riga, che qui non deve cambiare.
+    diff_cella: int = 0
+    # **La soglia della misura a celle, che e' una distribuzione diversa da
+    # quella di `diff_threshold` e quindi ha un numero suo.** Ereditare l'altra
+    # sarebbe la quinta volta in questo progetto che una soglia cambia
+    # distribuzione sotto i piedi.
+    #
+    # Misurata con `tools/bench_schermo.py --fermo` su tutta la registrazione, a
+    # schermo intero, con il caso nullo preso dalla stessa scena (due fotogrammi
+    # in cui non cambia niente):
+    #
+    # | soglia | prende le comparse | falsi allarmi |
+    # |---|---|---|
+    # | 0,005 | 9/9 | 12/400 |
+    # | 0,010 | 9/9 | 1/400 |
+    # | **0,020** | **9/9** | **0/400** |
+    # | **0,030** | **9/9** | **0/400** |
+    # | 0,040 | 8/9 | 0/400 |
+    # | 0,060 | 7/9 | 0/400 |
+    # | 0,100 | 4/9 | 0/400 |
+    #
+    # L'altopiano e' 0,020-0,030 e 0,025 sta in mezzo. Sull'orlo — 0,010 o 0,040
+    # — il numero non sarebbe tarato, sarebbe vinto.
+    diff_cella_soglia: float = 0.025
+    # **Quanto e' alta una riga di testo**, in frazione dell'altezza del
+    # fotogramma. Da qui escono tutti i raggi con cui i glifi si saldano in
+    # parole, le parole in righe e le righe in blocchi (`vision/blocchi.py`).
+    # 0,030 sono 43 px su 1440 e 32 su 1080; i sottotitoli di GTA V ne misurano
+    # 45 a 1440p.
+    schermo_riga_frac: float = 0.030
+    # **Quante scritte al massimo per fotogramma.** Non e' una soglia di
+    # qualita': ogni blocco e' una chiamata all'OCR, che e' l'85% del lavoro
+    # della catena. Quelle in piu' vengono scartate a partire dalle piu' piccole,
+    # e il numero degli scartati finisce in `vision.blocchi.scartati` — se no
+    # «non l'ha tradotto» e «non l'ha visto» sono lo stesso silenzio.
+    schermo_max_blocchi: int = 12
+    # **Quante volte al secondo si guarda un'area `schermo`, e questo numero e'
+    # una dichiarazione, non una taratura.**
+    #
+    # Misurato con `tools/bench_schermo.py --costo --ocr` su 120 fotogrammi
+    # 1920x1080 della registrazione, quattro blocchi e sei righe di mediana:
+    #
+    # | stadio | p50 | p95 |
+    # |---|---|---|
+    # | trovare i blocchi | 11,8 ms | 17,0 ms |
+    # | classificare | 18,7 ms | 24,6 ms |
+    # | OCR | 64,5 ms | 71,8 ms |
+    # | **totale** | **95,7 ms** | **110,6 ms** |
+    #
+    # Cioe' **10,4 Hz**, contro i 30 del dominio video. Non e' una modalita' che
+    # gira a trenta e nessuna taratura la porta li': l'OCR e' i due terzi del
+    # costo e sono sei righe vere da leggere.
+    #
+    # **E il costo si paga dentro `on_frame`**, cioe' nel thread che legge i
+    # sottotitoli del doppiaggio: ogni lettura gli toglie tre fotogrammi, e il
+    # lettore di sottotitoli e' costruito su fotogrammi **consecutivi**. A 2 Hz
+    # sono sei fotogrammi al secondo su trenta — il 20% — ed e' il prezzo
+    # dichiarato di tenere accese tutte e due le cose insieme. Da sola (nessuna
+    # area `testo_audio`) si puo' alzare fino a 10.
+    #
+    # Il tetto e' **duro**, e qui e' diverso da `max_ocr_hz`: quello si toglie di
+    # mezzo mentre una candidata aspetta la conferma, perche' li' la lettura sta
+    # sul percorso della latenza di una battuta che dovra' essere **detta**. Qui
+    # non si dice niente, quindi non c'e' nessuna latenza da proteggere — e con N
+    # riquadri qualcosa in attesa c'e' quasi sempre, cioe' un tetto morbido non
+    # scatterebbe mai.
+    schermo_hz: float = 2.0
 
 
 @dataclass
@@ -1549,6 +1631,26 @@ class TranslateConfig:
     background: str = ""
     background_opacity: float = 1.0
     outline: float = 2.0
+    # **Il pavimento del carattere, in punti.** Serve alla modalita' `schermo`,
+    # dove il riquadro comanda e il corpo si adatta: una traduzione piu' lunga
+    # dell'originale non allarga la toppa, si **stringe** per starci dentro.
+    #
+    # Ma stringere ha un fondo, e va detto qual e': sotto una certa misura il
+    # testo non si legge, e una traduzione illeggibile e' peggio di una che
+    # sfora — chi sfora almeno la si legge, e si capisce anche cos'e' successo.
+    # Arrivati qui si smette di stringere e si lascia uscire dal riquadro.
+    #
+    # **Il numero viene dal contorno, non dal gusto**, e si misura con
+    # `tools/bench_schermo.py --pavimento`. Il testo si disegna con un contorno
+    # nero (`outline`, 2 px) *sopra* l'asta del glifo: in Arial grassetto l'asta
+    # e' circa il 12% del corpo, quindi a corpo `c` restano `0,12*c` pixel di
+    # inchiostro chiusi fra due bordi neri. Sotto il corpo in cui quell'asta vale
+    # ancora un pixel pieno, il glifo **e'** il suo contorno: nero su nero.
+    #
+    # Misurato disegnando `Rimuovi il veicolo` a corpi calanti e contando che
+    # quota dell'inchiostro sopravvive al contorno (la tabella sta nel banco).
+    # Il default segue quella misura.
+    corpo_min: int = 11
     # **Quanti giri di seguito senza sottotitolo prima di spegnere l'overlay.**
     #
     # L'OCR perde una riga per qualche fotogramma — una dissolvenza, una scena

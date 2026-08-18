@@ -42,7 +42,8 @@ from ui.overlay import (  # noqa: E402
 
 
 
-def prepara(frame, cfg, testo, originale, misura, boxes=(), ink=None):
+def prepara(frame, cfg, testo, originale, misura, boxes=(), ink=None,
+            roi=None, stringi=False):
     """Dipinge **una volta** il sottotitolo tradotto. `None` se non c'e' testo.
 
     Torna la `Sostituzione`, che tiene **la geometria decisa una volta**: taglia,
@@ -69,7 +70,11 @@ def prepara(frame, cfg, testo, originale, misura, boxes=(), ink=None):
     # vecchie, che quei campi non li hanno.
     pezzo = bande = rett = tinta = None
     if boxes:
-        pezzo, bande, rett, tinta = inchiostro_da_box(frame, cfg, boxes, ink)
+        # **La ROI e' quella dell'area che ha letto la battuta.** Con piu' aree
+        # dichiarate i rettangoli sono in coordinate della *sua*, e passare
+        # sempre `cfg.vision.roi` metterebbe la traduzione di un cartello dentro
+        # la fascia del dialogo — nel posto sbagliato e senza nessun errore.
+        pezzo, bande, rett, tinta = inchiostro_da_box(frame, cfg, boxes, ink, roi=roi)
     if pezzo is None:
         pezzo, bande, rett, tinta = inchiostro(frame, cfg)
     if pezzo is None:
@@ -96,6 +101,12 @@ def prepara(frame, cfg, testo, originale, misura, boxes=(), ink=None):
         fondo_rgb=_rgb(cfg.translate.background) if cfg.translate.background else None,
         testo_originale=originale,
         larghezza_schermo=frame.shape[1],
+        # Una scritta in mezzo allo schermo sta nel **suo** riquadro: se la
+        # traduzione e' piu' lunga si stringe il carattere invece di allargare
+        # la toppa, perche' li' attorno c'e' altra roba — spesso un'altra
+        # scritta che si sta traducendo nello stesso fotogramma.
+        stringi=bool(stringi),
+        corpo_min=int(getattr(cfg.translate, "corpo_min", 11)),
     )
     return sost, rett, rx, ry
 
@@ -121,16 +132,30 @@ def _incolla(frame, tela, x, y):
 
 
 def battute(cartella: Path):
+    """Le battute tradotte di una passata, come dizionari.
+
+    Erano tuple posizionali di cinque campi: con `roi` e `stringi` diventano
+    sette, e a quel punto `attiva[3]` non dice piu' niente a chi legge — un
+    indice sbagliato prenderebbe il rettangolo di un'altra area senza dare
+    errore, che e' esattamente la classe di difetti che questo strumento esiste
+    per far vedere.
+    """
     righe = []
     for r in (cartella / "events.jsonl").read_text(encoding="utf-8").splitlines():
-        if r.strip():
-            e = json.loads(r)
-            if e.get("text"):
-                righe.append((
-                    e["t_subtitle"], e["text"], e.get("text_original", ""),
-                    tuple(tuple(b) for b in e.get("boxes") or ()),
-                    tuple(e.get("ink") or ()) or None,
-                ))
+        if not r.strip():
+            continue
+        e = json.loads(r)
+        if not e.get("text"):
+            continue
+        righe.append({
+            "t": e["t_subtitle"],
+            "testo": e["text"],
+            "originale": e.get("text_original", ""),
+            "boxes": tuple(tuple(b) for b in e.get("boxes") or ()),
+            "ink": tuple(e.get("ink") or ()) or None,
+            "roi": tuple(e.get("roi") or ()) or None,
+            "stringi": bool(e.get("stringi")),
+        })
     return righe
 
 
@@ -161,12 +186,12 @@ def main(argv=None) -> int:
     if not righe:
         print(f"nessuna battuta tradotta in {args.run}")
         return 2
-    print(f"{len(righe)} battute tradotte, da {righe[0][0]:.1f}s a {righe[-1][0]:.1f}s")
+    print(f"{len(righe)} battute tradotte, da {righe[0]['t']:.1f}s a {righe[-1]['t']:.1f}s")
 
     cap = cv2.VideoCapture(args.video)
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    t0 = args.start if args.start else max(0.0, args.offset + righe[0][0] - 1.0)
-    t1 = args.end if args.end else args.offset + righe[-1][0] + 6.0
+    t0 = args.start if args.start else max(0.0, args.offset + righe[0]["t"] - 1.0)
+    t1 = args.end if args.end else args.offset + righe[-1]["t"] + 6.0
     cap.set(cv2.CAP_PROP_POS_MSEC, t0 * 1000.0)
 
     uscita = Path(args.out)
@@ -174,41 +199,58 @@ def main(argv=None) -> int:
     misura = MisuraCarattere()
     video = None
     scritti = png = 0
-    corrente = None   # (chiave della battuta, tela, x, y)
+    # **Le scritte a schermo sono N, non una**, e questa e' la differenza fra
+    # guardare un sottotitolo e guardare uno schermo tradotto. Prima qui c'era
+    # una sola `corrente`, tenuta perche' con una fascia di dialogo la battuta
+    # attiva e' sempre l'ultima comparsa: con un'area `schermo` ce ne sono
+    # quante ne ha lo schermo, contemporanee, e tenerne una vorrebbe dire
+    # montare un video che mostra una funzione diversa da quella che c'e'.
+    #
+    # La chiave e' `(t_on, testo)` e non il solo `t_on`: N battute nascono nello
+    # **stesso** fotogramma, quindi il solo istante non le distingue e ne
+    # resterebbe una sola.
+    correnti: dict = {}
     ultimo_png = None
     while True:
         t = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
         ok, frame = cap.read()
         if not ok or t > t1:
             break
-        # **La battuta corrente e' l'ultima comparsa, e si dipinge una volta
-        # sola.** Chiuderla sulla durata dell'audio doppiato la faceva sparire
-        # mentre l'originale era ancora a schermo; ridisegnarla a ogni fotogramma
-        # la faceva tremare.
+        # Ogni battuta si dipinge **una volta sola**: chiuderla sulla durata
+        # dell'audio doppiato la faceva sparire mentre l'originale era ancora a
+        # schermo; ridisegnarla a ogni fotogramma la faceva tremare.
         tr = t - args.offset
-        attiva = None
-        for r in righe:
-            if r[0] <= tr and tr - r[0] < 8.0:
-                attiva = r
-        if attiva is None:
-            corrente = None
-        elif corrente is None or corrente[0] != attiva[0]:
-            fatto = prepara(frame, cfg, attiva[1], attiva[2], misura,
-                            attiva[3], attiva[4])
-            corrente = (attiva[0], *fatto) if fatto else None
-        if corrente is not None:
-            _, sost, rett, rx, ry = corrente
+        attive = [r for r in righe if r["t"] <= tr < r["t"] + 8.0]
+        chiavi = {(r["t"], r["testo"]) for r in attive}
+        for morta in [k for k in correnti if k not in chiavi]:
+            del correnti[morta]
+        for r in attive:
+            k = (r["t"], r["testo"])
+            if k in correnti:
+                continue
+            fatto = prepara(frame, cfg, r["testo"], r["originale"], misura,
+                            r["boxes"], r["ink"], roi=r["roi"], stringi=r["stringi"])
+            if fatto:
+                correnti[k] = fatto
+        for sost, rett, rx, ry in correnti.values():
             pezzo = ritaglia(frame, rett)
             if pezzo is not None and pezzo.shape[:2] == sost.forma:
                 tela, (ox, oy) = sost.disegna(pezzo)
                 _incolla(frame, tela, rx + ox, ry + oy)
         if args.frames:
-            if corrente is not None and png < args.frames and attiva[0] != ultimo_png:
+            marca = min(chiavi) if chiavi else None
+            if correnti and png < args.frames and marca != ultimo_png:
                 nome = uscita.with_name(f"{uscita.stem}_{png}.png")
                 cv2.imwrite(str(nome), frame)
-                print(f"  {nome}  t={t:.1f}s  '{attiva[2]}' -> '{attiva[1]}'")
+                quante = len(correnti)
+                stretti = sum(1 for s, *_ in correnti.values() if getattr(s, "stretto", False))
+                corpi = sorted({s.corpo for s, *_ in correnti.values()})
+                print(f"  {nome}  t={t:.1f}s  {quante} scritte, corpi {corpi}"
+                      f"{f', {stretti} al pavimento' if stretti else ''}")
+                for r in attive[:8]:
+                    print(f"      '{r['originale']}' -> '{r['testo']}'")
                 png += 1
-                ultimo_png = attiva[0]
+                ultimo_png = marca
             if png >= args.frames:
                 break
             continue

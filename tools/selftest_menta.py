@@ -115,6 +115,45 @@ def test_menta(c) -> None:
          "e la menta resta nel tema chiaro come riempimento, cosi' Avvia e' lo "
          "stesso colore in tutti e due i temi")
 
+    # -- i quattro stati di una riga d'elenco ------------------------------
+    # **Il difetto che ha fatto scrivere questa verifica si vedeva solo tenendo
+    # il mouse fermo sulla riga gia' scelta.** Due regole di pari specificita' —
+    # `::item:selected` e `::item:hover` — e Qt tiene l'ultima: il fondo tornava
+    # grigio e il testo restava `su_accento`, che e' fatto per stare sulla menta.
+    # Misurato: **1,12:1** sul tema scuro. Sul chiaro faceva 14,1 e non si
+    # vedeva niente, che e' il modo in cui in questo progetto si archiviano
+    # difetti — e infatti li' il difetto c'era lo stesso, solo di un altro tipo:
+    # la riga scelta smetteva di sembrare scelta.
+    for t in (tema.SCURA, tema.CHIARA):
+        stati = tema.stati_elenco(t)
+        c.eq(len(stati), 4, f"[{t.nome}] quattro stati di riga, dichiarati in tabella")
+        for nome, (fondo, testo) in stati.items():
+            r = tema.contrasto(testo, fondo)
+            c.ok(r >= tema.CONTRASTO_TESTO,
+                 f"[{t.nome}] una riga «{nome}» si legge ({r:.2f}:1 su {fondo}), "
+                 f"soglia {tema.CONTRASTO_TESTO}")
+        # **E la riga scelta resta scelta anche sotto il mouse.** Il contrasto da
+        # solo non lo direbbe: il fondo grigio dell'hover col testo normale
+        # sarebbe leggibilissimo e avrebbe perso l'unica cosa che quella riga
+        # doveva dire. Quindi si chiede che i due stati «scelta» non condividano
+        # il fondo con i due stati «non scelta».
+        scelti = {stati["scelta"][0], stati["scelta sotto il mouse"][0]}
+        altri = {stati["normale"][0], stati["sotto il mouse"][0]}
+        c.ok(not (scelti & altri),
+             f"[{t.nome}] passandoci sopra, la riga scelta non prende il fondo di "
+             f"una riga qualunque ({sorted(scelti)} contro {sorted(altri)})")
+        # E fa un passo **lontano dal fondo della pagina**, nella stessa
+        # direzione nei due temi: sullo scuro schiarisce, sul chiaro scurisce.
+        piu_lontano = tema.contrasto(stati["scelta sotto il mouse"][0], t.superficie)
+        c.ok(piu_lontano > tema.contrasto(stati["scelta"][0], t.superficie),
+             f"[{t.nome}] e stacca di piu' dalla pagina ({piu_lontano:.2f}:1)")
+        # La regola a due pseudo-stati **deve esserci scritta**: senza, Qt torna
+        # a risolvere per ordine ed e' esattamente il difetto di partenza.
+        c.ok("QListWidget::item:selected:hover" in tema.foglio(t),
+             f"[{t.nome}] il foglio dichiara `::item:selected:hover`, che ha due "
+             f"pseudo-stati e quindi batte le altre due regole invece di "
+             f"dipendere dall'ordine in cui sono scritte")
+
     # -- le sei voci: distinguibili **fra loro**, non dal fondo ------------
     for t in (tema.SCURA, tema.CHIARA):
         c.eq(len(t.voci), 6, f"[{t.nome}] sei voci, come le voci del pool")
@@ -126,7 +165,19 @@ def test_menta(c) -> None:
              f"(ΔE minima {peggiore[0]:.1f} fra {peggiore[1]} e {peggiore[2]})")
         for v in t.voci:
             r = tema.contrasto(v, t.superficie)
-            c.ok(r >= 4.5, f"[{t.nome}] la voce {v} si legge sul log ({r:.1f}:1)")
+            c.ok(r >= tema.CONTRASTO_TESTO,
+                 f"[{t.nome}] la voce {v} si legge sul log ({r:.1f}:1)")
+    # **Le voci sono tarate su `superficie` e su nient'altro**, e adesso non
+    # vivono piu' nel solo log: la sigla del personaggio sta anche nella tessera
+    # della battuta di adesso e nella fila dei personaggi. Quelle due tessere
+    # stanno su `superficie` per questo motivo e non per gusto — su
+    # `superficie_alta`, che sarebbe la scelta ovvia per staccarle, sul tema
+    # chiaro le voci scendono a 4,28:1. Un fondo piu' bello che costa l'unica
+    # informazione che quella tessera porta.
+    peggio = min(tema.contrasto(v, tema.CHIARA.superficie_alta) for v in tema.CHIARA.voci)
+    c.ok(peggio < tema.CONTRASTO_TESTO,
+         f"e su `superficie_alta` non ci starebbero ({peggio:.2f}:1): e' la misura "
+         f"per cui le tessere della scheda Sessione stanno su `superficie`")
     c.ok(set(tema.SCURA.voci) != set(tema.CHIARA.voci),
          "le due file non sono l'una l'inverso dell'altra: i sei che si "
          "distinguono sul nero, sul bianco diventano pastelli")
@@ -329,6 +380,56 @@ def test_regole_finestra(c) -> None:
          "senza ROI in config restano i cinque valori piu' lo stato…")
     c.eq(len(barra_misura(buono)), 7, "…e con la ROI sono sette, sempre")
 
+    # -- la fase: **una parola sola**, e solo quelle che si misurano ---------
+    from core.motore import FASI, fase_catena
+
+    c.eq(fase_catena({"viva": False}).testo, "fermo",
+         "a catena spenta si dice fermo, non si tace")
+    c.eq(fase_catena(dict(buono, parla=True)).testo, "sta parlando",
+         "che stia parlando batte tutto: e' l'unico momento in cui il programma "
+         "sta facendo il suo mestiere")
+    tardi = dict(buono, latenza_ms=LATENZA_MASSIMA_MS + 500)
+    c.eq(fase_catena(tardi).testo, "in ritardo",
+         "oltre la soglia dichiarata prima della prova di Qwen, si dice")
+    c.eq(fase_catena(tardi).stato, "avviso",
+         "ed e' un avviso, cioe' ambra: la catena gira lo stesso")
+    c.eq(fase_catena(dict(tardi, parla=True)).testo, "sta parlando",
+         "ma mentre esce audio si dice quello: il ritardo lo dice la barra in fondo")
+    c.eq(fase_catena(buono).testo, "sta leggendo",
+         "e per il resto sta leggendo lo schermo")
+    # **Quattro e non cinque.** «Sintetizza» sarebbe la parola che tutti si
+    # aspettano, e non c'e' modo di misurarla da qui: la sintesi accade dentro
+    # `on_frame`, cioe' nel thread video, e il thread della finestra quella
+    # finestra di tempo non la vede mai. Una parola che indovina in una riga che
+    # si guarda di sfuggita e' peggio di una parola in meno.
+    c.eq(len(FASI), 4, f"quattro fasi, tutte misurabili: {FASI}")
+    detti = {fase_catena(d).testo for d in (
+        {"viva": False}, buono, tardi, dict(buono, parla=True))}
+    c.eq(sorted(detti), sorted(FASI),
+         "e `FASI` elenca esattamente quelle che la regola sa dire, se no sarebbe "
+         "un elenco che si scolla dalla funzione in silenzio")
+
+    # **E le quattro parole hanno un catalogo.** Nessuna passeggiata sui widget
+    # puo' vedere le tre che in quell'istante non sono a schermo: senza questa
+    # riga tre su quattro resterebbero in italiano dentro una finestra tradotta,
+    # e resterebbero in italiano **a turno**.
+    from ui.lingua import COMPOSTE
+
+    c.eq(sorted(set(FASI) - set(COMPOSTE)), [],
+         "ogni fase sta in `COMPOSTE`, cioe' viene tradotta dalla finestra")
+
+    # -- il velo del cambio di lingua, che e' una regola e non un disegno ---
+    c.eq(tema.durata_carico(True), 0,
+         "a sessione accesa non c'e' velo: i due thread della catena non pagano "
+         "un'animazione")
+    c.ok(tema.durata_carico(False) in (0, tema.MS_CARICO),
+         "e a catena ferma dura mezzo `MS_CARICO` per parte — o zero, se il "
+         "sistema chiede meno movimento")
+    c.ok(2 * tema.MS_CARICO <= 300,
+         f"il velo intero sta nei tre decimi dichiarati ({2 * tema.MS_CARICO} ms): "
+         f"piu' lungo si aspetterebbe, e coprire 35 ms di lavoro con mezzo "
+         f"secondo di animazione e' un'attesa inventata")
+
 
 def test_finestra_menta(c) -> None:
     """La finestra montata davvero, e le tre cose che a schermo non si notano.
@@ -340,6 +441,7 @@ def test_finestra_menta(c) -> None:
     import os
 
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication
 
     from core import preferenze
@@ -362,6 +464,15 @@ def test_finestra_menta(c) -> None:
     # rottura si proverebbero contro una finestra che non e' mai stata
     # ridimensionata: una verifica che non puo' fallire. Offscreen non compare
     # niente a schermo.
+    #
+    # **Ma dichiarata «non a schermo»**, che e' un'altra cosa e non e' pleonastica:
+    # una finestra puo' aprire un dialogo modale mentre nasce, e `exec()` dentro
+    # una suite non torna **mai**. E' successo — la suite restava ferma senza una
+    # riga, cioe' il peggior modo possibile di fallire — ed e' la stessa guardia
+    # che usano `tools/scatta.py` e `tools/traduci_ui.py`, che questa finestra la
+    # costruiscono senza mostrarla. Gli eventi di taglia arrivano lo stesso: e'
+    # esattamente per questo che quei due strumenti funzionano.
+    f.setAttribute(Qt.WA_DontShowOnScreen, True)
     f.show()
     app.processEvents()
     try:
@@ -495,5 +606,77 @@ def test_finestra_menta(c) -> None:
         f.stato("in corso")
         c.eq(f._stato_testo, "in corso", "il testo dello stato lo tiene la finestra")
         c.ok("in corso" in f.misura.testo.text(), "e la barra in fondo lo scrive")
+
+        # -- la scheda Sessione: **prima cosa che parla, poi il log** --------
+        # Era un registro a tutta pagina. Il log resta, e resta intero, ma la
+        # prima cosa che arriva all'occhio adesso e' la battuta di adesso.
+        # La scheda va portata davanti: `isVisible()` di un widget su una pagina
+        # non scelta e' **falso** anche quando il widget e' a posto, e una
+        # verifica che lo ignora prova la linguetta invece del pannello.
+        f.schede.setCurrentIndex(f.SESSIONE)
+        app.processEvents()
+        c.ok(not f._guscio_vivo.isVisible(),
+             "a catena ferma la scheda Sessione mostra i tre passi e nient'altro")
+        f._mostra_log()
+        app.processEvents()
+        c.ok(f._guscio_vivo.isVisible(), "e partendo compare il blocco vivo")
+        c.ok(f.log.isVisible(), "col log dentro, che non si butta: e' il posto "
+                                "dove si va a leggere quando qualcosa non va")
+        c.ok(f.ora.vuota, "la tessera parte vuota, con un segnaposto e non un buco")
+        c.ok(f.ora.testo.text(), "e il segnaposto e' scritto, non e' una riga vuota")
+
+        # **Il colore del personaggio arriva dove deve, e come deve.** Le sei
+        # tinte sono *colore del testo* e vivono nel log: portarle su una tessera
+        # e' lecito solo finche' restano testo. Un riempimento — che sarebbe la
+        # cosa piu' bella da guardare — userebbe per le voci il canale di menta,
+        # ambra e rosso, e il log smetterebbe di rispondere alla sua unica
+        # domanda **per gradi**, senza che niente dia errore.
+        f._conta.clear()
+        for sid, voce, testo in (("M1", "it_riccardo", "Lamar, che fai?"),
+                                 ("M2", "it_paola", "Niente, fratello."),
+                                 ("M1", "it_riccardo", "Non ci credo.")):
+            f._conta[sid] = f._conta.get(sid, 0) + 1
+            f.ora.dillo(sid, voce, testo, f._colore_voce(sid), 620.0, 1.12)
+            f.personaggi.aggiorna(f._conta, f._colore_voce)
+        app.processEvents()
+        c.ok(not f.ora.vuota, "detta una battuta, la tessera non e' piu' vuota")
+        c.ok("Non ci credo." in f.ora.testo.toolTip(),
+             "e porta l'ultima, per intero nel suggerimento anche se accorciata")
+        c.ok(f._colore_voce("M1").lower() in f.ora.chi.text().lower(),
+             "la sigla ha il colore del suo personaggio")
+        c.ok("1.12" in f.ora.chi.text() and "620" in f.ora.chi.text(),
+             "insieme a fretta e latenza di **quella** battuta, non ai percentili")
+        c.eq(f._colore_voce("M1") == f._colore_voce("M2"), False,
+             "due personaggi, due tinte, assegnate in un posto solo")
+        c.eq(len(f.personaggi._tessere), 2, "e due tessere nella fila, in ordine "
+                                            "di comparsa e non di conteggio")
+        for _tessera, _quante, w in f.personaggi._tessere.values():
+            foglio_sigla = w.styleSheet().lower()
+            c.ok(any(v.lower() in foglio_sigla for v in f.tavolozza.voci),
+                 "la tessera del personaggio porta la sua tinta…")
+            c.ok("background" not in foglio_sigla,
+                 "…e **solo come colore del testo**: un riempimento colorato li' "
+                 "romperebbe la regola dei canali, e la romperebbe in silenzio")
+        c.ok(all(v.lower() not in tema.foglio(f.tavolozza).lower()
+                 for v in f.tavolozza.voci),
+             "e infatti nessuna delle sei entra nel foglio di stile, nemmeno ora "
+             "che le voci hanno lasciato il log")
+
+        # -- il velo: c'e', sta zitto, e non allarga la finestra -------------
+        # Sta **fuori dai layout** apposta: dentro imporrebbe una taglia minima a
+        # tutto quello che copre, cioe' cambierebbe il minimo della finestra —
+        # una cosa che non si vede guardando e che si scopre quando la finestra
+        # si rifiuta di stringersi.
+        c.ok(not f.velo.isVisible(), "il velo a riposo non c'e'")
+        prima = f.minimumSizeHint().width()
+        f.velo.copri(0, lambda: None)
+        c.eq(f.minimumSizeHint().width(), prima,
+             f"e non tocca il minimo della finestra ({prima})")
+        # `copri` con durata zero — sistema che chiede meno movimento, o sessione
+        # accesa — **fa il lavoro lo stesso**: un velo spento non deve voler dire
+        # una lingua che non cambia. E' la meta' che si dimentica.
+        fatto = []
+        f.velo.copri(0, lambda: fatto.append(True))
+        c.eq(fatto, [True], "e senza animazione il lavoro si fa comunque")
     finally:
         f.close()

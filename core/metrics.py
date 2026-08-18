@@ -51,6 +51,18 @@ class Timer:
     def max(self) -> float:
         return self._max
 
+    @property
+    def ultimo(self) -> float:
+        """L'ultimo campione, o 0 se non ce n'e' nessuno.
+
+        Serve a chi guarda **adesso** invece che a chi rilegge dopo: la finestra
+        mostra la fretta chiesta all'ultima battuta, e un p50 li' risponderebbe a
+        un'altra domanda — «com'e' andata la sessione» invece di «cos'e'
+        appena successo».
+        """
+        with self._lock:
+            return self._samples[-1] if self._samples else 0.0
+
     def percentile(self, q: float) -> float:
         """Percentile sulla finestra corrente. `q` in [0, 1]."""
         if not 0.0 <= q <= 1.0:

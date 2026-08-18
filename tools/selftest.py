@@ -3062,6 +3062,13 @@ from tools.selftest_menta import (  # noqa: E402
     test_regole_finestra,
 )
 from tools.selftest_schema import test_limiti, test_livelli, test_schema  # noqa: E402
+from tools.selftest_schermo import (  # noqa: E402
+    test_blocchi,
+    test_cancello_celle,
+    test_marca,
+    test_schermo_catena,
+    test_stringi,
+)
 from tools.selftest_aree import (  # noqa: E402
     test_aree,
     test_area_sola,
@@ -3855,6 +3862,255 @@ def test_ui_lingua(c: Check) -> None:
     radice.deleteLater()
 
 
+def test_tutorial(c: Check) -> None:
+    """La guida iniziale: quando si apre, cosa scrive, e cosa dichiara di dire.
+
+    Tre domande, e nessuna delle tre ha bisogno di guardare il dialogo:
+
+    - **va mostrato?** e' una regola su un numero letto da un file, e sta in
+      `core/preferenze.py` apposta — fuori da Qt, che e' l'unica parte del
+      programma dove i difetti a freddo si erano nascosti tutti;
+    - **saltarlo lo segna?** se no si riaprirebbe a ogni avvio, cioe' l'unica via
+      d'uscita che gli si e' data lascerebbe il programma peggio di prima;
+    - **quello che dice sta nei cataloghi?** un dialogo che non esiste finche'
+      non lo si apre non lo trova nessuna passeggiata, e le sue parole
+      uscirebbero in italiano in mezzo a una finestra tradotta.
+
+    L'ultima e' l'unica che apre Qt, e lo apre per il motivo giusto: l'elenco
+    dichiarato (`testi()`) si confronta con il dialogo **costruito davvero**,
+    passo per passo. Un elenco a mano che nessuno confronta e' il modo in cui
+    `COMPOSTE` sarebbe divergiuto al primo paragrafo aggiunto.
+    """
+    c.group("tutorial")
+
+    import os
+    import tempfile
+
+    from core import preferenze as P
+
+    # **Le preferenze vere non si toccano.** `tutorial_visto()` scrive in
+    # `%LOCALAPPDATA%`: una suite che lo chiamasse per davvero segnerebbe la
+    # guida come vista sulla macchina di chi la lancia, cioe' spegnerebbe la
+    # cosa che sta verificando.
+    vecchio = os.environ.get("LOCALAPPDATA")
+    tana = tempfile.mkdtemp(prefix="livedub-pref-")
+    os.environ["LOCALAPPDATA"] = tana
+    try:
+        c.ok(P.tutorial_da_mostrare({}),
+             "senza preferenze la guida si apre: e' la prima volta")
+        c.ok(not P.tutorial_da_mostrare({"tutorial_visto": P.TUTORIAL}),
+             "vista una volta, non si riapre piu'")
+        c.ok(P.tutorial_da_mostrare({"tutorial_visto": P.TUTORIAL - 1}),
+             "ma una guida piu' nuova di quella vista si riapre: e' il motivo "
+             "per cui e' un numero e non un «l'ho vista»")
+        c.ok(P.tutorial_da_mostrare({"tutorial_visto": "boh"}),
+             "e un valore che non si capisce vale «mai vista»: mostrarla una "
+             "volta di troppo e' un fastidio, nasconderla e' il difetto")
+
+        c.ok(P.tutorial_da_mostrare(), "sul disco pulito, quindi, va mostrata")
+        P.tutorial_visto()
+        c.ok(not P.tutorial_da_mostrare(),
+             "e dopo averla segnata non va piu' mostrata — su disco, non solo "
+             "in memoria")
+
+        from ui import lingua as L
+        from ui import tutorial as T
+
+        # -- quello che dichiara di dire -------------------------------------
+        voci = T.testi()
+        c.ok(len(voci) > 30, f"la guida dichiara {len(voci)} stringhe")
+        c.eq(len(set(voci)), len(voci), "senza doppioni")
+        c.ok(all(v and v.strip() for v in voci), "e senza stringhe vuote")
+        c.ok(all(L._traducibile(v) for v in voci),
+             "e sono tutte traducibili: niente percorsi, glifi o HTML")
+
+        # **I modelli dichiarati sono quelli usati davvero.** Stessa strada di
+        # `COMPOSTE`: si legge il sorgente invece di rileggere l'elenco a occhio,
+        # perche' un elenco a mano diverge e diverge in silenzio.
+        import ast
+        from pathlib import Path
+
+        sorgente = Path(T.__file__)
+        albero = ast.parse(sorgente.read_text(encoding="utf-8"))
+        usati = {
+            n.args[0].value
+            for n in ast.walk(albero)
+            if isinstance(n, ast.Call) and n.args
+            and isinstance(n.func, ast.Name) and n.func.id == "_T"
+            and isinstance(n.args[0], ast.Constant)
+            and isinstance(n.args[0].value, str)
+        }
+        c.ok(usati, f"il sorgente compone davvero delle frasi ({len(usati)})")
+        c.eq(sorted(usati - set(T.MODELLI)), [],
+             "ogni modello composto sta in `MODELLI`, se no uscirebbe in "
+             "italiano in mezzo a una finestra tradotta")
+        c.eq(sorted(set(T.MODELLI) - usati), [],
+             "e non ce ne sono di avanzati, che sarebbero chiavi tradotte per niente")
+
+        # I segnaposto reggono il giro: e se una traduzione li rompe si ricade
+        # sull'italiano invece di far esplodere il dialogo.
+        c.eq(T._T("passo {0} di {1}", "it", 2, 6), "passo 2 di 6",
+             "un modello si riempie")
+
+        # **E i segnaposto sopravvivono alla traduzione, in tutte le lingue.**
+        # Questa e' la verifica che mancava, e la sua assenza aveva lasciato
+        # passare un difetto muto: con i segnaposto scritti a nome — `{nome}`,
+        # `{ocr}` — Google traduce anche cio' che sta **dentro** le graffe
+        # (`{Name}`, `{имя}`, `{ن}`), `format` solleva, e il ripiego rimette
+        # l'italiano. Tutte e quarantuno le lingue erano rotte cosi', e non lo
+        # diceva niente: nessun errore, la suite verde, e ogni riga di verifica
+        # del tutorial in italiano dentro una finestra tradotta.
+        import string
+
+        def _segnaposto(testo: str):
+            try:
+                return {f for _, f, _, _ in string.Formatter().parse(testo) if f is not None}
+            except ValueError:
+                return None
+
+        rotti: list[str] = []
+        for codice in L.disponibili():
+            if codice == "it":
+                continue
+            catalogo = L.carica(codice)
+            for modello in T.MODELLI:
+                tradotto = catalogo.get(modello)
+                if tradotto is None:
+                    continue
+                if _segnaposto(tradotto) != _segnaposto(modello):
+                    rotti.append(f"{codice}: {modello!r} -> {tradotto!r}")
+        c.eq(rotti, [],
+             f"i segnaposto sopravvivono alla traduzione in tutte le lingue"
+             + (f" — {len(rotti)} rotti, il primo: {rotti[0]}" if rotti else ""))
+
+        # -- e finiscono nei cataloghi ---------------------------------------
+        fuori = set(L.fuori_dalla_passeggiata())
+        c.eq(sorted(set(voci) - fuori), [],
+             "tutto quello che la guida dice passa da `fuori_dalla_passeggiata`")
+        c.eq(sorted(set(L.COMPOSTE) - fuori), [],
+             "e i pezzi composti della finestra ci sono ancora")
+        chiavi = set(L.chiavi())
+        c.eq(sorted(set(voci) - chiavi), [],
+             "e sta nell'elenco delle chiavi: rilancia `tools/traduci_ui.py "
+             "--estrai` se questa diventa rossa")
+
+        # -- adesso il dialogo, costruito davvero ----------------------------
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        from core.config import Config
+
+        QApplication.instance() or QApplication([])
+        cfg = Config()
+        d = T.Tutorial(None, cfg=cfg)
+        try:
+            visto: set[str] = set()
+            for i in range(len(T.PASSI)):
+                visto |= set(L.raccogli(d))
+                if i == 0:
+                    # **La lingua scelta finisce in configurazione**, ed e' il
+                    # primo passo della guida: senza, la scelta sarebbe una
+                    # tendina che non fa niente.
+                    codici = d._codici
+                    c.ok("en" in codici, "l'inglese e' fra le lingue offerte")
+                    d._lingua_scelta(codici.index("en"))
+                    c.eq(cfg.ui.lingua, "en",
+                         "scegliendo l'inglese, `ui.lingua` diventa `en`")
+                    d._lingua_scelta(codici.index("it"))
+                if i < len(T.PASSI) - 1:
+                    d._avanti()
+            c.eq(sorted(visto - set(voci)), [],
+                 "il dialogo non dice niente che non abbia dichiarato")
+            non_composte = set(voci) - set(T.MODELLI)
+            c.eq(sorted(non_composte - visto), [],
+                 "e non dichiara niente che non dica: una riga elencata e mai "
+                 "mostrata e' una chiave tradotta per niente")
+
+            # **Il bottone dell'ultimo passo cambia davvero.** La passeggiata dei
+            # cataloghi ricorda l'italiano di ogni widget, quindi un `setText`
+            # normale li' non tiene: visto a schermo, «Ho capito» tornava
+            # «Avanti» un istante dopo, senza nessun errore.
+            cfg.ui.lingua = "en"
+            d._mostra()
+            c.eq(d.b_avanti.text(), L.carica("en")[T.FINE],
+                 "all'ultimo passo il bottone chiude la guida, anche tradotto")
+            d._indietro()
+            c.eq(d.b_avanti.text(), L.carica("en")[T.AVANTI],
+                 "e tornando indietro torna il passo successivo")
+            cfg.ui.lingua = "it"
+        finally:
+            d.reject()
+
+        # -- saltarlo e' finirlo, e non lascia niente a meta' ----------------
+        P.scrivi({})
+        c.ok(P.tutorial_da_mostrare(), "preferenze pulite: si riaprirebbe")
+        prima = Config().ui.lingua
+        d = T.Tutorial(None, cfg=Config())
+        d._chiudi()
+        c.ok(not P.tutorial_da_mostrare(),
+             "saltarlo lo segna come visto: se no si riaprirebbe a ogni avvio, "
+             "e saltarlo sarebbe peggio di non averlo mai aperto")
+        c.eq(Config().ui.lingua, prima,
+             "e chi lo salta senza toccare niente resta con la configurazione "
+             "di prima")
+
+        # -- e non si apre da solo su una finestra che non e' a schermo ------
+        # `tools/scatta.py` e `tools/traduci_ui.py` costruiscono la finestra
+        # senza mostrarla: un dialogo modale li' dentro li bloccherebbe per
+        # sempre, e nessuno dei due sta nella suite.
+        from tools.ui_qt import Finestra
+
+        class _Finta:
+            """La finestra ridotta alle **due** domande che la regola le pone.
+
+            Erano una sola, e la suite si e' appesa per questo. Il doppio
+            modellava soltanto `WA_DontShowOnScreen` e chiamava quel caso
+            «costruita e non mostrata» — che e' un'altra cosa. Il gruppo
+            `coerenza` costruisce la finestra e **non la mostra affatto**, senza
+            dichiarare nessun attributo: il timer parte, `exec()` non torna piu',
+            e la suite intera resta ferma oltre dieci minuti senza stampare una
+            riga. Non rossa: appesa.
+
+            La verifica diceva a parole la cosa giusta e la provava con il
+            meccanismo sbagliato, cioe' non poteva fallire proprio nel caso per
+            cui esisteva.
+            """
+
+            def __init__(self, *, visibile: bool, nascosta: bool = False) -> None:
+                self._visibile = visibile
+                self._nascosta = nascosta
+                self.aperto = False
+
+            def isVisible(self) -> bool:
+                return self._visibile
+
+            def testAttribute(self, _a) -> bool:
+                return self._nascosta
+
+            def apri_tutorial(self, prima_volta: bool = False) -> None:
+                self.aperto = True
+
+        P.scrivi({})
+        mai_mostrata = _Finta(visibile=False)
+        Finestra._forse_tutorial(mai_mostrata)
+        c.ok(not mai_mostrata.aperto,
+             "su una finestra costruita e mai mostrata la guida non si apre — "
+             "e' il caso che ha appeso la suite")
+        fuori_schermo = _Finta(visibile=True, nascosta=True)
+        Finestra._forse_tutorial(fuori_schermo)
+        c.ok(not fuori_schermo.aperto,
+             "ne' su una dichiarata fuori schermo, come la costruiscono "
+             "`tools/scatta.py` e `tools/traduci_ui.py`")
+        vera = _Finta(visibile=True)
+        Finestra._forse_tutorial(vera)
+        c.ok(vera.aperto, "su una finestra vera, la prima volta, si'")
+    finally:
+        if vecchio is None:
+            os.environ.pop("LOCALAPPDATA", None)
+        else:
+            os.environ["LOCALAPPDATA"] = vecchio
+
+
 GROUPS = {
     "clock": test_clock,
     "session": test_session,
@@ -3917,6 +4173,16 @@ GROUPS = {
     "area_sola": test_area_sola,
     "aree_muta": test_aree_muta,
     "area_grande": test_area_troppo_grande,
+    # L'area grande che invece **funziona**: un'area sola con dentro N scritte,
+    # nessuna pronunciata. Le tre verifiche stanno sulle tre misure per cui
+    # `CLAUDE.md` diceva che era «un altro prodotto» — il cancello che si
+    # diluisce, le scritte affiancate che diventano una, il costo — piu' la
+    # marca, che e' il difetto trovato scrivendole.
+    "cancello_celle": test_cancello_celle,
+    "blocchi": test_blocchi,
+    "stringi_riquadro": test_stringi,
+    "marca": test_marca,
+    "schermo_catena": test_schermo_catena,
     "memoria": test_memoria,
     "sessione_mix": test_sessione,
     "due_sessioni": test_due_sessioni,
@@ -3944,6 +4210,10 @@ GROUPS = {
     # voce) e quella della finestra (i cataloghi, e cosa resta in italiano).
     "lingue": test_lingue,
     "ui_lingua": test_ui_lingua,
+    # La guida iniziale: quando si apre, che saltarla la chiude per sempre, e
+    # che quello che dice sta nei cataloghi — un dialogo che non esiste finche'
+    # non lo si apre nessuna passeggiata lo trova.
+    "tutorial": test_tutorial,
 }
 
 

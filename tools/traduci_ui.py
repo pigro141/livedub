@@ -111,13 +111,14 @@ def estrai() -> int:
         voci = L.raccogli(f)
     finally:
         f.close()
-    # **Piu' i pezzi che nessuna passeggiata puo' vedere**, perche' a schermo
-    # esistono solo gia' uniti: si veda `ui.lingua.COMPOSTE`. Stanno qui e non
-    # dentro `raccogli` perche' quella funzione deve restare **la stessa
+    # **Piu' i pezzi che nessuna passeggiata puo' vedere**: quelli che a schermo
+    # esistono solo gia' uniti e quelli di una finestra che non esiste finche'
+    # non la si apre — si veda `ui.lingua.fuori_dalla_passeggiata`. Stanno qui e
+    # non dentro `raccogli` perche' quella funzione deve restare **la stessa
     # passeggiata** che poi riscrive i testi — se le due divergessero, il conto
     # «ogni stringa e' o tradotta o lasciata in italiano» smetterebbe di
     # tornare, e con lui il contatore che dice quanto manca a un catalogo.
-    voci = list(dict.fromkeys([*voci, *L.COMPOSTE]))
+    voci = list(dict.fromkeys([*voci, *L.fuori_dalla_passeggiata()]))
     L.CARTELLA.mkdir(parents=True, exist_ok=True)
     L.CHIAVI.write_text(
         json.dumps(voci, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")

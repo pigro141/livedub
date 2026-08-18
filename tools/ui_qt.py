@@ -43,6 +43,7 @@ import html
 import queue
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -87,6 +88,7 @@ from core.motore import (  # noqa: E402
     Opzioni,
     barra_misura,
     colore_stato,
+    fase_catena,
     gravita,
     in_coda,
     righe_guasto_audio,
@@ -94,8 +96,9 @@ from core.motore import (  # noqa: E402
 from core.versione import NOME, VERSIONE, scheda  # noqa: E402
 from ui import lingua  # noqa: E402
 from ui import qt_tema as tema  # noqa: E402
+from ui import tutorial  # noqa: E402  # >>> tutorial (ui/tutorial.py)
 from ui.qt_audio import Audio  # noqa: E402
-from ui.qt_controlli import Elidibile, Rettangolo  # noqa: E402
+from ui.qt_controlli import BarraCarico, Elidibile, Rettangolo, Velo  # noqa: E402
 from ui.qt_pannello import Pannello  # noqa: E402
 from vision.aree import Area, dividi, leggi, scrivi  # noqa: E402
 
@@ -670,6 +673,261 @@ class PannelloPassi(QWidget):
                 w.style().polish(w)
 
 
+class TesseraOra(QFrame):
+    """**La battuta che sta uscendo adesso**, che e' l'unica cosa che si guarda.
+
+    La scheda Sessione era un log e basta. Un log risponde benissimo a «cosa e'
+    successo» e malissimo a «cosa sta succedendo»: mentre si gioca non si legge
+    una lista che scorre, si getta un'occhiata — e un'occhiata prende un colore,
+    una parola e una riga, non venti righe in colonna.
+
+    Quindi qui ci sono quattro cose e non una in piu':
+
+    | cosa | a che domanda risponde |
+    |---|---|
+    | la spia e la **fase** | sta ancora funzionando? (`core.motore.fase_catena`) |
+    | la **sigla** nel colore del personaggio | e' sempre lo stesso a parlare? |
+    | latenza e fretta dell'**ultima** battuta | sta arrivando in tempo, e schiacciata? |
+    | il testo letto | e sta dicendo quello che c'e' scritto? |
+
+    **Non ripete la barra in fondo.** Quella dice i percentili di tutta la
+    sessione — quanto — e si aggiorna a 2 Hz; questa dice l'ultima battuta e la
+    parola di adesso. Sono due domande, e la lezione gia' pagata («lo stato era
+    detto in tre posti») riguarda la stessa parola scritta due volte, non due
+    granularita' diverse.
+
+    **E la sigla e' un colore di testo**, mai un riempimento: le sei tinte delle
+    voci sono dei personaggi, menta ambra e rosso sono degli stati, e le due
+    famiglie non usano mai lo stesso canale. Il colore arriva qui dentro come
+    HTML, esattamente come nel log, e per questo non compare nel foglio di stile.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setObjectName("ora")
+        # Un foglio di stile non dipinge il fondo di una sottoclasse finche' non
+        # glielo si chiede: senza, la regola c'e' e a schermo non si vede niente.
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        L = QVBoxLayout(self)
+        L.setContentsMargins(tema.S4, tema.S3, tema.S4, tema.S3)
+        L.setSpacing(tema.S1)
+
+        alto = QHBoxLayout()
+        alto.setSpacing(tema.S2)
+        self.spia = QLabel()
+        self.spia.setAccessibleName("la catena sta girando")
+        alto.addWidget(self.spia)
+        self.fase = QLabel("")
+        self.fase.setObjectName("fase")
+        # La parola la sceglie `fase_catena` e la traduce chi disegna: e' composta
+        # a runtime, quindi la passeggiata dei cataloghi non la deve toccare.
+        self.fase.setProperty(lingua.MARCHIO, True)
+        alto.addWidget(self.fase)
+        alto.addStretch(1)
+        self.chi = QLabel("")
+        self.chi.setObjectName("conta")
+        self.chi.setTextFormat(Qt.RichText)
+        self.chi.setProperty(lingua.MARCHIO, True)
+        self.chi.setAccessibleName("chi parla, con che voce e con quanta fretta")
+        alto.addWidget(self.chi)
+        L.addLayout(alto)
+
+        # **Si accorcia con i puntini invece di andare a capo.** Una battuta
+        # lunga farebbe crescere la tessera, e una tessera che cambia altezza a
+        # ogni riga e' esattamente la cosa che si muove in periferia mentre si
+        # gioca. Il testo intero resta nel suggerimento.
+        self.testo = Elidibile("")
+        self.testo.setObjectName("oraTesto")
+        self.testo.setProperty(lingua.MARCHIO, True)
+        L.addWidget(self.testo)
+
+        self.barra = BarraCarico()
+        L.addWidget(self.barra)
+        self.barra.setVisible(False)
+        self._tavolozza = tema.SCURA
+        self._vuota = True
+
+    @property
+    def vuota(self) -> bool:
+        """Ha gia' detto qualcosa? Chi rimette i segnaposto lo deve chiedere.
+
+        Senza, il cambio di lingua a sessione accesa cancellerebbe la battuta a
+        schermo per rimetterci «in attesa della prima battuta» — un segnaposto
+        che sostituisce l'informazione che stava aspettando.
+        """
+        return self._vuota
+
+    def veste(self, tavolozza) -> None:
+        """I colori li tiene lei: stanno **dentro** l'HTML, e un colore congelato
+        in una stringa smette di funzionare al cambio di tema senza dare errore.
+        """
+        self._tavolozza = tavolozza
+        self.barra.veste(tavolozza)
+
+    def svuota(self, quando_dirlo: str) -> None:
+        """Finche' non ha parlato nessuno: una riga fioca, non una tessera vuota."""
+        self._vuota = True
+        self.chi.setText("")
+        self.testo.setObjectName("oraVuoto")
+        self.testo.setToolTip("")
+        self.testo.setText(quando_dirlo)
+        for w in (self.testo,):
+            w.style().unpolish(w)
+            w.style().polish(w)
+
+    def dillo(self, sigla: str, voce: str, testo: str, colore: str,
+              latenza: float, fretta: float) -> None:
+        """Una battuta appena uscita. `colore` e' la tinta di quel personaggio."""
+        if self._vuota:
+            self._vuota = False
+            self.testo.setObjectName("oraTesto")
+            self.testo.style().unpolish(self.testo)
+            self.testo.style().polish(self.testo)
+        t = self._tavolozza
+        pezzi = [f'<span style="color:{colore};font-weight:600">{html.escape(sigla)}</span>',
+                 html.escape(voce), f"{latenza:.0f} ms"]
+        # La fretta si scrive solo quando ce n'e' stata: `1.00×` su ogni riga e'
+        # una colonna che non dice mai niente, e le colonne che non dicono mai
+        # niente si smette di guardarle — comprese le volte in cui parlano.
+        if fretta > 1.005:
+            pezzi.append(f"{fretta:.2f}×")
+        punto = (f'<span style="color:{t.testo_fioco}"> · </span>')
+        self.chi.setText(punto.join(pezzi))
+        self.testo.setToolTip(testo)
+        self.testo.setText(testo)
+
+    def mostra_fase(self, fase, colore: str, alone: bool) -> None:
+        """La parola di `fase_catena` piu' la spia, che e' l'unica cosa colorata."""
+        tinte = {"avviso": self._tavolozza.ambra, "guasto": self._tavolozza.rosso}
+        self.fase.setText(fase.testo)
+        self.fase.setStyleSheet(f"color: {tinte.get(fase.stato, self._tavolozza.testo)}")
+        self.spia.setStyleSheet(tema.spia(colore))
+        tema.alone(self.spia, colore if alone else None)
+
+    # -- l'attesa dell'avvio, che e' l'unica cosa lunga di questa finestra --
+
+    def aspetta(self) -> None:
+        """Da Avvia alla prima riga di stato viva: caricare Kokoro costa secondi.
+
+        Indeterminata e non a riempimento: quanto ci mette dipende dal motore e
+        dal disco, e una barra che arriva in fondo mentre non e' finito niente
+        dice una cosa falsa.
+        """
+        self.barra.scorre(tema.durata(1100))
+
+    def pronto(self) -> None:
+        self.barra.ferma()
+
+
+class FilaPersonaggi(QWidget):
+    """**I personaggi sentiti**, con quante battute ciascuno.
+
+    E' la risposta grafica alla domanda che il README dichiara essere quella
+    vera: non «cosa ha detto» ma «e' sempre lo stesso a parlare?». Nel log quella
+    risposta c'e' gia' — sei colori a rotazione — ma va **letta**, riga per riga,
+    e mentre si gioca non si legge niente. Qui sta tutta in una riga: tre
+    tessere vuol dire tre personaggi, e se la quarta compare a meta' scena vuol
+    dire che il riconoscimento ne ha inventato uno.
+
+    **Il colore sta nella sigla e non nella tessera**, che e' la regola dei
+    canali: le sei tinte sono colore del testo, e menta ambra e rosso sono
+    riempimenti, marche e contorni. Una tessera riempita col colore del
+    personaggio sembrerebbe un'ottima idea e comincerebbe a smontare il sistema
+    dal giorno dopo — per gradi, senza dare errore.
+
+    Le tessere si aggiungono in **ordine di comparsa** e non per numero di
+    battute: ordinarle per conteggio le farebbe scambiare di posto da sole
+    durante una conversazione, cioe' qualcosa che si muove mentre si gioca.
+    """
+
+    # Sopra questo numero si scrive «+n», perche' una fila di sedici tessere non
+    # e' piu' un colpo d'occhio: e' un altro elenco. Sedici identita' su una
+    # scena di battibecchi corti sono misurate, non ipotetiche.
+    MAX_TESSERE = 10
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setObjectName("gruppo")
+        self.riga = QHBoxLayout(self)
+        self.riga.setContentsMargins(0, 0, 0, 0)
+        self.riga.setSpacing(tema.S2)
+        self.vuoto = QLabel("")
+        self.vuoto.setObjectName("spento")
+        self.vuoto.setProperty(lingua.MARCHIO, True)
+        self.riga.addWidget(self.vuoto)
+        self.riga.addStretch(1)
+        # `sid -> (tessera, quante, sigla)`. La sigla si tiene per nome e non si
+        # ricerca fra i figli: una verifica che cerca «la prima QLabel dentro la
+        # tessera» prova l'ordine in cui sono state aggiunte, non la regola.
+        self._tessere: dict[str, tuple[QWidget, QLabel, QLabel]] = {}
+        self._tavolozza = tema.SCURA
+
+    def veste(self, tavolozza) -> None:
+        self._tavolozza = tavolozza
+
+    def svuota(self, quando_dirlo: str) -> None:
+        self.vuoto.setText(quando_dirlo)
+
+    def aggiorna(self, conteggi: dict[str, int], colore) -> None:
+        """`conteggi` in ordine di comparsa; `colore(sid)` da' la tinta."""
+        self.vuoto.setVisible(not conteggi)
+        for i, (sid, quante) in enumerate(conteggi.items()):
+            if i >= self.MAX_TESSERE:
+                break
+            if sid not in self._tessere:
+                self._tessere[sid] = self._nuova(sid, colore(sid))
+            self._tessere[sid][1].setText(str(quante))
+        avanzano = len(conteggi) - self.MAX_TESSERE
+        self.vuoto.setVisible(avanzano > 0 or not conteggi)
+        if avanzano > 0:
+            self.vuoto.setText(f"+{avanzano}")
+
+    def _nuova(self, sid: str, colore: str) -> tuple[QWidget, QLabel, QLabel]:
+        """Una tessera nuova **compare sfumando**: un personaggio in piu' e' un
+        avvenimento, e una cosa che appare di colpo in periferia si legge come
+        un guasto.
+        """
+        t = QFrame()
+        t.setObjectName("personaggio")
+        t.setAttribute(Qt.WA_StyledBackground, True)
+        L = QHBoxLayout(t)
+        L.setContentsMargins(tema.S2, tema.S1, tema.S2, tema.S1)
+        # `S2` e non `S1`: con quattro pixel `M1 2` si legge «M12», che e' un
+        # numero. Il conteggio dev'essere staccato dalla sigla.
+        L.setSpacing(tema.S2)
+        nome = QLabel(sid)
+        nome.setProperty(lingua.MARCHIO, True)
+        # Il colore del personaggio, e solo come **colore del testo**.
+        nome.setStyleSheet(f"color: {colore}; font-weight: 600")
+        L.addWidget(nome)
+        quante = QLabel("1")
+        quante.setObjectName("conta")
+        quante.setProperty(lingua.MARCHIO, True)
+        L.addWidget(quante)
+        self.riga.insertWidget(self.riga.count() - 2, t)
+        ms = tema.durata(tema.MS_CONTROLLO)
+        if ms:
+            velo = QGraphicsOpacityEffect(t)
+            t.setGraphicsEffect(velo)
+            comparsa = QPropertyAnimation(velo, b"opacity", t)
+            comparsa.setDuration(ms)
+            comparsa.setStartValue(0.0)
+            comparsa.setEndValue(1.0)
+            comparsa.setEasingCurve(QEasingCurve.OutCubic)
+            # **L'effetto si toglie quando ha finito, e non e' pulizia.** Un velo
+            # che parte da zero lascia la tessera **invisibile** finche' qualcuno
+            # non fa girare il ciclo degli eventi: fotografata subito dopo, la
+            # fila dei personaggi usciva vuota — con la suite verde, perche' i
+            # widget c'erano tutti. Un pezzo la cui visibilita' dipende da
+            # un'animazione e' un pezzo che sparisce ovunque quell'animazione non
+            # giri, e togliere l'effetto e' il modo di dichiarare che lo stato
+            # finale e' «si vede».
+            comparsa.finished.connect(lambda w=t: w.setGraphicsEffect(None))
+            comparsa.start()
+            t._comparsa = comparsa  # se no il garbage collector se la porta via
+        return t, quante, nome
+
+
 # ================================================================ la finestra ==
 
 
@@ -692,6 +950,10 @@ class Finestra(QMainWindow):
         self.args = args
         self._in_attesa: list[str] = []
         self._voci: dict[str, int] = {}
+        # Quante battute a testa, **in ordine di comparsa**: e' quello che la
+        # fila dei personaggi disegna, e l'ordine di un dizionario in Python e'
+        # l'ordine di inserimento — quindi non c'e' niente da ordinare.
+        self._conta: dict[str, int] = {}
         self._detta_qualcosa = False
         # **Un passo e' fatto quando lo hai fatto tu.** Prima il secondo si
         # spuntava da solo perche' il profilo porta gia' una ROI: la finestra si
@@ -775,6 +1037,16 @@ class Finestra(QMainWindow):
         self.misura.spegni_o_accendi(self._colore_stato, False)
         L.addWidget(self.misura)
 
+        # **Il velo sta fuori dai layout**, ed e' l'unica cosa della finestra che
+        # lo fa: e' un figlio del centro che si dimensiona a mano in
+        # `resizeEvent`. Dentro un layout imporrebbe una taglia minima a tutto
+        # quello che copre, cioe' cambierebbe il minimo della finestra — che e'
+        # una cosa che non si vede guardando, e che una verifica misura.
+        self.velo = Velo(centro)
+        self.velo.veste(self.tavolozza)
+        self.ora.veste(self.tavolozza)
+        self.personaggi.veste(self.tavolozza)
+
         self._scorciatoie()
         self.schede.setCurrentIndex(
             min(int(self._pref.get("scheda", 0)), self.schede.count() - 1))
@@ -789,6 +1061,11 @@ class Finestra(QMainWindow):
         self.aggiorna_pronto()
         self.scrivi(scheda())
         self.scrivi("")
+
+        # >>> tutorial (ui/tutorial.py): la prima volta si apre da solo, e dopo
+        # che la finestra esiste — se no il dialogo comparirebbe sul nulla.
+        QTimer.singleShot(0, self._forse_tutorial)
+        # <<< tutorial
 
         # **La coda si guarda con un timer, non dentro i cicli.** I due domini
         # restano nei loro thread; qui arriva solo il testo gia' pronto. Mettere
@@ -897,6 +1174,38 @@ class Finestra(QMainWindow):
         self.scrivi(f"diagnostica negli appunti ({len(testo.splitlines())} righe) — "
                     f"incollala in un rapporto di errore")
 
+    # >>> tutorial (ui/tutorial.py): due metodi, e non uno, perche' «aprirlo» e
+    # «aprirlo da solo» sono due decisioni diverse — la seconda deve saper dire
+    # di no quando la finestra non e' a schermo.
+    def apri_tutorial(self, prima_volta: bool = False) -> None:
+        tutorial.Tutorial(self, prima_volta=prima_volta).exec()
+
+    def _forse_tutorial(self) -> None:
+        """La prima volta si apre da solo. La regola sta in `core/preferenze.py`.
+
+        `WA_DontShowOnScreen` e' la guardia che serve davvero: `tools/scatta.py`
+        e `tools/traduci_ui.py` costruiscono questa finestra senza mostrarla, e
+        un dialogo modale li' dentro li bloccherebbe per sempre — con la suite
+        verde, perche' nessuno dei due e' nella suite.
+
+        **Ma quella guardia da sola era meta', e la meta' che mancava e' quella
+        che ha morso.** Copriva «costruita e dichiarata non a schermo» e non
+        «costruita e mai mostrata», che e' il caso della suite: il gruppo
+        `coerenza` costruisce la finestra e chiama `processEvents()`, il timer
+        parte, `exec()` non torna **mai**. Misurato: la suite intera e' rimasta
+        ferma oltre dieci minuti senza stampare una riga, cioe' il peggior modo
+        possibile di fallire — non rossa, appesa.
+
+        Quindi la condizione non e' «e' stato chiesto di nasconderla» ma «e'
+        davvero davanti a qualcuno», che e' la domanda vera e che nessun
+        chiamante nuovo deve ricordarsi di porsi.
+        """
+        if not self.isVisible() or self.testAttribute(Qt.WA_DontShowOnScreen):
+            return
+        if preferenze.tutorial_da_mostrare():
+            self.apri_tutorial(prima_volta=True)
+    # <<< tutorial
+
     def chi_siamo(self) -> None:
         d = QDialog(self)
         d.setWindowTitle(f"{NOME} {VERSIONE}")
@@ -965,6 +1274,19 @@ class Finestra(QMainWindow):
         registro.scrivi("finestra chiusa")
         super().closeEvent(evento)
 
+    def resizeEvent(self, evento) -> None:  # noqa: N802 (nome imposto da Qt)
+        """Il velo copre il centro, e il centro cambia taglia.
+
+        Il `hasattr` non e' prudenza generica: `_geometria()` chiama `resize()`
+        **prima** che il widget centrale esista, quindi il primo evento arriva a
+        una finestra senza velo. Senza questa riga la finestra non si apre
+        affatto — e si aprirebbe benissimo sulla macchina di chi l'ha scritta,
+        perche' li' l'ultima geometria salvata coincide gia'.
+        """
+        super().resizeEvent(evento)
+        if hasattr(self, "velo") and self.centralWidget() is not None:
+            self.velo.setGeometry(self.centralWidget().rect())
+
     def _tema_cambiato(self, *_a) -> None:
         """Windows e' passato da chiaro a scuro (o viceversa) mentre giocavamo."""
         nuova = tema.attuale(QApplication.instance())
@@ -986,8 +1308,33 @@ class Finestra(QMainWindow):
         else:
             self._colore_stato = nuova.accento
         self.misura.veste(nuova)
+        self.velo.veste(nuova)
+        self.ora.veste(nuova)
+        self.personaggi.veste(nuova)
         self.stato(self._stato_testo, self._colore_stato)
         self.scrivi(f"tema di sistema: {nuova.nome}")
+
+    def cambia_lingua(self) -> None:
+        """Il cambio di lingua a finestra aperta, **coperto dal velo**.
+
+        Rivestire la finestra costa 32-43 ms secondo il catalogo (misurato su
+        `de`, `it` e `ja`): non e' lento, e' *istantaneo*, e a schermo 605
+        stringhe che cambiano tutte insieme si leggono come uno scatto. Il velo
+        mette un principio e una fine attorno a quel salto — entra, il lavoro si
+        fa mentre non si vede niente, esce. Cronometrato dal clic alla scomparsa:
+        **341 ms**, di cui 61 il rifacimento vero.
+
+        **La regola su quando non farlo sta fuori da qui** (`tema.durata_carico`):
+        a sessione accesa il velo non c'e', perche' i due thread della catena non
+        devono pagare un'animazione. `copri` fa il lavoro comunque, ed e' la meta'
+        che si dimentica: un velo spento non deve voler dire una lingua che non
+        cambia.
+
+        Non e' la stessa cosa di `vesti_lingua`, che serve anche alla
+        **costruzione** della finestra: li' non c'e' niente da coprire, perche' a
+        schermo non c'e' ancora niente.
+        """
+        self.velo.copri(tema.durata_carico(self.in_sessione), self.vesti_lingua)
 
     def vesti_lingua(self) -> None:
         """Mette la finestra nella lingua di `ui.lingua`, e dice **quanto manca**.
@@ -1009,8 +1356,10 @@ class Finestra(QMainWindow):
         # qui o resterebbe nella lingua di prima — che e' peggio dell'italiano,
         # perche' sembrerebbe una parola non tradotta invece di una vecchia. E
         # va rifatta **anche** tornando all'italiano, che e' il ritorno da ogni
-        # altra lingua.
+        # altra lingua. Lo stesso vale per i due segnaposto della scheda
+        # Sessione, per la stessa ragione e con la stessa cura.
         self.aggiorna_pronto()
+        self._svuota_sessione()
         if scelta == lingua.SORGENTE:
             # **Il ripiego si dichiara, ma solo quando c'e' stato un ripiego.**
             # `auto` su una Windows in svedese e' un ripiego: la finestra resta
@@ -1087,7 +1436,10 @@ class Finestra(QMainWindow):
         self.l_bersaglio = QLabel("nessuna finestra scelta")
         self.l_bersaglio.setObjectName("tenue")
         L.addWidget(self.l_bersaglio)
-        # L'unico bottone senza fondo di tutta la finestra.
+        # >>> tutorial (ui/tutorial.py): il modo esplicito di rivedere la guida.
+        L.addWidget(tutorial.bottone(self, self.apri_tutorial))
+        # <<< tutorial
+        # I due bottoni senza fondo di tutta la finestra.
         info = QPushButton("ⓘ")
         info.setObjectName("aiuto")
         info.setCursor(Qt.PointingHandCursor)
@@ -1481,6 +1833,25 @@ class Finestra(QMainWindow):
         )
 
     def _scheda_sessione(self) -> QWidget:
+        """**Non un log**, ma tre blocchi in ordine di quanto si guardano.
+
+        Era un registro a tutta pagina, cioe' la risposta a «cosa e' successo»
+        messa al posto della risposta a «cosa sta succedendo». Mentre si gioca
+        non si legge una lista che scorre: si getta un'occhiata, e un'occhiata
+        prende un colore e una riga.
+
+            ┌ la battuta di adesso ────────────────────┐   chi parla, e come va
+            └──────────────────────────────────────────┘
+              i personaggi sentiti  [M1 12] [M2 8]         e' sempre lo stesso?
+              registro                                     cosa e' successo
+            ┌──────────────────────────────────────────┐
+            │  …                                       │
+            └──────────────────────────────────────────┘
+
+        Il log **resta**, e resta intero: e' il posto dove si va a leggere
+        quando qualcosa non va, ed e' l'unico che tenga tutta la storia. Ma sta
+        sotto, con il suo titolo, invece di essere la prima cosa che si vede.
+        """
         contenitore = QWidget()
         contenitore.setObjectName("scheda")
         C = QVBoxLayout(contenitore)
@@ -1500,7 +1871,35 @@ class Finestra(QMainWindow):
         G.addStretch(1)
         C.addWidget(self._guscio_passi, 1)
 
+        # -- il blocco vivo: compare tutto insieme quando la catena parte -----
+        self._guscio_vivo = QWidget()
+        self._guscio_vivo.setObjectName("gruppo")
+        V = QVBoxLayout(self._guscio_vivo)
+        V.setContentsMargins(0, 0, 0, 0)
+        V.setSpacing(tema.S2)
+
+        self.ora = TesseraOra()
+        V.addWidget(self.ora)
+
+        V.addSpacing(tema.S1)
+        # **Due titoli di sezione, e nessuno dei due e' una parola sola.** Un
+        # titolo di una parola minuscola — `registro`, `personaggi` — e'
+        # indistinguibile da un percorso di config, e `ui.lingua._traducibile` lo
+        # scarta apposta: sarebbe uscito in italiano in mezzo a una finestra
+        # tradotta, senza che niente lo dicesse. Provato: `registro` non compariva
+        # nemmeno fra le chiavi estratte.
+        titolo = QLabel("chi ha parlato")
+        titolo.setObjectName("sezione")
+        V.addWidget(titolo)
+        self.personaggi = FilaPersonaggi()
+        V.addWidget(self.personaggi)
+
+        V.addSpacing(tema.S1)
+        titolo = QLabel("registro della sessione")
+        titolo.setObjectName("sezione")
+        V.addWidget(titolo)
         self.log = QPlainTextEdit()
+        self.log.setObjectName("registro")
         self.log.setReadOnly(True)
         # **Un tetto alle righe.** Senza, una sessione di tre ore se lo mangia
         # tutto: e' la domanda 23, e costa una riga.
@@ -1508,24 +1907,27 @@ class Finestra(QMainWindow):
         self.log.setAccessibleName("registro della sessione")
         self.log.setAccessibleDescription("chi parla e cosa e' stato detto, in sola lettura")
         self.log.setFont(tema.carattere_log())
-        self.log.setVisible(False)
-        C.addWidget(self.log, 1)
+        V.addWidget(self.log, 1)
+
+        self._guscio_vivo.setVisible(False)
+        C.addWidget(self._guscio_vivo, 1)
 
         self.tessera = TesseraGuasto(self.apri_registro, self._riprova)
         C.addWidget(self.tessera)
         return contenitore
 
     def _mostra_log(self) -> None:
-        """Fatti i tre passi, il pannello **si dissolve** e sotto c'e' il log.
+        """Fatti i tre passi, il pannello **si dissolve** e sotto c'e' la sessione.
 
         Duecento millisecondi, che e' la durata dichiarata per la comparsa e la
         scomparsa di un pannello — e vanno a zero se il sistema chiede meno
         movimento, perche' chi apre questa finestra sta gia' guardando uno
         schermo che si muove molto.
         """
-        if self.log.isVisible():
+        if self._guscio_vivo.isVisible():
             return
-        self.log.setVisible(True)
+        self._guscio_vivo.setVisible(True)
+        self._svuota_sessione()
         ms = tema.durata(tema.MS_PANNELLO)
         if not ms:
             self._guscio_passi.setVisible(False)
@@ -1540,6 +1942,27 @@ class Finestra(QMainWindow):
         self._dissolvenza.finished.connect(
             lambda: self._guscio_passi.setVisible(False))
         self._dissolvenza.start()
+
+    def _svuota_sessione(self, forza: bool = False) -> None:
+        """I due segnaposto della scheda Sessione, **nella lingua della finestra**.
+
+        `forza` cancella anche una battuta gia' detta, e lo chiede solo chi
+        fotografa: lo stato «sto partendo» esiste **prima** della prima battuta,
+        e mostrarlo sopra una battuta gia' uscita sarebbe un'immagine che dal
+        vivo non capita mai.
+
+        Si compongono qui e non stanno scritti su un widget perche' altrimenti la
+        passeggiata dei cataloghi li ricorderebbe come originale italiano e al
+        primo cambio di lingua li congelerebbe: e' lo stesso difetto della riga
+        «da fare nella preparazione», gia' pagato una volta.
+        """
+        def dillo(testo: str) -> str:
+            return lingua.traduci(testo, self.cfg.ui.lingua)
+
+        if forza or self.ora.vuota:
+            self.ora.svuota(dillo("in attesa della prima frase"))
+        if forza or not self._conta:
+            self.personaggi.svuota(dillo("nessuno ancora"))
 
     def _audio_scelto(self) -> None:
         """Le schede audio si scelgono a freddo: si applicano al prossimo Avvia."""
@@ -1583,6 +2006,19 @@ class Finestra(QMainWindow):
                 f'<span style="line-height:125%">{segno}'
                 f'<span style="color:{colore}">{corpo}</span></span>')
 
+    def _colore_voce(self, sid: str) -> str:
+        """La tinta di quel personaggio, **assegnata in un posto solo**.
+
+        Adesso quel colore lo usano in tre — il log, la tessera della battuta di
+        adesso e la fila dei personaggi — e tre giri di `len(self._voci) % 6`
+        scritti a mano sarebbero tre assegnazioni che al primo caso di bordo si
+        separano: la stessa sigla di due colori diversi in due punti della stessa
+        finestra, senza errore e senza che la suite possa vederlo.
+        """
+        if sid not in self._voci:
+            self._voci[sid] = len(self._voci) % len(self.tavolozza.voci)
+        return self.tavolozza.voci[self._voci[sid]]
+
     def _scrivi_voce(self, sid: str, testo: str) -> None:
         """Una battuta, col colore del personaggio che l'ha detta.
 
@@ -1590,9 +2026,7 @@ class Finestra(QMainWindow):
         tanto c'e' il colore»**: chi non distingue le tinte perde le sei voci
         come identita' a colpo d'occhio e le ritrova nella sigla.
         """
-        if sid not in self._voci:
-            self._voci[sid] = len(self._voci) % len(self.tavolozza.voci)
-        self._al_log(testo, self.tavolozza.voci[self._voci[sid]])
+        self._al_log(testo, self._colore_voce(sid))
         registro.scrivi(testo)
 
     def stato(self, testo: str, colore: str | None = None) -> None:
@@ -1602,6 +2036,12 @@ class Finestra(QMainWindow):
         self._colore_stato = colore or colore_stato(testo, ComeTk(self.tavolozza))
         self._stato_testo = testo
         self.misura.spegni_o_accendi(self._colore_stato, self.motore.sta_parlando)
+        # **La barra dell'avvio si spegne su quello che stava aspettando**, non su
+        # un timer: chi ha scritto «tre secondi bastano» ha scritto un numero che
+        # e' giusto su una macchina e sbagliato su tutte le altre. La prima riga
+        # di stato viva vuol dire che i due cicli sono partiti.
+        if hasattr(self, "ora") and self.motore.acceso:
+            self.ora.pronto()
         self._aggiorna_misura()
         # **Il logo cambia sulla stessa regola, non su una seconda.** Un elenco di
         # stati brutti scritto qui si separerebbe da `colore_stato` al primo stato
@@ -1690,7 +2130,7 @@ class Finestra(QMainWindow):
         elif campo.percorso == "vision.aree":
             self._mostra_aree()
         elif campo.percorso == "ui.lingua":
-            self.vesti_lingua()
+            self.cambia_lingua()
         elif campo.percorso in self.STILE and self.overlay is not None:
             self.overlay.ristila(**self._stile())
             self.scrivi("  (l'aspetto cambia dalla prossima battuta: quella a "
@@ -1816,6 +2256,12 @@ class Finestra(QMainWindow):
         # Terzo passo fatto: il pannello lascia il posto al log.
         self.schede.setCurrentIndex(self.SESSIONE)
         self._mostra_log()
+        # **L'unica attesa lunga della finestra si vede.** Fra Avvia e la prima
+        # riga di stato ci sono l'apertura dei device e il caricamento del
+        # motore: con Kokoro sono secondi, e una finestra che non dice niente per
+        # tre secondi si legge come una finestra bloccata. La barra si spegne da
+        # sola in `stato()`, alla prima riga viva.
+        self.ora.aspetta()
         if self.cfg.translate.enabled:
             self.scrivi(
                 f"traduzione {self.cfg.translate.source}→{self.cfg.translate.target} "
@@ -1849,6 +2295,10 @@ class Finestra(QMainWindow):
     def _fine_thread(self) -> None:
         self.b_avvia.setEnabled(True)
         self.b_ferma.setEnabled(False)
+        # Anche l'avvio **fallito** finisce qui, ed e' il ramo che si dimentica:
+        # senza, una barra di caricamento resterebbe a scorrere sopra una catena
+        # che non e' mai partita.
+        self.ora.pronto()
         # **La preparazione si spegne tutta, non due bottoni.** Cosa si cattura,
         # da dove arriva l'audio e dove sono i sottotitoli si leggono all'avvio:
         # lasciarli toccabili a sessione accesa vorrebbe dire una finestra che
@@ -1891,9 +2341,44 @@ class Finestra(QMainWindow):
     # -- il giro della coda -------------------------------------------------
 
     def _aggiorna_misura(self) -> None:
+        """Un solo giro di misure per i due posti che le guardano, a 2 Hz.
+
+        La barra in fondo prende i percentili, la tessera in cima prende la
+        parola di adesso: **stesso dizionario**, letto con due domande. Due
+        chiamate a `misure()` costerebbero due letture del registro della catena
+        e — peggio — permetterebbero ai due di mostrare istanti diversi.
+        """
         dati = self.motore.misure()
         dati["stato"] = self._stato_testo
         self.misura.mostra(barra_misura(dati))
+        if hasattr(self, "ora"):
+            self.ora.mostra_fase(
+                self._fase_tradotta(fase_catena(dati)),
+                self._colore_stato,
+                bool(dati.get("parla")),
+            )
+
+    def _fase_tradotta(self, fase):
+        """Le quattro parole della fase, nella lingua della finestra.
+
+        Sono **scritte qui per esteso** e non ricavate da `motore.FASI` con un
+        ciclo, e non e' pigrizia al contrario: la verifica `ui_lingua` legge il
+        sorgente di questo file e pretende che ogni stringa passata a `dillo`
+        stia in `lingua.COMPOSTE`. Un ciclo passerebbe una variabile, la verifica
+        non vedrebbe niente, e le quattro parole uscirebbero in italiano in mezzo
+        a una finestra tradotta — che e' esattamente il difetto per cui
+        `COMPOSTE` esiste. La suite tiene i due elenchi d'accordo.
+        """
+        def dillo(testo: str) -> str:
+            return lingua.traduci(testo, self.cfg.ui.lingua)
+
+        parole = {
+            "fermo": dillo("fermo"),
+            "sta leggendo": dillo("sta leggendo"),
+            "sta parlando": dillo("sta parlando"),
+            "in ritardo": dillo("in ritardo"),
+        }
+        return replace(fase, testo=parole.get(fase.testo, fase.testo))
 
     def _svuota_coda(self) -> None:
         # **Dei ritagli si disegna solo l'ultimo.** Ne arrivano trenta al secondo
@@ -1921,6 +2406,15 @@ class Finestra(QMainWindow):
                     # `tema.carattere_log`).
                     self._scrivi_voce(
                         sid, f"{t:6.1f}s · {sid} · {voce} · {lat:.0f} ms · {testo}")
+                    # **La stessa battuta va anche in cima alla scheda**, dove si
+                    # legge con un'occhiata invece che riga per riga. La fretta e'
+                    # l'ultimo campione di `dub.rate_x1000`, cioe' quella chiesta
+                    # a questa battuta: il p50 della barra in fondo risponde a
+                    # un'altra domanda.
+                    self._conta[sid] = self._conta.get(sid, 0) + 1
+                    self.ora.dillo(sid, voce, testo, self._colore_voce(sid), lat,
+                                   float(self.motore.misure().get("fretta") or 0.0))
+                    self.personaggi.aggiorna(self._conta, self._colore_voce)
                 elif tipo == "overlay":
                     self._overlay(dato)
                 elif tipo == "spegni":

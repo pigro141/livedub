@@ -35,7 +35,45 @@ from dataclasses import dataclass
 
 Rettangolo = tuple[float, float, float, float]  # x, y, w, h normalizzati
 
-MODI = ("testo_audio", "testo")
+# **Il terzo modo, e non e' il secondo con l'area piu' grande.**
+#
+# `testo_audio` e `testo` guardano un rettangolo stretto e ne tirano fuori **una**
+# battuta alla volta: e' la catena che c'e' sempre stata. `schermo` guarda un
+# rettangolo grande — anche tutto lo schermo — e ne tira fuori **quante scritte
+# ci sono**, ognuna col suo riquadro. Sono due cose diverse in tre punti, tutti
+# e tre misurati:
+#
+# - il cancello che decide se rileggere si diluisce con l'area, e a schermo
+#   intero non si apre mai (`vision/diff.py`, `cella`);
+# - le bande si trovano sul profilo delle righe, quindi due scritte affiancate
+#   alla stessa altezza sono una banda sola (`vision/blocchi.py`);
+# - la catena a valle e' costruita per una battuta alla volta, e qui ce ne sono
+#   N contemporanee.
+#
+# **E non parla mai.** Le scritte sparse per lo schermo sono HUD, cartelli e
+# menu: pronunciarle e' esattamente il difetto che l'11% delle battute di GTA V
+# aveva, moltiplicato per il numero di riquadri. Il doppiaggio a una voce alla
+# volta resta quello di `testo_audio`, e questa modalita' non lo tocca.
+MODI = ("testo_audio", "testo", "schermo")
+
+
+@dataclass(frozen=True, slots=True)
+class Marca:
+    """Da quale area viene una battuta, e cosa farne. Viaggia sull'evento.
+
+    Esiste perche' l'informazione «questa battuta e' muta e il suo riquadro e'
+    in coordinate di *quest'* area» deve sopravvivere a tutti i `replace` che
+    l'evento subisce fra la lettura e il disegno. La pipeline la teneva in due
+    mappe indicizzate per `id()`, e ogni correzione del testo creava un oggetto
+    nuovo che in quelle mappe non c'era: si veda `SubtitleEvent.marca`.
+    """
+
+    roi: Rettangolo = ()  # type: ignore[assignment]
+    modo: str = "testo_audio"
+
+    @property
+    def parla(self) -> bool:
+        return self.modo == "testo_audio"
 
 
 @dataclass(slots=True)
@@ -56,6 +94,11 @@ class Area:
     @property
     def parla(self) -> bool:
         return self.modo == "testo_audio"
+
+    @property
+    def molte(self) -> bool:
+        """Da questa area escono piu' scritte contemporaneamente."""
+        return self.modo == "schermo"
 
 
 def interseca(a: Rettangolo, b: Rettangolo) -> Rettangolo | None:
@@ -161,13 +204,21 @@ def dividi(aree: list[Area], minimo: float = 1e-4) -> list[Pezzo]:
 ALTEZZA_MASSIMA = 0.30
 
 
-def troppo_grande(roi: Rettangolo) -> str:
+def troppo_grande(roi: Rettangolo, modo: str = "testo_audio") -> str:
     """Se l'area e' troppo alta per essere letta, dice perche'. Se no, `""`.
 
     Un'area grande non e' «meno precisa»: e' **muta**. Dirlo qui, come regola,
     vuol dire poterlo dire sia all'avvio della catena sia mentre si tira il
     rettangolo col mouse — e verificarlo senza aprire niente.
+
+    **Tranne in modalita' `schermo`**, dove l'area grande e' il punto e il
+    cancello e' stato rifatto apposta per non diluirsi (`RoiDiff.cella`). Il
+    limite qui sopra descrive un difetto che li' non c'e' piu': lasciarlo
+    scattare vorrebbe dire avvisare l'utente di una cosa falsa, e un avviso che
+    si impara a ignorare non avvisa piu' di niente nemmeno dove serve.
     """
+    if modo == "schermo":
+        return ""
     h = float(roi[3])
     if h <= ALTEZZA_MASSIMA:
         return ""

@@ -94,6 +94,18 @@ COMPOSTE: tuple[str, ...] = (
     "sistema l'audio",
     "l'area e' troppo alta",
     "pronto",
+    # Le quattro parole della fase (`core.motore.FASI`) e i due segnaposto della
+    # scheda Sessione. La fase la sceglie una regola e la scrive la finestra:
+    # nessuna passeggiata sui widget puo' vedere le tre che in quell'istante non
+    # sono a schermo, quindi tre su quattro resterebbero in italiano per sempre —
+    # e resterebbero in italiano **a turno**, cioe' senza che nessuno sappia
+    # perche' a volte si vede e a volte no.
+    "fermo",
+    "sta leggendo",
+    "sta parlando",
+    "in ritardo",
+    "in attesa della prima frase",
+    "nessuno ancora",
 )
 
 
@@ -170,6 +182,48 @@ def traduci(testo: str, codice: str) -> str:
     if not testo:
         return testo
     return carica(risolvi(codice)).get(testo, testo)
+
+
+def fuori_dalla_passeggiata() -> tuple[str, ...]:
+    """Tutto cio' che `raccogli()` non puo' vedere, e che va comunque tradotto.
+
+    Sono due famiglie, e sono diverse:
+
+    - **`COMPOSTE`** — le parole con cui la finestra *unisce* una frase a
+      runtime: a schermo esistono solo gia' unite, quindi la passeggiata vede la
+      combinazione di quell'istante e nessun'altra;
+    - **il tutorial** (`ui/tutorial.py`) — una finestra che **non esiste**
+      finche' non la si apre. Percorrendo la finestra principale non c'e' niente
+      da trovare, e le sue parole resterebbero in italiano in mezzo a un
+      programma tradotto — che e' peggio dell'italiano, perche' sembra una parola
+      che non si traduce invece di una che nessuno ha tradotto.
+
+    Il rischio di un elenco a mano e' che diverga da cio' che il codice dice
+    davvero: per la prima famiglia lo prende la verifica `ui_lingua` leggendo il
+    sorgente, per la seconda la verifica `tutorial`, che costruisce il dialogo e
+    confronta le due liste.
+    """
+    from ui.tutorial import testi
+
+    return tuple(dict.fromkeys([*COMPOSTE, *testi()]))
+
+
+def cambia(w, testo: str) -> None:
+    """Cambia il testo di un widget **e la memoria dell'originale italiano**.
+
+    `applica` conserva su ogni widget il testo che c'era la prima volta
+    (`__it_text`), perche' se no il secondo cambio di lingua tradurrebbe una
+    traduzione. Il prezzo e' un tranello: da quel momento un `setText` normale
+    **non tiene**, perche' la passeggiata successiva rimette la memoria. Visto a
+    schermo: il bottone «Avanti» del tutorial diventava «Ho capito» all'ultimo
+    passo e tornava «Avanti» un istante dopo, senza nessun errore.
+
+    Chi cambia a runtime il testo di un widget che la passeggiata tocca passa da
+    qui. Chi lo marca `nontradurre` non ne ha bisogno: quei widget la
+    passeggiata non li guarda.
+    """
+    w.setProperty("__it_text", testo)
+    w.setText(testo)
 
 
 def mancanti(codice: str) -> tuple[str, ...]:

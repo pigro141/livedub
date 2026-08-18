@@ -213,6 +213,49 @@ def barra_misura(d: dict) -> list[Misura]:
     return fuori
 
 
+# Le quattro parole con cui la catena dice cosa sta facendo. Sono quattro e non
+# cinque **perche' quattro sono quelle che si misurano**: «sta sintetizzando»
+# sarebbe la quinta e non c'e' modo di vederla da qui, perche' la sintesi accade
+# dentro `on_frame`, cioe' dentro il thread video, e il thread della finestra
+# quella finestra di tempo non la vede mai. Una parola in piu' che indovina e'
+# peggio di una in meno che misura.
+#
+# **E sono frasi e non parole, che e' una scelta pagata subito.** La prima
+# stesura diceva `legge` e `parla`, cioe' due verbi alla terza persona senza
+# soggetto: il catalogo tedesco li ha resi `Gesetz` («la legge», il sostantivo) e
+# `sprechen` (l'infinito). Una parola sola fuori contesto e' ambigua per un
+# traduttore automatico esattamente come lo e' per un lettore, ed e' la stessa
+# forma dei tre errori gia' trovati nei cataloghi — «solo a caldo» diventato il
+# tempo atmosferico. Con `sta leggendo` non c'e' piu' niente da indovinare.
+FASI = ("fermo", "sta leggendo", "sta parlando", "in ritardo")
+
+
+def fase_catena(d: dict) -> Misura:
+    """In che punto della catena siamo, in una parola sola.
+
+    E' la domanda che ci si fa guardando la finestra mentre si gioca — «sta
+    ancora funzionando?» — e a cui i sei numeri della barra in fondo rispondono
+    solo se li si legge tutti. Non li ripete: **quelli dicono quanto, questa dice
+    cosa**, e la faccia del logo dice se e' rotto. Tre domande diverse, una
+    risposta per ciascuna.
+
+    L'ordine dei rami e' l'ordine di importanza: che stia parlando batte tutto,
+    perche' e' l'unico momento in cui il programma sta facendo il suo mestiere;
+    il ritardo batte la lettura, perche' e' la cosa che si vuole sapere.
+
+    Sta qui e non nella finestra per la ragione di sempre: e' una regola, si
+    verifica senza aprire Qt, ed e' **una sola** per due front-end.
+    """
+    if not d.get("viva"):
+        return Misura("", "fermo")
+    if d.get("parla"):
+        return Misura("", "sta parlando")
+    lat = float(d.get("latenza_ms") or 0.0)
+    if lat > LATENZA_MASSIMA_MS:
+        return Misura("", "in ritardo", "avviso")
+    return Misura("", "sta leggendo")
+
+
 def righe_guasto_audio(dettaglio: str) -> list[str]:
     """Cosa si scrive quando il ciclo audio muore.
 
@@ -314,6 +357,13 @@ class Motore:
             latenza_ms=m.timer("dub.latency_live").p50,
             compressione=m.timer("dub.rate_x1000").p50 / 1000.0,
             underrun=m.counter("mix.underrun").value,
+            # **Due valori che rispondono ad «adesso» e non a «finora».** La
+            # barra in fondo vuole i percentili, la scheda Sessione vuole
+            # l'ultima battuta: sono la stessa misura letta con due domande
+            # diverse, e prenderla una volta sola qui evita che le due viste
+            # finiscano a leggere due registri.
+            parla=self.sta_parlando,
+            fretta=m.timer("dub.rate_x1000").ultimo / 1000.0,
         )
         return dati
 

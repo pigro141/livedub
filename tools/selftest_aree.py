@@ -257,7 +257,16 @@ def test_aree_catena(c) -> None:
         f"e quella di solo testo **non** viene pronunciata (dette: {sorted(testi)})",
     )
     c.eq(len(testi), 1, "una battuta detta su due lette")
-    c.ok(len(r4._muti) == 1, "e la catena sa quale delle due tenere muta")
+    # **E lo sa sull'evento, non in una mappa per `id()`.** C'era
+    # `len(r4._muti) == 1`, cioe' si verificava il *deposito* invece della
+    # proprieta': quella mappa non sopravviveva a nessun `replace` dell'evento —
+    # il testo che migliora, la revisione, l'etichetta — e una battuta muta che
+    # migliorava tornava a parlare senza che questa riga potesse accorgersene.
+    c.eq(
+        [lettore.marca.modo for lettore, _ in r4.lettori],
+        ["testo_audio", "testo"],
+        "e la catena sa quale delle due tenere muta, e lo timbra sulla battuta",
+    )
 
 
 class _OcrPerArea:

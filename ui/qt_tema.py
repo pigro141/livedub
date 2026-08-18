@@ -233,7 +233,20 @@ H_PILLOLA, R_PILLOLA = 28, 14
 MS_CONTROLLO = 120   # colore, opacita', stato di un controllo
 MS_PANNELLO = 200    # comparsa e scomparsa di un pannello o della striscia
 MS_LOGO = 0          # sereno <-> guasto: istantaneo, se no lampeggia
+MS_CARICO = 120      # meta' del velo che copre un rifacimento dell'interfaccia
 HZ_MISURA = 2.0      # la barra della misura, in aggiornamenti al secondo
+
+# **Il movimento e' sempre di transizione, mai di attesa.** La regola qui sopra
+# — niente si muove in un angolo mentre il gioco gira — non vieta un'animazione:
+# vieta una cosa che pulsa **da sola**. Un velo che copre il cambio di lingua
+# comincia perche' l'hai chiesto tu, dura due decimi e finisce; una girandola
+# che gira finche' la catena e' viva no, e sarebbe la stessa cosa che il
+# documento chiama «prendersi un'attenzione che appartiene al gioco».
+#
+# Il solo movimento che dura piu' di un istante e' la barra dell'**avvio**, ed e'
+# limitata dalla cosa che sta aspettando: parte con Avvia, si spegne alla prima
+# riga di stato viva. Caricare Kokoro costa secondi, e una finestra che non dice
+# niente per tre secondi si legge come una finestra bloccata.
 
 
 def movimento_ridotto() -> bool:
@@ -258,6 +271,21 @@ def movimento_ridotto() -> bool:
 def durata(ms: int) -> int:
     """La durata di un'animazione, azzerata se il sistema chiede meno movimento."""
     return 0 if movimento_ridotto() else ms
+
+
+def durata_carico(in_sessione: bool) -> int:
+    """Quanto dura **mezzo** velo, e zero se la catena sta girando.
+
+    Sta qui e non nella finestra perche' e' una regola, e la regola e' questa: il
+    velo copre un rifacimento dell'interfaccia (596 stringhe riscritte in ~35 ms,
+    misurato), che senza copertura si vede come uno scatto. Ma i due thread della
+    catena non devono pagarlo: **a sessione accesa il velo non c'e'**, e il
+    cambio torna a essere lo scatto di prima, che a quel punto e' il male minore.
+
+    Torna la meta' perche' il velo ha due tempi uguali — entra, si fa il lavoro,
+    esce — e chi lo chiama non deve rifare quella divisione a mente.
+    """
+    return 0 if in_sessione else durata(MS_CARICO)
 
 
 # ================================================================== i colori ==
@@ -285,16 +313,65 @@ def luminanza(colore: str) -> float:
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
+# **Le due soglie di leggibilita', dichiarate qui e non ricordate a memoria.**
+# Erano scritte solo nella docstring di `contrasto()`, cioe' in un posto che una
+# verifica non puo' leggere: ogni gruppo che voleva controllare un contrasto si
+# riscriveva il suo `4.5`, e un numero riscritto e' un numero che al primo
+# ritocco diventa due numeri diversi.
+CONTRASTO_TESTO = 4.5     # testo normale (WCAG AA)
+CONTRASTO_GRANDE = 3.0    # testo grande e contorni che portano un significato
+
+
 def contrasto(a: str, b: str) -> float:
     """Il rapporto di contrasto WCAG 2.1 fra due colori, da 1 a 21.
 
     Sta qui e non in una verifica perche' e' il modo di rispondere alla domanda
-    «questo colore nuovo si legge?» **prima** di metterlo in tavolozza. Testo
-    normale sopra 4,5:1, testo grande e contorni significativi sopra 3:1.
+    «questo colore nuovo si legge?» **prima** di metterlo in tavolozza. Le soglie
+    sono `CONTRASTO_TESTO` e `CONTRASTO_GRANDE`.
     """
     la, lb = luminanza(a), luminanza(b)
     chiaro, scuro = max(la, lb), min(la, lb)
     return (chiaro + 0.05) / (scuro + 0.05)
+
+
+def stati_elenco(t: Tavolozza) -> dict[str, tuple[str, str]]:
+    """I quattro stati di una riga d'elenco, come `(fondo, testo)`.
+
+    **Esiste per un difetto che si vedeva solo tenendo il mouse fermo sulla riga
+    giusta.** Il foglio di stile diceva
+
+        QListWidget::item:selected {{ background: menta;         color: su_accento; }}
+        QListWidget::item:hover    {{ background: superficie_alta; }}
+
+    e Qt, davanti a due regole della **stessa** specificita', tiene l'ultima:
+    passando sopra alla riga **gia' scelta** il fondo tornava grigio e il testo
+    restava `su_accento`, che e' un verde quasi nero fatto per stare sulla menta.
+    Sul tema scuro faceva **1,12:1** — cioe' invisibile — e sul chiaro 14,1:1,
+    dove il difetto non era la leggibilita' ma la scelta: la riga scelta smetteva
+    di sembrare scelta proprio mentre la si stava per premere. Un difetto che nel
+    tema chiaro c'e' e non si vede e' esattamente la forma che questo progetto
+    paga di piu'.
+
+    La cura non e' una pezza di colore: e' che i quattro stati stiano **in una
+    tabella**, che il foglio di stile si scriva da quella e che una verifica
+    possa leggerla senza aprire Qt. Cosi' uno stato nuovo o e' qui — con il suo
+    contrasto misurato — o non esiste.
+
+    **La regola dello stato «scelta sotto il mouse»**: il riempimento fa un passo
+    in piu' **lontano dal fondo della pagina**, e il testo lo segue. Sullo scuro
+    la pagina e' scura, quindi la menta si schiarisce (`accento_chiaro`, 13,9:1
+    con `su_accento`); sul chiaro la pagina e' chiara, quindi la menta si scurisce
+    (`accento`, 5,5:1 con la superficie bianca). E' la stessa direzione nei due
+    temi, non due scelte che si somigliano — e resta menta, quindi la riga non
+    smette mai di dire «sono io quella scelta».
+    """
+    return {
+        "normale": (t.superficie, t.testo),
+        "sotto il mouse": (t.superficie_alta, t.testo),
+        "scelta": (MENTA, t.su_accento),
+        "scelta sotto il mouse": ((t.accento_chiaro, t.su_accento) if t.scuro
+                                  else (t.accento, t.superficie)),
+    }
 
 
 def _lab(colore: str) -> tuple[float, float, float]:
@@ -450,6 +527,9 @@ def foglio(t: Tavolozza = SCURA) -> str:
     # Il riempimento menta e' lo stesso nei due temi (si veda `MENTA`), ma il
     # **contorno** menta no: sul chiaro va scurito, se no e' un filo invisibile.
     menta_testo = t.accento
+    # I quattro stati di una riga d'elenco vengono dalla tabella, non da qui: si
+    # veda `stati_elenco` per il difetto che quella tabella e' venuta a chiudere.
+    elenco = stati_elenco(t)
     return f"""
 * {{
     font-family: "{UI}", "{UI_RIPIEGO}"; font-size: {C_TESTO}pt;
@@ -622,9 +702,19 @@ QPlainTextEdit, QTextEdit, QListWidget {{
     padding: {S3}px;
     selection-background-color: {MENTA}; selection-color: {t.su_accento};
 }}
-QListWidget::item {{ padding: {S1}px {S2}px; border-radius: {R_CAMPO}px; }}
-QListWidget::item:selected {{ background: {MENTA}; color: {t.su_accento}; }}
-QListWidget::item:hover {{ background: {t.superficie_alta}; }}
+/* **I quattro stati di una riga d'elenco escono dalla tabella**, e l'ordine non
+   e' estetico: `:selected:hover` ha due pseudo-stati, quindi batte gli altri
+   due — che fra loro hanno la stessa specificita' e si risolvono per ordine.
+   Era proprio quello il difetto: `:hover` scritto dopo `:selected` gli portava
+   via il fondo menta e gli lasciava il testo fatto per la menta, 1,12:1. */
+QListWidget::item {{ padding: {S1}px {S2}px; border-radius: {R_CAMPO}px;
+                     color: {elenco['normale'][1]}; }}
+QListWidget::item:hover {{ background: {elenco['sotto il mouse'][0]};
+                           color: {elenco['sotto il mouse'][1]}; }}
+QListWidget::item:selected {{ background: {elenco['scelta'][0]};
+                              color: {elenco['scelta'][1]}; }}
+QListWidget::item:selected:hover {{ background: {elenco['scelta sotto il mouse'][0]};
+                                    color: {elenco['scelta sotto il mouse'][1]}; }}
 
 QScrollBar:vertical {{ background: transparent; width: 11px; margin: {S1}px {S0}px; }}
 QScrollBar::handle:vertical {{ background: {t.bordo_forte}; border-radius: {R_MARCA}px;
@@ -669,6 +759,31 @@ QScrollArea > QWidget > QWidget {{ background: {t.superficie}; }}
 #tessera QLabel {{ color: {t.testo}; }}
 #tesseraTitolo {{ font-size: {C_TITOLO}pt; font-weight: 600; }}
 #tesseraMono {{ font-size: {C_NOTA}pt; color: {t.testo_tenue}; }}
+
+/* ---- la scheda Sessione: **cosa sta succedendo adesso**, non cosa e' successo -
+   Le tessere stanno su `superficie` come `#pannello`, e non su `superficie_alta`
+   che sarebbe l'ovvio: dentro ci va la **sigla nel colore del personaggio**, e i
+   sei colori delle voci sono tarati sulla superficie. Misurato: sul tema chiaro
+   passano da 5,02:1 su `superficie` a **4,28:1** su `superficie_alta`, cioe'
+   sotto la soglia. Una tessera piu' staccata sarebbe costata l'unica
+   informazione che quella tessera porta. */
+/* **Un filo e non una luce.** Le tessere di questa scheda stanno su `superficie`
+   e la pagina e' `superficie`: la sola luce dall'alto di `#pannello` li' non si
+   vede affatto — guardato a schermo, la tessera della battuta si leggeva come
+   del testo sciolto in cima alla pagina. Un filo da 1 px la chiude senza
+   cambiarle il fondo, che e' l'unica cosa che non si puo' toccare. */
+#ora {{ background: {t.superficie}; border: 1px solid {t.bordo};
+        border-radius: {R_TESSERA}px; }}
+#registro {{ border: 1px solid {t.bordo}; }}
+#fase {{ font-size: {C_TITOLO}pt; font-weight: 600; }}
+#oraTesto {{ font-size: {C_STATO}pt; }}
+#oraVuoto {{ font-size: {C_STATO}pt; color: {t.testo_fioco}; }}
+/* La tessera di un personaggio e' un **filo**, non un riempimento: il colore che
+   dice chi e' sta nella sigla, e riempirla o contornarla della sua tinta
+   userebbe per le voci il canale che appartiene a menta, ambra e rosso. */
+#personaggio {{ background: transparent; border: 1px solid {t.bordo};
+                border-radius: {R_CAMPO}px; }}
+#conta {{ color: {t.testo_tenue}; font-size: {C_NOTA}pt; }}
 
 /* Il bordo sinistro trasparente che diventa menta sotto il mouse: si accende
    senza spostare niente, ed e' per questo che e' trasparente invece di assente. */

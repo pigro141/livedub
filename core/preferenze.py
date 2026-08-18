@@ -72,6 +72,51 @@ def aggiorna(**valori: Any) -> dict[str, Any]:
     return dati
 
 
+# ------------------------------------------------------- il tutorial iniziale --
+
+# **La versione del tutorial, e non un «l'ho visto» acceso o spento.** Un
+# booleano sa dire una cosa sola e per sempre: il giorno in cui la guida cresce
+# un passo che cambia qualcosa — un pezzo nuovo da installare, una scelta che
+# prima non c'era — nessuno di quelli che l'hanno gia' vista lo vedra' mai.
+# Alzando questo numero lo rivedono tutti, e chi non lo alza non ha cambiato
+# niente di importante.
+TUTORIAL = 1
+
+# La chiave nel file. Sta qui e non scritta a mano nei due punti che la usano.
+_CHIAVE_TUTORIAL = "tutorial_visto"
+
+
+def tutorial_da_mostrare(pref: dict[str, Any] | None = None) -> bool:
+    """Va aperto il tutorial? **Si', la prima volta e mai piu'.**
+
+    Sta in `core/` e non nella finestra perche' e' una regola, non un disegno:
+    «va mostrato?» si risponde con un numero letto da un file, e la lezione gia'
+    pagata di questo progetto e' che quattro dei cinque difetti trovati rileggendo
+    le cure a freddo stavano in Qt o al suo confine — l'unica parte del programma
+    che nessuna verifica toccava. Qui si prova senza aprire niente.
+
+    **Un valore che non si capisce vale «mai visto».** Se qualcuno apre il file e
+    ci scrive dentro, mostrare la guida una volta di troppo e' un fastidio;
+    nasconderla a chi non l'ha mai vista e' il difetto che questa funzione esiste
+    per impedire.
+    """
+    dati = leggi() if pref is None else pref
+    try:
+        return int(dati.get(_CHIAVE_TUTORIAL, 0)) < TUTORIAL
+    except (TypeError, ValueError):
+        return True
+
+
+def tutorial_visto() -> None:
+    """Segna la guida come vista. **Finito e saltato sono la stessa cosa.**
+
+    Se saltarlo non lo segnasse, si riaprirebbe a ogni avvio: saltarlo
+    lascerebbe il programma peggio di non averlo mai aperto, cioe' toglierebbe
+    valore all'unica via d'uscita che gli si e' data.
+    """
+    aggiorna(**{_CHIAVE_TUTORIAL: TUTORIAL})
+
+
 # ------------------------------------------------- l'ultima configurazione --
 
 

@@ -153,6 +153,33 @@ class _Cast:
             print(f"cast: non salvato: {e!r}", file=sys.stderr)
 
 
+def parla(event) -> bool:
+    """Questa battuta va pronunciata, o solo letta e disegnata?
+
+    La risposta sta **sull'evento** (`SubtitleEvent.marca`) e non in una mappa
+    tenuta dalla pipeline. La differenza non e' di stile: un `SubtitleEvent` e'
+    congelato, quindi il testo che migliora, la revisione dell'OCR e l'etichetta
+    di chi parla ne creano ognuna uno **nuovo**, e una mappa indicizzata per
+    `id()` non lo ritrova piu'. Una battuta muta che migliorava tornava cosi' a
+    parlare — senza errore, senza contatore, con la suite verde.
+
+    Senza marca si parla: e' il caso di sempre, cioe' la ROI e basta.
+    """
+    marca = getattr(event, "marca", None)
+    return True if marca is None else bool(marca.parla)
+
+
+def area_di(event) -> tuple:
+    """Il rettangolo dell'area che ha letto questa battuta, o `()` per la ROI.
+
+    Serve a chi disegna: `SpokenLine.boxes` e' in coordinate dell'area, e
+    prendere sempre `cfg.vision.roi` metterebbe la traduzione di un cartello
+    dentro la fascia del dialogo — nel posto sbagliato e senza nessun errore.
+    """
+    marca = getattr(event, "marca", None)
+    return tuple(marca.roi) if marca is not None and marca.roi else ()
+
+
 def geometria_lette(event) -> tuple[tuple[tuple[int, int, int, int], ...],
                                     tuple[float, float, float]]:
     """I rettangoli e la tinta delle righe lette, dall'evento del sottotitolo.
@@ -218,6 +245,14 @@ class SpokenLine:
     # Non ha voce, non ha audio e non ha occupato il mixer; ha un testo tradotto
     # e una geometria, che e' tutto quello che serve per disegnarla.
     muta: bool = False
+    # **Il riquadro comanda e il carattere cede** (`modo="schermo"`). Non si
+    # deduce da `muta`: un cartello di missione in un'area `testo` sta in una
+    # fascia sua e puo' allargarsi quanto gli serve, una scritta in mezzo allo
+    # schermo no — attorno ha altre scritte, spesso altre che si stanno
+    # traducendo nello stesso fotogramma. Sono due decisioni diverse e vanno
+    # dette da due campi diversi, se no la seconda arriva a valle travestita da
+    # prima.
+    stringi: bool = False
 
     @property
     def latency_ms(self) -> float:
@@ -290,7 +325,7 @@ class DubPipeline:
         from vision.aree import troppo_grande
 
         for pezzo in pezzi:
-            guaio = troppo_grande(pezzo.roi)
+            guaio = troppo_grande(pezzo.roi, pezzo.modo)
             if guaio and dillo is not None:
                 dillo(guaio)
         self.lettori: list[tuple[SubtitleReader, str]] = []
@@ -316,6 +351,18 @@ class DubPipeline:
             # nuovo**, che e' esattamente il difetto contro cui quel pannello
             # esiste. Il rettangolo e' l'unica cosa che cambia per lettore:
             # quello va a parte, tutto il resto resta condiviso.
+            #
+            # **La marca viaggia sull'evento, non in una mappa tenuta qui.**
+            # C'erano `self._muti` e `self._area_di`, indicizzate per `id()`
+            # dell'evento: e un `SubtitleEvent` e' congelato, quindi ogni
+            # correzione — il testo che migliora mentre la battuta aspetta
+            # (`TrackerOutput.updated`), la revisione dell'OCR, l'etichetta di
+            # chi parla — ne costruisce uno **nuovo**, con un `id()` che in
+            # quelle mappe non c'e'. Una battuta muta che migliorava tornava
+            # quindi a parlare, e gli `id()` dei morti venivano riusati dai vivi.
+            # Nessuna delle due cose dava errore.
+            from vision.aree import Marca
+
             self.lettori.append((
                 SubtitleReader(
                     cfg.vision,
@@ -323,6 +370,8 @@ class DubPipeline:
                     roi=pezzo.roi,
                     metrics=self.metrics,
                     clock=clock,
+                    molte=(pezzo.modo == "schermo"),
+                    marca=Marca(roi=tuple(pezzo.roi), modo=pezzo.modo),
                     on_error="bypass",  # in gioco una battuta persa e' meglio di una sessione persa
                 ),
                 pezzo.modo,
@@ -334,13 +383,10 @@ class DubPipeline:
         # legge davvero, se no un lettore finto verrebbe messo da una parte e
         # ignorato dall'altra, e la verifica proverebbe la catena vera credendo
         # di provarne una finta.
-        # Le battute che si leggono ma **non** si pronunciano (`modo="testo"`):
-        # un cartello di missione va tradotto e disegnato, non detto a voce.
-        self._muti: set[int] = set()
-        # E **da quale area** viene ogni evento, per dare a chi disegna il
-        # rettangolo giusto. Senza, la geometria di una seconda area verrebbe
-        # letta contro la ROI principale.
-        self._area_di: dict[int, tuple] = {}
+        # Quali battute non si pronunciano (`modo="testo"` e `modo="schermo"`) e
+        # da quale area vengono lo dice adesso `SubtitleEvent.marca`, timbrata dal
+        # lettore. Qui non c'e' piu' niente da tenere: si veda il commento sopra,
+        # dove le due mappe indicizzate per `id()` sono state tolte.
         # Il pool segue il backend: senza, una sessione SuperTonic riceverebbe
         # in dote le voci di Piper e non saprebbe pronunciarle.
         # **La lingua del pool e' quella che si parlera'**: se si traduce, quella
@@ -680,7 +726,17 @@ class DubPipeline:
         if out.updated and self._da_dire:
             sostituisci = {id(vecchio): nuovo for vecchio, nuovo in out.updated}
             self._da_dire = [sostituisci.get(id(ev), ev) for ev in self._da_dire]
-        self._da_dire.extend(ev for ev in out.opened if ev.text.strip())
+        # **Chi non parla non aspetta.** L'attesa qui sotto esiste per un motivo
+        # solo — avere mezzo secondo del parlato di questo personaggio da dare
+        # all'impronta — e una battuta muta l'impronta non la calcola nemmeno.
+        # Tenercela dentro voleva dire pagare `decide_after_ms` (e, se l'audio
+        # non scorre affatto, anche `max_wait_ms`) per una risposta che nessuno
+        # ha chiesto: e' lo stesso ragionamento gia' scritto per `label`, dove il
+        # nome scritto a schermo salta l'attesa. A far sedimentare il testo ci
+        # pensa `stable_reads` nel tracker, che e' il posto in cui una battuta
+        # viene confermata.
+        mute = [ev for ev in out.opened if ev.text.strip() and not parla(ev)]
+        self._da_dire.extend(ev for ev in out.opened if ev.text.strip() and parla(ev))
         if self.tracker is None:
             pronte, self._da_dire = self._da_dire, []
         else:
@@ -724,26 +780,25 @@ class DubPipeline:
         # di missione e' esattamente il difetto che l'11% delle battute di GTA V
         # aveva.
         fuori: list[SpokenLine] = []
-        for ev in pronte:
+        # **Muta non vuol dire buttata.** Qui c'era un filtro che le scartava e
+        # basta, sotto un commento che diceva «restano lette e chiuse — quindi
+        # tradotte e disegnate sopra il gioco». Non era vero: la traduzione
+        # avviene dentro `_speak`, e `SpokenLine` e' l'unica cosa che arriva a
+        # chi disegna. Misurato con un traduttore finto che **cambia davvero** il
+        # testo: due sottotitoli aperti, una sola battuta in uscita, e il
+        # traduttore non aveva mai visto la riga muta.
+        #
+        # La verifica che c'era provava solo la meta' negativa («non viene
+        # pronunciata»), quindi restava verde su un comportamento dichiarato e
+        # mai scritto — il settimo campo di questa forma in questo progetto.
+        for ev in mute:
             if self._gia_detta(ev):
                 continue
-            if id(ev) in self._muti:
-                # **Muta non vuol dire buttata.** Qui c'era un filtro che le
-                # scartava e basta, sotto un commento che diceva «restano lette e
-                # chiuse — quindi tradotte e disegnate sopra il gioco». Non era
-                # vero: la traduzione avviene dentro `_speak`, e `SpokenLine` e'
-                # l'unica cosa che arriva a chi disegna. Misurato con un
-                # traduttore finto che **cambia davvero** il testo: due
-                # sottotitoli aperti, una sola battuta in uscita, e il traduttore
-                # non aveva mai visto la riga muta.
-                #
-                # La verifica che c'era provava solo la meta' negativa («non
-                # viene pronunciata»), quindi restava verde su un comportamento
-                # dichiarato e mai scritto — il settimo campo di questa forma in
-                # questo progetto.
-                riga = self._mostra(ev)
-                if riga is not None:
-                    fuori.append(riga)
+            riga = self._mostra(ev)
+            if riga is not None:
+                fuori.append(riga)
+        for ev in pronte:
+            if self._gia_detta(ev):
                 continue
             fuori.append(self._speak(ev))
         return fuori
@@ -760,12 +815,7 @@ class DubPipeline:
         coprirebbe il sottotitolo del gioco con se' stesso, che e' lavoro per
         niente e un fotogramma peggiore di quello di partenza.
         """
-        # **La ROI si prende adesso, prima di qualunque `replace`.** Ogni
-        # correzione crea un oggetto nuovo, quindi un `id()` nuovo: leggendola in
-        # fondo si troverebbe sempre vuoto, e il rettangolo tornerebbe a essere
-        # quello della ROI principale — cioe' il difetto che questo campo esiste
-        # per togliere, ricreato dentro la sua stessa cura.
-        roi_area = self._area_di.get(id(event), ())
+        roi_area = area_di(event)
         if self.revisore is not None:
             r = self.revisore.rivedi(event.text)
             if r.cambiato:
@@ -797,6 +847,7 @@ class DubPipeline:
             ink=tinta_letta,
             roi=roi_area,
             muta=True,
+            stringi=getattr(getattr(event, "marca", None), "modo", "") == "schermo",
         )
         self._ricorda(riga)
         return riga
@@ -833,12 +884,8 @@ class DubPipeline:
         if len(self.lettori) == 1:
             return self.lettori[0][0].run(frame)
         aperte, chiuse, aggiornate = [], [], []
-        for lettore, modo in self.lettori:
+        for lettore, _modo in self.lettori:
             parziale = lettore.run(frame)
-            if modo != "testo_audio":
-                self._muti.update(id(ev) for ev in parziale.opened)
-            for ev in parziale.opened:
-                self._area_di[id(ev)] = lettore.roi
             aperte.extend(parziale.opened)
             chiuse.extend(parziale.closed)
             aggiornate.extend(parziale.updated)
@@ -846,11 +893,10 @@ class DubPipeline:
 
     def _speak(self, event: SubtitleEvent) -> SpokenLine:
         """Da battuta letta a audio programmato."""
-        # **Prima di qualunque `replace`**: ogni correzione crea un oggetto
-        # nuovo, e con lui un `id()` nuovo. Vale anche qui e non solo per le
-        # battute mute — una seconda area `testo_audio` viene detta *e*
-        # disegnata, e il riquadro deve stare dove stava la sua riga.
-        roi_area = self._area_di.get(id(event), ())
+        # Vale anche qui e non solo per le battute mute: una seconda area
+        # `testo_audio` viene detta *e* disegnata, e il riquadro deve stare dove
+        # stava la sua riga.
+        roi_area = area_di(event)
         decisione = self._speaker_for(event)
         # **Il nome non si pronuncia.** Leggere ad alta voce «Franklin due punti
         # come va bello» sarebbe peggio che non avere l'etichetta: si toglie il

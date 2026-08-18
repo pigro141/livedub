@@ -16,7 +16,10 @@
 >   dell'interfaccia con le *cifre tabulari*: le colonne servivano ai numeri, e i
 >   campi ora si separano con dei punti (§7);
 > - **la tessera del logo non c'e'**: il logo ha gia' la sua sagoma (§11.1);
-> - **le schede sono sei**, quelle di oggi piu' «Aree» (§11.4).
+> - **le schede sono cinque** (§11.4): Preparazione, Sessione, Voce, Traduzione,
+>   Tutte le impostazioni. «Aree» c'e' stata e non c'e' piu' — le zone multiple
+>   sono state tolte il 18 agosto 2026, e i suoi tre parametri sono passati alla
+>   Preparazione.
 >
 > Quello che regge intero: la tavolozza, `R(h)`, la scala delle distanze, i
 > corpi, il materiale, la regola dei canali, gli stati, gli errori e
@@ -528,7 +531,7 @@ e tre, il pannello si dissolve in 200 ms e sotto c'e' il log.
 Oggi quella riga esiste gia' — e' scritta nel log come testo, terza riga dopo la
 scheda tecnica, e scompare sotto la prima decina di messaggi. **E' l'interfaccia
 vera della prima volta e sta in mezzo a un registro diagnostico.** Tutto il resto,
-166 parametri in quattro schede, sta li' per dopo.
+166 parametri nelle altre schede, sta li' per dopo.
 
 **6. Parte il timer a 16 ms** che svuota la coda del motore. Non e' un numero
 tondo: e' un ritardo aggiunto, e il ridisegno costa 10,5 ms nel caso peggiore
@@ -620,7 +623,7 @@ menta e' di `Avvia`, e due riempimenti menta che fanno cose diverse sono un
 riempimento di troppo. **Ambra e non rosso**, perche' non e' rotto niente: e' una
 cosa che aspetta.
 
-### 11.4 Le quattro schede — linguette h 40
+### 11.4 Le cinque schede — linguette h 40
 
 Angoli alti a 8, imbottitura `S2 S5`, distacco `S1`. Quella scelta prende il fondo
 `superficie` — si salda al corpo — e **2 px di menta sotto**. Le altre stanno sul
@@ -628,10 +631,19 @@ Angoli alti a 8, imbottitura `S2 S5`, distacco `S1`. Quella scelta prende il fon
 
 | # | scheda | cosa c'e' |
 |---|---|---|
-| 1 | **Sessione** | i tre passi, poi il log |
-| 2 | **Tecnologie** | 14 parametri, quelli che scelgono un motore per stadio. Niente ricerca: sono pochi e si guardano tutti |
-| 3 | **Aree** | le zone da leggere, elenco a sinistra e quattro bottoni in colonna a destra |
-| 4 | **Impostazioni avanzate** | tutti e 166, con ricerca, tre livelli, «solo a caldo» |
+| 0 | **Preparazione** | i tre passi da fare prima di premere Avvia, piu' i parametri della lettura e dell'area |
+| 1 | **Sessione** | la battuta di adesso, chi ha parlato, e sotto il log |
+| 2 | **Voce** | il motore, le voci, il volume, la fretta |
+| 3 | **Traduzione** | i due selettori di lingua, come si copre l'originale, e la prova dei traduttori |
+| 4 | **Tutte le impostazioni** | tutti e 166, con ricerca, tre livelli, «solo a caldo» |
+
+**«Aree» non c'e' piu'.** Il documento ne prescriveva una — elenco a sinistra e
+quattro bottoni a destra — ed e' stata costruita. Le zone multiple sono state
+tolte il 18 agosto 2026 perche' la promessa che le reggeva (piu' scritte tradotte
+insieme sopra il gioco) dal vivo non era mantenibile: l'overlay disegna **una**
+scritta per volta. I tre parametri che quella scheda ospitava — `capture.solo_roi`,
+`capture.roi_margin`, `vision.line_pad` — sono passati alla Preparazione, dove
+stanno con l'area che si legge.
 
 **Il log** — Cascadia Mono `C_TESTO`, interlinea 1,25, tetto a **5000 righe**
 (senza, una sessione di tre ore se lo mangia tutto). Ogni riga ha **16 px di

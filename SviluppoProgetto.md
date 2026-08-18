@@ -5,13 +5,58 @@
 **Feature: 14 su 14.** Tutte chiuse, comprese quelle che si sono chiuse con un
 "no" misurato (i tag del TTS, la correzione automatica per distanza di edit, Qwen).
 
-**Step finali: 16 su 19.** Restano tre voci, e sono **tutte e tre una decisione
-tua, non un lavoro**: creare il repo GitHub (è pronto), il link donazioni, il
-sito. Il resto — interfaccia, selettore delle tecnologie, impostazioni con la
-spiegazione accanto, modifica a caldo, aree multiple, installatore, exe, licenza,
-README col diagramma — è fatto e guardato a schermo.
+**Step finali: 18 su 19.** Restano **due voci, e sono decisioni tue, non lavoro**:
+creare il repo GitHub (è pronto) e il sito. Il link donazioni è chiuso — Ko-fi,
+«Buy me a token!», nel README. Il resto — interfaccia, tutorial iniziale, lingue,
+selettore delle tecnologie, impostazioni con la spiegazione accanto, modifica a
+caldo, installatore, exe, licenza, README col diagramma — è fatto e guardato a
+schermo.
 
-**Suite: 1678 verifiche verdi** (`tools/selftest.py`).
+**Suite: 1764 verifiche verdi** (`tools/selftest.py`). Erano 1899 prima del 18
+agosto: le 135 in meno sono le verifiche delle aree multiple, tolte con la
+funzione.
+
+## 18 agosto 2026 — le lingue, la guida, e una funzione tolta
+
+**La finestra parla quarantuno lingue.** Campo `ui.lingua` (default `auto`, segue
+Windows), 41 cataloghi da 214 chiavi in `ui/lingue/*.json`, generati con
+`tools/traduci_ui.py` e **scritti nel repo** — chiederli alla rete mentre la
+finestra si apre vorrebbe dire una finestra in bianco quando la rete non c'è.
+Cambia a caldo come il tema, e arabo, ebraico, persiano e urdu ribaltano il verso
+della finestra. Misurato col carattere vero: la lingua più larga è il tamil a
+**872 px sul minimo di 960**, nessuna sfora.
+
+Due difetti che nessuna verifica prendeva, tutti e due della stessa forma — una
+stringa che *sembra* tradotta:
+
+| | cosa |
+|---|---|
+| la riga «da fare nella preparazione: …» | nasce **unendo pezzi a runtime**, e nel catalogo era finita come una combinazione sola: fuori da quel caso tornava italiana in mezzo al tedesco |
+| i segnaposto scritti a nome (`{nome}`) | venivano tradotti **dentro le graffe** in tutte e 41 le lingue, `format` sollevava e il ripiego rimetteva l'italiano — senza un errore |
+
+E `auto` su una Windows italiana veniva **dichiarato guasto** (`! nessun catalogo`)
+proprio quando aveva funzionato. Un `!` speso dove non è successo niente è il
+ripiego silenzioso girato dall'altra parte.
+
+**Le lingue del doppiaggio**: le 133 di Google in `translate/lingue.py`, coi due
+selettori che si filtrano digitando (`giapp`, `ja` e `pones` trovano la stessa
+riga) e che marcano quelle che il backend scelto non sa fare.
+
+**La guida iniziale**, sei passi, il primo è la lingua. Dove può **controlla**
+invece di chiedere fiducia: conta le schede audio, chiede il provider CUDA a ONNX
+Runtime, misura l'altezza dell'area. Dice che VoiceMeeter è facoltativo.
+
+**La finestra viva**: la riga scelta sotto il mouse era illeggibile nel selettore
+di finestra (**1,12:1** sul tema scuro, ora 13,95), la scheda Sessione non è più
+un log — in cima la battuta di adesso, poi chi ha parlato, il registro sotto — e
+il cambio di lingua è coperto da un velo di 341 ms.
+
+**E il tetto del parlato arriva a 3×** (`timing.rate_max`, `tts.native_rate_max`),
+coi default fermi sulle misure: il gradino di WSOLA non si è spostato, quindi
+sopra 1,30 non si compra velocità, si comprano parole mangiate.
+
+**Le aree multiple sono state tolte**, su tua decisione: «infattibile». Il motivo
+sta qui sotto, alla voce che le riguarda.
 
 ## 17 agosto 2026 — la finestra è **Menta**, e tre difetti sulle aree
 
@@ -387,7 +432,7 @@ che si sono chiuse con un "no".)*
     seconda cura.
   * \[x]  UI interfaccia chiara e funzionale
     → **fatta**: la barra di prima resta sopra (è quella che si tocca durante una prova) e
-    sotto ci sono quattro schede — Sessione (il log di chi parla), Tecnologie, Aree,
+    sotto ci sono le schede — Sessione, Tecnologie, Aree («Aree» e' stata poi tolta),
     Impostazioni avanzate. Guardata a schermo e **guidata**, non solo scritta.
   * \[x]  possibilità di modificare i sottotitoli tradotti colore dimensione
     → `translate.color`, `background`, `background_opacity`, `background_mode`,
@@ -452,7 +497,7 @@ che si sono chiuse con un "no".)*
     l'HUD incollata dentro le battute e pronunciata (`'Raggiungi i'`, `'Sali sul'`,
     `.San An`) — era l'11% delle battute e non faceva scattare niente, perché per la
     catena erano righe lette con successo.
-    → Corretti tutti e quattro, suite a **1172 verifiche** (oggi 1678). Il dettaglio
+    → Corretti tutti e quattro, suite a **1172 verifiche** (oggi 1764). Il dettaglio
     e le misure stanno in `CLAUDE.md` e in `PROSSIMA_SESSIONE.md`.
     → **Il cancello è aperto: da qui si va sulla UI.**
     → **E l'11 agosto, a sera, la prova è stata rifatta in autonomia**, senza chiedertela:
@@ -462,7 +507,7 @@ che si sono chiuse con un "no".)*
     che `--output` non poteva funzionare, e che la cattura dello schermo intero si
     mangiava il 90% del budget di un fotogramma. I primi due erano invisibili al
     banco per costruzione.
-  * \[ ]  rendere il tutto facilmente installabile plug and play
+  * \[x]  rendere il tutto facilmente installabile plug and play
     → `installa.ps1`: Python, venv, dipendenze, OneOCR, modelli, e chiude con la suite.
     **Verifica di aver ottenuto quello che ha chiesto** invece di dire «fatto» — compreso
     il provider CUDA vero (`get_available_providers`), perché qui un ripiego silenzioso è
@@ -500,8 +545,27 @@ che si sono chiuse con un "no".)*
     una misura che non può esprimere la risposta va cambiata, non interpretata.
     → Da destra a sinistra (arabo, ebraico, persiano, urdu): `setLayoutDirection`, e
     guardato in una schermata.
-  * \[ ]  Creare un tutorial iniziale per un neofita dove spiega tutta linterfaccia, con anche la spiegazione se va installato qualcosa, es VoiceMeeter.
-  * \[ ]  fare exe
+  * \[x]  Creare un tutorial iniziale per un neofita dove spiega tutta linterfaccia, con anche la spiegazione se va installato qualcosa, es VoiceMeeter.
+    → **fatto** (`ui/tutorial.py`): sei passi, si apre da solo la prima volta e si rivede
+    col «?» in testata. Il primo passo e' la **lingua della finestra**, che `ui.lingua`
+    adesso mette su `auto` di serie — chi apre il programma lo trova nella lingua in cui
+    usa il computer, e la guida gliela fa confermare invece di lasciarla implicita.
+    → **Dove puo' controlla invece di chiedere fiducia**: conta le schede audio, chiede il
+    provider CUDA a ONNX Runtime (`get_available_providers`), misura l'altezza dell'area
+    con la regola vera. Un tutorial che dice «adesso dovrebbe funzionare» non serve a chi
+    non sa cosa guardare.
+    → **VoiceMeeter e' dichiarato facoltativo**, col bottone marcato: il loopback WASAPI di
+    serie basta. Un tutorial che lo desse per obbligatorio aggiungerebbe un'installazione
+    inutile al primo passo.
+    → Che sia gia' stato visto e' una **preferenza** (`core/preferenze.py`), non un campo
+    di config: sta fuori da Qt, quindi «va mostrato?» si verifica senza aprire niente. Ed
+    e' un numero e non un booleano — alzandolo la guida si riapre a tutti il giorno in cui
+    cresce un passo che conta.
+    → Tradotto in tutte e 41 le lingue. Il dialogo non esiste finche' non lo si apre,
+    quindi la passeggiata dell'estrattore non lo vede: dichiara i suoi testi da se'
+    (`ui/tutorial.testi()`), e una verifica costruisce il dialogo davvero e pretende che i
+    due elenchi coincidano nei due versi.
+  * \[x]  fare exe
     → `livedub.spec` (PyInstaller), 528 MB in cartella — non `onefile`, perché lì mezzo
     giga viene scompattato a ogni avvio e i percorsi relativi a `__file__` cambiano ogni
     volta.
@@ -510,7 +574,7 @@ che si sono chiuse con un "no".)*
     → **Farlo partire ha trovato il difetto che leggere lo spec non poteva**: il pannello
     estrae le spiegazioni dal *sorgente* di `core/config.py`, e in un pacchetto i `.py` non
     ci sono. Ora `config.py` viaggia fra i dati e, se manca, il programma **lo dichiara**
-    invece di morire o di tacere. Verificato a schermo: finestra `livedub`, quattro schede.
+    invece di morire o di tacere. Verificato a schermo: finestra `livedub`, con le sue schede.
   * \[x]  scegliere la licenza copyright da usare in base alle librerie e la mia scelta
     → **GPL-3.0-or-later, e non per gusto: è quello che impongono le librerie.**
     `piper-tts` 1.6.0 — il motore **di default** — è GPL-3.0-or-later, ed `espeak-ng.dll`
@@ -523,19 +587,19 @@ che si sono chiuse con un "no".)*
     (OneOCR e i pesi) e cosa servirebbe per tornare permissivi.
   * \[ ]  repo github senza collaboratore claude
 
-    * \[ ]  repo professionale dove spiega tutte le feature e lingue supportate
+    * \[x]  repo professionale dove spiega tutte le feature e lingue supportate
       → `README.md` riscritto per chi arriva da fuori; il vecchio (architettura estesa) è
       diventato `docs/architettura.md`. Feature, lingue di lettura/voce/traduzione, la
       finestra, l'installazione, e il capitolo onesto «Funziona con il mio gioco?».
-    * \[ ]  spiegazione con un diagramma di flusso di cosa avviene nel programma
+    * \[x]  spiegazione con un diagramma di flusso di cosa avviene nel programma
       → diagramma Mermaid nel README (GitHub lo disegna da solo, niente immagini da
       rigenerare): i due domini, il punto di fusione, e la strada dell'overlay.
-    * \[ ]  valorizzazione dell'uso completamente locale ed estrema privacy
+    * \[x]  valorizzazione dell'uso completamente locale ed estrema privacy
       → non uno slogan ma **la lista di cosa esce dal computer**, stadio per stadio.
       L'unico modo di far uscire del testo è chiedere `translate.backend=google`, che
       lo dichiara su stderr a ogni battuta. Nessuna telemetria, nessun account, nessun
       server nostro — non esiste un server nostro.
-    * \[ ]  scrivere requisiti minimi richiesti, e quelli per la migliore esperienza in assoluto
+    * \[x]  scrivere requisiti minimi richiesti, e quelli per la migliore esperienza in assoluto
       → scritti nel README con i numeri misurati: minimi 4 core e nessuna GPU (Piper,
       ~670 ms di latenza), migliore Kokoro su CUDA (257 ms, 1128 MB di VRAM, ~1150 ms
       totali). Con la tabella del costo per numero di core, e la riga che conta:
@@ -551,7 +615,7 @@ che si sono chiuse con un "no".)*
       togliere — sarebbe l'unica riga del README in contraddizione con il
       capitolo sulla privacy.
     * \[ ]  fare sito github dove c'è spiegato tutto
-    * \[ ]  sfruttare hype di gtavi per dire che è compatibile anche con quello
+    * \[x]  sfruttare hype di gtavi per dire che è compatibile anche con quello
       → nel README, e detto in modo che regga: livedub è costruito su **quello che c'è a
       schermo**, non su file del gioco. Niente da estrarre, niente anti-cheat da toccare —
       guarda lo schermo e suona nelle cuffie come farebbe un giocatore.

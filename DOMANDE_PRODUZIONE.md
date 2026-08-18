@@ -159,10 +159,10 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
     sistema, provider ONNX e configurazione, cioè quello che serve a chi legge.
 36. **La ROI disegnata a mano è sensata?** ✅ Sopra 0,12 di altezza la finestra
     avvisa, con la misura del perché.
-37. **Le aree multiple si possono disegnare col mouse nella Qt?** ⚠️ Partono
-    dalla ROI e si correggono a mano nei campi. Il selettore col mouse c'è nella
-    finestra Tk e va portato **insieme ad Avvia**, non prima: sono lo stesso
-    pezzo di lavoro.
+37. **Le aree multiple si possono disegnare col mouse nella Qt?** ✅ **La
+    domanda è decaduta**: le aree multiple sono state tolte il 18 agosto 2026
+    (`vision/aree.py` non esiste più). Si legge una ROI sola, e quella si tira
+    col mouse dalla finestra Qt.
 38. **Il profilo caricato si vede da qualche parte?** ✅ `profile` in cima alle
     impostazioni.
 
@@ -260,8 +260,9 @@ spese quattro volte, cioè un campo dichiarato che nessuno leggeva.
     rimedio esiste — invertire la maschera quando il fondo è chiaro — ma va
     misurato su un gioco vero, non su un fotogramma inventato.
 59. **Sottotitoli non in una striscia (fumetti)?** ⚠️ **Non previsto, e ora
-    meno di prima**: le aree multiple coprono il caso «due posti fissi», non
-    «un posto che si muove col personaggio». Dichiarato nel README.
+    meno di prima**: si legge **una** riga di sottotitolo alla volta, nell'area
+    che le si tira attorno — non un posto che si muove col personaggio.
+    Dichiarato nel README.
 60. **Lingue non latine?** ⚠️ **No, ed è una scelta dichiarata.** `italian_only`
     toglie tutto ciò che non è latino, ed è nato per fermare i glifi CJK che
     l'OCR restituisce sullo scenario — passavano `min_ocr_chars` perché in Python

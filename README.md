@@ -252,7 +252,7 @@ latino, cirillico, greco, cinese, giapponese e coreano.
 
 ## Come è fatto, e perché ci si può fidare dei numeri
 
-Non c'è pytest: la suite è un modulo eseguibile, **1762 verifiche**.
+Non c'è pytest: la suite è un modulo eseguibile, **1764 verifiche**.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

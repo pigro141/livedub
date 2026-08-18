@@ -37,7 +37,7 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest              # 1753 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest              # 1764 verifiche
 .\.venv\Scripts\python.exe -m tools.selftest speaker pool # gruppi scelti
 .\.venv\Scripts\python.exe -m tools.selftest -v           # con i verdi in chiaro
 
@@ -150,6 +150,14 @@ portante e non un ornamento. **Il ritardo costante non e' un debito**:
 `accepted_delay_ms` e' quanto se ne accetta senza rincorrerlo, perche' chiedere a
 ogni riga di recuperare un ritardo che tornera' identico significa comprimerle
 tutte.
+
+**E il tetto della fretta arriva a 3x, ma i default no.** L'intervallo di
+`timing.rate_max` e `tts.native_rate_max` e' stato alzato su richiesta perche' il
+triplo si potesse **provare**; i default restano le misure (1,25 e 1,55). Il
+gradino di WSOLA non si e' spostato: sopra 1,30 non si compra velocita', si
+comprano parole mangiate. E chiedere il triplo al motore non vuol dire ottenerlo
+— Piper lo esegue per intero, Kokoro taglia a 1,30 e SuperTonic a 1,10, e il
+residuo cade su WSOLA.
 
 **Chi accelera cosa.** Il sintetizzatore che parla piu' svelto **articola**;
 WSOLA schiaccia e mangia le fini delle parole. Quindi la fretta si chiede prima
@@ -323,11 +331,11 @@ letture, costa le righe corte.
 
 Tre cose che questo pezzo non poteva sbagliare, e che sono tutte di
 **posizione**. I pixel si reincollano in una tela grande come lo schermo, perche'
-ROI, aree e ritaglio dell'overlay sono in coordinate del fotogramma intero e
+ROI e ritaglio dell'overlay sono in coordinate del fotogramma intero e
 consegnarne uno piu' piccolo vorrebbe dire cambiare quel sistema in cinque posti
 — dove il primo che se ne dimentica legge il punto sbagliato **senza errore**.
-Si prende **l'unione** delle aree e non la prima, se no le altre diventano nere
-in silenzio. E la fascia **segue l'area**: spostando il rettangolo col mouse a
+Si prende **l'unione** dei rettangoli chiesti e non il primo, se no gli altri
+diventano neri in silenzio. E la fascia **segue l'area**: spostando il rettangolo col mouse a
 sessione accesa la cattura si riapre, se no si leggerebbe il nero e a schermo non
 succederebbe piu' niente.
 
@@ -662,6 +670,93 @@ un paese**. Da li' la regola che un'etichetta con dentro un valore tecnico non
 passa dal catalogo. Un cricchetto sulla lunghezza costa dieci righe e prende
 errori di significato che nessuno andrebbe a cercare in quarantadue file.
 
+## La finestra parla quarantuno lingue, e le due volte che ha mentito
+
+`ui.lingua` decide cosa c'e' **scritto sui bottoni**; `translate.source` e
+`translate.target` decidono cosa viene **detto**. Confonderle costa una sessione,
+ed e' per questo che il primo passo della guida lo dichiara.
+
+**L'italiano resta la lingua del sorgente e i cataloghi ci stanno sopra**
+(`ui/lingua.py`): un catalogo e' `{stringa italiana -> tradotta}`, quindi la
+chiave **e'** il testo che il codice contiene — non ci sono identificatori da
+inventare ne' un secondo elenco da tenere allineato, e una stringa nuova compare
+da sola fra quelle mancanti invece di sparire.
+
+E non si traduce chiamando `T()` in quattrocento punti: si costruisce la finestra
+e **la si percorre** (`applica`). E' la stessa scelta di `core/schema.py` per le
+impostazioni — l'elenco non si scrive, si ricava, quindi non puo' scollarsi.
+
+**I cataloghi si generano prima e si committano.** Una finestra che chiede la
+traduzione alla rete mentre si apre e' una finestra in bianco quando la rete non
+c'e' — e in bianco *senza errore*. `tools/traduci_ui.py` tocca la rete una volta,
+a mano, e quello che esce sta in `ui/lingue/*.json`.
+
+**Le due volte che ha mentito hanno la stessa forma**, ed e' la forma peggiore:
+una stringa che *sembra* tradotta.
+
+La riga «da fare nella preparazione: …» nasce **unendo pezzi a runtime**, e nel
+catalogo era finita come **una combinazione sola** — quella dell'istante in cui
+le chiavi erano state estratte. Fuori da quel caso tornava italiana in mezzo al
+tedesco. I pezzi stanno ora in `ui.lingua.COMPOSTE`, e una verifica legge il
+**sorgente** con `ast` perche' i due elenchi non possano divergere in silenzio.
+
+I segnaposto scritti a nome venivano tradotti **dentro le graffe** — `{Name}` in
+tedesco, `{имя}` in russo — quindi `format` sollevava e il ripiego rimetteva
+l'italiano, in **tutte e quarantuno** le lingue, senza un errore. Adesso sono
+numerati, e numerati e non anonimi perche' una frase tradotta si **riordina**:
+l'hindi ha restituito «{1} का चरण {0}», e con segnaposto anonimi i due valori si
+sarebbero scambiati senza che niente lo dicesse.
+
+**E `auto` veniva dichiarato guasto proprio quando funzionava.** Su una Windows
+italiana `auto` trova l'italiano — risultato giusto — e la finestra scriveva
+`! nessun catalogo per «auto»`. Un `!` speso dove non e' successo niente e' il
+ripiego silenzioso girato dall'altra parte: la volta che conta, non lo legge piu'
+nessuno. La regola sta in `ui.lingua.perche_italiano`, fuori da Qt, e distingue
+*scelto* / *sistema* / *senza catalogo*.
+
+**Cosa non si traduce, e non e' pigrizia**: le spiegazioni dei 166 campi vengono
+dai commenti di `core/config.py` con dentro le tabelle delle misure, e passarle a
+un traduttore automatico e' esattamente il «riscriverle e perdere le misure»
+contro cui `core/schema.py` esiste. Restano fuori anche il registro e la barra
+della misura, che sono f-string con dentro numeri e nomi di dispositivo.
+
+**Il testo che sfora si misura, non si guarda**: `tools/traduci_ui.py --misura`
+costruisce la finestra **con quel catalogo addosso** e chiede a ogni scheda la
+sua larghezza minima. La piu' larga e' il tamil a **872 px sul minimo di 960**.
+La stessa misura fatta con la piattaforma offscreen dava trentuno lingue su
+quarantadue «rotte»: li' non c'e' nessun carattere installato e il ripiego e'
+molto piu' largo — una misura che non puo' esprimere la risposta va cambiata, non
+interpretata.
+
+## La guida iniziale, e perche' controlla invece di raccontare
+
+`ui/tutorial.py`, sei passi, si apre da sola la prima volta e si rivede col «?».
+Il primo passo e' la lingua della finestra, che `ui.lingua` mette su `auto` di
+serie: chi apre il programma lo trova nella lingua in cui usa il computer.
+
+Il lettore e' uno che non sa cos'e' un loopback. Quindi la guida, dove puo',
+**verifica**: conta le schede audio disponibili, chiede il provider CUDA a ONNX
+Runtime invece di dedurlo, misura l'altezza dell'area con la regola vera. Ed e'
+esplicita sul fatto che **VoiceMeeter e' facoltativo** — il loopback WASAPI di
+serie basta, e un tutorial che lo desse per obbligatorio aggiungerebbe
+un'installazione inutile al primo passo.
+
+«Gia' vista» e' una **preferenza** (`core/preferenze.py`) e non un campo di
+config, quindi la regola si verifica senza aprire Qt. Ed e' un numero e non un
+booleano: alzandolo la guida si riapre a tutti il giorno in cui cresce un passo
+che conta.
+
+**E il dialogo modale ha appeso la suite per dieci minuti**, che e' la lezione
+vera di questo pezzo. La guardia che gli impediva di aprirsi durante le verifiche
+controllava `WA_DontShowOnScreen`, cioe' «costruita e **dichiarata** fuori
+schermo» — e non copriva «costruita e **mai mostrata**», che e' quello che fa il
+gruppo `coerenza`: il timer parte, `exec()` non torna mai. Non rossa: appesa,
+senza stampare una riga. E la verifica che avrebbe dovuto prenderlo modellava
+solo l'attributo e chiamava quel caso «costruita e non mostrata»: **diceva a
+parole la cosa giusta e la provava col meccanismo sbagliato**, quindi non poteva
+fallire proprio nel caso per cui esisteva. Adesso la condizione e' «e' davvero
+davanti a qualcuno» (`isVisible`), che nessun chiamante nuovo deve ricordarsi.
+
 ## Le aree multiple sono state tolte, e cosa resta della lezione
 
 C'era `vision.aree`: piu' zone di lettura sullo stesso schermo, ognuna col suo
@@ -787,6 +882,11 @@ setup di cattura, non del gioco**.
   ri-analizzate e si mangiano le virgolette): scrivere il messaggio su file e
   usare `git commit -F file`.
 - Commit solo dopo una suite verde. Commit piccoli e logici. Solo in locale.
+- **Nei commit non compare mai Claude**, in nessuna forma: niente trailer
+  `Co-Authored-By`, niente co-autori, nessuna menzione nei messaggi, nel README o
+  su GitHub. L'autore e' sempre e solo l'utente. (I commit fino al 17 agosto 2026
+  quel trailer ce l'hanno: toglierlo vuol dire riscrivere la storia, ed e' una
+  decisione da prendere **prima** di pubblicare il repo.)
 - **Le prove d'ascolto si consegnano in MP4** (`tools/dub.py --mp4`): gioco,
   traccia doppiata e in alto su fondo nero il testo **letto dall'OCR** con la
   voce assegnata. Senza, non si distingue "ha sbagliato a leggere" da "ha

@@ -5,11 +5,14 @@
 **Feature: 14 su 14.** Tutte chiuse, comprese quelle che si sono chiuse con un
 "no" misurato (i tag del TTS, la correzione automatica per distanza di edit, Qwen).
 
-**Step finali: 18 su 19.** Restano **due voci, e sono decisioni tue, non lavoro**:
-creare il repo GitHub (è pronto) e il sito. Il link donazioni è chiuso — Ko-fi,
+**Step finali: 17 su 19.** Restano **due decisioni tue** — il repo GitHub (è
+pronto) e il sito — **più l'exe, che è lavoro vero e va fatto per ultimo**:
+l'unico mai costruito è del 10 agosto, cioè di prima della finestra Menta, delle
+lingue e della guida. Costruirlo mentre il programma cambia vuol dire verificare
+un pacchetto che domani non è più quello. Il link donazioni è chiuso — Ko-fi,
 «Buy me a token!», nel README. Il resto — interfaccia, tutorial iniziale, lingue,
 selettore delle tecnologie, impostazioni con la spiegazione accanto, modifica a
-caldo, installatore, exe, licenza, README col diagramma — è fatto e guardato a
+caldo, installatore, licenza, README col diagramma — è fatto e guardato a
 schermo.
 
 **Suite: 1764 verifiche verdi** (`tools/selftest.py`). Erano 1899 prima del 18
@@ -565,7 +568,18 @@ che si sono chiuse con un "no".)*
     quindi la passeggiata dell'estrattore non lo vede: dichiara i suoi testi da se'
     (`ui/tutorial.testi()`), e una verifica costruisce il dialogo davvero e pretende che i
     due elenchi coincidano nei due versi.
-  * \[x]  fare exe
+  * \[ ]  fare exe
+    → **La casella era stata spuntata a torto, e va detto.** Lo spec c'e' ed e'
+    aggiornato, ma l'unico eseguibile mai costruito e' del **10 agosto**: prima della
+    finestra Menta, delle quarantuno lingue, della guida iniziale e della rimozione
+    delle aree. Nessuno ha piu' rilanciato la costruzione, quindi «l'exe funziona» oggi
+    e' **supposto** — che e' la parola che questo progetto usa per le cose consegnate
+    senza guardarle.
+    → Si costruisce quando il programma smette di cambiare: farlo adesso vorrebbe dire
+    verificare un pacchetto che domani non e' piu' quello. Il posto in cui guardare per
+    primo sono i **dati**: `core/config.py` viaggia fra i dati (senza, il pannello resta
+    senza spiegazioni) e da questa sessione anche `ui/lingue/*.json` — senza quelli
+    l'exe sarebbe **solo italiano, senza dirlo**.
     → `livedub.spec` (PyInstaller), 528 MB in cartella — non `onefile`, perché lì mezzo
     giga viene scompattato a ogni avvio e i percorsi relativi a `__file__` cambiano ogni
     volta.

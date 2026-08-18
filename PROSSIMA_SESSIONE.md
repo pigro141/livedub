@@ -28,10 +28,19 @@ ogni task.
 
 ## Dove siamo
 
-Suite verde a **1764 verifiche**. `SviluppoProgetto.md`: **18 step su 19**.
+Suite verde a **1764 verifiche**. `SviluppoProgetto.md`: **17 step su 19**.
 
-Restano **due voci, e sono decisioni tue, non lavoro**: il repo GitHub e il sito.
-Il link donazioni è chiuso (Ko-fi, «Buy me a token!», nel README).
+Restano **due decisioni tue** — il repo GitHub e il sito — **più l'exe**, che è
+lavoro vero. Il link donazioni è chiuso (Ko-fi, «Buy me a token!», nel README).
+
+**Sull'exe, perché non è spuntato**: lo spec c'è ed è aggiornato, ma l'unico
+eseguibile mai costruito è del **10 agosto** — prima della finestra Menta, delle
+quarantuno lingue, della guida e della rimozione delle aree. Va costruito
+**quando il programma smette di cambiare**, se no si verifica un pacchetto che
+domani non è più quello. E il posto in cui guardare per primo sono i **dati**:
+`core/config.py` viaggia fra i dati (senza, il pannello resta senza spiegazioni)
+e adesso anche `ui/lingue/*.json` — senza quelli l'exe sarebbe **solo italiano,
+senza dirlo**.
 
 ## Cosa è successo il 18 agosto
 

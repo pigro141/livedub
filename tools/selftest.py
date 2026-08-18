@@ -2812,6 +2812,265 @@ def test_a_schermo(c: Check) -> None:
     c.ok(hasattr(t, "feed"), "il tracker ha l'ingresso che la pipeline usa")
 
 
+def test_anticipo(c: Check) -> None:
+    """Tradurre **durante** l'attesa di sapere chi parla, non dopo.
+
+    Erano due attese in fila che non hanno niente da dirsi: mezzo secondo per
+    avere abbastanza parlato da calcolare l'impronta (una domanda sull'**audio**)
+    e la traduzione (una domanda sul **testo**, che c'e' gia' da quando il
+    sottotitolo e' stato confermato). In fila costavano `500 + 657`; sovrapposte
+    costano `max(500, 657)`.
+
+    **La verifica che conta e' la seconda, e deve poter fallire.** Non basta
+    dire a parole «si traduce prima»: si guarda l'**ordine vero** in cui i due
+    stadi vengono chiamati, con un traduttore che registra quando tocca a lui e
+    una spia su `_speaker_for`. Rimettendo la traduzione dentro `_speak` questa
+    riga diventa rossa — che e' l'unica cosa che rende utile scriverla. E' la
+    lezione della guardia del tutorial, che descriveva a parole il caso giusto e
+    lo provava col meccanismo sbagliato, quindi non poteva fallire proprio nel
+    caso per cui esisteva.
+
+    E la terza: **quando non c'e' nessuna attesa non c'e' nessun guadagno**, e
+    si vede dal contatore. E' il caso dell'etichetta (`vision/label.py`), dove
+    `pronta()` torna vero subito: va saputo leggendo i numeri invece di
+    scoprirlo credendo che il pezzo non funzioni.
+    """
+    c.group("anticipo")
+
+    import threading as _th
+    import time as _time
+
+    from core.anticipa import Anticipo, Preparato
+    from core.config import Config
+    from core.pipeline import DubPipeline
+    from core.types import LineClass as _LC, SubtitleEvent as _SE
+    from speak.base import ToneTts
+    from translate.base import Traduzione
+    from vision.subtitles import TrackerOutput as _TO
+
+    def aspetta(cond, limite: float = 3.0) -> bool:
+        """Aspetta che una condizione diventi vera. Torna `False` se scade."""
+        fine = _time.perf_counter() + limite
+        while _time.perf_counter() < fine:
+            if cond():
+                return True
+            _time.sleep(0.005)
+        return cond()
+
+    # -- 1. l'anticipo da solo, fuori dalla pipeline ------------------------
+    #
+    # Sta in un modulo suo apposta: e' una regola, non del disegno, e si prova
+    # senza aprire niente — nessun modello, nessuna rete, nessun Qt.
+    fatti: list[str] = []
+
+    def prepara(testo: str) -> Preparato:
+        fatti.append(testo)
+        return Preparato(testo, testo, testo.upper())
+
+    a = Anticipo(prepara, memoria=4)
+    c.ok(a.chiedi("ciao"), "un testo mai visto si mette in coda")
+    c.ok(not a.chiedi("ciao"), "e chiederlo di nuovo non lo rifa'")
+    c.ok(aspetta(lambda: a.pronti == 1), "il lavoratore lo prepara da solo")
+    c.eq(a.prendi("ciao").finale, "CIAO", "e chi lo prende trova il lavoro gia' fatto")
+    c.eq(a._n_anticipate.value, 1, "che e' un colpo anticipato, e si conta")
+
+    # Mai chiesto: si fa sul posto. E' il comportamento di sempre, ed e' il
+    # ripiego che rende impossibile stare peggio di prima.
+    c.eq(a.prendi("mai visto").finale, "MAI VISTO", "quello mai chiesto si fa sul posto")
+    c.eq(a._n_inline.value, 1, "e si conta come fatto sul posto, non come anticipato")
+
+    # **Il ricordo ha un tetto.** Tre cose in questo progetto sono gia' cresciute
+    # senza fermarsi; questa non deve essere la quarta.
+    for i in range(10):
+        a.chiedi(f"riga {i}")
+    c.ok(aspetta(lambda: len(fatti) >= 12), "dieci testi in coda vengono preparati")
+    c.ok(a.pronti <= 4, f"e il ricordo resta al suo tetto ({a.pronti} <= 4)")
+    a.ferma()
+
+    # Un preparatore che solleva non spegne il doppiaggio: si tiene l'originale,
+    # che e' la politica gia' scritta per la traduzione fallita.
+    def rompe(testo: str) -> Preparato:
+        raise RuntimeError("rete assente")
+
+    b = Anticipo(rompe, memoria=4)
+    c.eq(b.prendi("resta cosi'").finale, "resta cosi'",
+         "se preparare fallisce si tiene l'originale invece di sollevare")
+    b.ferma()
+
+    # **Fermarsi non lascia nessuno appeso**, e si prova con un thread davvero
+    # fermo — non modellando l'attributo che *dovrebbe* dirlo. Una suite appesa
+    # non e' rossa: e' muta, ed e' gia' costata dieci minuti in questo progetto.
+    d = Anticipo(prepara, memoria=4)
+    d._in_volo["appesa"] = _th.Event()  # in volo per qualcuno che non tornera' mai
+    uscito = _th.Event()
+
+    def chi_aspetta():
+        d.prendi("appesa")
+        uscito.set()
+
+    _th.Thread(target=chi_aspetta, daemon=True).start()
+    c.ok(not uscito.wait(0.15), "chi aspetta un testo in volo resta fermo")
+    d.ferma()
+    c.ok(uscito.wait(1.0), "e `ferma()` lo sveglia invece di lasciarlo li'")
+
+    # -- 2. nella catena: si traduce PRIMA di decidere chi parla ------------
+    #
+    # Il traduttore dorme apposta: senza un costo misurabile, «prima» e «dopo»
+    # darebbero gli stessi numeri e questa verifica non potrebbe distinguerli.
+    COSTO = 0.15
+
+    cfg = Config()
+    cfg.vision.ocr_backend = "none"
+    cfg.vad.backend = "energy"  # se no il gruppo scaricherebbe un modello
+    cfg.translate.enabled = True
+    cfg.translate.backend = "nessuno"
+    orologio = VirtualClock()
+    p = DubPipeline(cfg, ToneTts(), clock=orologio, samplerate=48000)
+    p.start_live(warmup=False)
+    c.ok(p._anticipo is not None, "con la traduzione accesa l'anticipo c'e'")
+
+    ordine: list[str] = []
+
+    def traduttore_lento(testo: str) -> Traduzione:
+        ordine.append("traduci")
+        _time.sleep(COSTO)
+        return Traduzione(testo=testo[::-1], originale=testo, backend="rovescio")
+
+    p.traduci = traduttore_lento
+    vero_speaker_for = p._speaker_for
+
+    def spia(event):
+        ordine.append("chi_parla")
+        return vero_speaker_for(event)
+
+    p._speaker_for = spia
+
+    class _LettoreFinto:
+        def __init__(self, esiti):
+            self._esiti = list(esiti)
+
+        def run(self, frame):
+            return self._esiti.pop(0) if self._esiti else _TO()
+
+        def close(self):
+            return _TO()
+
+    battuta = _SE(text="Sali in macchina, muoviti", cls=_LC.WHITE, t_on=10.0)
+    p.reader = _LettoreFinto([_TO(opened=[battuta])])
+    orologio.set(10.0)
+    c.eq(len(p.on_frame(None)), 0, "appena confermata la battuta aspetta, non parla")
+    c.eq(len(p._da_dire), 1, "ed e' in coda in attesa di sapere chi parla")
+
+    # **Qui sta tutto.** Mentre la battuta aspetta, la traduzione e' gia' partita
+    # e ha finito. Con la traduzione dentro `_speak` — cioe' com'era — a questo
+    # punto `ordine` sarebbe vuoto e le due righe qui sotto sarebbero rosse.
+    c.ok(aspetta(lambda: "traduci" in ordine),
+         "mentre la battuta aspetta l'audio, la traduzione e' gia' partita")
+    c.ok("chi_parla" not in ordine,
+         "e si e' tradotto PRIMA di decidere chi parla: sono due domande "
+         "indipendenti, e in fila costavano la somma")
+    # **Si aspetta che abbia finito, non che sia partita.** Il traduttore finto
+    # segna il suo turno e *poi* dorme: guardando solo `ordine` si ripartirebbe
+    # a meta' del suo lavoro, e il thread video ne pagherebbe la seconda meta' —
+    # cioe' la verifica misurerebbe la propria fretta invece dell'anticipo.
+    c.ok(aspetta(lambda: p._anticipo.pronti >= 1),
+         "e finisce mentre la battuta e' ancora in coda")
+
+    orologio.set(10.0 + (cfg.speaker.decide_after_ms + cfg.speaker.max_wait_ms) / 1000.0 + 0.05)
+    dette = p.on_frame(None)
+    c.eq(len(dette), 1, "alla scadenza dell'attesa si parla")
+    c.eq(ordine, ["traduci", "chi_parla"], "e l'ordine e' quello, una volta sola per parte")
+    c.eq(dette[0].text, battuta.text[::-1], "la battuta esce tradotta")
+    c.eq(dette[0].text_original, battuta.text,
+         "e porta con se' cosa c'era scritto, se no la prova d'ascolto non "
+         "distingue «ha letto male» da «ha tradotto male»")
+
+    # **I due cronometri dicono cose diverse, ed e' per questo che sono due.**
+    # Il costo della traduzione c'e' tutto; addosso al thread video non c'e'
+    # piu'. Se tornassero a coincidere, l'anticipo non starebbe funzionando.
+    riga = p.metrics.timer("translate.riga")
+    attesa = p.metrics.timer("translate.attesa")
+    c.ok(riga.count == 1 and riga.max >= COSTO * 1000 * 0.8,
+         f"la traduzione ha un cronometro suo e ha misurato il suo costo "
+         f"({riga.max:.0f} ms su {COSTO*1000:.0f} attesi)")
+    c.ok(attesa.max < COSTO * 1000 * 0.5,
+         f"e il thread video non l'ha pagato ({attesa.max:.1f} ms, "
+         f"contro i {riga.max:.0f} che costava)")
+    c.eq(p.metrics.counter("translate.anticipate").value, 1,
+         "la battuta ha trovato il lavoro gia' fatto")
+    c.eq(p.metrics.counter("translate.inline").value, 0,
+         "e non ne ha fatto nessuno sul posto")
+
+    # -- 3. senza attesa non c'e' guadagno, e si vede ----------------------
+    #
+    # Con il nome scritto dal gioco `pronta()` torna vero subito: non c'e'
+    # nessuna attesa in cui nascondere la traduzione, e il lavoro si fa sul
+    # posto come prima. Non e' un difetto, e' una cosa da sapere leggendo i
+    # numeri. Qui si riproduce togliendo il tracker, che e' l'altro modo in cui
+    # `pronta()` non aspetta niente.
+    senza = Config()
+    senza.vision.ocr_backend = "none"
+    senza.speaker.backend = "none"
+    senza.translate.enabled = True
+    senza.translate.backend = "nessuno"
+    s = DubPipeline(senza, ToneTts(), clock=VirtualClock(), samplerate=48000)
+    s.start_live(warmup=False)
+    s.traduci = lambda testo: Traduzione(testo=testo[::-1], originale=testo, backend="r")
+    s.reader = _LettoreFinto([_TO(opened=[_SE(text="Dove vai?", cls=_LC.WHITE, t_on=1.0)])])
+    c.eq(len(s.on_frame(None)), 1, "senza attesa la battuta esce nello stesso fotogramma")
+    c.eq(s.metrics.counter("translate.inline").value, 1,
+         "e la traduzione si fa sul posto: non c'era nessuna attesa in cui infilarla")
+    c.eq(s.metrics.counter("translate.anticipate").value, 0,
+         "quindi zero anticipate, ed e' giusto cosi'")
+
+    # -- 4. il cancello anti-doppioni regge lo spostamento ------------------
+    #
+    # E' il confine che questo lavoro tocca: `_gia_detta` riceve l'italiano
+    # letto a schermo e le battute gia' dette conservano cio' che si e' **detto**
+    # — che traducendo e' un'altra lingua. Era gia' andato storto una volta
+    # (`abbracciami` contro `hugme`, `dub.repeated` a zero con due doppioni a
+    # schermo). Qui si ripassa dalla porta nuova, cioe' da `on_frame`.
+    doppia = _SE(text="Abbracciami, amico mio", cls=_LC.WHITE, t_on=30.0)
+    ancora = _SE(text="Abbracciami, amico mio", cls=_LC.WHITE, t_on=30.6)
+    orologio2 = VirtualClock()
+    g = DubPipeline(cfg, ToneTts(), clock=orologio2, samplerate=48000)
+    g.start_live(warmup=False)
+    g.traduci = lambda testo: Traduzione(testo=testo[::-1], originale=testo, backend="r")
+    passo = (cfg.speaker.decide_after_ms + cfg.speaker.max_wait_ms) / 1000.0 + 0.05
+    g.reader = _LettoreFinto([_TO(opened=[doppia]), _TO(), _TO(opened=[ancora])])
+    orologio2.set(30.0)
+    g.on_frame(None)
+    orologio2.set(30.0 + passo)
+    c.eq(len(g.on_frame(None)), 1, "la prima si dice")
+    orologio2.set(30.6 + passo)
+    c.eq(len(g.on_frame(None)), 0, "e la stessa riletta subito dopo no, anche traducendo")
+    c.eq(g.metrics.counter("dub.repeated").value, 1, "e la soppressione si conta")
+
+    # -- 5. con la traduzione spenta non cambia niente ---------------------
+    #
+    # E' il caso principale del prodotto — GTA V, gia' in italiano — e non deve
+    # pagare nemmeno un thread per una cosa che non gli serve.
+    muto = Config()
+    muto.vision.ocr_backend = "none"
+    muto.vad.backend = "energy"
+    lavoratori = lambda: sum(1 for t in _th.enumerate() if t.name == "anticipo")
+    prima_thread = lavoratori()
+    m = DubPipeline(muto, ToneTts(), clock=VirtualClock(), samplerate=48000)
+    m.start_live(warmup=False)
+    m.reader = _LettoreFinto([_TO(opened=[_SE(text="Ciao", cls=_LC.WHITE, t_on=1.0)])])
+    m.on_frame(None)
+    c.ok(m._anticipo is None,
+         "senza traduzione e senza correttore non si costruisce nessun anticipo")
+    c.eq(lavoratori(), prima_thread,
+         "e una sessione che non traduce non accende nessun lavoratore in piu'")
+    c.eq(m.metrics.timer("translate.riga").count, 0,
+         "ne' scrive una riga nei cronometri della traduzione")
+
+    p.finish()
+    g.finish()
+    m.finish()
+
+
 def test_template(c: Check) -> None:
     """Il template di TranslateGemma, che va rispettato alla lettera."""
     c.group("traduzione")
@@ -4124,6 +4383,7 @@ GROUPS = {
     "etichetta": test_etichetta,
     "correzione": test_correzione,
     "traduzione": test_traduzione,
+    "anticipo": test_anticipo,
     "template": test_template,
     "overlay": test_overlay,
     "a_schermo": test_a_schermo,

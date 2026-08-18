@@ -33,6 +33,7 @@ from difflib import SequenceMatcher
 
 import numpy as np
 
+from core.anticipa import Anticipo, Preparato
 from core.clock import Clock, VirtualClock, get_clock
 from core.config import Config
 from core.metrics import MetricsRegistry
@@ -354,6 +355,21 @@ class DubPipeline:
             if cfg.translate.enabled
             else None
         )
+        # **Correggere e tradurre si fanno mentre si aspetta di sapere chi
+        # parla**, non dopo. Le due attese non hanno niente da dirsi — una vuole
+        # il testo (che c'e' gia'), l'altra vuole mezzo secondo di audio — e
+        # metterle in fila costava la somma invece del massimo. Si veda
+        # `core/anticipa.py`, dove ci sono le misure.
+        #
+        # `None` quando non c'e' niente da preparare: senza correttore e senza
+        # traduzione la catena resta esattamente quella di prima, thread
+        # compreso. Il caso principale di questo prodotto — GTA V, gia' in
+        # italiano — e' quello.
+        self._anticipo = (
+            Anticipo(self._prepara, metrics=self.metrics)
+            if (self.traduci is not None or self.revisore is not None)
+            else None
+        )
         self.mixer = Mixer(
             samplerate=samplerate,
             duck_db=cfg.mix.duck_db,
@@ -493,6 +509,34 @@ class DubPipeline:
         # Parole che il correttore ha davvero sostituito. Se resta a zero con il
         # correttore acceso, si sta pagando il modello senza ricavarne niente.
         self._n_corrette = self.metrics.counter("vision.corrette")
+        # **Quanto costa tradurre una battuta, e quanto ne paga il thread
+        # video.** Erano due numeri che non esistevano: in `report.txt` non c'e'
+        # stata **nessuna** riga `translate.*` per tutte le sessioni fatte finora,
+        # e i 657 ms attribuiti alla traduzione erano un residuo per sottrazione.
+        # E' la stessa forma di `max_ocr_hz`, `tts.device`, `background_mode` e
+        # `overlay.ritardo`: uno stadio sulla strada critica senza un numero suo.
+        #
+        # Sono **due** e non uno apposta:
+        #   `translate.riga`   quanto costa la traduzione vera (cache esclusa);
+        #   `translate.attesa` quanto di quel costo e' finito addosso al thread
+        #                      video — che dopo l'anticipo deve andare a zero
+        #                      mentre il primo resta dov'e'.
+        # Un numero solo non saprebbe distinguere «adesso e' veloce» da «adesso
+        # e' altrove», che sono le due risposte opposte a questo lavoro.
+        self._t_traduci = self.metrics.timer("translate.riga")
+        self._t_attesa = self.metrics.timer("translate.attesa")
+        self._n_trad_cache = self.metrics.counter("translate.cache")
+        # **Il ripiego che si dichiara.** `Traduzioni` tiene l'originale quando
+        # non riesce e lo dice una volta sola nel registro; qui diventa un numero
+        # che resta nel rapporto, perche' «tre battute su cento sono uscite in
+        # italiano» e «nessuna» hanno lo stesso aspetto a schermo.
+        self._n_trad_falliti = self.metrics.counter("translate.falliti")
+        self._n_trad_lenti = self.metrics.counter("translate.lenti")
+        self._visti_falliti = 0
+        self._visti_lenti = 0
+        # Il Revisore dell'OCR: spento di serie, ma sta sulla stessa strada e
+        # senza cronometro non si saprebbe cosa costa il giorno che si accende.
+        self._t_correggi = self.metrics.timer("vision.correct")
         self._t_backlog = self.metrics.timer("dub.backlog")
         self._t_rate = self.metrics.timer("dub.rate_x1000")
         self._t_hurry = self.metrics.timer("dub.hurry_x1000")
@@ -688,6 +732,25 @@ class DubPipeline:
 
             pronte = [e for e in self._da_dire if pronta(e)]
             self._da_dire = [e for e in self._da_dire if not pronta(e)]
+        # **E mentre aspettano, si prepara cio' che non dipende dall'audio.**
+        # Correzione e traduzione hanno bisogno del **testo**, che c'e' gia' da
+        # quando il sottotitolo e' stato confermato; l'attesa qui sopra ha
+        # bisogno di mezzo secondo di **parlato**. Sono due domande indipendenti,
+        # e finora erano in fila: `500 + 657` invece di `max(500, 657)`.
+        #
+        # Si chiede solo per chi sta ancora aspettando. Chi e' gia' pronto viene
+        # detto in questo stesso fotogramma — non c'e' nessuna attesa in cui
+        # nascondere il lavoro, e passarlo a un altro thread aggiungerebbe solo
+        # un salto. E' il caso dell'etichetta (`vision/label.py`), dove `pronta`
+        # torna vero subito: li' questo pezzo non guadagna niente, ed e' giusto
+        # saperlo leggendo i numeri invece di scoprirlo.
+        #
+        # `chiedi` costa una ricerca in un dizionario e si puo' rifare a ogni
+        # fotogramma: e' quello che serve, perche' `out.updated` puo' aver
+        # cambiato il testo di una battuta che sta ancora aspettando.
+        if self._anticipo is not None:
+            for e in self._da_dire:
+                self._anticipo.chiedi(self._testo_grezzo(e))
         # **Le battute di un'area `testo` non si pronunciano.** Restano lette e
         # chiuse — quindi tradotte e disegnate sopra il gioco — ma non prendono
         # una voce. E' il motivo per cui il modo esiste: pronunciare un cartello
@@ -726,6 +789,77 @@ class DubPipeline:
         if self.max_spoken and len(self.closed) > self.max_spoken:
             del self.closed[: len(self.closed) - self.max_spoken]
 
+    def _testo_grezzo(self, event: SubtitleEvent) -> str:
+        """Il testo su cui lavorano correttore e traduttore, tolta l'etichetta.
+
+        **Il nome del personaggio non si traduce**, quindi va tolto prima e non
+        dopo: `_speak` fa la stessa cosa, e le due devono chiedere la stessa
+        chiave — se no l'anticipo prepara una stringa e la battuta ne chiede
+        un'altra, cioe' il lavoro si fa due volte e il guadagno sparisce senza
+        dare errore.
+        """
+        etichetta = self._etichetta(event)
+        if etichetta is not None and etichetta.testo != event.text:
+            return etichetta.testo
+        return event.text
+
+    def _prepara(self, testo: str) -> Preparato:
+        """Correggere e tradurre, cronometrandosi. **Puo' girare fuori dal thread
+        video** — e' quello il punto — quindi qui dentro non si tocca niente che
+        non sia un contatore o il traduttore, che ha il suo lucchetto."""
+        corretto = testo
+        if self.revisore is not None:
+            t0 = time.perf_counter()
+            r = self.revisore.rivedi(testo)
+            self._t_correggi.add((time.perf_counter() - t0) * 1000.0)
+            if r.cambiato:
+                self._n_corrette.inc(len(r.cambi))
+                corretto = r.testo
+        finale = corretto
+        if self.traduci is not None:
+            t0 = time.perf_counter()
+            t = self.traduci(corretto)
+            ms = (time.perf_counter() - t0) * 1000.0
+            if getattr(t, "da_cache", False):
+                self._n_trad_cache.inc()
+            else:
+                # **La cache non entra nel cronometro.** Un colpo di cache costa
+                # zero e una traduzione vera costa mezzo secondo: mescolarli
+                # sposterebbe il p50 in funzione di quante volte lo stesso
+                # sottotitolo e' stato riletto, che e' una proprieta' dell'OCR e
+                # non del traduttore. Le due domande restano separate, e i colpi
+                # di cache si contano a parte.
+                self._t_traduci.add(ms)
+            if t.tradotto:
+                finale = t.testo
+            # I ripieghi del traduttore, portati nel rapporto. `Traduzioni` li
+            # conta gia' ma non li pubblica: si legge il delta invece di
+            # duplicare la logica.
+            for attr, visto, contatore in (
+                ("n_falliti", "_visti_falliti", self._n_trad_falliti),
+                ("n_lenti", "_visti_lenti", self._n_trad_lenti),
+            ):
+                ora = int(getattr(self.traduci, attr, 0) or 0)
+                if ora > getattr(self, visto):
+                    contatore.inc(ora - getattr(self, visto))
+                    setattr(self, visto, ora)
+        return Preparato(testo, corretto, finale)
+
+    def _preparato(self, testo: str) -> Preparato:
+        """Il testo pronto: gia' fatto durante l'attesa, o fatto adesso.
+
+        `translate.attesa` e' cio' che il thread video ha davvero pagato. Prima
+        dell'anticipo era per costruzione uguale a `translate.riga`; se i due
+        tornano a coincidere, l'anticipo non sta funzionando — e questo e'
+        l'unico numero che lo direbbe.
+        """
+        if self._anticipo is None:
+            return self._prepara(testo)
+        t0 = time.perf_counter()
+        p = self._anticipo.prendi(testo)
+        self._t_attesa.add((time.perf_counter() - t0) * 1000.0)
+        return p
+
     def _speak(self, event: SubtitleEvent) -> SpokenLine:
         """Da battuta letta a audio programmato."""
         # Vale anche qui e non solo per le battute mute: una seconda area
@@ -742,29 +876,31 @@ class DubPipeline:
         if etichetta is not None and etichetta.testo != event.text:
             event = replace(event, text=etichetta.testo)
 
-        # **La traduzione va qui, prima dei tempi, e l'ordine e' la parte che
-        # conta.** Sotto si stima la durata da `spoken_length(event.text)` e da
-        # `chars_per_second`: quei numeri sono misurati sull'italiano, e vanno
-        # applicati al testo che verra' **detto**. Tradurre dopo aver deciso i
-        # tempi vorrebbe dire pianificare la battuta su una lunghezza che nessuno
-        # pronuncera' mai — la stessa forma dell'errore per cui si misurava il
-        # silenzio di SuperTonic e lo si chiamava parlato.
+        # **Correzione e traduzione stanno qui, prima dei tempi, ma il lavoro e'
+        # gia' stato fatto.** L'ordine conta e non e' cambiato: sotto si stima la
+        # durata da `spoken_length(event.text)` e da `chars_per_second`, numeri
+        # misurati sulla lingua che si parlera', e vanno applicati al testo che
+        # verra' **detto**. Tradurre dopo aver deciso i tempi vorrebbe dire
+        # pianificare la battuta su una lunghezza che nessuno pronuncera' mai.
         #
         # Dopo l'etichetta e non prima: il nome del personaggio non si traduce.
-        # **Si corregge prima di tradurre**, e prima dei tempi. Tradurre una
-        # parola sbagliata la traduce sbagliata, e nessuna delle due cose a valle
-        # se ne accorgerebbe.
-        if self.revisore is not None:
-            r = self.revisore.rivedi(event.text)
-            if r.cambiato:
-                self._n_corrette.inc(len(r.cambi))
-                event = replace(event, text=r.testo)
-
+        # **Si corregge prima di tradurre**: tradurre una parola sbagliata la
+        # traduce sbagliata, e nessuna delle due cose a valle se ne accorgerebbe.
+        # E' anche il motivo per cui i due si spostano insieme — il Revisore da
+        # solo non fa risparmiare niente (e' spento di serie), ma lasciarlo qui
+        # vorrebbe dire tradurre gli artefatti dell'OCR il giorno che si accende.
+        #
+        # Quello che e' cambiato e' **quando**: `_preparato` di solito trova il
+        # lavoro gia' fatto, perche' e' partito quando il sottotitolo e' stato
+        # confermato e ha girato durante i 500 ms di `decide_after_ms`. Se non e'
+        # pronto si aspetta, che e' esattamente il costo di prima: l'anticipo non
+        # puo' rendere le cose peggiori, solo uguali.
+        prep = self._preparato(event.text)
+        if prep.corretto != event.text:
+            event = replace(event, text=prep.corretto)
         originale = event.text
-        if self.traduci is not None:
-            t = self.traduci(event.text)
-            if t.tradotto:
-                event = replace(event, text=t.testo)
+        if prep.finale != event.text:
+            event = replace(event, text=prep.finale)
         speaker_id = decisione.speaker_id
         # Il sesso della voce arriva dall'intonazione misurata sulle battute
         # intere di questo personaggio. Senza, il pool alterna maschile e
@@ -1841,6 +1977,13 @@ class DubPipeline:
         for ev in self._da_dire:
             self._speak(ev)
         self._da_dire.clear()
+        # **Prima si dice quello che resta, poi si chiude il lavoratore.**
+        # All'incontrario, le battute ancora in attesa troverebbero l'anticipo
+        # gia' spento e uscirebbero in lingua originale proprio in fondo alla
+        # sessione: `ferma()` sveglia chi aspetta con il testo di partenza, ed e'
+        # giusto che sia l'ultima cosa che fa.
+        if self._anticipo is not None:
+            self._anticipo.ferma()
 
     def report(self) -> str:
         righe = [

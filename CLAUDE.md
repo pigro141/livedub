@@ -281,6 +281,57 @@ ammorbidire. Un modello che riscrive «Get the fuck out of my car, asshole» in
 «Esci immediatamente dalla mia macchina, idiota» consegna un doppiaggio che dice
 un'altra cosa, e nessun contatore lo mostra.
 
+**E la traduzione si fa *durante* l'attesa di sapere chi parla, non dopo**
+(`core/anticipa.py`). Erano due attese in fila che non hanno niente da dirsi: i
+500 ms di `speaker.decide_after_ms` servono ad avere mezzo secondo di **parlato**
+da dare all'impronta, la traduzione ha bisogno del **testo** — che c'e' gia' da
+quando il sottotitolo e' stato confermato. In fila costavano `500 + trad`; adesso
+costano `max(500, trad)`. Correzione e traduzione si spostano **insieme**, perche'
+il giorno che si accende il Revisore la traduzione deve lavorare sul testo
+corretto; e stanno fuori dal thread video, dove mezzo secondo sincrono spezzava
+il flusso di frame consecutivi su cui il lettore di sottotitoli e' costruito.
+
+Se non e' pronta **si aspetta**, e non si parte con l'originale: «non ancora
+pronta» non e' «fallita». Il ripiego sull'originale esiste perche' una battuta
+muta e' un buco; qui l'alternativa non e' il silenzio, e' la stessa battuta mezzo
+secondo dopo — partire in italiano vorrebbe dire doppiare **meta' scena in una
+lingua e meta' nell'altra a seconda della rete**. Aspettare non e' mai peggio di
+prima: prima si aspettava comunque, solo dopo invece che durante.
+
+**Prima di questo, `report.txt` non aveva nessuna riga `translate.*`**: i «657 ms
+di traduzione» erano un residuo per sottrazione. Adesso sono due cronometri e non
+uno — `translate.riga` (quanto costa) e `translate.attesa` (quanto ne paga il
+thread video) — perche' un numero solo non distingue «adesso e' veloce» da
+«adesso e' altrove», che sono le due risposte opposte a questo lavoro.
+
+E il costo vero, misurato per battuta sulle sessioni dal vivo gia' in `runs/`
+(`residuo = latenza - sintesi - coda`, con l'attesa presa dalle sessioni kokoro
+**senza** traduzione, dove vale 538-553 ms p50 ed e' stabilissima):
+
+| | traduzione p50 | latenza p50 | rigiocata sovrapposta |
+|---|---|---|---|
+| kokoro, niente traduzione | — | 875 ms | 860 (**il caso nullo: non cambia**) |
+| google (3 sessioni) | 98-498 ms | 1148-1462 ms | **893-919 ms** |
+| ollama/TranslateGemma (3) | 778-852 ms | 1701-1727 ms | **1091-1159 ms** |
+
+**I 657 ms erano ollama, non google** — e google e' bimodale: 54 ms di p50 in una
+passata e 763 in un'altra, sulla stessa macchina a mezz'ora di distanza. Non e'
+avvio pigro ne' connessione riaperta a ogni battuta: misurato, **una apertura per
+dodici chiamate** (99 ms, pagati una volta), prima chiamata 868 ms contro un p50
+di 763 sulle successive. E' la rete, e la sovrapposizione la trasforma da costo
+variabile in costo **coperto fino a ~545 ms**.
+
+**Il banco non puo' misurarlo, e lo dice bene.** Con l'orologio virtuale la
+traduzione non e' mai stata addebitata al tempo del media: `dub.latency` di
+`tools/dub.py` e' infatti **identica al centesimo** prima e dopo (533,33 / 1319,46
+/ 1476,65 / 1518,92 su 43 battute). E `--tempo-reale` risponderebbe **troppo
+bene**, perche' premia due volte cio' che esce da `on_frame` — la trappola gia'
+pagata con la sintesi, -745 ms promessi e 1300 -> 1410 dal vivo. La risposta e'
+venuta rigiocando la programmazione delle sessioni **dal vivo** archiviate, dove
+gli `elapsed` veri erano gia' scritti; e il modello si valida da solo, perche'
+rigiocando «com'e'» riproduce le latenze archiviate entro l'1-3% e sulla sessione
+**senza** traduzione non inventa nessun guadagno.
+
 **`vision/label.py`** — chi parla, quando lo scrive il gioco. Sette formati
 pronti piu' una regex. Vale mezzo secondo: cadono sia l'attesa di
 `decide_after_ms` sia il calcolo dell'impronta. Il nemico sono i falsi positivi,

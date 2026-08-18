@@ -662,71 +662,43 @@ un paese**. Da li' la regola che un'etichetta con dentro un valore tecnico non
 passa dal catalogo. Un cricchetto sulla lunghezza costa dieci righe e prende
 errori di significato che nessuno andrebbe a cercare in quarantadue file.
 
-## Le aree in piu', e i tre difetti che le tenevano ferme
+## Le aree multiple sono state tolte, e cosa resta della lezione
 
-**Aggiungere una zona `solo testo` non faceva niente**, e non per un motivo:
-per tre, impilati. Tutti e tre muti — nessun errore, nessun contatore, la suite
-verde.
+C'era `vision.aree`: piu' zone di lettura sullo stesso schermo, ognuna col suo
+modo — `testo_audio` (letta e pronunciata), `testo` (letta, tradotta, disegnata,
+muta) e poi `schermo` (un'area grande con dentro N scritte). Sono state **tolte
+per decisione dell'utente**, con la parola giusta: *infattibile*. Non perche' il
+codice non girasse — girava, con le sue verifiche verdi — ma perche' la promessa
+che le reggeva non era mantenibile dal vivo: **l'overlay disegna una scritta per
+volta**, e portarlo a N voleva dire una tela grande quanto l'area rinfrescata a
+ogni fotogramma. Una funzione che sul banco esiste e a schermo no non e' una
+funzione a meta': e' una che promette.
 
-**Uno.** Una sola area dichiarata **perdeva il proprio rettangolo**. In
-`core/pipeline.py` c'era `cfg.vision if len(pezzi) == 1 else replace(cfg.vision,
-roi=pezzo.roi)`: un'ottimizzazione che con *una* area buttava via la sua
-geometria e leggeva `vision.roi`. Senza aree i due rettangoli coincidono e con
-due aree il ramo e' l'altro — restava rotto **solo** il caso di mezzo, che e'
-esattamente quello che si ottiene aggiungendo la prima zona dalla finestra.
+Quello che resta e' la catena su cui sono state fatte **tutte** le misure di
+questo file: una riga di sottotitolo alla volta, letta dove dice `vision.roi`.
 
-**Due.** Le battute mute **non venivano tradotte ne' disegnate**. `_pronte` le
-filtrava prima di `_speak`, che e' il posto dove avviene la traduzione e dove
-nasce `SpokenLine` — l'unica cosa che arriva a chi disegna. Il commento accanto
-diceva il contrario («restano lette e chiuse, quindi tradotte e disegnate sopra
-il gioco»): un comportamento **dichiarato e mai scritto**. Misurato con un
-traduttore finto che *cambia davvero* il testo: due sottotitoli aperti, una sola
-battuta in uscita, e il traduttore non aveva mai visto la riga muta. La verifica
-che c'era provava solo la meta' negativa («non viene pronunciata»), e una
-verifica che prova un ramo solo non puo' fallire quando manca l'altro.
+**Tre cose sopravvivono alla rimozione, e vale la pena sapere perche'.**
 
-**Tre, e questo non e' un difetto ma un limite dell'architettura.** Un'area
-grande **non legge**, e non e' una soglia da ritoccare: il cancello che decide
-se rileggere lo schermo (`RoiDiff`) guarda la **frazione** di pixel cambiati
-contro `diff_threshold = 0,004`, e quella frazione ha l'area al denominatore.
-Lo stesso sottotitolo, con l'area che cresce attorno:
+`vision.roi.troppo_grande` — un'area troppo alta non e' meno precisa, e' **muta**:
+il cancello del diff guarda la *frazione* di pixel cambiati, e quella frazione ha
+l'area al denominatore. A schermo intero, a telecamera ferma: quattordici
+fotogrammi guardati, quattordici fermati, zero letture. La regola descriveva la
+ROI prima ancora che le zone esistessero, quindi e' rimasta — e sta fuori dalla
+finestra, cosi' la si dice sia mentre si tira il rettangolo sia all'avvio.
 
-| altezza dell'area | variazione | il cancello si apre? |
-|---|---|---|
-| 0,08 | 0,0225 | si' |
-| 0,12 | 0,0153 | si' |
-| 0,30 | 0,0081 | si' |
-| 0,70 | 0,0043 | si' per un pelo |
-| 1,00 | **0,0032** | **no** |
+`translate.misura_originale` — il tradotto che tiene la misura del sottotitolo
+che copre, stringendo il corpo del carattere invece del riquadro. Era la meta'
+utile della modalita' `schermo`, e adesso e' un'opzione a se', **spenta di
+serie**: il prezzo e' che su una frase molto piu' lunga dell'originale il testo
+diventa piccolo, e quella e' una scelta d'occhio che nessuna misura puo' fare.
 
-A schermo intero, misurato: **14 fotogrammi in, 14 fermati, zero chiamate
-all'OCR**. E su una scena che si *muove* il difetto si rovescia — il cancello si
-apre sempre e l'OCR gira sull'intero fotogramma, che e' il costo che
-`max_ocr_hz` esiste per limitare (52 s di lavoro per 60 di scena, su una
-striscia). Quindi `vision.aree.troppo_grande()` lo **dice** sopra 0,30, mentre
-si tira il rettangolo e all'avvio della catena: un limite dichiarato vale piu'
-di un silenzio.
-
-**Tradurre tutto lo schermo e' un altro prodotto**, non una taratura di questo:
-vorrebbe OCR multi-riga sul fotogramma intero e piu' riquadri di overlay, contro
-una catena costruita per **una** riga di sottotitolo alla volta con la latenza
-sotto controllo.
-
-### E la cura si era mangiata trentuno manopole
-
-La prima stesura della correzione **uno** passava a ogni lettore una *copia* di
-`cfg.vision`. Il rettangolo tornava giusto, e trentuno campi di `vision`
-dichiarati caldi — `exclude_colored`, `sat_max`, `max_ocr_hz` — smettevano di
-arrivare: cambiandoli dal pannello a sessione accesa, la finestra mostrava il
-valore nuovo e la catena continuava col vecchio. Cioe' il difetto contro cui
-quel pannello esiste, ricreato dentro la sua cura, e in silenzio.
-
-Adesso il rettangolo si passa **a parte** (`SubtitleReader(cfg.vision,
-roi=pezzo.roi)`) e la config resta condivisa. La regola generale, che in questo
-progetto e' gia' costata due volte: **una cura che copia un oggetto condiviso
-rompe tutto cio' che contava sul fatto che fosse condiviso**, e la prova che
-serve non e' «il difetto e' sparito» ma «cosa faceva prima che adesso non fa
-piu'».
+**E la lezione sulle cure, che vale piu' del codice tolto.** La prima correzione
+al rettangolo perduto passava una **copia** di `cfg.vision` a ogni lettore: il
+rettangolo tornava giusto e trentuno campi dichiarati caldi smettevano di
+arrivare, continuando a mostrare il valore nuovo nel pannello. *Una cura che
+copia un oggetto condiviso rompe tutto cio' che contava sul fatto che fosse
+condiviso*, e la prova che serve non e' «il difetto e' sparito» ma **«cosa faceva
+prima che adesso non fa piu'?»**.
 
 ## Banco e vivo: la cosa che costa di piu' capire
 

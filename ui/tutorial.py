@@ -10,7 +10,7 @@ battuta doppiata, il tutorial ha fallito anche se e' bello.
 Il programma sa gia' rispondere da solo a meta' delle domande che il tutorial
 pone: quante schede audio ci sono e se una e' la stessa da tutti e due i lati
 (`capture/audio.py`), se OneOCR e' stato copiato, se il provider CUDA c'e'
-davvero (`core/onnx.py`), quanto e' alta l'area di adesso (`vision/aree.py`).
+davvero (`core/onnx.py`), quanto e' alta l'area di adesso (`vision/roi.py`).
 Ogni passo che puo' essere verificato porta la sua riga di verifica, ed e' la
 differenza fra una guida e un depliant: qui un ripiego silenzioso e' gia' costato
 due volte, e una guida che *dice* «adesso funziona» senza guardare e' un ripiego
@@ -209,9 +209,6 @@ SCHEDE: tuple[tuple[str, str], ...] = (
     ("Traduzione",
      "Solo se vuoi giocare in una lingua diversa da quella dei sottotitoli. "
      "Spenta, il programma doppia nella lingua che trova."),
-    ("Aree",
-     "Altre zone da leggere sullo stesso schermo: cartelli, nomi, sottotitoli "
-     "in alto. Una zona puo' anche essere muta: letta e scritta, non detta."),
     ("Tutte le impostazioni",
      "Tutte le manopole, con la spiegazione e la misura di ognuna. Serve a chi "
      "tara; la casella in alto cerca un campo per nome."),
@@ -356,7 +353,7 @@ def controllo_audio(cfg) -> Esito:
 
 def controllo_area(cfg) -> Esito:
     """Quanto e' alta l'area di adesso, misurata con la regola vera."""
-    from vision.aree import troppo_grande
+    from vision.roi import troppo_grande
 
     scelta = lingua.risolvi(cfg.ui.lingua)
     roi = cfg.vision.roi

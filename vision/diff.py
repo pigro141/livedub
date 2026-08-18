@@ -50,17 +50,11 @@ sotto `diff_threshold`. A schermo intero il cancello non si apre mai: 14
 fotogrammi in, 14 fermati, zero chiamate all'OCR, e senza nessun contatore che
 lo dica.
 
-**Il rimedio e' un denominatore che non cresce con l'area** (`cella`): i pixel
-campionati si tagliano in celle di lato fisso e si prende la frazione della
-cella **peggiore**. Una scritta che compare riempie la sua cella allo stesso
-modo che l'area sia una striscia o tutto lo schermo, quindi il numero smette di
-dipendere da quanto e' grande il rettangolo che l'utente ha tirato.
-
-La soglia pero' e' un'altra: `diff_threshold` e' misurata sulla media dell'area
-e qui la distribuzione e' un'altra: riusarla sarebbe la quarta volta in questo
-progetto che una soglia cambia distribuzione sotto i piedi. Si veda
-`cell_threshold`, e il banco che l'ha scelta e' `tools/bench_schermo.py
---cancello`.
+**Il rimedio era un denominatore che non cresce con l'area** — celle di lato
+fisso e la peggiore invece della media — ed e' stato tolto con le aree multiple:
+serviva solo a loro, e un cancello con due soglie e due distribuzioni che nessuno
+accende e' esattamente il genere di codice che qui si paga dopo. La misura resta
+scritta qui sopra perche' la prossima area grande la ritrovi gia' fatta.
 
 **I due gruppi non si separano del tutto**, e va detto: a schermo vuoto la coda
 alta arriva a 1,1, cioe' la texture di una scena puo' avere l'aspetto di un
@@ -110,24 +104,10 @@ class RoiDiff:
         contrast_kernel: int = 63,
         ink_min_columns: float = 0.20,
         vanish_frames: int = 3,
-        cella: int = 0,
-        cell_threshold: float = 0.06,
     ) -> None:
         if stride < 1:
             raise ValueError(f"stride non valido: {stride}")
         self.threshold = float(threshold)
-        # **Il lato della cella, in pixel gia' sottocampionati.** 0 = spento, e
-        # spento vuol dire esattamente il comportamento di sempre: la catena a
-        # una riga non cambia di un bit. Chi lo accende e' la modalita' che
-        # legge un'area grande, dove senza non si legge affatto.
-        #
-        # In pixel campionati e non in frazione dell'area, che e' tutto il punto:
-        # una frazione riporterebbe l'area al denominatore da un'altra porta. A
-        # `stride` 4 una cella da 32 sono 128 px veri, cioe' un pezzo di schermo
-        # alto come tre righe di sottotitolo — abbastanza grande da contenere una
-        # scritta intera e abbastanza piccolo da non diluirla.
-        self.cella = max(0, int(cella))
-        self.cell_threshold = float(cell_threshold)
         self.stride = int(stride)
         self.ink_min_luma = int(ink_min_luma)
         self.contrast_min = float(contrast_min)
@@ -221,46 +201,13 @@ class RoiDiff:
 
     @property
     def soglia(self) -> float:
-        """Contro cosa si confronta `ratio`, che dipende da come lo si misura.
-
-        Due misure diverse, due soglie diverse. Tenerne una sola vorrebbe dire
-        applicare a una distribuzione un numero misurato su un'altra, che in
-        questo progetto e' gia' successo quattro volte — e non da' mai errore,
-        da' un cancello che non si apre o che non si chiude piu'.
-        """
-        return self.cell_threshold if self.cella else self.threshold
+        """Contro cosa si confronta `ratio`."""
+        return self.threshold
 
     def _variazione(self, delta: np.ndarray) -> float:
-        """Quanto e' cambiato: la media dell'area, o la **cella peggiore**.
-
-        Il massimo fra le celle e non la media fra le celle: la domanda e' «e'
-        cambiato qualcosa **da qualche parte**», e una media rimetterebbe l'area
-        al denominatore dopo averla appena tolta.
-
-        Le celle di bordo hanno meno pixel dei loro: si divide per quanti ne
-        hanno davvero, se no una striscia di due pixel darebbe frazioni enormi
-        per un pixel di rumore. E se ne ha troppo pochi non si guarda affatto —
-        una guardia sul denominatore, non sul numeratore, perche' e' il
-        denominatore piccolo a inventare i numeri grandi.
-        """
+        """Quanto e' cambiato: la frazione di pixel campionati che si sono mossi."""
         cambiato = delta > 16.0
-        if self.cella <= 0:
-            return float(cambiato.mean()) if cambiato.size else 0.0
-        c = self.cella
-        h, w = cambiato.shape
-        if h < 2 or w < 2:
-            return float(cambiato.mean()) if cambiato.size else 0.0
-        ph, pw = (-h) % c, (-w) % c
-        pieno = np.pad(cambiato, ((0, ph), (0, pw)))
-        valido = np.pad(np.ones((h, w), bool), ((0, ph), (0, pw)))
-        forma = (pieno.shape[0] // c, c, pieno.shape[1] // c, c)
-        acceso = pieno.reshape(forma).sum(axis=(1, 3)).astype(np.float32)
-        quanti = valido.reshape(forma).sum(axis=(1, 3)).astype(np.float32)
-        # Meno di un quarto di cella non e' una cella: e' un ritaglio del bordo.
-        buone = quanti >= 0.25 * c * c
-        if not buone.any():
-            return float(cambiato.mean())
-        return float((acceso[buone] / quanti[buone]).max())
+        return float(cambiato.mean()) if cambiato.size else 0.0
 
     def _ink(self, sample: np.ndarray) -> float:
         """Pixel di testo per colonna della ROI sottocampionata.

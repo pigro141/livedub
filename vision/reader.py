@@ -57,8 +57,6 @@ class SubtitleReader(Stage):
         clock: Clock | None = None,
         tap: Callable[[float, list, bool], None] | None = None,
         roi: tuple | None = None,
-        molte: bool = False,
-        marca=None,
         **kw,
     ) -> None:
         super().__init__("vision.read", metrics=metrics, clock=clock, **kw)
@@ -79,25 +77,6 @@ class SubtitleReader(Stage):
         self._roi = tuple(roi) if roi is not None else None
         self.ocr = ocr if ocr is not None else NullOcr()
         self.tap = tap
-        # **Questo lettore guarda un'area grande con dentro piu' scritte?**
-        # Cambia due cose e nient'altro: come si apre il cancello del diff e come
-        # si trovano le righe. Tutto il resto — colore, ritaglio, soglie, OCR,
-        # tracker — resta identico, perche' e' gia' misurato e non c'e' nessun
-        # motivo per cui una scritta in mezzo allo schermo debba essere
-        # classificata diversamente da una in fondo.
-        self.molte = bool(molte)
-        # Da quale area vengono le battute che escono di qui, e cosa farne. Viene
-        # timbrata sull'evento: si veda `SubtitleEvent.marca`.
-        self.marca = marca
-        # **Il cancello a celle si accende con la modalita', e lo dice il
-        # commento di `diff_cella`.** Con un'area grande la frazione di pixel
-        # cambiati sull'area intera non supera mai `diff_threshold` — misurato, a
-        # schermo intero zero letture — quindi il valore 0 qui vorrebbe dire una
-        # modalita' che non legge niente. Si prende quello dichiarato se c'e', se
-        # no il default della modalita'.
-        cella = int(getattr(cfg, "diff_cella", 0) or 0)
-        if self.molte and cella <= 0:
-            cella = 32
         self.diff = RoiDiff(
             threshold=cfg.diff_threshold,
             stride=cfg.diff_stride,
@@ -106,8 +85,6 @@ class SubtitleReader(Stage):
             contrast_kernel=cfg.contrast_kernel,
             ink_min_columns=cfg.ink_min_columns,
             vanish_frames=cfg.vanish_frames,
-            cella=cella if self.molte else 0,
-            cell_threshold=float(getattr(cfg, "diff_cella_soglia", 0.06)),
         )
         self.tracker = SubtitleTracker(cfg)
         self._recheck = 0
@@ -160,9 +137,6 @@ class SubtitleReader(Stage):
         # erano piu' del tetto. Il secondo numero e' l'unico modo perche' «quel
         # cartello non l'ha tradotto» non si confonda con «quel cartello non l'ha
         # nemmeno visto»: sono due difetti in due posti diversi.
-        self._n_blocchi = m.counter("vision.blocchi")
-        self._n_scartati = m.counter("vision.blocchi.scartati")
-        self._t_blocchi = m.timer("vision.blocchi.trova")
 
     @property
     def roi(self) -> tuple:
@@ -223,35 +197,14 @@ class SubtitleReader(Stage):
         # La sparizione non passa di qui — il diff la vede e la porta con
         # `certain`, prima di questo cancello — quindi non ritarda nessuna
         # chiusura.
-        if self.molte:
-            # **Per l'area grande il tetto e' duro, e la differenza e' il
-            # motivo per cui quello sotto e' morbido.** `max_ocr_hz` si toglie di
-            # mezzo mentre una candidata aspetta la conferma, perche' li' la
-            # lettura sta sul percorso della latenza di una battuta che dovra'
-            # essere **detta**. Qui non si dice niente: non c'e' nessuna latenza
-            # da proteggere, e con N riquadri qualcosa in attesa c'e' quasi
-            # sempre — cioe' un tetto morbido non scatterebbe mai, proprio nella
-            # modalita' che costa dieci volte tanto.
-            #
-            # Misurato: 95,7 ms al p50 per fotogramma intero con l'OCR vero,
-            # dentro `on_frame`. Si veda `VisionConfig.schermo_hz`.
-            hz = float(getattr(self.cfg, "schermo_hz", 2.0) or 0.0)
-            if hz > 0.0 and (now - self._ultima_lettura) < (1.0 / hz):
-                self._n_gated.inc()
-                return TrackerOutput()
-            # Si consuma il turno **adesso** e non dopo l'OCR: qui il caro non e'
-            # solo il riconoscimento — trovare i blocchi e classificare costano
-            # 30 ms da soli, e uno schermo senza scritte li paga tutti.
-            self._ultima_lettura = now
-        else:
-            limite = float(getattr(self.cfg, "max_ocr_hz", 0.0) or 0.0)
-            if (
-                limite > 0.0
-                and not self.tracker.in_attesa
-                and (now - self._ultima_lettura) < (1.0 / limite)
-            ):
-                self._n_gated.inc()
-                return TrackerOutput()
+        limite = float(getattr(self.cfg, "max_ocr_hz", 0.0) or 0.0)
+        if (
+            limite > 0.0
+            and not self.tracker.in_attesa
+            and (now - self._ultima_lettura) < (1.0 / limite)
+        ):
+            self._n_gated.inc()
+            return TrackerOutput()
         self._recheck -= 1
 
         t0 = time.perf_counter()
@@ -338,66 +291,23 @@ class SubtitleReader(Stage):
         candidates = []
         for g in dict.fromkeys(i for i, _ in lines):
             candidates.extend(
-                merge_lines([ln for i, ln in lines if i == g], t_on=now, marca=self.marca)
+                merge_lines([ln for i, ln in lines if i == g], t_on=now)
             )
         if self.tap is not None:
             self.tap(now, candidates, False)
         return self._emit(self.tracker.feed(candidates, now))
 
     def _bande(self, roi: np.ndarray, frame: np.ndarray) -> list[tuple[int, object]]:
-        """Le righe di testo dell'area, con l'indice della scritta a cui stanno.
+        """Le righe di testo dell'area.
 
-        Con un'area normale e' `classify_lines` e basta, e l'indice e' sempre
-        zero: **la catena a una riga non cambia di un'istruzione**.
-
-        Con un'area `schermo` si aggiunge uno stadio **prima**: si trovano i
-        rettangoli dove c'e' del testo (`vision/blocchi.py`), e dentro ciascuno
-        si chiama `classify_lines` **com'e'**. La localizzazione e' nuova perche'
-        deve esserlo — il profilo per righe fonde due scritte affiancate — ma il
-        colore, la maschera, il ritaglio per l'OCR e la grammatica delle righe
-        restano quelli gia' misurati, e sarebbe un errore riscriverli: la
-        classificazione di una scritta in mezzo allo schermo non ha nessun motivo
-        di essere diversa da quella di una scritta in basso.
-
-        Le coordinate tornano **in pixel dell'area**, non del blocco: e' il
-        sistema in cui le vuole tutto quello che sta a valle — `OcrLine.bbox`,
-        `SpokenLine.boxes`, `inchiostro_da_box`. Tradurle qui, una volta, invece
-        che in tre punti piu' in la' dove il primo che se ne dimentica disegna
-        nel posto sbagliato **senza errore**.
+        L'indice che accompagna ogni riga vale sempre zero: c'e' **una** scritta,
+        quella del sottotitolo. Qui c'era anche uno stadio che trovava N
+        rettangoli di testo su un'area grande (`vision/blocchi.py`): e' stato
+        tolto con le aree multiple, e con lui la ragione per cui la coppia
+        esisteva. La tupla resta perche' e' la forma che tutto il resto del
+        lettore si aspetta, e cambiarla non aggiungerebbe niente.
         """
-        if not self.molte:
-            return [(0, b) for b in classify_lines(roi, self.cfg)]
-
-        from dataclasses import replace as _rep
-
-        from vision import blocchi as _blocchi
-
-        alto = int(frame.shape[0]) if frame is not None else int(roi.shape[0])
-        riga = max(6.0, float(getattr(self.cfg, "schermo_riga_frac",
-                                      _blocchi.RIGA_FRAC)) * alto)
-        t0 = time.perf_counter()
-        trovati, scartati = _blocchi.trova(
-            roi, self.cfg, riga,
-            massimo=int(getattr(self.cfg, "schermo_max_blocchi", _blocchi.MAX_BLOCCHI)),
-        )
-        self._t_blocchi.add((time.perf_counter() - t0) * 1000.0)
-        self._n_blocchi.inc(len(trovati))
-        self._n_scartati.inc(scartati)
-
-        fuori: list[tuple[int, object]] = []
-        for i, b in enumerate(trovati):
-            g = _blocchi.allarga(b, riga, roi.shape)
-            pezzo = roi[g.y0 : g.y1, g.x0 : g.x1]
-            if pezzo.size == 0:
-                continue
-            for band in classify_lines(pezzo, self.cfg):
-                fuori.append((
-                    i,
-                    _rep(band,
-                         top=band.top + g.y0, bottom=band.bottom + g.y0,
-                         x0=band.x0 + g.x0, x1=band.x1 + g.x0),
-                ))
-        return fuori
+        return [(0, b) for b in classify_lines(roi, self.cfg)]
 
     def close(self) -> TrackerOutput:
         """Chiude le battute ancora aperte. A fine sessione o fine replay."""

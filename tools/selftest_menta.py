@@ -482,10 +482,9 @@ def test_finestra_menta(c) -> None:
         # successo con `p_tecnologie`, che non esisteva piu' e diventava «niente
         # da fare» invece che un errore.
         nomi = [f.schede.tabText(i) for i in range(f.schede.count())]
-        c.eq(len(nomi), 6, f"sei schede: {nomi}")
+        c.eq(len(nomi), 5, f"cinque schede: {nomi}")
         c.eq(nomi[f.TUTTE], "Tutte le impostazioni", "TUTTE punta all'albero intero")
         c.eq(nomi[f.SESSIONE], "Sessione", "SESSIONE punta al log")
-        c.eq(nomi[f.AREE_], "Aree", "AREE_ punta alle zone da leggere")
         c.eq(nomi[f.PREPARAZIONE], "Preparazione", "PREPARAZIONE al primo passo")
         f._vai_a_cerca()
         c.eq(f.schede.currentIndex(), f.TUTTE, "Ctrl+F porta dove c'e' la ricerca")

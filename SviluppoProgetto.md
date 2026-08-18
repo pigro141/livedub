@@ -431,21 +431,19 @@ che si sono chiuse con un "no".)*
     → Barra e pannelli sono **tre griglie sopra un solo oggetto** e si riallineano nei due
     versi; ogni manopola **rilegge da config dopo aver scritto**, così quel che si vede è
     sempre quel che si usa (generalizzazione del difetto trovato digitando `9999`).
-  * \[x] selettore aree multiple di traduzioni solo testo e poi quella testo e audio, (attenzione se le aree si sovrappongono non lavorare due volte in quel punto)
-    → **fatto fino in fondo**: config, catena e finestra. `vision.aree` vuoto = un lettore
-    sulla ROI, cioè com'è sempre stato.
-    → I due modi ci sono e **vengono letti**: `testo_audio` legge e fa parlare, `testo`
-    legge, traduce e disegna ma non pronuncia. Verificato mutando la riga che legge il
-    modo — due verifiche rosse.
-    → **Le sovrapposizioni si sottraggono prima di leggere** (`vision/aree.py`): gli stessi
-    pixel letti due volte diventano due battute e due voci sovrapposte. Vince l'area
-    dichiarata prima, e l'elenco nella UI dice da solo quando ha tolto qualcosa.
-    → Le 46 verifiche non chiedono «funziona» ma le due invarianti — **niente si
-    sovrappone**, **niente si perde** — su 500 coppie e 200 gruppi a caso. La prova a caso
-    ha trovato subito una cosa vera: due pezzi confinanti risultano sovrapposti di 2,4e-20
-    di schermo, perché `ay + (cy - ay)` non è esattamente `cy`. La tolleranza è un
-    cinquecentesimo di pixel, e c'è una verifica che una sovrapposizione grande **un pixel
-    solo** venga ancora vista.
+  * \[~] selettore aree multiple di traduzioni solo testo e poi quella testo e audio
+    → **fatto, e poi tolto il 18 agosto 2026 su decisione dell'utente**: «infattibile».
+    Aveva tutto quello che era stato chiesto — i due modi, le sovrapposizioni sottratte
+    prima di leggere, 46 verifiche su due invarianti — e girava. Ma la promessa che lo
+    reggeva, **piu' scritte tradotte insieme sopra il gioco**, dal vivo non era
+    mantenibile: l'overlay disegna una scritta per volta, e portarlo a N voleva dire una
+    tela grande quanto l'area rinfrescata a ogni fotogramma.
+    → Ne restano due pezzi, e non per nostalgia: `vision.roi.troppo_grande` (un'area
+    troppo alta e' **muta**, non meno precisa — misurato) e `translate.misura_originale`,
+    il tradotto che tiene la misura dell'originale stringendo il carattere invece del
+    riquadro, **spento di serie** perche' il prezzo lo giudica l'occhio.
+    → La lezione che resta scritta in `CLAUDE.md`: una cura che **copia** un oggetto
+    condiviso rompe tutto cio' che contava sul fatto che fosse condiviso.
   * \[x]  **PRIMA DI INIZIARE LA FASE SEGUENTE FAMMI FARE UNA PROVA e ti faccio un
     report dettagliato di cosa va e cosa no**
     → **Fatto il 7 agosto 2026.** Prova dal vivo, e il report è arrivato come **video

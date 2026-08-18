@@ -3062,19 +3062,7 @@ from tools.selftest_menta import (  # noqa: E402
     test_regole_finestra,
 )
 from tools.selftest_schema import test_limiti, test_livelli, test_schema  # noqa: E402
-from tools.selftest_schermo import (  # noqa: E402
-    test_blocchi,
-    test_cancello_celle,
-    test_marca,
-    test_schermo_catena,
-    test_stringi,
-)
 from tools.selftest_aree import (  # noqa: E402
-    test_aree,
-    test_area_sola,
-    test_area_troppo_grande,
-    test_aree_catena,
-    test_aree_muta,
     test_memoria,
     test_sessione,
     test_due_sessioni,
@@ -4165,24 +4153,6 @@ GROUPS = {
     "schema": test_schema,
     "livelli": test_livelli,
     "limiti": test_limiti,
-    "aree": test_aree,
-    "aree_catena": test_aree_catena,
-    # Le tre cose che un'area in piu' deve fare e non faceva: essere letta
-    # dove sta, essere tradotta e disegnata anche se muta, e dire quando e'
-    # troppo grande per funzionare.
-    "area_sola": test_area_sola,
-    "aree_muta": test_aree_muta,
-    "area_grande": test_area_troppo_grande,
-    # L'area grande che invece **funziona**: un'area sola con dentro N scritte,
-    # nessuna pronunciata. Le tre verifiche stanno sulle tre misure per cui
-    # `CLAUDE.md` diceva che era «un altro prodotto» — il cancello che si
-    # diluisce, le scritte affiancate che diventano una, il costo — piu' la
-    # marca, che e' il difetto trovato scrivendole.
-    "cancello_celle": test_cancello_celle,
-    "blocchi": test_blocchi,
-    "stringi_riquadro": test_stringi,
-    "marca": test_marca,
-    "schermo_catena": test_schermo_catena,
     "memoria": test_memoria,
     "sessione_mix": test_sessione,
     "due_sessioni": test_due_sessioni,

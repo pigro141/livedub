@@ -34,3 +34,34 @@ def crop(frame: np.ndarray, roi: tuple[float, float, float, float]) -> np.ndarra
     """Vista (non copia) della ROI dentro il frame."""
     x, y, w, h = roi_pixels(frame.shape, roi)
     return frame[y : y + h, x : x + w]
+
+
+# **Quanto puo' essere alta l'area che si legge.** La regola stava in
+# `vision/aree.py` insieme alle zone multiple; quelle sono state tolte, questa
+# no — descrive un difetto della ROI, non delle zone.
+ALTEZZA_MASSIMA = 0.30
+
+
+def troppo_grande(roi) -> str:
+    """Se l'area e' troppo alta per essere letta, dice perche'. Se no, `""`.
+
+    Un'area grande non e' «meno precisa»: e' **muta**. Il cancello che decide se
+    rileggere lo schermo guarda la *frazione* di pixel cambiati, e quella
+    frazione ha l'area al denominatore: lo stesso sottotitolo diluito in un'area
+    grande non la supera piu'. Misurato, a schermo intero: quattordici fotogrammi
+    guardati, quattordici fermati, zero chiamate all'OCR — a telecamera ferma.
+
+    E' una regola e sta fuori dalla finestra apposta: cosi' la si dice sia
+    mentre si tira il rettangolo col mouse sia all'avvio della catena, e si
+    verifica senza aprire niente.
+    """
+    h = float(roi[3])
+    if h <= ALTEZZA_MASSIMA:
+        return ""
+    return (
+        f"! l'area e' alta {h:.2f} dello schermo: sopra {ALTEZZA_MASSIMA:.2f} la "
+        f"catena legge poco o niente. Il cancello che decide se rileggere guarda "
+        f"la **frazione** di schermo cambiata, e lo stesso sottotitolo diluito in "
+        f"un'area grande non la supera piu' (misurato: a schermo intero, zero "
+        f"letture). Tira l'area stretta attorno alla riga."
+    )

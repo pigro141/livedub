@@ -101,7 +101,6 @@ FREDDI: tuple[str, ...] = (
     "audio.",
     "capture.",
     # i lettori si costruiscono uno per area all'avvio
-    "vision.aree",
     # il lessico si carica una volta
     "vision.use_lexicon",
     "vision.lexicon_dir",
@@ -432,7 +431,6 @@ MEDIO: tuple[str, ...] = BASE + (
     "vision.grey_min_luma",
     "vision.contrast_min",
     "vision.max_ocr_hz",
-    "vision.aree",
     "speaker.backend",
     "speaker.decide_after_ms",
     "speaker.similarity",

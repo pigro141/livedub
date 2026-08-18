@@ -153,33 +153,6 @@ class _Cast:
             print(f"cast: non salvato: {e!r}", file=sys.stderr)
 
 
-def parla(event) -> bool:
-    """Questa battuta va pronunciata, o solo letta e disegnata?
-
-    La risposta sta **sull'evento** (`SubtitleEvent.marca`) e non in una mappa
-    tenuta dalla pipeline. La differenza non e' di stile: un `SubtitleEvent` e'
-    congelato, quindi il testo che migliora, la revisione dell'OCR e l'etichetta
-    di chi parla ne creano ognuna uno **nuovo**, e una mappa indicizzata per
-    `id()` non lo ritrova piu'. Una battuta muta che migliorava tornava cosi' a
-    parlare — senza errore, senza contatore, con la suite verde.
-
-    Senza marca si parla: e' il caso di sempre, cioe' la ROI e basta.
-    """
-    marca = getattr(event, "marca", None)
-    return True if marca is None else bool(marca.parla)
-
-
-def area_di(event) -> tuple:
-    """Il rettangolo dell'area che ha letto questa battuta, o `()` per la ROI.
-
-    Serve a chi disegna: `SpokenLine.boxes` e' in coordinate dell'area, e
-    prendere sempre `cfg.vision.roi` metterebbe la traduzione di un cartello
-    dentro la fascia del dialogo — nel posto sbagliato e senza nessun errore.
-    """
-    marca = getattr(event, "marca", None)
-    return tuple(marca.roi) if marca is not None and marca.roi else ()
-
-
 def geometria_lette(event) -> tuple[tuple[tuple[int, int, int, int], ...],
                                     tuple[float, float, float]]:
     """I rettangoli e la tinta delle righe lette, dall'evento del sottotitolo.
@@ -298,95 +271,37 @@ class DubPipeline:
         self.metrics = metrics or MetricsRegistry()
         self._clock = clock
 
-        # **Un lettore per pezzo d'area, e i pezzi non si sovrappongono.**
-        # Con `vision.aree` vuoto ce n'e' uno solo sulla ROI, cioe' esattamente
-        # com'e' sempre stato: nessun profilo esistente cambia comportamento.
+        # **Un lettore solo, sulla ROI.**
         #
-        # Uno per pezzo e non uno solo con piu' ritagli, perche' ogni lettore
-        # porta con se' il **suo** diff e il **suo** tracker: due aree sono due
-        # flussi di sottotitoli indipendenti, e un tracker condiviso vedrebbe la
-        # comparsa di una riga in basso come la sparizione di quella in alto.
+        # Qui c'erano N lettori, uno per zona dichiarata in `vision.aree`, con
+        # sottrazione delle sovrapposizioni e tre modi (`testo_audio`, `testo`,
+        # `schermo`). Le zone sono state tolte per decisione dell'utente: la
+        # promessa che le reggeva — piu' scritte tradotte insieme sopra il gioco
+        # — dal vivo non era mantenibile, perche' l'overlay disegna **una**
+        # scritta per volta e portarlo a N voleva dire una tela grande quanto
+        # l'area rinfrescata a ogni fotogramma.
         #
-        # I pezzi arrivano gia' divisi da `vision.aree.dividi`: se due aree si
-        # accavallano, la parte in comune sta in un pezzo solo. Leggerla due
-        # volte vorrebbe dire la stessa battuta due volte e due voci
-        # sovrapposte — il difetto peggiore del prodotto.
-        from dataclasses import replace as _replace
-
-        from vision.aree import da_config, dividi
-
+        # Quello che resta e' la catena per cui questo programma e' stato
+        # costruito e su cui sono state fatte tutte le misure: una riga di
+        # sottotitolo alla volta, letta dove dice `vision.roi`.
         motore = ocr if ocr is not None else make_ocr(
             cfg.vision.ocr_backend, cfg.vision.ocr_device
         )
-        pezzi = dividi(da_config(cfg.vision))
         # **Un'area troppo alta non e' meno precisa: e' muta.** Si dice qui,
-        # all'avvio, perche' e' l'unico punto che le vede tutte e perche' il
-        # sintomo — non succede niente — non lascia altre tracce.
-        from vision.aree import troppo_grande
+        # all'avvio, perche' il sintomo — non succede niente — non lascia altre
+        # tracce.
+        from vision.roi import troppo_grande
 
-        for pezzo in pezzi:
-            guaio = troppo_grande(pezzo.roi, pezzo.modo)
-            if guaio and dillo is not None:
-                dillo(guaio)
-        self.lettori: list[tuple[SubtitleReader, str]] = []
-        for pezzo in pezzi:
-            # **Il rettangolo si passa a parte; la config resta quella viva.**
-            #
-            # Qui c'era `cfg.vision if len(pezzi) == 1 else _replace(cfg.vision,
-            # roi=pezzo.roi)`: un'ottimizzazione («con un pezzo solo non serve
-            # copiare la config») che con **una** area dichiarata buttava via il
-            # suo rettangolo e leggeva `vision.roi`. Il caso senza aree
-            # continuava a funzionare — li' `da_config` ripiega gia' sulla ROI,
-            # quindi i due rettangoli coincidono — e quello con due aree pure,
-            # perche' li' il ramo era l'altro. Restava rotto **solo** il caso di
-            # mezzo, che e' precisamente quello che si ottiene aggiungendo la
-            # prima zona dalla finestra. Il sintomo era muto: la catena leggeva
-            # diligentemente il posto sbagliato.
-            #
-            # **E la prima cura costava piu' del difetto.** Passava una copia
-            # (`_replace`) a *tutti* i lettori: trentuno campi di `vision` sono
-            # dichiarati caldi — `exclude_colored`, `sat_max`, `max_ocr_hz` — e
-            # si cambiano dal pannello a sessione accesa. Su una copia
-            # smettevano di fare effetto **continuando a mostrare il valore
-            # nuovo**, che e' esattamente il difetto contro cui quel pannello
-            # esiste. Il rettangolo e' l'unica cosa che cambia per lettore:
-            # quello va a parte, tutto il resto resta condiviso.
-            #
-            # **La marca viaggia sull'evento, non in una mappa tenuta qui.**
-            # C'erano `self._muti` e `self._area_di`, indicizzate per `id()`
-            # dell'evento: e un `SubtitleEvent` e' congelato, quindi ogni
-            # correzione — il testo che migliora mentre la battuta aspetta
-            # (`TrackerOutput.updated`), la revisione dell'OCR, l'etichetta di
-            # chi parla — ne costruisce uno **nuovo**, con un `id()` che in
-            # quelle mappe non c'e'. Una battuta muta che migliorava tornava
-            # quindi a parlare, e gli `id()` dei morti venivano riusati dai vivi.
-            # Nessuna delle due cose dava errore.
-            from vision.aree import Marca
-
-            self.lettori.append((
-                SubtitleReader(
-                    cfg.vision,
-                    motore,
-                    roi=pezzo.roi,
-                    metrics=self.metrics,
-                    clock=clock,
-                    molte=(pezzo.modo == "schermo"),
-                    marca=Marca(roi=tuple(pezzo.roi), modo=pezzo.modo),
-                    on_error="bypass",  # in gioco una battuta persa e' meglio di una sessione persa
-                ),
-                pezzo.modo,
-            ))
-        # `self.reader` resta il nome del primo lettore -- e' il caso di gran
-        # lunga piu' comune, ed e' quello che tutto il resto del progetto nomina
-        # e che le verifiche **sostituiscono** con un lettore finto. Quindi non
-        # e' una copia ma una vista sull'elenco: assegnarlo deve cambiare chi
-        # legge davvero, se no un lettore finto verrebbe messo da una parte e
-        # ignorato dall'altra, e la verifica proverebbe la catena vera credendo
-        # di provarne una finta.
-        # Quali battute non si pronunciano (`modo="testo"` e `modo="schermo"`) e
-        # da quale area vengono lo dice adesso `SubtitleEvent.marca`, timbrata dal
-        # lettore. Qui non c'e' piu' niente da tenere: si veda il commento sopra,
-        # dove le due mappe indicizzate per `id()` sono state tolte.
+        guaio = troppo_grande(cfg.vision.roi)
+        if guaio and dillo is not None:
+            dillo(guaio)
+        self.reader = SubtitleReader(
+            cfg.vision,
+            motore,
+            metrics=self.metrics,
+            clock=clock,
+            on_error="bypass",  # in gioco una battuta persa e' meglio di una sessione persa
+        )
         # Il pool segue il backend: senza, una sessione SuperTonic riceverebbe
         # in dote le voci di Piper e non saprebbe pronunciarle.
         # **La lingua del pool e' quella che si parlera'**: se si traduce, quella
@@ -671,7 +586,7 @@ class DubPipeline:
 
     def on_frame(self, frame: np.ndarray | None) -> list[SpokenLine]:
         """Un frame in ingresso. Restituisce le battute doppiate in questa passata."""
-        out = self._leggi_tutte(frame)
+        out = self.reader.run(frame)
         self._chiudi(out.closed)
         # Chi e' a schermo, e chi non c'e' piu'. `updated` non tocca `t_on`,
         # quindi un testo che migliora non fa sparire e ricomparire niente.
@@ -735,8 +650,7 @@ class DubPipeline:
         # nome scritto a schermo salta l'attesa. A far sedimentare il testo ci
         # pensa `stable_reads` nel tracker, che e' il posto in cui una battuta
         # viene confermata.
-        mute = [ev for ev in out.opened if ev.text.strip() and not parla(ev)]
-        self._da_dire.extend(ev for ev in out.opened if ev.text.strip() and parla(ev))
+        self._da_dire.extend(ev for ev in out.opened if ev.text.strip())
         if self.tracker is None:
             pronte, self._da_dire = self._da_dire, []
         else:
@@ -791,74 +705,11 @@ class DubPipeline:
         # La verifica che c'era provava solo la meta' negativa («non viene
         # pronunciata»), quindi restava verde su un comportamento dichiarato e
         # mai scritto — il settimo campo di questa forma in questo progetto.
-        for ev in mute:
-            if self._gia_detta(ev):
-                continue
-            riga = self._mostra(ev)
-            if riga is not None:
-                fuori.append(riga)
         for ev in pronte:
             if self._gia_detta(ev):
                 continue
             fuori.append(self._speak(ev))
         return fuori
-
-    def _mostra(self, event: SubtitleEvent) -> "SpokenLine | None":
-        """Una battuta che si legge e si disegna, ma non si dice.
-
-        E' `_speak` senza la meta' che costa: niente voce dal pool, niente
-        sintesi, niente prenotazione sul mixer. Restano le tre cose che servono a
-        chi disegna — il testo **tradotto**, l'originale (che e' cio' che va
-        coperto) e la geometria delle righe che l'OCR ha letto.
-
-        Torna `None` se non c'e' niente da mostrare: senza traduzione si
-        coprirebbe il sottotitolo del gioco con se' stesso, che e' lavoro per
-        niente e un fotogramma peggiore di quello di partenza.
-        """
-        roi_area = area_di(event)
-        if self.revisore is not None:
-            r = self.revisore.rivedi(event.text)
-            if r.cambiato:
-                self._n_corrette.inc(len(r.cambi))
-                event = replace(event, text=r.testo)
-        etichetta = self._etichetta(event)
-        if etichetta is not None and etichetta.testo != event.text:
-            event = replace(event, text=etichetta.testo)
-        originale = event.text
-        if self.traduci is not None:
-            t = self.traduci(event.text)
-            if t.tradotto:
-                event = replace(event, text=t.testo)
-        if event.text == originale:
-            return None
-        boxes_lette, tinta_letta = geometria_lette(event)
-        riga = SpokenLine(
-            text=event.text,
-            speaker_id="",
-            voice_id="",
-            cls=event.cls.value,
-            t_subtitle=event.t_on,
-            # Non c'e' niente da programmare: la battuta e' gia' pronta adesso.
-            t_scheduled=self.clock.now(),
-            synth_ms=0.0,
-            duration=0.0,
-            text_original=originale,
-            boxes=boxes_lette,
-            ink=tinta_letta,
-            roi=roi_area,
-            muta=True,
-            stringi=getattr(getattr(event, "marca", None), "modo", "") == "schermo",
-        )
-        self._ricorda(riga)
-        return riga
-
-    @property
-    def reader(self) -> SubtitleReader:
-        return self.lettori[0][0]
-
-    @reader.setter
-    def reader(self, lettore: SubtitleReader) -> None:
-        self.lettori[0] = (lettore, self.lettori[0][1])
 
     def _ricorda(self, line: SpokenLine) -> None:
         """Mette la battuta fra quelle dette, rispettando il tetto."""
@@ -875,28 +726,12 @@ class DubPipeline:
         if self.max_spoken and len(self.closed) > self.max_spoken:
             del self.closed[: len(self.closed) - self.max_spoken]
 
-    def _leggi_tutte(self, frame) -> TrackerOutput:
-        """Fa passare il frame da tutti i lettori e ne unisce le uscite.
-
-        Con un'area sola non c'e' niente da unire e si torna la sua uscita
-        com'e': il caso comune non paga il caso raro.
-        """
-        if len(self.lettori) == 1:
-            return self.lettori[0][0].run(frame)
-        aperte, chiuse, aggiornate = [], [], []
-        for lettore, _modo in self.lettori:
-            parziale = lettore.run(frame)
-            aperte.extend(parziale.opened)
-            chiuse.extend(parziale.closed)
-            aggiornate.extend(parziale.updated)
-        return TrackerOutput(opened=aperte, closed=chiuse, updated=aggiornate)
-
     def _speak(self, event: SubtitleEvent) -> SpokenLine:
         """Da battuta letta a audio programmato."""
         # Vale anche qui e non solo per le battute mute: una seconda area
         # `testo_audio` viene detta *e* disegnata, e il riquadro deve stare dove
         # stava la sua riga.
-        roi_area = area_di(event)
+        roi_area = ()
         decisione = self._speaker_for(event)
         # **Il nome non si pronuncia.** Leggere ad alta voce «Franklin due punti
         # come va bello» sarebbe peggio che non avere l'etichetta: si toglie il
@@ -1187,6 +1022,7 @@ class DubPipeline:
 
         boxes_lette, tinta_letta = geometria_lette(event)
         line = SpokenLine(
+            stringi=bool(self.cfg.translate.misura_originale),
             text=event.text,
             speaker_id=speaker_id,
             voice_id=voice.voice_id,
@@ -1347,6 +1183,7 @@ class DubPipeline:
 
         boxes_lette, tinta_letta = geometria_lette(event)
         line = SpokenLine(
+            stringi=bool(self.cfg.translate.misura_originale),
             text=event.text,
             speaker_id=decisione.speaker_id,
             voice_id=voice.voice_id,
@@ -1997,8 +1834,7 @@ class DubPipeline:
 
     def finish(self) -> None:
         """Chiude le battute ancora a schermo: senza, l'ultima resta senza durata."""
-        for lettore, _ in self.lettori:
-            self._chiudi(lettore.close().closed)
+        self._chiudi(self.reader.close().closed)
         # Le battute ancora in attesa vanno dette comunque: la promessa e' che
         # non si scarta niente, e una battuta trattenuta per scegliere meglio la
         # voce sarebbe il modo piu' assurdo di perderla.

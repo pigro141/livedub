@@ -55,7 +55,6 @@ from core.metrics import MetricsRegistry
 from core.pipeline import DubPipeline
 from tools.session import Session
 from ui.overlay import inchiostro, inchiostro_da_box, ritaglia
-from vision.aree import da_leggere
 
 # **La frequenza dell'anello audio non e' una scelta di questo file.** 48 kHz e'
 # quello che chiedono cattura e uscita: cambiarlo qui vorrebbe dire ricampionare
@@ -572,7 +571,7 @@ class Motore:
 
     def _apri_cattura(self):
         hwnd = self.finestra.hwnd if self.finestra is not None else None
-        rois = da_leggere(self.cfg) if self.cfg.capture.solo_roi else ()
+        rois = (tuple(self.cfg.vision.roi),) if self.cfg.capture.solo_roi else ()
         return rois, apri_cattura(
             self.opz.backend, monitor=self.opz.monitor, hwnd=hwnd,
             rois=rois, margine=self.cfg.capture.roi_margin,
@@ -608,7 +607,7 @@ class Motore:
             # cattura ridotta darebbe il difetto peggiore possibile: si legge il
             # **nero** fuori dalla vecchia fascia, e a schermo non succede piu'
             # niente.
-            if rois_aperte and da_leggere(self.cfg) != rois_aperte:
+            if rois_aperte and (tuple(self.cfg.vision.roi),) != rois_aperte:
                 schermo.close()
                 rois_aperte, schermo = self._apri_cattura()
                 self.manda("nota", "area cambiata: rifaccio la cattura")
@@ -629,7 +628,7 @@ class Motore:
                 if (n == 0 and vuoti > 2 * self.cfg.capture.fps
                         and schermo.name.startswith("dxcam")):
                     schermo.close()
-                    rois_aperte = da_leggere(self.cfg) if self.cfg.capture.solo_roi else ()
+                    rois_aperte = (tuple(self.cfg.vision.roi),) if self.cfg.capture.solo_roi else ()
                     schermo = apri_cattura(
                         "mss", monitor=self.opz.monitor,
                         rois=rois_aperte, margine=self.cfg.capture.roi_margin,

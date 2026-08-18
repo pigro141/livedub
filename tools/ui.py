@@ -386,7 +386,6 @@ class App:
         )
         self.p_tecnologie.pack(fill="both", expand=True)
 
-        self._scheda_aree()
 
         avanzate = ttk.Frame(self.schede)
         self.schede.add(avanzate, text="Impostazioni avanzate")
@@ -477,103 +476,6 @@ class App:
             if pannello is not None:
                 pannello.aggiorna()
 
-    def _scheda_aree(self) -> None:
-        """Piu' aree di lettura, con il loro modo.
-
-        **Il modo non e' un dettaglio**: `testo+audio` legge e fa parlare,
-        `solo testo` legge, traduce e disegna ma non pronuncia. Pronunciare un
-        cartello di missione e' esattamente il difetto che l'11% delle battute
-        di GTA V aveva.
-        """
-        import tkinter as tk
-        from tkinter import ttk
-
-        pagina = ttk.Frame(self.schede)
-        self.schede.add(pagina, text="Aree")
-        ttk.Label(
-            pagina,
-            text="Piu' zone da leggere sullo stesso schermo. Se due si accavallano, la parte "
-                 "in comune viene letta una volta sola e resta a quella piu' in alto "
-                 "nell'elenco: leggerla due volte vorrebbe dire due voci sovrapposte. "
-                 "Le aree si applicano al prossimo Avvia.",
-            style="Tenue.TLabel", wraplength=980, justify="left",
-        ).pack(fill="x", padx=12, pady=12)
-
-        corpo = ttk.Frame(pagina)
-        corpo.pack(fill="both", expand=True, padx=12, pady=(0, 12))
-        self.elenco_aree = tk.Listbox(
-            corpo, font=self.tema.MONO, height=12, bg=self.tema.PANNELLO,
-            fg=self.tema.TESTO, selectbackground=self.tema.ACCENTO,
-            selectforeground="#0d1117", relief="flat", borderwidth=0,
-            highlightthickness=0, activestyle="none",
-        )
-        self.elenco_aree.pack(side="left", fill="both", expand=True)
-        bottoni = ttk.Frame(corpo)
-        bottoni.pack(side="left", fill="y", padx=8)
-        ttk.Button(bottoni, text="Aggiungi (testo + audio)", width=24,
-                   command=lambda: self._aggiungi_area("testo_audio")).pack(pady=2)
-        ttk.Button(bottoni, text="Aggiungi (solo testo)", width=24,
-                   command=lambda: self._aggiungi_area("testo")).pack(pady=2)
-        ttk.Button(bottoni, text="Togli la selezionata", width=24,
-                   command=self._togli_area).pack(pady=2)
-        ttk.Button(bottoni, text="Svuota (torna alla ROI)", width=24,
-                   command=lambda: self._scrivi_aree([])).pack(pady=(12, 2))
-        self._mostra_aree()
-
-    def _mostra_aree(self) -> None:
-        from vision.aree import dividi, leggi
-
-        self.elenco_aree.delete(0, "end")
-        aree = leggi(self.cfg.vision.aree)
-        if not aree:
-            self.elenco_aree.insert(
-                "end", "(nessuna: si legge la ROI qui sopra, com'e' sempre stato)"
-            )
-            return
-        pezzi = dividi(aree)
-        for i, a in enumerate(aree):
-            suoi = [p for p in pezzi if p.area == i]
-            intera = len(suoi) == 1 and suoi[0].roi == a.roi
-            nota = "" if intera else f"   -> {len(suoi)} pezzi, tolte le sovrapposizioni"
-            x, y, w, h = a.roi
-            modo = "testo + audio" if a.parla else "solo testo"
-            self.elenco_aree.insert(
-                "end", f"{i + 1}.  x{x:.3f} y{y:.3f} w{w:.3f} h{h:.3f}   {modo}{nota}"
-            )
-
-    def _aggiungi_area(self, modo: str) -> None:
-        self._modo_nuova_area = modo
-        SelettoreArea(self.root, self._area_tirata)
-
-    def _area_tirata(self, roi) -> None:
-        from vision.aree import Area, leggi, scrivi
-
-        aree = leggi(self.cfg.vision.aree)
-        aree.append(Area(roi=tuple(roi), modo=getattr(self, "_modo_nuova_area", "testo_audio")))
-        self._scrivi_aree(aree)
-
-    def _togli_area(self) -> None:
-        from vision.aree import leggi
-
-        scelte = self.elenco_aree.curselection()
-        aree = leggi(self.cfg.vision.aree)
-        if not scelte or not aree:
-            return
-        del aree[scelte[0]]
-        self._scrivi_aree(aree)
-
-    def _scrivi_aree(self, aree) -> None:
-        from vision.aree import scrivi
-
-        self.cfg.vision.aree = scrivi(aree)
-        self._mostra_aree()
-        self._riallinea_pannelli()
-        quante = len(aree)
-        self.scrivi(
-            f"aree: {quante} dichiarate — si applicano al prossimo Avvia"
-            if quante else "aree: nessuna, si torna a leggere la ROI"
-        )
-
     def _campo_cambiato(self, campo, valore) -> None:
         """Un parametro toccato dal pannello: si scrive a log e si riallinea.
 
@@ -593,8 +495,6 @@ class App:
             self.v_sat.set(int(valore))
         elif campo.percorso == "vision.roi":
             self.l_roi.configure(text=self._testo_roi())
-        elif campo.percorso == "vision.aree":
-            self._mostra_aree()
         if campo.caldo:
             self.scrivi(f"{campo.percorso} = {valore}")
         else:

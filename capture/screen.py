@@ -297,7 +297,7 @@ def dimensione_monitor(monitor: int = 1) -> tuple[int, int]:
 def regione_da_roi(rois, dimensione, margine: float = 0.08) -> tuple[int, int, int, int]:
     """Il rettangolo da catturare per leggere quelle aree, in pixel del monitor.
 
-    Prende **l'unione** delle aree e non la prima: con `vision.aree` dichiarate
+    Prende **l'unione** dei rettangoli e non il primo: chi chiama ne passa
     se ne legge piu' d'una, e catturare solo la prima farebbe sparire le altre
     senza che niente lo dica — sarebbero semplicemente nere.
     """

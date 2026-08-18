@@ -55,7 +55,6 @@ from core.clock import RealClock, set_clock  # noqa: E402
 from core.config import Config, load_profile  # noqa: E402
 from core.pipeline import DubPipeline  # noqa: E402
 from speak.base import ToneTts  # noqa: E402
-from vision.aree import da_leggere  # noqa: E402
 from tools.session import Session  # noqa: E402
 
 
@@ -190,7 +189,7 @@ def main(argv: list[str] | None = None) -> int:
         """Tutto cio' che e' lento sta qui: cattura, OCR, sintesi."""
         schermo = apri_cattura(
             args.backend, monitor=args.monitor,
-            rois=da_leggere(cfg) if cfg.capture.solo_roi else (),
+            rois=(tuple(cfg.vision.roi),) if cfg.capture.solo_roi else (),
             margine=cfg.capture.roi_margin,
             dillo=print,
         )

@@ -161,15 +161,12 @@ Il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo.
 
 ## La finestra
 
-Quattro schede, e la barra in alto è quella che si tocca durante una partita.
+Le schede, e la barra in alto è quella che si tocca durante una partita.
 
 - **Sessione** — chi parla, in tempo reale, un colore per personaggio. La domanda
   che ti fai guardandola non è «cosa ha detto» ma «è sempre lo stesso a parlare?»,
   e a quella l'occhio risponde da un colore molto prima che da una sigla.
 - **Tecnologie** — quale motore per ogni stadio: voce, OCR, traduttore, impronta.
-- **Aree** — più zone da leggere sullo stesso schermo, ognuna con il suo modo:
-  *testo + audio* (si legge e si fa parlare) o *solo testo* (si legge e si
-  traduce, ma non si pronuncia — per i cartelli di missione).
 - **Impostazioni avanzate** — tutti e 166 i parametri, ognuno con un `?` che
   spiega **cosa fa, quanto è stato misurato e cosa si rischia a cambiarlo**.
 
@@ -200,16 +197,17 @@ Su un gioco vero non l'ha mai provato nessuno.
 **Non è previsto**: sottotitoli dentro fumetti che seguono il personaggio, o
 posizioni che cambiano da una battuta all'altra.
 
-**E non traduce tutto lo schermo.** Si possono dichiarare più aree — anche
-«mute», lette e tradotte ma non pronunciate, per i cartelli di missione — ma
-ognuna va tirata **stretta attorno al testo**. Il motivo è misurato: il
+**E non traduce tutto lo schermo: legge una riga di sottotitolo alla volta**,
+nell'area che gli tiri attorno. È una scelta, non una mancanza — tutta la catena
+è costruita su quella forma, dalla latenza sotto controllo al riquadro che copre
+l'originale.
+
+L'area va tirata **stretta attorno al testo**, e il motivo è misurato: il
 controllo che decide se vale la pena rileggere lo schermo guarda la *frazione*
 di pixel cambiati, e lo stesso sottotitolo diluito in un'area grande non la
-supera più. A schermo intero, misurato: 14 fotogrammi guardati, 14 saltati,
-**zero letture**. Sopra 0,30 di altezza il programma lo dice mentre tiri il
-rettangolo. Un traduttore di tutto lo schermo è un altro prodotto: vorrebbe OCR
-multi-riga sul fotogramma intero, contro una catena costruita per **una** riga
-alla volta con la latenza sotto controllo.
+supera più. A schermo intero, a telecamera ferma: 14 fotogrammi guardati, 14
+saltati, **zero letture**. Sopra 0,30 di altezza il programma lo dice mentre
+tiri il rettangolo.
 
 ### E GTA VI
 

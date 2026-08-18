@@ -100,7 +100,6 @@ from ui import tutorial  # noqa: E402  # >>> tutorial (ui/tutorial.py)
 from ui.qt_audio import Audio  # noqa: E402
 from ui.qt_controlli import BarraCarico, Elidibile, Rettangolo, Velo  # noqa: E402
 from ui.qt_pannello import Pannello  # noqa: E402
-from vision.aree import Area, dividi, leggi, scrivi  # noqa: E402
 
 # **Le schede, come elenchi di percorsi.** Ognuna risponde a una domanda sola, e
 # contiene quello che serve a rispondere a quella — non quello che sta nella
@@ -148,16 +147,11 @@ LETTURA = (
     "ui.lingua",
     "vision.ocr_backend", "vision.ocr_device", "vision.exclude_colored",
     "vision.sat_max", "vision.max_ocr_hz", "capture.fps",
+    # Erano nella scheda «Aree», che non c'e' piu': sono i tre parametri
+    # dell'area che si legge, e adesso l'area e' una sola.
+    "capture.solo_roi", "capture.roi_margin", "vision.line_pad",
 )
 
-# Le zone da leggere: la scheda che il disegno chiede (§11.4) e che prima era un
-# riquadro schiacciato in fondo al secondo passo della preparazione.
-# `vision.aree` **non** sta in questo elenco, ed e' il punto: il suo controllo e'
-# l'elenco qui sopra piu' i quattro bottoni. Metterlo anche come riga di
-# parametro darebbe un campo di testo per un valore che nessuno puo' digitare —
-# la stessa forma delle quattro frazioni della ROI in una casella, che e' il
-# difetto per cui `ui/qt_controlli.py` esiste.
-AREE = ("capture.solo_roi", "capture.roi_margin", "vision.line_pad")
 
 
 def campi_di(cfg) -> list[str]:
@@ -942,7 +936,7 @@ class Finestra(QMainWindow):
     # I nomi delle schede, in ordine. Servono a raggiungerne una per nome invece
     # che per numero: `setCurrentIndex(3)` scritto a mano si scolla alla prima
     # scheda aggiunta in mezzo, **in silenzio**, e porta l'utente altrove.
-    PREPARAZIONE, SESSIONE, VOCE_, TRADUZIONE_, AREE_, TUTTE = range(6)
+    PREPARAZIONE, SESSIONE, VOCE_, TRADUZIONE_, TUTTE = range(5)
 
     def __init__(self, cfg, args) -> None:
         super().__init__()
@@ -1027,7 +1021,6 @@ class Finestra(QMainWindow):
                          "e' il caso normale.",
         )
         self.schede.addTab(self._scheda_traduzione(), "Traduzione")
-        self.schede.addTab(self._scheda_aree(), "Aree")
         self.p_avanzate = Pannello(
             cfg, al_cambio=self._campo_cambiato, su_disegna=self.scegli_area)
         self.schede.addTab(self._in_margine(self.p_avanzate), "Tutte le impostazioni")
@@ -1057,7 +1050,6 @@ class Finestra(QMainWindow):
         # di difetto che questa finestra ha gia' pagato quattro volte.
         self.vesti_lingua()
         registro.apri()
-        self._mostra_aree()
         self.aggiorna_pronto()
         self.scrivi(scheda())
         self.scrivi("")
@@ -1160,7 +1152,6 @@ class Finestra(QMainWindow):
             except Exception:
                 pass
         self._riallinea()
-        self._mostra_aree()
         self.scrivi(f"configurazione caricata da {percorso}")
 
     def copia_diagnostica(self) -> None:
@@ -1681,11 +1672,6 @@ class Finestra(QMainWindow):
         self.c_roi.imposta(self.cfg.vision.roi)
         self.c_roi.disegna.connect(self.scegli_area)
         blocco.addWidget(self.c_roi)
-        piu = QLabel("Altre zone da leggere — cartelli, nomi, sottotitoli in alto — "
-                     "stanno nella scheda «Aree».")
-        piu.setObjectName("tenue")
-        piu.setWordWrap(True)
-        blocco.addWidget(piu)
         L.addWidget(self._passo(
             "2", "Dove sono i sottotitoli",
             "Tira un rettangolo stretto attorno alla riga: attorno all'area il "
@@ -1713,77 +1699,6 @@ class Finestra(QMainWindow):
 
         L.addStretch(1)
         fuori.setWidget(self._colonna(dentro))
-        return fuori
-
-    # -- la scheda delle aree -----------------------------------------------
-
-    def _scheda_aree(self) -> QWidget:
-        """Le zone da leggere: elenco a sinistra, i quattro comandi in colonna a destra.
-
-        Stavano schiacciate in fondo al secondo passo della preparazione, in un
-        riquadro alto 96 px che si nascondeva da solo quando era vuoto. Le aree
-        in piu' servono a pochi giochi, ma a quei giochi servono tutte — e un
-        elenco che si puo' leggere e' la differenza fra sapere quante zone sono
-        dichiarate e crederlo.
-        """
-        fuori = QWidget()
-        fuori.setObjectName("scheda")
-        F = QVBoxLayout(fuori)
-        F.setContentsMargins(tema.S5, tema.S3, tema.S5, tema.S3)
-        F.setSpacing(tema.S3)
-
-        nota = QLabel(
-            "Di serie si legge solo l'area della preparazione. Qui se ne aggiungono "
-            "altre: una zona «che parla» viene letta e pronunciata, una «muta» viene "
-            "letta e tradotta ma non detta — per i cartelli di missione. Se due si "
-            "accavallano, la parte in comune viene letta una volta sola.")
-        nota.setObjectName("tenue")
-        nota.setWordWrap(True)
-        F.addWidget(nota)
-
-        corpo = QHBoxLayout()
-        corpo.setSpacing(tema.S4)
-        self.elenco_aree = QListWidget()
-        self.elenco_aree.setAccessibleName("aree di lettura dichiarate")
-        corpo.addWidget(self.elenco_aree, 1)
-
-        comandi = QVBoxLayout()
-        comandi.setSpacing(tema.S2)
-        for testo, suggerimento, cosa in (
-            ("Aggiungi una zona che parla",
-             "Un'altra zona da leggere e pronunciare",
-             lambda: self._aggiungi_area("testo_audio")),
-            ("Aggiungi una zona muta",
-             "La legge e la traduce ma non la pronuncia: per i cartelli di missione",
-             lambda: self._aggiungi_area("testo")),
-            ("Togli", "Toglie la zona scelta nell'elenco", self._togli_area),
-            ("Svuota", "Torna a leggere la sola area della preparazione",
-             lambda: self._scrivi_aree([])),
-        ):
-            b = QPushButton(testo)
-            b.setToolTip(suggerimento)
-            b.clicked.connect(lambda _=False, f=cosa: f())
-            comandi.addWidget(b)
-        comandi.addStretch(1)
-        corpo.addLayout(comandi)
-        F.addLayout(corpo, 1)
-
-        # **Il pannello sotto non si schiaccia: scorre.** Con l'elenco che prende
-        # tutto lo spazio, rimpicciolendo la finestra Qt toglieva altezza a
-        # questo, e la prima cosa che spariva erano i **titoli di sezione** —
-        # tagliati a meta' in verticale, cioe' le uniche parole che dicono di
-        # cosa sono quei tre parametri. Dichiarare l'altezza voluta non bastava:
-        # a 640 px di finestra quell'altezza non c'e', e Qt la toglie lo stesso.
-        #
-        # La regola «un'area che scorre dentro una che scorre gia' e' un difetto»
-        # non morde qui: questa scheda **non scorre**, quindi la rotellina ha un
-        # bersaglio solo. E un elenco con una riga in meno si legge; un titolo
-        # tagliato in due no.
-        self.p_aree = Pannello(
-            self.cfg, al_cambio=self._campo_cambiato, solo=AREE, cerca=False,
-            su_disegna=self.scegli_area)
-        self.p_aree.setMinimumHeight(200)
-        F.addWidget(self.p_aree, 0)
         return fuori
 
     def _scheda_traduzione(self) -> QWidget:
@@ -2127,8 +2042,6 @@ class Finestra(QMainWindow):
             if hasattr(self, "c_roi"):
                 self.c_roi.imposta(self.cfg.vision.roi)
             self.aggiorna_pronto()
-        elif campo.percorso == "vision.aree":
-            self._mostra_aree()
         elif campo.percorso == "ui.lingua":
             self.cambia_lingua()
         elif campo.percorso in self.STILE and self.overlay is not None:
@@ -2272,7 +2185,6 @@ class Finestra(QMainWindow):
         self.b_avvia.setEnabled(False)
         self.b_ferma.setEnabled(True)
         self.schede.setTabEnabled(self.PREPARAZIONE, False)
-        self.schede.setTabEnabled(self.AREE_, False)
         self.aggiorna_pronto()
         self.motore.avvia()
 
@@ -2304,7 +2216,6 @@ class Finestra(QMainWindow):
         # lasciarli toccabili a sessione accesa vorrebbe dire una finestra che
         # mostra una configurazione diversa da quella in uso.
         self.schede.setTabEnabled(self.PREPARAZIONE, True)
-        self.schede.setTabEnabled(self.AREE_, True)
         self._mostra_attesa()
         self.aggiorna_pronto()
 
@@ -2522,76 +2433,6 @@ class Finestra(QMainWindow):
         # Si riparte al giro dopo, cosi' `ferma()` ha finito di svuotare la coda
         # e il log dice le cose nell'ordine in cui sono successe.
         QTimer.singleShot(400, self.avvia)
-
-    # -- aree ---------------------------------------------------------------
-
-    def _mostra_aree(self) -> None:
-        self.elenco_aree.clear()
-        aree = leggi(self.cfg.vision.aree)
-        if not aree:
-            self.elenco_aree.addItem(
-                "  nessuna zona in piu': si legge la sola area della preparazione")
-            return
-        pezzi = dividi(aree)
-        for i, a in enumerate(aree):
-            suoi = [p for p in pezzi if p.area == i]
-            intera = len(suoi) == 1 and suoi[0].roi == a.roi
-            nota = "" if intera else f"   → {len(suoi)} pezzi, tolte le sovrapposizioni"
-            x, y, w, h = a.roi
-            modo = "testo + audio" if a.parla else "solo testo"
-            # L'avviso resta anche nell'elenco, non solo nel log: il log scorre,
-            # e un'area muta scritta li' sopra resta muta per tutta la sessione.
-            from vision.aree import troppo_grande
-
-            alta = "   ⚠ troppo alta: legge poco o niente" if troppo_grande(a.roi) else ""
-            self.elenco_aree.addItem(
-                f"{i + 1}.   x{x:.3f} y{y:.3f} w{w:.3f} h{h:.3f}    {modo}{nota}{alta}"
-            )
-
-    def _aggiungi_area(self, modo: str) -> None:
-        """Una zona in piu', **tirata col mouse** come la prima.
-
-        Prima si aggiungeva una copia della ROI e la si lasciava li': due aree
-        identiche sovrapposte, di cui la seconda non leggeva niente perche' la
-        parte in comune resta alla prima. Cioe' il comando c'era, faceva
-        qualcosa, e quel qualcosa era **niente** — che e' peggio di un comando
-        assente, perche' sembra funzionare.
-        """
-        self._modo_nuova_area = modo
-        self._selettore = SelettoreArea(self._area_tirata, self.tavolozza)
-        self._selettore.showFullScreen()
-
-    def _area_tirata(self, roi) -> None:
-        dentro = self._in_finestra(roi)
-        # **Un'area grande non e' meno precisa: e' muta**, e va detto adesso e
-        # non all'avvio della catena. Il cancello che decide se rileggere lo
-        # schermo guarda la *frazione* di pixel cambiati: lo stesso sottotitolo
-        # diluito in un'area grande non la supera piu' — misurato a schermo
-        # intero, zero letture, e nessun contatore che lo dica.
-        from vision.aree import troppo_grande
-
-        guaio = troppo_grande(dentro)
-        if guaio:
-            self.scrivi(guaio)
-        aree = leggi(self.cfg.vision.aree)
-        aree.append(Area(roi=dentro,
-                         modo=getattr(self, "_modo_nuova_area", "testo_audio")))
-        self._scrivi_aree(aree)
-
-    def _togli_area(self) -> None:
-        riga = self.elenco_aree.currentRow()
-        aree = leggi(self.cfg.vision.aree)
-        if riga < 0 or riga >= len(aree):
-            return
-        del aree[riga]
-        self._scrivi_aree(aree)
-
-    def _scrivi_aree(self, aree) -> None:
-        self.cfg.vision.aree = scrivi(aree)
-        self._mostra_aree()
-        self._riallinea()
-        self.scrivi(f"aree: {len(aree)} dichiarate" if aree
-                    else "aree: nessuna, si torna a leggere la ROI")
 
 
 def main(argv: list[str] | None = None) -> int:

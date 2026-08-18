@@ -158,7 +158,6 @@ class _Pending:
     # candidata entra da un lettore e l'evento confermato esce di qui, e in
     # mezzo l'oggetto viene ricostruito. Senza questa riga il campo si perderebbe
     # proprio nel punto in cui la battuta comincia a esistere.
-    marca: object = None
 
 
 @dataclass(slots=True)
@@ -282,7 +281,6 @@ class SubtitleTracker:
                     cls=cand.cls,
                     lines=cand.lines,
                     last_seen=t,
-                    marca=cand.marca,
                 )
             else:
                 pending = self._pending[pid]
@@ -343,7 +341,7 @@ class SubtitleTracker:
 
             event = SubtitleEvent(
                 text=pending.text, cls=pending.cls, t_on=pending.first_t,
-                lines=pending.lines, marca=pending.marca,
+                lines=pending.lines,
             )
             self._active[pid] = _Tracked(event, last_seen=t)
             matched_active.add(pid)

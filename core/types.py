@@ -71,19 +71,6 @@ class SubtitleEvent:
     t_on: float
     t_off: float | None = None  # noto solo quando il sottotitolo sparisce
     lines: tuple[OcrLine, ...] = ()
-    # **Da quale area viene, e cosa farne** (`vision.aree.Marca`). `None` = la
-    # ROI di sempre, che parla.
-    #
-    # Sta **sull'evento** e non in una mappa `id(evento) -> area` tenuta dalla
-    # pipeline, e la differenza non e' di stile. Un `SubtitleEvent` e' congelato,
-    # quindi ogni correzione — il testo che migliora mentre la battuta aspetta il
-    # suo turno (`TrackerOutput.updated`), la revisione dell'OCR, l'etichetta di
-    # chi parla — ne crea uno **nuovo**, con un `id()` nuovo che in quella mappa
-    # non c'e'. Il risultato era che una battuta di un'area muta, migliorando,
-    # tornava a parlare; e che gli `id()` dei morti venivano riusati dai vivi.
-    # Un campo attraversa `dataclasses.replace` da solo, che e' esattamente la
-    # cosa che serve.
-    marca: Any = None
 
     @property
     def n_chars(self) -> int:
@@ -207,7 +194,7 @@ class AudioChunk:
 
 
 def merge_lines(
-    lines: Sequence[OcrLine], t_on: float, marca: Any = None
+    lines: Sequence[OcrLine], t_on: float
 ) -> list[SubtitleEvent]:
     """Raggruppa righe OCR in battute secondo la grammatica dei sottotitoli.
 
@@ -225,7 +212,7 @@ def merge_lines(
         text = " ".join(ln.text.strip() for ln in group if ln.text.strip())
         if text:
             events.append(SubtitleEvent(text=text, cls=group[0].cls, t_on=t_on,
-                                        lines=tuple(group), marca=marca))
+                                        lines=tuple(group)))
         group.clear()
 
     for line in ordered:

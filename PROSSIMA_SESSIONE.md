@@ -24,6 +24,47 @@ ogni task.
 
 Suite verde a **1813 verifiche**. `SviluppoProgetto.md`: **17 step su 19**.
 
+### La notte del 18-19 agosto: tre commit, e il piu' importante non era in programma
+
+**`5a569b8` — si traduce mentre si aspetta di sapere chi parla, non dopo.**
+Nasce da una tua impressione («con Kokoro sembra in ritardo di una battuta»), che
+era **giusta**: misurato sulle sessioni archiviate, l'audio della battuta N parte
+col sottotitolo N+1 gia' a schermo nel **21% dei casi**. Ma la causa non era
+Kokoro — la sintesi e' **245 ms su 1523** — ed era la **traduzione**, che stava
+in fila *dopo* i 500 ms di `decide_after_ms` invece che *dentro*. Due attese
+indipendenti messe in coda: una vuole il **testo** (c'e' subito), l'altra vuole
+l'**audio**. Ora `core/anticipa.py` prepara il testo durante l'attesa.
+
+E la sorpresa: **i 657 ms non erano google, erano ollama**. Google costa 98-498
+ms ed e' **bimodale** (54 ms di p50 in una passata, 763 in un'altra a mezz'ora di
+distanza) — verificato che non siamo noi: una apertura di connessione ogni dodici
+chiamate, cache che funziona. E' la rete, ed e' il motivo per cui **coprirla**
+dentro l'attesa e' la cura giusta invece di ottimizzare il client.
+
+⚠️ **I numeri «dopo» sono una proiezione, non una misura.** Il banco non puo'
+esprimere questo cambiamento (con l'orologio virtuale la traduzione non e' mai
+stata addebitata, e `dub.latency` risulta identica al centesimo prima e dopo).
+Vengono dal rigiocare la programmazione delle sessioni **dal vivo** archiviate:
+p50 atteso **893-919 ms** con google, **1091-1159** con ollama. **La prova vera
+e' la tua**, ed e' il punto 1 qui sotto. La riga da guardare e'
+**`translate.attesa` contro `translate.riga`**: se tornano a coincidere,
+l'anticipo non sta funzionando.
+
+Un criterio dichiarato prima e' stato **mancato**: una sessione ollama resta al
+16,4% di sfasamento contro il 10% previsto. Li' la traduzione costa 852 ms, cioe'
+**piu' dell'attesa**, e l'eccedenza resta scoperta per costruzione.
+
+**`b97f45a` — `misura_originale` si accende dalla finestra** (scheda Traduzione,
+spento di serie). Il compito era una riga; sotto c'era che il campo era
+dichiarato **in mezzo al commento di `font_frac`**, quindi `font_frac` — che in
+quella scheda c'e' da sempre — era **senza nessuna spiegazione**. Ottava volta
+del «commento orfano che si incolla al campo dopo».
+
+**`608c177` — chi simula non scrive nel registro dell'utente.** Vedi il punto 3.
+
+**Le schermate della guida sono pronte da guardare**: `runs\guida\`,
+`scuro-guida-1..6.png` e `chiaro-guida-1..6.png` (piu' tedesco e arabo, del 18).
+
 Restano **due decisioni tue** — il repo GitHub e il sito — **più l'exe**, che è
 lavoro vero. Il link donazioni è chiuso (Ko-fi, «Buy me a token!», nel README).
 
@@ -82,10 +123,11 @@ stringendo il carattere, **spento di serie**).
    ⚠ **senza `--no-save`**, se no la sessione non finisce in `runs/` e non si può
    rileggere con `tools/reopen`. È già successo.
 
-2. **`translate.misura_originale`, la scelta d'occhio.** È spento e va giudicato
-   acceso, su una frase molto più lunga dell'originale: il tradotto sta nel
-   riquadro ma diventa piccolo, e a un certo punto si legge peggio dell'originale
-   che copre. Nessuna misura può decidere dove sta quel punto.
+2. **`translate.misura_originale`, la scelta d'occhio.** Da stanotte **si accende
+   dalla finestra** (scheda Traduzione, spento di serie): non serve più `--set`.
+   Va giudicato acceso, su una frase molto più lunga dell'originale: il tradotto
+   sta nel riquadro ma diventa piccolo, e a un certo punto si legge peggio
+   dell'originale che copre. Nessuna misura può decidere dove sta quel punto.
 
    *(L'HUD pronunciata è stata **chiusa senza intervento**, per decisione
    dell'utente il 18 agosto: entrambe le strade — abbassare

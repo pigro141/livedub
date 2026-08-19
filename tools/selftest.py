@@ -3454,6 +3454,19 @@ def test_chi_parla(c: Check) -> None:
     c.ok(p._voices.written >= sr, "l'audio di gioco finisce nell'anello")
     c.ok(p._ring_t0 is not None, "e si sa a che istante comincia")
 
+    # **E i volumi arrivano al mixer a sessione accesa.** La riga che li rilegge
+    # sta in `on_audio`, cioe' nel dominio che li usa; senza, girare la manopola
+    # scriveva in config e basta — e il pannello dichiarava il contrario. Si
+    # prova dal *fuori*: si cambia `cfg`, si versa un blocco, si guarda il
+    # mixer. Chiedere a `Mixer.ritara` proverebbe la funzione e non il filo.
+    prima = p.mixer.envelope.duck_gain
+    cfg.mix.duck_db = -30.0
+    cfg.mix.dub_gain_db = 3.0
+    versa(0.05, 120.0)
+    c.ok(p.mixer.envelope.duck_gain < prima,
+         "cambiando `mix.duck_db` a sessione accesa, il mixer lo prende")
+    c.close(p.mixer.dub_gain, 1.413, "e cosi' il volume della voce", tol=1e-3)
+
     # 2. Un ritaglio si ripesca per tempo, e uno troppo vecchio no. Il secondo
     #    caso conta quanto il primo: l'anello ha memoria finita, e leggere oltre
     #    darebbe l'audio di **un'altra** battuta invece di niente.

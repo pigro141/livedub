@@ -221,6 +221,24 @@ LATO_MANIGLIA, R_MANIGLIA = 14, 7
 LATO_AIUTO, R_AIUTO = 28, 14
 H_PILLOLA, R_PILLOLA = 28, 14
 
+# **Quante voci si vedono in una tendina prima che si metta a scorrere**, e non
+# e' un numero d'occhio: e' l'unico che sta in mezzo a due vincoli misurati.
+#
+# *Sotto*: censite le tendine della finestra, **ventotto su trentaquattro hanno
+# sette voci o meno** e la successiva ne ha quarantatre. Fra 8 e 42 il
+# comportamento di ogni singolo menu e' identico — quello e' l'altopiano, e una
+# soglia si sceglie li' dentro.
+#
+# *Sopra*: una riga di tendina misura 25 px e la cornice 18, quindi la tendina
+# aperta e' alta `25n + 18`. Non deve superare la finestra piu' piccola che il
+# programma permette (`MIN_ALTO` = 640), se no si apre un menu piu' alto della
+# sua stessa finestra: `n <= 24`.
+#
+# In mezzo a 8..24 c'e' **16** — che era gia' scritto a mano nel menu delle
+# lingue, e adesso e' scritto una volta sola. Aperta fa 418 px, cioe' i due
+# terzi della finestra minima e il 29% di uno schermo da 1440.
+VOCI_TENDINA = 16
+
 
 # ================================================================ il movimento =
 
@@ -653,6 +671,20 @@ QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
 }}
 QSpinBox::up-arrow:hover {{ image: url("{_freccia('su', menta_testo)}"); }}
 QSpinBox::down-arrow:hover {{ image: url("{_freccia('giu', menta_testo)}"); }}
+/* **`combobox-popup: 0` e' la riga che fa vedere le voci.** Con un foglio di
+   stile addosso Qt smette di aprire la tendina come tendina e la apre come un
+   *menu*: mostra tutte le voci qualunque siano — quarantatre lingue fanno 1093
+   px — le impagina a cavallo del controllo e le incastra nel rettangolo dello
+   **schermo**, non in quello utile. Misurato con la finestra appoggiata in
+   basso: `tts.backend` ha cinque voci e se ne vedevano **tre**, le altre due
+   sotto la barra delle applicazioni. Da li' «il motore TTS ha tre voci».
+   In quel modo `setMaxVisibleItems` non lo guarda nessuno (Qt lo dichiara: e'
+   ignorato per le tendine non scrivibili quando lo stile chiede il menu), ed
+   e' il motivo per cui `translate.target` — che e' scrivibile — si comportava
+   bene mentre le altre no: due comportamenti diversi per caso, non per regola.
+   Con questa riga la tendina torna a cadere sotto il controllo, a stare nello
+   spazio utile e a fermarsi a `VOCI_TENDINA`. */
+QComboBox {{ combobox-popup: 0; }}
 QComboBox::drop-down {{ border: none; width: 22px; }}
 QComboBox::down-arrow {{
     image: url("{_freccia('giu', t.testo_tenue)}"); width: 9px; height: 9px;

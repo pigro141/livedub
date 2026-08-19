@@ -102,6 +102,10 @@ class Mixer:
         self.hold_seconds = max(0.0, hold_ms / 1000.0)
         self.dub_gain = db_to_gain(dub_gain_db)
         self.envelope = DuckEnvelope(samplerate, duck_db, attack_ms, release_ms)
+        # La fotografia dei sei numeri con cui si e' costruito: serve a `ritara`
+        # per non rifare l'inviluppo cento volte al secondo. Si veda li'.
+        self._tarature = (duck_db, attack_ms, release_ms, dub_gain_db,
+                          bool(passthrough), hold_ms)
         self.metrics = metrics or MetricsRegistry()
         self._queue: list[Scheduled] = []
         self._t = 0.0
@@ -175,6 +179,39 @@ class Mixer:
     def speaking(self) -> bool:
         """C'e' una battuta gia' iniziata e non ancora finita."""
         return any(s.consumed > 0 and not s.done for s in self._queue)
+
+    def ritara(self, mix) -> bool:
+        """Rilegge i volumi da `cfg.mix` **a sessione accesa**, e dice se e' cambiato qualcosa.
+
+        Esiste perche' senza di lei i sei campi dei volumi erano **dichiarati
+        caldi e non lo erano**: `DubPipeline` li versa qui dentro nel proprio
+        costruttore e poi non li rilegge mai piu'. Il pannello scriveva
+        `mix.duck_db = -20` e non succedeva niente, con la riga verde nel
+        registro — ed e' la nona volta della forma «dichiarato e mai letto» in
+        questo progetto. Un volume che chiede di ripremere Avvia non e' un
+        volume: e' un valore di partenza.
+
+        **Si confronta prima di ricostruire**, perche' chi la chiama la chiama a
+        ogni blocco da 10 ms: rifare l'inviluppo a ogni giro azzererebbe il
+        guadagno corrente cento volte al secondo, cioe' il duck non scenderebbe
+        mai. Cosi' invece l'oggetto nuovo nasce solo quando un numero e'
+        cambiato davvero, e **si porta dietro il guadagno di adesso**: cambiare
+        il volume mentre un personaggio parla non deve far risalire il gioco di
+        scatto in mezzo a una battuta.
+        """
+        nuovo = (mix.duck_db, mix.duck_attack_ms, mix.duck_release_ms,
+                 mix.dub_gain_db, bool(mix.passthrough), mix.duck_hold_ms)
+        if nuovo == getattr(self, "_tarature", None):
+            return False
+        self._tarature = nuovo
+        self.passthrough = bool(mix.passthrough)
+        self.hold_seconds = max(0.0, mix.duck_hold_ms / 1000.0)
+        self.dub_gain = db_to_gain(mix.dub_gain_db)
+        dov_era = self.envelope.gain
+        self.envelope = DuckEnvelope(
+            self.samplerate, mix.duck_db, mix.duck_attack_ms, mix.duck_release_ms)
+        self.envelope.gain = dov_era
+        return True
 
     def schedule(
         self,

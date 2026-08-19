@@ -488,10 +488,39 @@ def test_finestra_menta(c) -> None:
         # successo con `p_tecnologie`, che non esisteva piu' e diventava «niente
         # da fare» invece che un errore.
         nomi = [f.schede.tabText(i) for i in range(f.schede.count())]
-        c.eq(len(nomi), 5, f"cinque schede: {nomi}")
+        c.eq(len(nomi), 6, f"sei schede: {nomi}")
         c.eq(nomi[f.TUTTE], "Tutte le impostazioni", "TUTTE punta all'albero intero")
         c.eq(nomi[f.SESSIONE], "Sessione", "SESSIONE punta al log")
         c.eq(nomi[f.PREPARAZIONE], "Preparazione", "PREPARAZIONE al primo passo")
+        c.eq(nomi[f.VOLUMI_], "Volumi", "VOLUMI_ alla scheda dei volumi")
+
+        # **E la guida racconta le schede che ci sono davvero.** `tutorial.SCHEDE`
+        # e' un elenco scritto a mano di nome + due righe, e si e' scollato in
+        # silenzio: diceva «le sei schede» in testata elencandone cinque, e
+        # spiegava che il volume sta dentro «Voce» quando non ci stava piu'. Chi
+        # legge la guida la legge una volta, la prima, e va dove gli si dice.
+        from ui.tutorial import SCHEDE
+
+        c.eq([n for n, _ in SCHEDE], nomi,
+             "la guida elenca le stesse schede della finestra, nello stesso ordine")
+
+        # **La scheda Volumi mostra tutti i `mix.` tranne i due dichiarati.**
+        # Scritta come «l'elenco meno le eccezioni» e non come un elenco a mano:
+        # un campo nuovo in `MixConfig` deve comparire li' o essere escluso
+        # apposta, non sparire perche' nessuno se n'e' ricordato.
+        from core.schema import campi as _campi
+
+        tutti_mix = {x.percorso for x in _campi(f.cfg) if x.sezione == "mix"}
+        c.eq(sorted(tutti_mix - set(U.VOLUMI)),
+             ["mix.output_device", "mix.prebuffer_ms"],
+             "fuori dalla scheda restano solo il cuscino dello streaming (che coi "
+             "tre motori di oggi non muove niente) e il dispositivo, che nessuno legge")
+        c.eq(sorted(set(U.VOLUMI) - tutti_mix), [],
+             "e non c'e' nessun percorso inventato nell'elenco")
+        # E i volumi non stanno **anche** in Voce: due manopole per lo stesso
+        # campo in due schede sono due viste che si possono contraddire.
+        c.eq(sorted(set(U.VOCE) & set(U.VOLUMI)), [],
+             "Voce e Volumi non condividono nessun campo")
         f._vai_a_cerca()
         c.eq(f.schede.currentIndex(), f.TUTTE, "Ctrl+F porta dove c'e' la ricerca")
 
@@ -701,5 +730,47 @@ def test_finestra_menta(c) -> None:
         fatto = []
         f.velo.copri(0, lambda: fatto.append(True))
         c.eq(fatto, [True], "e senza animazione il lavoro si fa comunque")
+
+        # -- **le tendine: si vede tutto finche' sono corte** ----------------
+        # Con un foglio di stile addosso Qt apre la tendina come un *menu*:
+        # mostra tutte le voci — quarantatre lingue fanno 1093 px — e ignora
+        # `setMaxVisibleItems`, ma solo per quelle non scrivibili. Cosi'
+        # `translate.target` si fermava a sedici e `ui.lingua` no: due
+        # comportamenti diversi per caso e non per regola. La riga che lo
+        # riporta a una regola sola sta nel foglio, e qui si controlla che ci
+        # sia — senza, il numero qui sotto non lo guarda nessuno.
+        from PySide6.QtWidgets import QComboBox
+
+        foglio = tema.foglio(f.tavolozza)
+        c.ok("combobox-popup: 0" in foglio,
+             "il foglio dichiara `combobox-popup: 0`, se no `VOCI_TENDINA` e' "
+             "un numero scritto e mai letto")
+
+        tendine = [w for w in f.findChildren(QComboBox) if w.count()]
+        c.ok(len(tendine) >= 30, f"le tendine della finestra sono {len(tendine)}")
+        senza = [w.accessibleName() or w.objectName() or "(senza nome)"
+                 for w in tendine if w.maxVisibleItems() != tema.VOCI_TENDINA]
+        c.eq(senza, [], "e tutte passano da `allarga_tendina`: una tendina nuova "
+                        "che se ne dimentica si apre con il numero di serie di Qt")
+
+        # **La soglia sta in mezzo a un altopiano, e questa e' la prova.**
+        # Spostandola di quattro in su o in giu' l'elenco delle tendine che
+        # scorrono non cambia di una: fra le sette voci di `label.form` e le
+        # quarantatre di `ui.lingua` non c'e' niente. Se un giorno nascesse un
+        # menu da quindici voci questa verifica diventerebbe rossa — ed e'
+        # esattamente il momento in cui il numero andrebbe riscelto.
+        conteggi = sorted(w.count() for w in tendine)
+
+        def _scorrono(soglia):
+            return [n for n in conteggi if n > soglia]
+
+        c.eq(_scorrono(tema.VOCI_TENDINA - 4), _scorrono(tema.VOCI_TENDINA + 4),
+             f"a {tema.VOCI_TENDINA} ± 4 scorrono le stesse tendine: la soglia "
+             f"non sta sull'orlo (voci: {sorted(set(conteggi))})")
+        # E il tetto: una riga misura 25 px e la cornice 18, quindi la tendina
+        # aperta non deve superare la finestra piu' piccola che si puo' avere.
+        c.ok(tema.VOCI_TENDINA * 25 + 18 <= tema.MIN_ALTO,
+             f"aperta e' alta {tema.VOCI_TENDINA * 25 + 18} px, dentro i "
+             f"{tema.MIN_ALTO} della finestra minima")
     finally:
         f.close()

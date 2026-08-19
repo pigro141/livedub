@@ -108,28 +108,111 @@ def blocca_rotella(w: QWidget) -> QWidget:
 # ------------------------------------------------- la tendina che si apre ----
 
 
-def allarga_tendina(combo: QComboBox) -> QComboBox:
-    """L'elenco che si apre e' largo **quanto la voce piu' lunga**, non quanto la casella.
+class _Tendina(QObject):
+    """Rimisura la tendina **quando le cambia il carattere sotto**.
 
-    Di serie Qt apre il menu largo quanto il controllo e taglia il resto con dei
-    puntini. Qui le voci sono `piper — svelto, gira ovunque (consigliato)` e
-    `google — ⚠ manda i sottotitoli a Google`: la parte tagliata e' **proprio
-    quella che dice cosa fa la scelta**, cioe' l'unica ragione per cui le
-    etichette umane sono state scritte. Chiuso il menu resta stretto e si legge
-    il solo nome, che li' basta.
+    E' la meta' che mancava, ed e' un errore di *quando* e non di *quanto*.
+    `allarga_tendina` misurava alla costruzione: li' il controllo non e' ancora
+    figlio della finestra, quindi non ha addosso il foglio di stile e porta il
+    carattere di serie di Qt — 9 punti invece dei 10 del tema. Misurato su
+    `tts.backend`: 278 px chiesti contro i **323** che poi servono davvero, e
+    `tone — un bip al posto della voce, per sentire i tempi` esce come
+    `…per sentire i tem`. Con `ElideNone` non ci sono nemmeno i puntini a dire
+    che manca qualcosa: la frase finisce a meta' parola e sembra scritta cosi'.
 
-    Si misura col carattere vero del menu, non con quello del controllo: sono lo
-    stesso, ma il giorno in cui non lo saranno la misura resterebbe giusta per
-    la casella e sbagliata per l'elenco.
+    **E non si rimisura all'apertura**, che sembrava il momento giusto e non lo
+    e': misurato con un cronometro sugli eventi, `showPopup` fissa la geometria
+    a +0,7 ms e il `Show` arriva a **+156**, perche' Qt apre la tendina con una
+    dissolvenza. Allargarla li' vuol dire far comparire l'elenco stretto e
+    poi vederlo saltare — e la fotografia della dissolvenza e' quella di prima.
+    Il carattere invece cambia una volta, quando il controllo entra nella
+    finestra vestita, ed e' li' che si rifanno i conti.
+    """
+
+    QUANDO = (QEvent.FontChange, QEvent.StyleChange, QEvent.Polish)
+
+    def eventFilter(self, oggetto, evento):  # noqa: N802 (nome imposto da Qt)
+        if evento.type() in self.QUANDO and isinstance(oggetto, QComboBox):
+            _misura_tendina(oggetto)
+        return False
+
+
+_TENDINA = _Tendina()
+
+
+def _misura_tendina(combo: QComboBox) -> None:
+    """Larghezza dell'elenco aperto: quella della voce piu' lunga.
+
+    **Il carattere piu' largo fra i due**, non quello dell'elenco e basta: la
+    vista prende il suo dal foglio di stile solo quando la si apre — cioe' dopo
+    che questa misura serve — mentre il controllo ce l'ha appena entra nella
+    finestra. Nel foglio di Menta sono lo stesso carattere; prendendo il
+    massimo, il giorno in cui non lo saranno la tendina resta larga abbastanza
+    invece di diventare stretta in silenzio.
     """
     vista = combo.view()
-    vista.setTextElideMode(Qt.ElideNone)
-    metriche = vista.fontMetrics()
-    largo = max((metriche.horizontalAdvance(combo.itemText(i))
+    m_vista = vista.fontMetrics()
+    m_casella = combo.fontMetrics()
+    largo = max((max(m_vista.horizontalAdvance(combo.itemText(i)),
+                     m_casella.horizontalAdvance(combo.itemText(i)))
                  for i in range(combo.count())), default=0)
     # Il respiro e' l'imbottitura dell'elenco piu' la barra di scorrimento, che
     # compare quando le voci sono tante: senza, l'ultima lettera finisce sotto.
-    vista.setMinimumWidth(largo + 2 * tema.S3 + 20)
+    voluto = largo + 2 * tema.S3 + 20
+    # **E si chiede anche alla vista quanto le serve**, perche' un testo non si
+    # misura sempre con un carattere solo: nel menu dei caratteri installati
+    # ogni nome e' scritto **col proprio**, quindi «Segoe Script» e' largo
+    # tutt'altro che i suoi dodici caratteri. Misurato, 356 px contro i 255 che
+    # il conto qui sopra prevedeva.
+    try:
+        voluto = max(voluto, vista.sizeHintForColumn(0) + 2 * tema.S3 + 20)
+    except Exception:  # una vista che non sa rispondere: resta il conto sopra
+        pass
+    # **Il minimo va anche alla finestrella che contiene l'elenco**, ed e' quello
+    # che decide: quello della sola vista non ci arriva, e Qt apre la tendina
+    # larga quanto il controllo. Piu' dello schermo non si chiede — a Qt il
+    # compito di non farla uscire dal bordo, a noi quello di non chiedere
+    # l'impossibile.
+    schermo = QApplication.primaryScreen()
+    if schermo is not None:
+        voluto = min(voluto, schermo.availableGeometry().width())
+    vista.setMinimumWidth(voluto)
+    padre = vista.parentWidget()
+    if padre is not None:
+        padre.setMinimumWidth(voluto)
+
+
+def allarga_tendina(combo: QComboBox) -> QComboBox:
+    """La tendina che si apre: **larga quanto la voce piu' lunga, alta quanto serve**.
+
+    *Larga*: di serie Qt apre il menu largo quanto il controllo e taglia il
+    resto con dei puntini. Qui le voci sono `piper — svelto, gira ovunque
+    (consigliato)` e `google — ⚠ manda i sottotitoli a Google`: la parte
+    tagliata e' **proprio quella che dice cosa fa la scelta**, cioe' l'unica
+    ragione per cui le etichette umane sono state scritte. Chiuso il menu resta
+    stretto e si legge il solo nome, che li' basta.
+
+    La misura non si fa qui ma **all'apertura**, per la ragione scritta in
+    `_Tendina`: qui si misura lo stesso, cosi' la prima apertura non parte da
+    zero, ma il numero che conta e' quello dell'ultimo momento.
+
+    *Alta*: si vede tutto finche' le voci sono poche e si scorre quando sono
+    tante, e il confine e' `tema.VOCI_TENDINA` — dove quel numero viene, e
+    perche' 16 e non un altro, sta scritto accanto a lui. Il conto non lo fa
+    questa funzione: qui si dichiara e basta, cosi' quarantatre lingue e cinque
+    motori seguono la stessa regola invece di dipendere dallo spazio che c'e'
+    sotto il controllo.
+
+    **Chiama questa, non `setMaxVisibleItems`**: da sola non basta, perche' la
+    proprieta' viene ignorata finche' il foglio di stile non dichiara
+    `combobox-popup: 0` — e quella riga sta in `ui/qt_tema.py`, dove si vede.
+    """
+    combo.setMaxVisibleItems(tema.VOCI_TENDINA)
+    combo.view().setTextElideMode(Qt.ElideNone)
+    if not combo.property("tendina_misurata"):
+        combo.setProperty("tendina_misurata", True)
+        combo.installEventFilter(_TENDINA)
+    _misura_tendina(combo)
     return combo
 
 
@@ -487,6 +570,12 @@ NOMI: dict[str, str] = {
     "mix.duck_db": "Quanto abbassare il gioco",
     "mix.dub_gain_db": "Volume della voce",
     "mix.duck_hold_ms": "Per quanto tenerlo abbassato",
+    # I tre che restavano col nome di codice nella scheda Volumi, in mezzo a
+    # tre scritti a parole: una colonna meta' italiano e meta' identificatori
+    # non e' un elenco, sono due.
+    "mix.duck_attack_ms": "Quanto svelto si abbassa",
+    "mix.duck_release_ms": "Quanto svelto risale",
+    "mix.passthrough": "Fai passare l'audio del gioco",
     "ui.save_mix": "Registra l'audio della sessione",
     "audio.samplerate": "Frequenza di campionamento",
     "audio.blocksize": "Blocco audio",
@@ -497,6 +586,7 @@ NOMI: dict[str, str] = {
 UNITA: dict[str, str] = {
     "mix.duck_db": " dB", "mix.dub_gain_db": " dB",
     "mix.duck_hold_ms": " ms", "mix.prebuffer_ms": " ms",
+    "mix.duck_attack_ms": " ms", "mix.duck_release_ms": " ms",
     "speaker.decide_after_ms": " ms", "speaker.max_wait_ms": " ms",
     "speaker.min_clip_ms": " ms", "speaker.lead_ms": " ms",
     "timing.accepted_delay_ms": " ms",
@@ -512,6 +602,9 @@ UNITA: dict[str, str] = {
 ESTREMI: dict[str, tuple[str, str]] = {
     "mix.duck_db": ("il gioco resta alto", "il gioco quasi sparisce"),
     "mix.dub_gain_db": ("voce piu' bassa", "voce piu' alta"),
+    "mix.duck_attack_ms": ("scende di scatto", "scende piano, e copre l'inizio"),
+    "mix.duck_release_ms": ("risale di scatto", "risale piano"),
+    "mix.duck_hold_ms": ("risale fra una battuta e l'altra", "resta giu' per tutta la scena"),
     "timing.rate_max": ("non accelera mai", "accelera fino a mangiarsi le parole"),
     "tts.speed": ("parlato lento", "parlato svelto"),
     "tts.native_rate_max": ("mai", "molto"),
@@ -950,7 +1043,9 @@ class SceltaLingua(Manopola):
         # `giappone` non e' scegliere una lingua, e' non averla ancora trovata.
         self.combo.setEditable(True)
         self.combo.setInsertPolicy(QComboBox.NoInsert)
-        self.combo.setMaxVisibleItems(16)
+        # Quante se ne vedono aperte lo dice `allarga_tendina`, in fondo a
+        # questo costruttore: il 16 scritto qui a mano era lo stesso numero, ma
+        # scritto due volte — e la seconda non l'avrebbe aggiornata nessuno.
         # Senza questa coppia la casella chiede la larghezza della voce piu'
         # lunga dell'elenco: 28 caratteri di «Meitei (manipuri) (mni-Mtei)»
         # imposti a una riga che ne ha 300 in tutto, e la scheda sfora.
@@ -1206,6 +1301,10 @@ class SceltaCarattere(Manopola):
         # una famiglia tradotta e' una famiglia sbagliata.
         self.combo.setProperty(MARCHIO, True)
         self.combo.currentFontChanged.connect(lambda _f: self.cambiato.emit())
+        # Duecentonovanta caratteri sono la tendina piu' lunga della finestra:
+        # senza la regola comune si aprirebbe con il numero di serie di Qt, che
+        # e' un terzo numero accanto ai due che ci siamo dati.
+        allarga_tendina(self.combo)
         L.addWidget(self.combo, 1)
 
     def valore(self) -> Any:

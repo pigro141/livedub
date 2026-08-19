@@ -605,6 +605,58 @@ in trenta secondi senza aprire il gioco: costruisce la finestra con
 una finestra di quadratini — cioe' una fotografia che non puo' mostrare il
 difetto che si sta cercando.
 
+**E una tendina aperta non si vede in una schermata**, perche' e' una finestra a
+se': `f.grab()` prende la finestra e non il popup. Per guardarla si apre la
+finestra **davvero** e si fotografa lo schermo intero
+(`QScreen.grabWindow(0)`) — ed e' cosi' che si e' vista la riga tagliata a
+meta' parola. La parte che si puo' misurare senza guardare sta nella suite: che
+ogni tendina dichiari `tema.VOCI_TENDINA`, e che il foglio dichiari
+`combobox-popup: 0`.
+
+**Le tendine: si vede tutto quando l'elenco e' corto, si scorre quando e'
+lungo.** Con un foglio di stile addosso Qt smette di aprirle come tendine e le
+apre come **menu**: mostra tutte le voci qualunque siano — quarantatre lingue
+fanno 1093 px, tre quarti di uno schermo da 1440 — e `setMaxVisibleItems` viene
+ignorato, ma **solo per quelle non scrivibili**. Cosi' `translate.target` si
+fermava a sedici e `ui.lingua` no: due comportamenti diversi per caso e non per
+regola. La leva e' una riga nel foglio (`combobox-popup: 0`) piu' un numero solo,
+`tema.VOCI_TENDINA = 16`, e quel 16 sta in mezzo a due vincoli misurati — sotto,
+il censimento dice che **ventotto tendine su trentaquattro hanno sette voci o
+meno** e la successiva ne ha quarantatre (fra 8 e 42 non cambia niente per
+nessun menu); sopra, `25n + 18` non deve superare la finestra minima (640), cioe'
+`n <= 24`.
+
+**E il difetto che si vedeva davvero era la larghezza, non l'altezza.**
+`allarga_tendina` esisteva per questo e non funzionava: misurava alla
+costruzione, quando il controllo non e' ancora figlio della finestra vestita e
+porta il carattere di serie di Qt — 9 punti invece dei 10 del tema. Misurato su
+`tts.backend`: 278 px chiesti contro i **323** che servono, e `tone — un bip al
+posto della voce, per sentire i tempi` usciva `…per sentire i tem`, con
+`ElideNone` cioe' **senza nemmeno i puntini** che dicono che manca qualcosa.
+Sette tendine su trentaquattro. Adesso la misura si rifa' quando al controllo
+cambia il carattere sotto — e **non all'apertura**, che sembrava il momento
+giusto: col cronometro sugli eventi, `showPopup` fissa la geometria a +0,7 ms e
+il `Show` arriva a **+156**, perche' Qt apre la tendina con una dissolvenza.
+Allargarla li' vuol dire farla comparire stretta e poi vederla saltare.
+
+**La scheda «Volumi», e perche' non era «costruire» ma «esporre».** Il filtro che
+toglie la voce originale c'e' da sempre ed e' acceso: `mix/center.py` scompone in
+mid/side e abbassa il solo centro, dove nei giochi sta il dialogo. Delle sei
+manopole che lo governano, tre stavano nella scheda Voce — accanto al motore e
+alla fretta, cioe' a un'altra domanda — e tre non stavano da nessuna parte.
+Adesso sono una scheda, e le schede sono **sei**.
+
+Ma esporle ha scoperto che erano **dichiarate calde e non lo erano**:
+`DubPipeline` le versa nel mixer nel proprio costruttore e non le rilegge mai
+piu', quindi il pannello scriveva `mix.duck_db = -20`, stampava la riga verde e
+non succedeva niente. Nona volta della forma «dichiarato e mai letto» — la
+decima e' li' accanto, `mix.output_device`, che non lo legge nessuno perche' la
+scheda d'uscita si sceglie al passo 3 della Preparazione. Da qui `Mixer.ritara`,
+chiamata da `on_audio`, che **confronta prima di ricostruire** (gira ogni 10 ms:
+rifare l'inviluppo a ogni giro vorrebbe dire non abbassare mai) e si porta
+dietro il guadagno di adesso, se no cambiare il volume in mezzo a una battuta
+farebbe risalire il gioco di scatto.
+
 ### Quello che il documento diceva e che a schermo era sbagliato
 
 Il disegno e' stato scritto prima di essere costruito, e **cinque delle sue
@@ -992,6 +1044,19 @@ un centesimo da' un risultato molto diverso, il numero non e' tarato, e' vinto.
 lavoro per 60 di scena — piu' di tutto il resto della catena messo insieme.
 Nessun numero lo diceva, perche' nessuno aveva mai sommato i timer per stadio.
 Prima di spostare un costo su un thread, sommare i costi.
+
+**E la nona volta e' stata peggio, perche' il campo veniva letto una volta
+sola.** I sei campi di `mix.` — `duck_db`, `dub_gain_db`, i tre tempi del duck e
+`passthrough` — erano dichiarati **caldi** e non lo erano: `DubPipeline` li versa
+nel mixer nel proprio costruttore e non li rilegge mai piu'. Girare la manopola
+scriveva in config, stampava la riga verde nel registro e non cambiava una
+virgola del suono. E' la forma peggiore fra tutte e nove, perche' le altre otto
+non facevano niente **e non promettevano niente**: qui il pannello dichiarava
+«si applica subito» e il registro confermava. La sequenza intera, che vale piu'
+del singolo caso: `max_ocr_hz`, `tts.device`, `background_mode`,
+`overlay.ritardo`, il `region` di `make_screen`, `profiles/ultima.json` scritto e
+mai riletto, la `row_band` della calibrazione, `mix.output_device` e questi sei.
+Cura: `Mixer.ritara`, chiamata da `on_audio`, cioe' **dal dominio che li usa**.
 
 **Due errori che si compensano sono piu' pericolosi di un errore solo.** La stima
 delle durate era corta di un quarto e l'anello di correzione la compensava

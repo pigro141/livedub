@@ -53,6 +53,7 @@ from PySide6.QtWidgets import (
 from capture.audio import list_devices, nome_scheda, stesso_dispositivo, uscite
 from ui import qt_tema as tema
 from ui.lingua import MARCHIO
+from ui.qt_controlli import allarga_tendina
 
 SCARICA_VOICEMEETER = "https://vb-audio.com/Voicemeeter/"
 
@@ -183,6 +184,14 @@ class Audio(QWidget):
                     if predefinita is not None and stesso_dispositivo(d, predefinita) else "")
             self.uscita.addItem(f"{_pulito(d.name)}{nota}")
         self.uscita.blockSignals(False)
+
+        # **Dopo aver riempito, non prima.** Queste due tendine nascono vuote e
+        # si riempiono con le schede della macchina: la regola su quanto sono
+        # larghe e quante voci se ne vedono va applicata quando le voci ci sono.
+        # Su un PC con dodici schede audio e' l'unica cosa che tiene l'elenco
+        # dentro lo schermo.
+        allarga_tendina(self.entrata)
+        allarga_tendina(self.uscita)
 
         self._preseleziona()
         self._controlla()

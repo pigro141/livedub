@@ -100,6 +100,12 @@ FREDDI: tuple[str, ...] = (
     # l'anello audio e la cattura: flussi aperti all'avvio
     "audio.",
     "capture.",
+    # **Il cuscino dello streaming, e solo lui.** Gli altri sei campi di `mix.`
+    # sono caldi davvero da quando `Mixer.ritara` li rilegge a ogni blocco;
+    # questo no, perche' diventa un numero di campioni nel costruttore e la
+    # battuta aperta ci sta gia' dentro. Cambiarlo a meta' sessione vorrebbe
+    # dire spostare la soglia sotto una battuta che sta suonando.
+    "mix.prebuffer_ms",
     # i lettori si costruiscono uno per area all'avvio
     # il lessico si carica una volta
     "vision.use_lexicon",
@@ -564,6 +570,15 @@ LIMITI: dict[str, tuple[float, float]] = {
     "mix.duck_db": (-60.0, 0.0),      # positivo alzerebbe il gioco invece di abbassarlo
     "mix.dub_gain_db": (-40.0, 20.0),
     "mix.prebuffer_ms": (0, 2000),
+    # **I tre tempi del duck.** Il pavimento e' 1 ms e non 0 perche' un salto di
+    # guadagno istantaneo si sente come un clic — l'inviluppo esiste per quello.
+    # Il tetto dell'attacco e' mezzo secondo perche' l'attacco e' anche
+    # l'anticipo con cui il mixer abbassa il gioco (`_starts_soon`): piu' in
+    # la', il gioco si abbassa mezzo secondo prima che qualcuno parli.
+    "mix.duck_attack_ms": (1, 500),
+    "mix.duck_release_ms": (1, 3000),
+    # Zero e' un valore vero: vuol dire «non aspettare, rilascia e basta».
+    "mix.duck_hold_ms": (0.0, 5000.0),
     "translate.background_opacity": (0.0, 1.0),
     "translate.font_frac": (0.0, 0.5),
     "translate.blur_strength": (0.0, 100.0),

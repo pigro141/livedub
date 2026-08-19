@@ -51,6 +51,7 @@ from ui.qt_controlli import (
     Elidibile,
     Rettangolo,
     Tabella,
+    allarga_tendina,
     blocca_rotella,
     collega,
     leggi,
@@ -134,6 +135,10 @@ class Pannello(QWidget):
             self.v_livello.setFixedWidth(
                 self.v_livello.fontMetrics().horizontalAdvance('mostra le principali')
                 + 2 * tema.S3 + 22)
+            # La casella e' fissa apposta, l'elenco che si apre no: passa dalla
+            # stessa porta di tutte le altre tendine, se no e' la sola della
+            # finestra a seguire un'altra regola.
+            allarga_tendina(self.v_livello)
             barra.addWidget(self.v_livello)
             self.solo_caldi = QCheckBox("solo a caldo")
             self.solo_caldi.setToolTip("Nascondi i parametri che si leggono solo all'avvio")

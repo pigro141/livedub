@@ -122,7 +122,28 @@ VOCE = (
     "speaker.similarity", "speaker.gender_fallback",
     "tts.backend", "tts.device", "tts.pool_size", "tts.speed", "tts.native_rate_max",
     "timing.rate_max", "timing.accepted_delay_ms",
-    "mix.duck_db", "mix.dub_gain_db", "mix.duck_hold_ms",
+)
+
+# Quanto forte: la voce nostra, quella del gioco e come si scambiano il posto.
+#
+# **Era dentro «Voce» e sono due domande diverse.** Li' stavano tre campi su
+# sei — `duck_db`, `dub_gain_db`, `duck_hold_ms` — accanto al motore e alla
+# fretta, cioe' accanto a *chi parla e come*; gli altri tre non stavano da
+# nessuna parte e si raggiungevano solo dall'albero intero. La domanda «si sente
+# troppo il gioco?» si fa mentre si ascolta, e non si vuole passare in mezzo al
+# `pool_size` per rispondere.
+#
+# **Fuori restano due campi di `mix.`, e per ragioni diverse.**
+# `prebuffer_ms` e' il cuscino dei motori che consegnano l'audio a pezzi: coi
+# tre montati oggi l'audio c'e' tutto, quindi quel numero non muove niente e
+# metterlo qui vorrebbe dire una manopola che non fa nulla in mezzo a cinque che
+# funzionano. `output_device` e' dichiarato e non lo legge nessuno: la scheda su
+# cui esce la voce si sceglie al passo 3 della Preparazione, ed e' scritto nel
+# suo commento.
+VOLUMI = (
+    "mix.duck_db", "mix.dub_gain_db",
+    "mix.duck_attack_ms", "mix.duck_release_ms", "mix.duck_hold_ms",
+    "mix.passthrough",
 )
 
 # Cosa c'e' scritto: tradurre, e come si disegna il tradotto sopra il gioco.
@@ -943,7 +964,7 @@ class Finestra(QMainWindow):
     # I nomi delle schede, in ordine. Servono a raggiungerne una per nome invece
     # che per numero: `setCurrentIndex(3)` scritto a mano si scolla alla prima
     # scheda aggiunta in mezzo, **in silenzio**, e porta l'utente altrove.
-    PREPARAZIONE, SESSIONE, VOCE_, TRADUZIONE_, TUTTE = range(5)
+    PREPARAZIONE, SESSIONE, VOCE_, VOLUMI_, TRADUZIONE_, TUTTE = range(6)
 
     def __init__(self, cfg, args) -> None:
         super().__init__()
@@ -1016,11 +1037,19 @@ class Finestra(QMainWindow):
         self.schede.addTab(self._scheda_sessione(), "Sessione")
         self.p_voce = Pannello(
             cfg, al_cambio=self._campo_cambiato, solo=VOCE, cerca=False,
-            intestazione="Come suona il doppiaggio: chi parla, con che voce, quanto forte "
-                         "e quanto di fretta. Il volume e la fretta si sentono subito; il "
-                         "motore e il numero di voci al prossimo avvio.",
+            intestazione="Come suona il doppiaggio: chi parla, con che voce e quanto di "
+                         "fretta. La fretta si sente subito; il motore e il numero di voci "
+                         "al prossimo avvio. Quanto forte sta nella scheda Volumi.",
         )
         self.schede.addTab(self._in_margine(self.p_voce), "Voce")
+        self.p_volumi = Pannello(
+            cfg, al_cambio=self._campo_cambiato, solo=VOLUMI, cerca=False,
+            intestazione="Quanto forte si sente la nostra voce e quanto quella del gioco. "
+                         "La voce originale non si toglie del tutto: si abbassa il centro "
+                         "dell'audio, dove sta il parlato, e musica ed effetti restano dove "
+                         "sono. Si cambia mentre si ascolta, senza ripremere Avvia.",
+        )
+        self.schede.addTab(self._in_margine(self.p_volumi), "Volumi")
         self.p_traduzione = Pannello(
             cfg, al_cambio=self._campo_cambiato, solo=TRADUZIONE, cerca=False,
             intestazione="Solo per giocare in una lingua diversa da quella dei sottotitoli. "
@@ -2019,7 +2048,7 @@ class Finestra(QMainWindow):
         )
 
     def _riallinea(self) -> None:
-        """Rilegge **tutti** i pannelli: la config e' una sola, le viste sono sei.
+        """Rilegge **tutti** i pannelli: la config e' una sola, le viste sono tante.
 
         Stava scritto a mano — `p_tecnologie` e `p_avanzate` — e la
         riprogettazione ha rinominato i gruppi: `p_tecnologie` non esisteva piu'

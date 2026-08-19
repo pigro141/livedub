@@ -16,10 +16,11 @@
 >   dell'interfaccia con le *cifre tabulari*: le colonne servivano ai numeri, e i
 >   campi ora si separano con dei punti (§7);
 > - **la tessera del logo non c'e'**: il logo ha gia' la sua sagoma (§11.1);
-> - **le schede sono cinque** (§11.4): Preparazione, Sessione, Voce, Traduzione,
->   Tutte le impostazioni. «Aree» c'e' stata e non c'e' piu' — le zone multiple
->   sono state tolte il 18 agosto 2026, e i suoi tre parametri sono passati alla
->   Preparazione.
+> - **le schede sono sei** (§11.4): Preparazione, Sessione, Voce, Volumi,
+>   Traduzione, Tutte le impostazioni. «Aree» c'e' stata e non c'e' piu' — le
+>   zone multiple sono state tolte il 18 agosto 2026, e i suoi tre parametri
+>   sono passati alla Preparazione. «Volumi» e' nata il 19: i sei campi di
+>   `mix.` erano tre dentro «Voce» e tre in nessun posto.
 >
 > Quello che regge intero: la tavolozza, `R(h)`, la scala delle distanze, i
 > corpi, il materiale, la regola dei canali, gli stati, gli errori e
@@ -623,7 +624,7 @@ menta e' di `Avvia`, e due riempimenti menta che fanno cose diverse sono un
 riempimento di troppo. **Ambra e non rosso**, perche' non e' rotto niente: e' una
 cosa che aspetta.
 
-### 11.4 Le cinque schede — linguette h 40
+### 11.4 Le sei schede — linguette h 40
 
 Angoli alti a 8, imbottitura `S2 S5`, distacco `S1`. Quella scelta prende il fondo
 `superficie` — si salda al corpo — e **2 px di menta sotto**. Le altre stanno sul
@@ -633,9 +634,17 @@ Angoli alti a 8, imbottitura `S2 S5`, distacco `S1`. Quella scelta prende il fon
 |---|---|---|
 | 0 | **Preparazione** | i tre passi da fare prima di premere Avvia, piu' i parametri della lettura e dell'area |
 | 1 | **Sessione** | la battuta di adesso, chi ha parlato, e sotto il log |
-| 2 | **Voce** | il motore, le voci, il volume, la fretta |
-| 3 | **Traduzione** | i due selettori di lingua, come si copre l'originale, e la prova dei traduttori |
-| 4 | **Tutte le impostazioni** | tutti e 166, con ricerca, tre livelli, «solo a caldo» |
+| 2 | **Voce** | il motore, le voci, la fretta |
+| 3 | **Volumi** | quanto forte la nostra voce, quanto si abbassa quella del gioco, e i tre tempi del duck |
+| 4 | **Traduzione** | i due selettori di lingua, come si copre l'originale, e la prova dei traduttori |
+| 5 | **Tutte le impostazioni** | tutti e 166, con ricerca, tre livelli, «solo a caldo» |
+
+**«Volumi» e' nata perche' «Voce» rispondeva a due domande.** «Con che voce
+parla» e «quanto forte si sente» si fanno in momenti diversi: la prima prima di
+avviare, la seconda **mentre si ascolta**. E li' dentro ce n'erano tre su sei —
+gli altri tre (attacco, rilascio, passthrough) si raggiungevano solo dall'albero
+intero. Fuori restano `mix.prebuffer_ms`, che coi tre motori di oggi non muove
+niente, e `mix.output_device`, che non lo legge nessuno.
 
 **«Aree» non c'e' piu'.** Il documento ne prescriveva una — elenco a sinistra e
 quattro bottoni a destra — ed e' stata costruita. Le zone multiple sono state

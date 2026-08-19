@@ -718,7 +718,7 @@ def test_overlay_quando(c) -> None:
 
 
 def test_coerenza(c) -> None:
-    """**Una configurazione, quattro schede.** Le viste non possono divergere.
+    """**Una configurazione, tante schede.** Le viste non possono divergere.
 
     Segnalato dall'utente: disegnata un'area in Preparazione, «Tutte le
     impostazioni» non la mostrava; cambiato il traduttore di la', la scheda
@@ -776,6 +776,13 @@ def test_coerenza(c) -> None:
     app.processEvents()
     c.close(float(leggi(f.p_avanzate._widget["translate.blur_strength"])), 30.0,
             "e un cambio nella scheda Traduzione si vede in «Tutte le impostazioni»", 0.001)
+
+    # E la scheda nuova non e' un'eccezione: e' una vista come le altre.
+    f.p_volumi._widget["mix.duck_db"].imposta(-22.0)
+    f.p_volumi.applica(f.p_volumi._campi["mix.duck_db"])
+    app.processEvents()
+    c.close(float(leggi(f.p_avanzate._widget["mix.duck_db"])), -22.0,
+            "e uno dalla scheda Volumi pure", 0.001)
 
     # -- l'area disegnata e' un cambio come gli altri ------------------------
     f._applica_roi((0.10, 0.50, 0.30, 0.05))

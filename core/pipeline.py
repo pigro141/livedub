@@ -1884,6 +1884,12 @@ class DubPipeline:
         scrive **prima** di `process`, perche' `mixer.now` e' il tempo del primo
         campione del blocco e dopo non lo sarebbe piu'.
         """
+        # **I volumi si rileggono qui, dal dominio che li usa.** Erano versati nel
+        # mixer una volta sola dal costruttore, quindi cambiarli a sessione
+        # accesa non faceva niente mentre il pannello li dichiarava caldi.
+        # `ritara` confronta prima di ricostruire, quindi il costo di questa riga
+        # e' un confronto di sei numeri per blocco.
+        self.mixer.ritara(self.cfg.mix)
         if self.tracker is not None and game is not None and getattr(game, "size", 0):
             mono = split(game)[0] if game.ndim == 2 and game.shape[1] == 2 else game.reshape(-1)
             if self._ring_t0 is None:

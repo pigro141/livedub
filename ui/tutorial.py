@@ -193,7 +193,7 @@ PASSI: tuple[Passo, ...] = (
 )
 
 
-# Le sei schede, come le nomina `tools/ui_qt.py`, con due righe ciascuna. I nomi
+# Le schede, come le nomina `tools/ui_qt.py`, con due righe ciascuna. I nomi
 # sono le **stesse stringhe** delle linguette, quindi il catalogo li traduce una
 # volta sola e la scheda si chiama qui come si chiama li'.
 SCHEDE: tuple[tuple[str, str], ...] = (
@@ -204,8 +204,11 @@ SCHEDE: tuple[tuple[str, str], ...] = (
      "Il registro dal vivo: chi parla, con che voce, quanto ci ha messo. "
      "E i tre passi ancora da fare, finche' ce ne sono."),
     ("Voce",
-     "Come suona il doppiaggio: il motore, quante voci, il volume, quanta "
-     "fretta. Volume e fretta si sentono subito, il motore al prossimo avvio."),
+     "Come suona il doppiaggio: il motore, quante voci, quanta fretta. La "
+     "fretta si sente subito, il motore al prossimo avvio."),
+    ("Volumi",
+     "Quanto forte la nostra voce e quanto quella del gioco, che non si toglie "
+     "ma si abbassa dov'e' il parlato. Si cambia mentre ascolti."),
     ("Traduzione",
      "Solo se vuoi giocare in una lingua diversa da quella dei sottotitoli. "
      "Spenta, il programma doppia nella lingua che trova."),
@@ -578,7 +581,7 @@ class Tutorial(QDialog):
         # L'elenco viene da `ui/qt_controlli.py`, che e' dove lo costruisce gia'
         # la scheda «Preparazione»: due elenchi delle stesse lingue sarebbero due
         # elenchi che si scollano, e questo progetto ne ha gia' contati sette.
-        from ui.qt_controlli import _lingue_finestra
+        from ui.qt_controlli import _lingue_finestra, allarga_tendina
 
         valori, etichette = _lingue_finestra()
         self.c_lingua = QComboBox()
@@ -594,6 +597,9 @@ class Tutorial(QDialog):
         if attuale in self._codici:
             self.c_lingua.setCurrentIndex(self._codici.index(attuale))
         self.c_lingua.currentIndexChanged.connect(self._lingua_scelta)
+        # Quarantatre lingue: aperte tutte insieme sono alte 1093 px, cioe' piu'
+        # di questo dialogo. Stessa regola delle altre tendine, un posto solo.
+        allarga_tendina(self.c_lingua)
         riga.addWidget(self.c_lingua)
         riga.addStretch(1)
         C.addLayout(riga)

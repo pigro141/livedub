@@ -755,6 +755,39 @@ def test_mixer(c) -> None:
         fuori = mx3.process(centrato)
     c.ok(float(np.abs(fuori).max()) < 0.1, "mentre si parla, il centro del gioco e' abbassato")
 
+    # -- **i volumi si cambiano a sessione accesa** ------------------------
+    # Erano sei campi versati nel mixer dal costruttore di `DubPipeline` e mai
+    # piu' riletti, mentre il pannello li dichiarava caldi: si scriveva
+    # `mix.duck_db = -30`, compariva la riga verde nel registro e non cambiava
+    # niente. Qui si prova la cosa che l'utente fa — girare la manopola e
+    # sentire — e non che il campo esista.
+    from core.config import MixConfig
+
+    vivo = Mixer(samplerate=sr, duck_db=-6.0, attack_ms=1, release_ms=1000,
+                 dub_gain_db=0.0)
+    piano = MixConfig(duck_db=-40.0, duck_attack_ms=1, duck_release_ms=1000,
+                      dub_gain_db=6.0, duck_hold_ms=900.0, passthrough=False)
+    c.ok(vivo.ritara(piano), "cambiando un numero, il mixer si ritara")
+    c.ok(not vivo.ritara(piano), "richiamandola con gli stessi numeri non fa niente: "
+                                 "gira a ogni blocco da 10 ms, e rifare l'inviluppo "
+                                 "cento volte al secondo vorrebbe dire non abbassare mai")
+    c.close(vivo.envelope.duck_gain, 0.01, "il duck e' sceso a -40 dB", tol=1e-3)
+    c.close(vivo.dub_gain, 1.995, "e la voce e' salita di 6 dB", tol=1e-3)
+    c.eq(vivo.passthrough, False, "e il gioco non passa piu'")
+    c.close(vivo.hold_seconds, 0.9, "e l'attesa e' quella nuova")
+
+    # **E il guadagno di adesso non si perde.** Rifare l'inviluppo da zero lo
+    # rimetterebbe a 1, cioe' farebbe risalire il gioco di scatto in mezzo a una
+    # battuta: la cura sarebbe udibile piu' del difetto.
+    dentro = Mixer(samplerate=sr, duck_db=-20.0, attack_ms=1, release_ms=1000)
+    dentro.schedule(np.zeros(int(0.5 * sr), np.float32), t_start=0.0)
+    for _ in range(10):
+        dentro.process(np.full((480, 2), 0.3, np.float32))
+    giu = dentro.envelope.gain
+    c.ok(giu < 0.2, "il duck e' gia' sceso")
+    dentro.ritara(MixConfig(duck_db=-25.0, duck_attack_ms=1, duck_release_ms=1000))
+    c.close(dentro.envelope.gain, giu, "e ritarando resta dov'era", tol=1e-6)
+
     # Senza passthrough esce la sola voce.
     solo = Mixer(samplerate=sr, passthrough=False)
     solo.schedule(np.full(480, 0.5, np.float32), t_start=0.0)

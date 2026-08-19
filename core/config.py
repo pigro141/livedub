@@ -451,7 +451,13 @@ class AudioConfig:
     samplerate: int = 48000
     blocksize: int = 480  # 10 ms
     ring_seconds: float = 10.0
-    center_enabled: bool = True  # estrazione mid/side per isolare il parlato
+    # **Estrazione mid/side per isolare il parlato che va all'impronta.** Sta
+    # dalla parte della **cattura** e non dell'uscita: non ha niente a che fare
+    # con `mix.duck_db`, che e' l'altro uso del mid/side — quello che abbassa la
+    # voce originale in cio' che si sente. I due si confondono facilmente perche'
+    # chiamano la stessa funzione di `mix/center.py` per due scopi opposti:
+    # qui si **legge** il centro, li' lo si **abbassa**.
+    center_enabled: bool = True
 
 
 @dataclass
@@ -1166,20 +1172,53 @@ class MixConfig:
     """Uscita audio. Il duck agisce sul solo canale centrale, dove sta il
     parlato: musica ed effetti restano intatti."""
 
-    passthrough: bool = True
-    # **Quanti millisecondi di voce devono essere pronti prima che una battuta in
-    # streaming cominci a suonare.** Vale solo per i motori che consegnano a
-    # pezzi (oggi Qwen): per gli altri l'audio c'e' tutto e questo campo non fa
-    # niente.
+    # **Di quanto si abbassa la voce originale mentre parla la nostra**, ed e'
+    # il campo che risponde alla domanda «si puo' togliere la voce del gioco e
+    # metterci la nostra?». Si', per quanto lo permette un filtro che non costa
+    # niente: non si abbassa tutto l'audio, si abbassa il **solo canale
+    # centrale** (`mix/center.py`), dove nei giochi sta il dialogo, mentre
+    # musica, motori e ambiente stanno larghi e restano al loro volume.
     #
-    # Serve a un difetto trovato dal vivo e invisibile al banco: la battuta
-    # partiva nell'istante in cui la sua generazione cominciava, quindi il mixer
-    # versava silenzio e le parole arrivavano a goccia — **parole sminuzzate**.
-    # Aspettare il cuscino costa un ritardo pari al cuscino, una volta per
-    # battuta; non aspettarlo costa la battuta.
-    prebuffer_ms: float = 350.0
+    # Non e' una separazione vera: un'esplosione centrata viene attenuata anche
+    # lei. Ma costa quattro operazioni per campione e **non ha latenza**, mentre
+    # una separazione neurale costerebbe piu' di tutto il resto della catena e
+    # aggiungerebbe il ritardo del suo buffer, proprio dove il ritardo e' la
+    # valuta scarsa. E' una scelta presa e scritta, non una cosa da fare.
+    #
+    # **Non c'e' un interruttore, e non serve**: a 0 dB il filtro e' spento, e
+    # `audio.center_enabled` — che si somiglia — e' un'altra cosa, sta dalla
+    # parte della cattura e riguarda l'impronta di chi parla.
+    #
+    # A **0 dB il filtro e' spento**, e lo e' per costruzione e non per un `if`:
+    # con guadagno 1 la scomposizione mid/side ricompone l'ingresso campione per
+    # campione (c'e' una verifica che lo chiede). Piu' si scende e piu' sparisce
+    # l'originale, ma con lui anche cio' che gli sta vicino al centro.
     duck_db: float = -14.0
+    # **Il volume della voce doppiata**, cioe' della nostra e non del gioco. Zero
+    # vuol dire «come esce dal sintetizzatore», che e' il livello su cui sono
+    # tarati i tre motori. Si alza quando il gioco copre la voce anche col
+    # centro abbassato, e si abbassa quando la voce sovrasta la scena.
+    #
+    # **Ma non e' il volume generale**, e alzarlo troppo non e' gratis: la voce
+    # si somma all'audio del gioco e la somma puo' superare il fondo scala. Li'
+    # entra il limitatore morbido del mixer, che comprime i picchi invece di
+    # tagliarli — quindi non si sente sporcare, si sente *schiacciare*, e il
+    # contatore `mix.clipped` e' l'unica cosa che lo dice. Per alzare la voce
+    # rispetto al gioco conviene prima scendere con `duck_db`.
+    dub_gain_db: float = 0.0
+    # **Quanto svelto scende, in millisecondi.** Il gioco non si abbassa quando
+    # la voce parte: si abbassa **prima**, di questo tempo esatto, perche'
+    # abbassarlo mentre la voce parte la lascerebbe coperta per i primi
+    # quaranta millisecondi — quelli in cui l'orecchio decide se ha capito o no.
+    # Quindi questo numero e' due cose insieme: quanto dura la discesa e quanto
+    # anticipo si prende il mixer (`Mixer._starts_soon`). Alzandolo, la discesa
+    # si sente meno ma il gioco comincia ad abbassarsi molto prima della voce.
     duck_attack_ms: int = 40
+    # **Quanto svelto risale, in millisecondi.** Asimmetrico rispetto
+    # all'attacco di proposito: bisogna fare spazio alla voce in fretta, ma
+    # rialzare il gioco di scatto fra una battuta e l'altra si sente quanto non
+    # abbassarlo. Chi lo accorcia sotto l'attacco ottiene il pompaggio descritto
+    # in `duck_hold_ms` anche fra battute lontane.
     duck_release_ms: int = 220
     # **Quanto il duck resta giu' aspettando la battuta successiva.**
     # Senza questa attesa, nel dialogo fitto il gioco pompa: misurato dal vivo,
@@ -1192,7 +1231,35 @@ class MixConfig:
     # secondi e il difetto sparisce, che e' il motivo per cui si sente solo
     # nelle scene fitte.
     duck_hold_ms: float = 500.0
-    dub_gain_db: float = 0.0
+    # **Se l'audio del gioco passa da noi o no.** Acceso, il programma prende
+    # l'audio catturato, ne abbassa il centro mentre parla e ci somma sopra la
+    # voce: quello che esce dalla scheda scelta e' il doppiaggio finito, e il
+    # gioco va ascoltato **solo** da li'. Spento, esce la sola voce italiana, e
+    # il gioco lo si sente per conto suo — e' la strada di chi manda il gioco
+    # alle casse e il doppiaggio alle cuffie, o di chi vuole registrare la sola
+    # traccia doppiata. In quel caso il filtro sul centro non ha niente su cui
+    # lavorare: il parlato originale resta come sta, perche' non passa di qui.
+    passthrough: bool = True
+    # **Quanti millisecondi di voce devono essere pronti prima che una battuta in
+    # streaming cominci a suonare.** Vale solo per i motori che consegnano a
+    # pezzi (oggi Qwen): per gli altri l'audio c'e' tutto e questo campo non fa
+    # niente.
+    #
+    # Serve a un difetto trovato dal vivo e invisibile al banco: la battuta
+    # partiva nell'istante in cui la sua generazione cominciava, quindi il mixer
+    # versava silenzio e le parole arrivavano a goccia — **parole sminuzzate**.
+    # Aspettare il cuscino costa un ritardo pari al cuscino, una volta per
+    # battuta; non aspettarlo costa la battuta.
+    prebuffer_ms: float = 350.0
+    # **Dichiarato e non letto da nessuno**, ed e' scritto qui perche' un campo
+    # che sembra fare qualcosa e non la fa e' peggio di un campo che manca. La
+    # scheda su cui esce il doppiaggio si sceglie nella scheda «Preparazione»
+    # (passo 3) o con `--output`, e finisce in `Opzioni.output`: nessuno legge
+    # questo. Non e' esposto nel pannello proprio per questo — una manopola che
+    # non muove niente e' peggio di una manopola che manca. Ottavo campo di
+    # questa forma in questo progetto, dopo `max_ocr_hz`, `tts.device`,
+    # `background_mode`, `overlay.ritardo`, il `region` di `make_screen`,
+    # `profiles/ultima.json` e la `row_band` della calibrazione.
     output_device: str = ""
 
 

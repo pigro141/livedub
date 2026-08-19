@@ -30,10 +30,30 @@ lui l'oggetto della misura.
 
 from __future__ import annotations
 
+import sys
 import time
+import weakref
 from dataclasses import dataclass
 
 import numpy as np
+
+# **Le catture di finestra vive, una per finestra.** E' una tabella debole: chi
+# ci sta dentro non ci resta per colpa di questa riga. Serve a una cosa sola —
+# accorgersi che la sessione precedente ne ha lasciata una accesa sulla stessa
+# finestra — e si veda `FinestraSource`, dove c'e' la misura di quanto costa.
+_CATTURE_FINESTRA: "weakref.WeakValueDictionary[int, FinestraSource]" = (
+    weakref.WeakValueDictionary()
+)
+
+# **E le catture fermate non si liberano: si mettono da parte.** `windows_capture`
+# non regge il rilascio dell'oggetto nativo dopo lo stop — misurato, la cattura
+# del secondo Avvia moriva con un **accesso a memoria non valido** dentro
+# `start_free_threaded`, cioe' un crash del programma invece di una sessione
+# lenta. Fermata, una cattura non copia piu' niente e non costa niente: quello
+# che pesava — l'ultimo fotogramma della finestra, 11 MB su uno schermo grande —
+# e' roba nostra e viene liberata. Si tiene quindi la scatola vuota, e si
+# dichiara qui perche' e' una perdita voluta e non una dimenticanza.
+_FERMATE: list = []
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +114,16 @@ class DxcamSource(ScreenSource):
         except Exception:
             pass
 
+    def __del__(self) -> None:
+        # Il duplicatore va rilasciato anche quando il ciclo video esce senza
+        # chiudere: `dxcam.create()` tiene una tavola delle telecamere aperte e
+        # a quella dopo restituisce **questa**, con un avviso che non legge
+        # nessuno. Si veda la nota in `FinestraSource.__del__`.
+        try:
+            self.close()
+        except Exception:  # pragma: no cover - all'uscita del programma
+            pass
+
 
 class MssSource(ScreenSource):
     """GDI. Piu' lento, ma non lascia a piedi e non salta mai un frame."""
@@ -139,6 +169,12 @@ class MssSource(ScreenSource):
         except Exception:
             pass
 
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:  # pragma: no cover - all'uscita del programma
+            pass
+
 
 class FinestraSource(ScreenSource):
     """Windows Graphics Capture su **una finestra sola**.
@@ -169,6 +205,34 @@ class FinestraSource(ScreenSource):
     visto proprio perche' non si muove. Si riconsegna quindi l'ultimo, e a dire
     se e' nuovo ci pensa `fresh` — chi vuole saltare il lavoro inutile ha gia'
     `vision.diff`, che confronta i fotogrammi e non si fida di nessuno.
+
+    **Una finestra, una cattura, e prima non era vero.** I due callback sono
+    chiusure su `self`, quindi WGC tiene in vita la sorgente per sempre: nessun
+    conteggio di riferimenti arriva a zero, e il ciclo video — che uscendo non
+    chiama `close()` — ne lasciava indietro **una per sessione**, ancora accesa a
+    copiare la finestra del gioco a ogni fotogramma. Misurato con cinque
+    Avvia/Ferma veri, catturando una finestra 1600x900 che cambia a 57 Hz:
+
+        cicli   catture vive   copie/s   sintesi Kokoro   classify_lines
+        ---------------------------------------------------------------
+          1          1            57        162,9 ms         30,0 ms
+          3          3           172        172,1 ms         43,6 ms
+          5          5           285        180,4 ms         46,9 ms
+
+    cioe' la stessa deriva dei rapporti dal vivo dell'utente (`vision.classify`
+    da 29 a 47 ms in cinque Avvia), piu' 14 MB di VRAM per cattura.
+
+    Aprire la cattura di una finestra **ferma quella che c'era su quella stessa
+    finestra**: e' l'unica garanzia che vale a tempo zero, e vale nel momento che
+    conta — mentre una sessione e' accesa ne lavora **una sola**.
+
+    **E niente viene liberato, che e' una scelta e non una dimenticanza.** La
+    strada pulita — riferimento debole nei callback piu' `__del__` che ferma —
+    e' stata scritta, provata e **buttata**: rilasciare l'oggetto dopo lo stop fa
+    morire il programma con un accesso a memoria non valido dentro
+    `start_free_threaded` all'Avvia successivo (visto due volte su cinque, cioe'
+    per giunta a intermittenza). Fra una cattura ferma che resta in memoria e un
+    crash, la scelta e' fatta; e una cattura ferma non copia piu' niente.
     """
 
     name = "finestra"
@@ -179,18 +243,37 @@ class FinestraSource(ScreenSource):
         from windows_capture import WindowsCapture
 
         self.hwnd = int(hwnd)
+        # **Chi apre dovrebbe chiudere, ma il ciclo video esce senza farlo**: se
+        # su questa finestra c'e' ancora la cattura della sessione precedente, la
+        # si ferma adesso invece di lasciarla copiare il gioco per tutta la
+        # partita. Si dichiara su stderr perche' e' un rattoppo, non una
+        # normalita': la riga sparisce il giorno in cui chi apre chiude.
+        vecchia = _CATTURE_FINESTRA.get(self.hwnd)
+        if vecchia is not None and not vecchia._fermata:
+            print(
+                f"cattura: la finestra {self.hwnd} era ancora catturata dalla "
+                f"sessione precedente: la fermo",
+                file=sys.stderr,
+            )
+            vecchia.close()
+        del vecchia
         self._lock = threading.Lock()
         self._ultimo: np.ndarray | None = None
         self._nuovo = False
         self._chiusa = False
+        self._fermata = False  # l'abbiamo fermata noi (diverso da `_chiusa`)
         self._cattura = WindowsCapture(
             cursor_capture=False,  # il puntatore non e' contenuto del gioco
             draw_border=False,  # niente cornice gialla attorno al gioco
             window_hwnd=self.hwnd,
         )
-
         @self._cattura.event
         def on_frame_arrived(frame, control):  # noqa: ANN001
+            if self._fermata:
+                # Fermata: si esce **senza copiare**, che e' tutto il costo.
+                # Lo stop vero l'ha gia' chiesto `close()`; qui si smette di
+                # pagare anche nei fotogrammi che arrivano nel frattempo.
+                return
             # Copia e non vista: il buffer torna a WGC appena questa funzione
             # rientra, e il ciclo video lo leggerebbe mentre viene riscritto.
             dati = np.ascontiguousarray(frame.frame_buffer[:, :, :3])
@@ -203,6 +286,7 @@ class FinestraSource(ScreenSource):
             self._chiusa = True
 
         self._ctrl = self._cattura.start_free_threaded()
+        _CATTURE_FINESTRA[self.hwnd] = self
 
     def grab(self) -> Grab:
         t0 = time.perf_counter()
@@ -219,10 +303,40 @@ class FinestraSource(ScreenSource):
         return self._chiusa
 
     def close(self) -> None:
+        if self._fermata:
+            return
+        self._fermata = True
+        # I pixel della finestra sono la parte pesante e sono nostri: si lasciano
+        # andare adesso, che e' il momento in cui si sa che non serviranno piu'.
+        self._ultimo = None
+        ctrl = getattr(self, "_ctrl", None)
+        cattura = getattr(self, "_cattura", None)
+        if ctrl is None:  # pragma: no cover - costruzione fallita a meta'
+            return
         try:
-            self._ctrl.stop()
+            ctrl.stop()
         except Exception:  # pragma: no cover
             pass
+        # **Si aspetta che il thread di WGC abbia davvero finito.** `stop()`
+        # chiede e torna subito, e il pezzo nativo non va toccato mentre lavora.
+        # Si aspetta a giri brevi e con un tetto, perche' qui ci si passa anche
+        # da `__del__` — dove restare appesi vorrebbe dire un programma che non
+        # si chiude piu'.
+        fine = time.perf_counter() + 2.0
+        finita = False
+        while time.perf_counter() < fine:
+            try:
+                finita = bool(ctrl.is_finished())
+            except Exception:  # pragma: no cover - versione senza is_finished
+                finita = True
+            if finita:
+                break
+            time.sleep(0.005)
+        if not finita:  # pragma: no cover - non si e' mai visto
+            print("cattura: la finestra non si e' fermata entro due secondi",
+                  file=sys.stderr)
+        # E la scatola resta li' apposta: si veda `_FERMATE`.
+        _FERMATE.append((cattura, ctrl))
 
 
 class SoloRoi(ScreenSource):

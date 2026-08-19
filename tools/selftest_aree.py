@@ -412,6 +412,131 @@ def test_solo_roi(c) -> None:
          "se il backend non da' niente non si consegna una tela nera")
 
 
+def test_catture(c) -> None:
+    """Cinque Avvia non lasciano indietro cinque catture accese.
+
+    **Il difetto.** La cattura di una finestra registra due callback che sono
+    chiusure su se stessa, quindi WGC la tiene viva per sempre; e il ciclo video,
+    uscendo, non chiama `close()`. Ogni sessione ne lasciava percio' indietro una
+    **accesa**, che continuava a copiare la finestra del gioco a ogni fotogramma
+    per il resto del programma. Misurato con cinque Avvia/Ferma veri su una
+    finestra 1600x900 che cambia a 57 Hz:
+
+        cicli   catture accese   copie/s   sintesi Kokoro   VRAM
+        -------------------------------------------------------
+          1           1             57        162,9 ms      1430 MB
+          3           3            172        172,1 ms      1458 MB
+          5           5            285        180,4 ms      1486 MB
+
+    cioe' la deriva dei rapporti dal vivo dell'utente (`vision.classify` da 29 a
+    47 ms in cinque Avvia). Con la cura, ciclo 5 uguale al ciclo 1: una sola
+    cattura accesa, sintesi 161,0 contro 162,6 ms, VRAM ferma a 1430.
+
+    **La forma della verifica e' «N cicli e si guarda cosa e' rimasto acceso»**,
+    non «un attributo e' None»: quest'ultima passerebbe con la cattura viva, che
+    e' il caso per cui esiste. WGC qui non si puo' accendere, quindi al suo posto
+    c'e' una finta `WindowsCapture` che registra i callback e conta gli stop —
+    la classe provata resta quella vera.
+    """
+    import sys
+    import types
+
+    import numpy as np
+
+    c.group("catture")
+
+    class _Ctrl:
+        def __init__(self):
+            self.stop_chiesti = 0
+            self.finita = False
+
+        def stop(self):
+            self.stop_chiesti += 1
+            self.finita = True
+
+        def is_finished(self):
+            return self.finita
+
+    class _Frame:
+        def __init__(self):
+            self.frame_buffer = np.full((4, 6, 4), 7, np.uint8)
+
+    class _FintaWGC:
+        """Quel poco di `windows_capture` che la sorgente usa."""
+
+        viste: list = []
+
+        def __init__(self, **kw):
+            self.callback = {}
+            self.ctrl = _Ctrl()
+            _FintaWGC.viste.append(self)
+
+        def event(self, fn):
+            self.callback[fn.__name__] = fn
+            return fn
+
+        def start_free_threaded(self):
+            return self.ctrl
+
+    finto = types.ModuleType("windows_capture")
+    finto.WindowsCapture = _FintaWGC
+    vero = sys.modules.get("windows_capture")
+    sys.modules["windows_capture"] = finto
+    try:
+        from capture.screen import FinestraSource
+
+        # -- cinque sessioni sulla stessa finestra ----------------------------
+        _FintaWGC.viste.clear()
+        sorgenti = []
+        for _ in range(5):
+            s = FinestraSource(hwnd=1234)
+            s.grab()
+            # **Qui finisce il thread video**, e nessuno chiama `close()`: e'
+            # esattamente cio' che fa il programma oggi.
+            sorgenti.append(s)
+            del s
+        accese = [x for x in sorgenti if not x._fermata]
+        c.eq(len(accese), 1,
+             f"dopo cinque sessioni resta accesa **una sola** cattura "
+             f"({len(accese)} accese su {len(sorgenti)})")
+        c.ok(accese[0] is sorgenti[-1], "ed e' quella dell'ultima sessione")
+        c.eq(sum(1 for w in _FintaWGC.viste[:-1] if w.ctrl.stop_chiesti == 0), 0,
+             "le altre quattro sono state fermate davvero, una per una")
+
+        # -- e una fermata non copia piu' niente ------------------------------
+        #
+        # E' la meta' che conta: il costo di una cattura non e' esistere, e'
+        # copiare la finestra del gioco a ogni fotogramma.
+        prima_cattura, w = sorgenti[0], _FintaWGC.viste[0]
+        w.callback["on_frame_arrived"](_Frame(), w.ctrl)
+        c.ok(prima_cattura._ultimo is None,
+             "un fotogramma che arriva a cattura fermata non viene copiato")
+
+        # E l'ultima, che e' accesa, copia: se no la verifica sopra passerebbe
+        # anche con una cattura che non funziona.
+        ultima, wu = sorgenti[-1], _FintaWGC.viste[-1]
+        wu.callback["on_frame_arrived"](_Frame(), wu.ctrl)
+        c.ok(ultima._ultimo is not None and ultima.grab().ok,
+             "e quella accesa copia, se no si starebbe provando una cattura rotta")
+
+        # -- due finestre diverse restano due catture -------------------------
+        #
+        # La regola e' «una per finestra», non «una in tutto»: chiuderne una che
+        # guarda un'altra finestra sarebbe una cura piu' larga del difetto.
+        _FintaWGC.viste.clear()
+        a = FinestraSource(hwnd=11)
+        b = FinestraSource(hwnd=22)
+        c.ok(not a._fermata and not b._fermata,
+             "due finestre diverse hanno due catture, e nessuna ferma l'altra")
+        a.close()
+        b.close()
+    finally:
+        if vero is not None:
+            sys.modules["windows_capture"] = vero
+        else:
+            sys.modules.pop("windows_capture", None)
+
+
 def test_due_sessioni(c) -> None:
     """Due sessioni nello stesso secondo non si pestano i piedi (domanda 32).
 

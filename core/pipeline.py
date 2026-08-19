@@ -1990,6 +1990,19 @@ class DubPipeline:
         # giusto che sia l'ultima cosa che fa.
         if self._anticipo is not None:
             self._anticipo.ferma()
+        # **E si chiude anche l'OCR, che e' un processo.** Con `oneocr` il motore
+        # vive in un figlio (si veda `vision/ocr.py`): finora lo chiudeva soltanto
+        # il netturbino, passando per `__del__`. Misurato, oggi funziona — cinque
+        # catene di fila lasciano zero figli — ma «funziona finche' nessuno tiene
+        # un riferimento» e' la stessa fragilita' che ha tenuto viva la cattura
+        # della finestra per cinque sessioni. Chi apre chiude, e lo fa qui: dopo
+        # `finish()` la catena non legge piu' niente.
+        chiudi = getattr(getattr(self.reader, "ocr", None), "close", None)
+        if callable(chiudi):
+            try:
+                chiudi()
+            except Exception as e:  # pragma: no cover - dipende dal backend
+                print(f"ocr: chiusura fallita: {e!r}", file=sys.stderr)
 
     def report(self) -> str:
         righe = [

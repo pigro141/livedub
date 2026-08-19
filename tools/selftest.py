@@ -3307,6 +3307,7 @@ from tools.selftest_audio import (  # noqa: E402
     test_tts_fake,
 )
 from tools.selftest_vision import (  # noqa: E402
+    test_cancello_area,
     test_diff,
     test_lines,
     test_ocr_prep,
@@ -3329,6 +3330,7 @@ from tools.selftest_aree import (  # noqa: E402
     test_guasto_audio,
     test_uscita_audio,
     test_solo_roi,
+    test_catture,
     test_motore,
     test_stato_sessione,
     test_overlay_base,
@@ -4538,6 +4540,10 @@ GROUPS = {
     "roi": test_roi,
     "lines": test_lines,
     "diff": test_diff,
+    # **L'area la disegna l'utente**: stretta o larga, la battuta si legge lo
+    # stesso. Il cancello del diff normalizzava sull'area, quindi la stessa
+    # battuta valeva meno in un'area piu' grande — fino a non passare piu'.
+    "cancello": test_cancello_area,
     "ocr": test_ocr_prep,
     "tracker": test_tracker,
     "reader": test_reader,
@@ -4567,6 +4573,10 @@ GROUPS = {
     # gruppi che aprono una finestra, perche' sono loro a doverla rispettare.
     "registro": test_registro,
     "solo_roi": test_solo_roi,
+    # **Cosa resta acceso dopo Ferma.** Cinque cicli e si confronta con prima:
+    # una cattura di finestra lasciata indietro non da' errore, copia il gioco a
+    # ogni fotogramma e fa invecchiare tutto il resto.
+    "catture": test_catture,
     # I due cicli fuori dalle finestre, e le due finestre che li chiamano.
     "motore": test_motore,
     # **In che stato e' la sessione, e quali bottoni ne conseguono.** La regola

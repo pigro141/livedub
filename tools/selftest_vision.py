@@ -341,6 +341,87 @@ def test_diff(c) -> None:
     c.eq(r2.update(black).change, Change.NONE, "reset dimentica il passato")
 
 
+def test_cancello_area(c) -> None:
+    """**L'area la disegna l'utente, e il programma deve leggere lo stesso.**
+
+    Il cancello del diff guardava la *frazione* di pixel cambiati sull'area
+    intera. Ma un sottotitolo che compare muove all'incirca lo **stesso numero**
+    di pixel comunque sia disegnata l'area: quindi raddoppiando l'area la stessa
+    identica battuta valeva meta', e sopra una certa dimensione non superava piu'
+    la soglia. Non e' un limite legittimo — «tirala stretta» resta un consiglio
+    sulla qualita' del blur, non la condizione perche' il programma legga — ed e'
+    la sesta volta in questo progetto della forma «una soglia misurata su una
+    distribuzione e applicata a un'altra».
+
+    Misurato sulle comparse **vere** di una registrazione, con lo sfondo tenuto
+    fermo (pixel veri: si toglie solo il movimento della scena, che e' cio' che
+    nasconde il difetto):
+
+        altezza area   comparse viste   dopo la cura
+        --------------------------------------------
+             0,06         42 su 44        42 su 44
+             0,187        42 su 44        42 su 44
+             0,70         37 su 44        42 su 44
+             0,95         33 su 44        42 su 44
+
+    e sulla stessa registrazione, catena intera (`tools/dub.py`, gioco in
+    movimento): 43 battute con l'area a 0,06 e 44 con l'area a 0,187 — prima e
+    dopo, cioe' dove il difetto non morde la cura non cambia niente, che e' il
+    modo in cui si tocca una soglia gia' tarata.
+
+    **La forma della verifica e' «stesso ingresso, due aree, stesso numero di
+    letture»**, non «la soglia e' minore di X»: la seconda passerebbe con
+    qualunque normalizzazione, compresa quella rotta.
+    """
+    from core.clock import VirtualClock
+
+    c.group("cancello")
+
+    # Uno schermo vero (2560x1440) e una riga di sottotitolo vera: e' il caso
+    # dell'utente. Lo sfondo e' **fermo** — un dialogo a telecamera ferma — che
+    # e' quando il difetto si vede: con la scena che si muove, il movimento tiene
+    # aperto il cancello da solo e nasconde tutto.
+    ALTA, LARGA = 1440, 2560
+    # **Una battuta corta**, che e' il caso vero: sono le righe da due parole a
+    # sparire per prime, perche' muovono meno pixel di tutte. `Ma domani` e' una
+    # riga letta davvero nella registrazione di prova.
+    riga = "Ma domani"
+    fondo = np.full((ALTA, LARGA, 3), 40, np.uint8)
+    banda = render_subtitles([(riga, WHITE)], size=(90, 420), font_px=44)
+    y0, x0 = int(0.86 * ALTA), (LARGA - 420) // 2
+    con_testo = fondo.copy()
+    con_testo[y0:y0 + 90, x0:x0 + 420] = np.maximum(
+        con_testo[y0:y0 + 90, x0:x0 + 420], banda)
+
+    def quante_letture(roi) -> int:
+        cfg = VisionConfig()
+        cfg.stable_reads = 2
+        cfg.hold_frames = 0
+        cfg.roi = roi
+        orologio = VirtualClock()
+        reader = SubtitleReader(cfg, EchoOcr([riga]), clock=orologio)
+        t = 0.0
+        aperte = 0
+        for k in range(14):
+            t += 0.2
+            orologio.set(t)
+            aperte += len(reader.run(fondo if k < 4 else con_testo).opened)
+        return aperte
+
+    # Il centro e' lo stesso: cambia **solo** quanto e' alta.
+    centro = 0.86 + 90 / 2 / ALTA
+    stretta = (0.23, centro - 0.03, 0.54, 0.06)
+    larga = (0.23, centro - 0.0935, 0.54, 0.187)
+    enorme = (0.23, max(0.0, centro - 0.475), 0.54, 0.95)
+
+    a = quante_letture(stretta)
+    c.eq(a, 1, "con l'area stretta la battuta si legge")
+    for nome, roi in (("0,187", larga), ("0,95", enorme)):
+        b = quante_letture(roi)
+        c.eq(b, a, f"e con l'area alta {nome} si legge lo stesso "
+                   f"({a} contro {b}): l'area la disegna l'utente")
+
+
 def test_ocr_prep(c) -> None:
     c.group("ocr")
 

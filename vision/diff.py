@@ -73,6 +73,15 @@ from enum import Enum
 import numpy as np
 
 
+# **Quanto e' alta una riga di sottotitolo, in pixel di schermo.** Misurato sui
+# rettangoli letti dall'OCR nella registrazione di prova (1920x1080): 34-39 px,
+# e su uno schermo 2560x1440 il corpo cresce in proporzione. Quarantotto e' il
+# valore tondo che li contiene tutti con un po' di margine; non e' una soglia da
+# tarare, e' la scala di lunghezza che rende il cancello indipendente da quanto
+# grande e' l'area — si veda `RoiDiff._variazione`.
+BANDA_TESTO_PX = 48
+
+
 class Change(Enum):
     NONE = "none"
     APPEARED = "appeared"
@@ -116,6 +125,11 @@ class RoiDiff:
         # una finestra sedici volte piu' larga di quella voluta.
         self.contrast_kernel = max(3, (int(contrast_kernel) // self.stride) | 1)
         self.ink_min_columns = float(ink_min_columns)
+        # Quante righe **campionate** fa una riga di sottotitolo: e' la scala di
+        # lunghezza con cui `_variazione` toglie l'area dal denominatore. Sta in
+        # pixel di schermo (`BANDA_TESTO_PX`) apposta: e' una proprieta' del
+        # testo, non dell'area che l'utente ha disegnato.
+        self.banda_righe = max(1, round(BANDA_TESTO_PX / self.stride))
         self.vanish_frames = max(1, int(vanish_frames))
         self._previous: np.ndarray | None = None
         self._had_ink = False
@@ -205,9 +219,49 @@ class RoiDiff:
         return self.threshold
 
     def _variazione(self, delta: np.ndarray) -> float:
-        """Quanto e' cambiato: la frazione di pixel campionati che si sono mossi."""
+        """Quanto e' cambiato: la frazione di pixel mossi **nella banda peggiore**.
+
+        Non e' la media su tutta l'area, ed e' il punto. Un sottotitolo che
+        compare muove all'incirca lo **stesso numero di pixel** che l'area sia
+        stretta o larga, quindi una frazione con l'area al denominatore lo fa
+        valere meno mano a mano che l'area cresce: e' la sesta volta in questo
+        progetto della forma «una soglia misurata su una distribuzione e
+        applicata a un'altra». Misurato sulle **comparse vere** di una
+        registrazione, con lo sfondo tenuto fermo (i pixel sono quelli veri, si
+        toglie solo il movimento della scena, che e' cio' che nasconde il
+        difetto):
+
+            altezza area   comparse viste   ratio p50
+            ------------------------------------------
+                 0,06        42 su 44        0,112
+                 0,187       42 su 44        0,040
+                 0,70        37 su 44        0,010
+                 0,95        33 su 44        0,0079   <- un quarto perse
+
+        cioe' `ratio` cala come 1/area, e sopra una certa dimensione lo stesso
+        identico sottotitolo non supera piu' la soglia. Il messaggio «tirala
+        stretta attorno alla riga» resta un consiglio sulla qualita' del blur,
+        ma non deve essere la condizione perche' il programma legga: l'utente
+        disegna l'area che vuole.
+
+        La banda alta quanto una riga di testo toglie l'area dal denominatore:
+        numeratore e denominatore parlano finalmente della stessa cosa. E la
+        **massima** fra le bande e' sempre >= la media su tutta l'area, quindi
+        questo cancello si puo' solo aprire piu' spesso di prima — nessuna
+        lettura che oggi avviene puo' sparire, che e' il modo di cambiare una
+        soglia gia' tarata senza doverla ritarare.
+        """
         cambiato = delta > 16.0
-        return float(cambiato.mean()) if cambiato.size else 0.0
+        if cambiato.size == 0:
+            return 0.0
+        righe, colonne = cambiato.shape[0], cambiato.shape[1]
+        banda = max(1, min(righe, self.banda_righe))
+        if banda >= righe:
+            return float(cambiato.mean())
+        per_riga = cambiato.sum(axis=1, dtype=np.float64)
+        cumulata = np.concatenate(([0.0], np.cumsum(per_riga)))
+        somme = cumulata[banda:] - cumulata[:-banda]
+        return float(somme.max() / (banda * colonne))
 
     def _ink(self, sample: np.ndarray) -> float:
         """Pixel di testo per colonna della ROI sottocampionata.

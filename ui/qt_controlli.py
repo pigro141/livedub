@@ -467,6 +467,7 @@ NOMI: dict[str, str] = {
     "translate.overlay": "Disegna il tradotto sopra il gioco",
     "translate.background_mode": "Come coprire la riga originale",
     "translate.color": "Colore del testo",
+    "translate.misura_originale": "Tieni la misura dell'originale",
     "translate.font": "Carattere",
     "translate.font_frac": "Taglia del carattere",
     "translate.blur_strength": "Quanto sfocare",

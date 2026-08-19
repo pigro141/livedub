@@ -130,6 +130,13 @@ TRADUZIONE = (
     "translate.enabled", "translate.backend", "translate.source", "translate.target",
     "translate.preserve_register", "translate.context_lines",
     "translate.overlay", "translate.background_mode", "translate.color",
+    # **Sta qui perche' e' una scelta d'occhio, e l'occhio ce l'ha solo
+    # l'utente.** Il tradotto che tiene la misura dell'originale stringe il
+    # corpo del carattere invece di allargare il riquadro: su una frase molto
+    # piu' lunga dell'originale il testo diventa piccolo, e dove sia il punto in
+    # cui si legge peggio dell'originale che copre non c'e' misura che lo dica.
+    # Resta spento di serie — si accende per giudicarlo, non si promuove.
+    "translate.misura_originale",
     "translate.font", "translate.font_frac", "translate.outline",
     "translate.blur_strength", "translate.background_opacity",
 )

@@ -1498,15 +1498,6 @@ class TranslateConfig:
     # l'altezza dei glifi, cosi' lo stesso numero cancella allo stesso modo a
     # 1080p e a 1440p e su un gioco che scrive piu' grande.
     blur_strength: float = 12.0
-    # **Zero vuol dire «come il gioco», ed e' il default.** La misura del
-    # carattere si prende dall'altezza dei glifi del sottotitolo che si sta
-    # coprendo: cosi' la battuta tradotta si posa dove stava l'originale, della
-    # stessa taglia, e sembra il sottotitolo del gioco invece di un cartello
-    # appiccicato sopra. Un numero scelto da noi e' sbagliato per costruzione,
-    # perche' ogni gioco scrive i sottotitoli come vuole.
-    #
-    # Diverso da zero: altezza come **frazione dell'altezza dello schermo**, in
-    # frazione e non in punti, cosi' vale a 1080p e a 1440p.
     # **Il tradotto tiene la misura del sottotitolo che copre.** Spento (il
     # default) il testo nuovo prende lo spazio che gli serve e puo' essere piu'
     # largo dell'originale: l'inglese di «Come va, bello?» e' il doppio.
@@ -1525,6 +1516,15 @@ class TranslateConfig:
     # l'occhio, su un gioco vero, e non c'e' una misura che possa farla al posto
     # suo.
     misura_originale: bool = False
+    # **Zero vuol dire «come il gioco», ed e' il default.** La misura del
+    # carattere si prende dall'altezza dei glifi del sottotitolo che si sta
+    # coprendo: cosi' la battuta tradotta si posa dove stava l'originale, della
+    # stessa taglia, e sembra il sottotitolo del gioco invece di un cartello
+    # appiccicato sopra. Un numero scelto da noi e' sbagliato per costruzione,
+    # perche' ogni gioco scrive i sottotitoli come vuole.
+    #
+    # Diverso da zero: altezza come **frazione dell'altezza dello schermo**, in
+    # frazione e non in punti, cosi' vale a 1080p e a 1440p.
     font_frac: float = 0.0
     font: str = "Arial"
     # **Vuoto vuol dire «come il gioco»**, per la stessa ragione della misura: si

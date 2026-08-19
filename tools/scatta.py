@@ -278,6 +278,18 @@ def _tutorial(app, f, fuori: Path, sigla: str) -> int:
             app.processEvents()
             d.grab().save(str(fuori / f"{sigla}-guida-{i + 1}.png"))
             scritti += 1
+            # **Il passo del banco ha tre stati e due non si vedono scorrendo.**
+            # Aperto dice cosa c'e' e quanto costa premere; mentre scarica e a
+            # scaricamento fallito non ci si arriva senza aspettare una rete
+            # vera, e quello a rete rotta e' l'unico in cui il riquadro passa in
+            # ambra — cioe' proprio il caso per cui il passo esiste.
+            if PASSI[i].vivo == "banco":
+                for stato, nome in (("in corso", "carica"), ("finito", "rotto")):
+                    d.posa_banco(stato)
+                    app.processEvents()
+                    d.grab().save(str(fuori / f"{sigla}-guida-banco-{nome}.png"))
+                    scritti += 1
+                d.posa_banco("")
             d._avanti() if i < len(PASSI) - 1 else None
     finally:
         # Senza `reject` il dialogo segnerebbe la guida come vista sulla

@@ -4204,6 +4204,12 @@ def test_tutorial(c: Check) -> None:
             and isinstance(n.args[0].value, str)
         }
         c.ok(usati, f"il sorgente compone davvero delle frasi ({len(usati)})")
+        # **I perche' del banco sono modelli anche loro**, e non arrivano a `_T`
+        # come letterali: `core/banco.py` parla per codici e la frase la sceglie
+        # `MOTIVI`. Contarli qui e' l'unico modo di tenere vera la doppia
+        # inclusione qui sotto — se no la seconda riga li dichiarerebbe
+        # «avanzati» e li farebbe togliere dal catalogo.
+        usati |= set(T.MOTIVI.values())
         c.eq(sorted(usati - set(T.MODELLI)), [],
              "ogni modello composto sta in `MODELLI`, se no uscirebbe in "
              "italiano in mezzo a una finestra tradotta")
@@ -4284,7 +4290,12 @@ def test_tutorial(c: Check) -> None:
                     d._avanti()
             c.eq(sorted(visto - set(voci)), [],
                  "il dialogo non dice niente che non abbia dichiarato")
-            non_composte = set(voci) - set(T.MODELLI)
+            # Fuori dal conto ci sono i **modelli** (che a schermo arrivano gia'
+            # riempiti, dentro widget `nontradurre`) e le stringhe che vivono
+            # solo mentre il banco lavora, dichiarate in `SOLO_DURANTE`: la
+            # passeggiata non attraversa quello stato, e pretenderlo qui
+            # vorrebbe dire far girare un banco vero dentro la suite.
+            non_composte = set(voci) - set(T.MODELLI) - set(T.SOLO_DURANTE)
             c.eq(sorted(non_composte - visto), [],
                  "e non dichiara niente che non dica: una riga elencata e mai "
                  "mostrata e' una chiave tradotta per niente")
@@ -4372,6 +4383,189 @@ def test_tutorial(c: Check) -> None:
             os.environ.pop("LOCALAPPDATA", None)
         else:
             os.environ["LOCALAPPDATA"] = vecchio
+
+
+def test_banco(c: Check) -> None:
+    """Il mini banco della guida: **quali motori, dati questi numeri**.
+
+    Gira **senza toccare niente**: nessuna GPU, nessuna rete, nessun modello sul
+    disco, nessun Qt. E' il punto di tutto `core/banco.py` — la parte che misura
+    e la parte che decide stanno separate proprio perche' la seconda si possa
+    provare con numeri finti, compresi i casi che su questa macchina non
+    capitano mai.
+
+    I casi che contano sono quattro, e tre sono il **ripiego silenzioso** visto
+    da tre lati diversi:
+
+    - niente CUDA -> Piper, perche' Kokoro su CPU costa 725 ms contro 207;
+    - CUDA **dichiarata** e non **ottenuta**: chiedere un acceleratore non e'
+      ottenerlo, ed e' il difetto che `core/onnx.py` esiste per chiudere;
+    - CUDA ottenuta ma millisecondi da CPU: una sessione puo' dire «CUDA» e
+      andare lo stesso piano;
+    - il modello scaricato a meta': senza `dopo_lo_scarico` resterebbe scritto
+      `tts.backend = kokoro` con i pesi non sul disco.
+    """
+    c.group("banco")
+
+    from dataclasses import replace
+
+    from core import banco as B
+
+    # -- la scelta, con numeri finti -----------------------------------------
+    senza = B.scegli(B.Sonda(cuda=False, argos=True))
+    c.eq(senza.tts, "piper",
+         "senza CUDA la voce e' Piper: Kokoro sulla CPU costa 725 ms a battuta "
+         "contro 207, cioe' non e' vivibile")
+    c.eq(senza.traduzione, "locale",
+         "e la traduzione e' quella locale, che vince di un fattore sette e non "
+         "manda niente fuori dal PC")
+
+    con = B.scegli(B.Sonda(cuda=True, argos=True))
+    c.eq(con.tts, "kokoro", "con CUDA si prova Kokoro")
+
+    # **Dichiarata non e' ottenuta.** E' la riga per cui `Sonda.provider` esiste
+    # separato da `Sonda.cuda`.
+    bugia = B.scegli(B.Sonda(cuda=True, provider="CPUExecutionProvider"))
+    c.eq(bugia.tts, "piper",
+         "CUDA dichiarata ma sessione aperta sulla CPU: si torna a Piper — "
+         "chiedere un acceleratore non e' ottenerlo")
+    c.ok(any(m.codice == "cuda_persa" for m in bugia.motivi),
+         "e lo dice, perche' un ripiego che non si dichiara e' peggio di un errore")
+
+    lenta = B.scegli(B.Sonda(cuda=True, provider="CUDAExecutionProvider",
+                             sintesi_ms=B.SINTESI_MAX_MS + 1))
+    c.eq(lenta.tts, "piper",
+         "e una GPU che consegna i tempi di una CPU non basta averla: contano i "
+         "millisecondi, non il nome del provider")
+    veloce = B.scegli(B.Sonda(cuda=True, provider="CUDAExecutionProvider",
+                              sintesi_ms=B.SINTESI_MAX_MS - 1))
+    c.eq(veloce.tts, "kokoro", "sotto la soglia invece resta Kokoro")
+
+    # **Una misura puo' solo retrocedere.** Promuovere Piper a Kokoro perche' un
+    # numero e' venuto bello vorrebbe dire scegliere il motore che compete con il
+    # gioco per la GPU sulla base di una prova fatta a gioco spento.
+    c.eq(B.scegli(B.Sonda(cuda=False, sintesi_ms=10.0, passo=20.0)).tts, "piper",
+         "e nessuna misura promuove: da Piper non si sale")
+
+    corto = B.scegli(B.Sonda(cuda=True, provider="CUDAExecutionProvider",
+                             sintesi_ms=100.0, passo=B.PASSO_MINIMO - 1))
+    c.eq(corto.tts, "piper",
+         "un motore che produce meno parlato di quanto la scena ne contenga "
+         "esce comunque: e' la domanda che ha tolto il quarto motore, e la "
+         "latenza non c'entrava")
+
+    # -- la traduzione --------------------------------------------------------
+    c.eq(B.scegli(B.Sonda(argos=False, llm=True)).traduzione, "llm",
+         "senza Argos si ripiega sul modello in memoria, che resta in locale")
+    nessuna = B.scegli(B.Sonda(argos=False, llm=False))
+    c.eq(nessuna.traduzione, "",
+         "e senza nessuno dei due **non si sceglie**: l'unica alternativa che "
+         "funzionerebbe sempre e' google, che manda i sottotitoli fuori dal PC")
+    c.ok(any(m.codice == "traduzione_manca" and B.RIGA_PIP in m.valori
+             for m in nessuna.motivi),
+         "si consegna la riga di pip invece di eseguirla: `onnxruntime` e "
+         "`onnxruntime-gpu` non convivono, e un'installazione da dentro "
+         "spegnerebbe la CUDA in silenzio")
+    piano = B.scegli(B.Sonda(argos=True, traduzione_ms=B.TRADUZIONE_MAX_MS + 1))
+    c.ok(any(m.codice == "traduzione_lenta" for m in piano.motivi),
+         "una traduzione che sfora l'attesa di `decide_after_ms` si dichiara: "
+         "sotto quella soglia e' gratis, sopra si paga intera")
+
+    # -- cosa serve, e cosa manca --------------------------------------------
+    su_gpu = B.Scelta(tts="kokoro", traduzione="locale")
+    serve_gpu = B.serve(su_gpu, traduzione=False)
+    c.ok("kokoro" in serve_gpu and "piper" not in serve_gpu,
+         "si scarica il motore scelto e non gli altri: 326 MB per un motore che "
+         "non verra' acceso sono 326 MB")
+    c.ok("traduzione" not in serve_gpu,
+         "e con la traduzione spenta la coppia di lingue non si prende: la "
+         "scarica `make_traduttore` quando la si accende, dichiarandolo")
+    c.ok("traduzione" in B.serve(su_gpu, traduzione=True),
+         "accesa si'")
+    c.ok("ecapa" in B.serve(B.Scelta(tts="piper"), traduzione=False),
+         "l'impronta della voce serve a tutti i motori")
+
+    c.eq(B.da_scaricare(("ecapa", "piper"), {"piper"}), ("ecapa",),
+         "quello che c'e' gia' non si riscarica")
+    c.eq(B.da_scaricare(("ecapa", "piper"), {"ecapa", "piper"}), (),
+         "e con tutto sul disco non si scarica niente")
+    c.ok(B.peso_mb(("kokoro", "voci_kokoro")) > B.peso_mb(("piper",)),
+         "i megabyte si dicono prima: un'attesa dichiarata e' un'attesa, "
+         "un'attesa muta e' una finestra bloccata")
+
+    # -- e se il modello non arriva -------------------------------------------
+    meta = B.dopo_lo_scarico(B.Scelta(tts="kokoro"), {"ecapa", "kokoro"})
+    c.eq(meta.tts, "piper",
+         "pesi arrivati e stili no: non e' «quasi», e' un motore che alla prima "
+         "battuta non parte")
+    c.ok(any(m.codice == "motore_mancante" for m in meta.motivi), "e si dice")
+    intero = B.dopo_lo_scarico(B.Scelta(tts="kokoro"),
+                               {"ecapa", "kokoro", "voci_kokoro"})
+    c.eq(intero.tts, "kokoro", "con tutti e due i pezzi resta Kokoro")
+    c.eq(B.dopo_lo_scarico(B.Scelta(tts="piper"), set()).tts, "piper",
+         "e su Piper non c'e' niente da retrocedere")
+
+    # -- i perche' hanno tutti una frase, in ogni lingua ----------------------
+    # E' la stessa forma di `COMPOSTE` e dei modelli del tutorial: due elenchi
+    # che devono coincidere e che nessuno confronterebbe a occhio. Un codice
+    # senza frase esce come una **riga vuota** — nessun errore, e la
+    # spiegazione sparita.
+    from ui import tutorial as T
+
+    c.eq(sorted(set(B.MOTIVI) - set(T.MOTIVI)), [],
+         "ogni motivo che `scegli()` puo' produrre ha la sua frase")
+    c.eq(sorted(set(T.MOTIVI) - set(B.MOTIVI)), [],
+         "e non ce ne sono di avanzati")
+    c.eq(sorted(set(B.PEZZI) - set(T.PEZZI_NOMI)), [],
+         "e ogni pezzo scaricabile ha un nome da mostrare mentre si scarica")
+    c.eq(sorted(B.AVVISI - set(B.MOTIVI)), [],
+         "gli avvisi sono motivi veri, non nomi rimasti indietro")
+    c.ok("cuda_no" not in B.AVVISI,
+         "«nessuna scheda video» non e' un avviso: e' un fatto, e Piper e' la "
+         "risposta giusta")
+    c.ok("cuda_persa" in B.AVVISI,
+         "«chiesta la GPU e ottenuta la CPU» si', perche' li' qualcosa e' "
+         "andato storto — e una schermata tutta verde sopra un ripiego e' il "
+         "ripiego silenzioso messo in figura")
+
+    # Tutti i motivi si riempiono davvero: un segnaposto di troppo qui
+    # sarebbe una riga che ricade sull'italiano in tutte e quarantuno le lingue.
+    for codice in B.MOTIVI:
+        riga = T.motivo_in_riga(B.Motivo(codice, ("x", "y")), "it")
+        c.ok(riga and "{" not in riga, f"il motivo `{codice}` diventa una frase")
+
+    # -- quello che si scrive in configurazione -------------------------------
+    from core.config import Config
+
+    cfg = Config()
+    cfg.tts.backend = "supertonic"
+    esito = B.Referto(B.Scelta(tts="piper", traduzione="locale"),
+                      B.Sonda(presenti=frozenset()))
+    toccati = B.applica(cfg, esito)
+    c.eq(cfg.tts.backend, "piper", "la scelta finisce in configurazione")
+    c.ok("vision.ocr_backend" not in toccati,
+         "ma OneOCR non si accende se i suoi file non sono arrivati: sarebbe "
+         "una catena che non parte, con la scusa che il banco aveva promesso")
+    c.ok("tts.device" not in toccati,
+         "e `tts.device` lo legge solo Kokoro: scriverlo su Piper sarebbe il "
+         "settimo campo dichiarato e mai letto di questo progetto")
+
+    cfg2 = Config()
+    B.applica(cfg2, B.Referto(B.Scelta(tts="kokoro"),
+                              B.Sonda(presenti=frozenset({"oneocr"}))))
+    c.eq(cfg2.tts.device, "cuda",
+         "con Kokoro si scrive `cuda` e non `auto`: la GPU e' stata ottenuta su "
+         "una sessione vera, quindi da qui in poi un ripiego deve sollevare")
+    c.eq(cfg2.vision.ocr_backend, "oneocr",
+         "e OneOCR si accende quando i suoi file ci sono davvero")
+
+    # -- la guida e' cresciuta, quindi si rivede ------------------------------
+    from core import preferenze as P
+
+    c.ok(P.TUTORIAL >= 2,
+         "la guida ha un passo in piu' che installa roba: il numero di versione "
+         "e' salito, quindi la rivede anche chi l'aveva gia' vista — e' "
+         "esattamente il caso per cui e' un numero e non un «l'ho vista»")
 
 
 def test_registro(c: Check) -> None:
@@ -4569,6 +4763,10 @@ GROUPS = {
     "ripresa": test_ripresa,
     "guasto_audio": test_guasto_audio,
     "uscita_audio": test_uscita_audio,
+    # **Quali motori su questa macchina**, con numeri finti: niente GPU, niente
+    # rete, niente modelli, niente Qt. La regola sta in `core/banco.py` proprio
+    # per poter provare qui i casi che su questo PC non capitano mai.
+    "banco": test_banco,
     # Il registro su file, e la regola che tiene fuori chi simula. Sta prima dei
     # gruppi che aprono una finestra, perche' sono loro a doverla rispettare.
     "registro": test_registro,

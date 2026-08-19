@@ -101,11 +101,16 @@ if (Test-Path "models\oneocr\oneocr.onemodel") {
 }
 
 # -- 5. la GPU, verificata invece che sperata --------------------------------
+# **La funzione si chiama `preload`, non `preload_dlls`.** Con il nome sbagliato
+# l'import sollevava, il `try` lo mangiava, e questo installatore diceva «nessun
+# provider CUDA» su **qualunque** macchina — comprese quelle che la GPU ce
+# l'hanno. E' la forma esatta del difetto che questo blocco esisteva per
+# prendere: un ripiego che non si dichiara, girato dall'altra parte.
 if (-not $SenzaGpu) {
     $prov = & $pyexe -c @"
 try:
-    from core.onnx import preload_dlls
-    preload_dlls()
+    from core.onnx import preload
+    preload()
     import onnxruntime as ort
     print(','.join(ort.get_available_providers()))
 except Exception as e:

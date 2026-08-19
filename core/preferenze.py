@@ -80,7 +80,13 @@ def aggiorna(**valori: Any) -> dict[str, Any]:
 # prima non c'era — nessuno di quelli che l'hanno gia' vista lo vedra' mai.
 # Alzando questo numero lo rivedono tutti, e chi non lo alza non ha cambiato
 # niente di importante.
-TUTORIAL = 1
+# **2 dal 20 agosto 2026**: la guida ha guadagnato il passo che misura questa
+# macchina, sceglie i motori e scarica i modelli mancanti. E' esattamente il caso
+# per cui questo campo e' un numero — chi aveva gia' visto la guida non ha mai
+# visto quel passo, e senza questo scatto non lo vedrebbe mai: continuerebbe a
+# sentire il ripiego leggero senza sapere che c'e' di meglio, che e' il difetto
+# che quel passo esiste per chiudere.
+TUTORIAL = 2
 
 # La chiave nel file. Sta qui e non scritta a mano nei due punti che la usano.
 _CHIAVE_TUTORIAL = "tutorial_visto"

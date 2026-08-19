@@ -833,7 +833,7 @@ interpretata.
 
 ## La guida iniziale, e perche' controlla invece di raccontare
 
-`ui/tutorial.py`, sei passi, si apre da sola la prima volta e si rivede col «?».
+`ui/tutorial.py`, sette passi, si apre da sola la prima volta e si rivede col «?».
 Il primo passo e' la lingua della finestra, che `ui.lingua` mette su `auto` di
 serie: chi apre il programma lo trova nella lingua in cui usa il computer.
 
@@ -859,6 +859,58 @@ solo l'attributo e chiamava quel caso «costruita e non mostrata»: **diceva a
 parole la cosa giusta e la provava col meccanismo sbagliato**, quindi non poteva
 fallire proprio nel caso per cui esisteva. Adesso la condizione e' «e' davvero
 davanti a qualcuno» (`isVisible`), che nessun chiamante nuovo deve ricordarsi.
+
+### Il passo 6 misura questa macchina, sceglie i motori e scarica cio' che manca
+
+`core/banco.py`, e i passi sono diventati sette. Esiste per una ragione sola, ed
+e' la stessa di mezzo file: **un modello che manca non da' errore**. I pacchetti
+stanno in `requirements.txt`; i modelli si scaricano alla *prima richiesta*, e se
+non arrivano la catena **ripiega su un backend piu' leggero e continua** — chi
+apre il programma la prima volta ascolta il ripiego senza saperlo.
+
+**Misurare e decidere sono separati**, e non per eleganza: `scegli(Sonda) ->
+Scelta` e' aritmetica pura, quindi il gruppo `banco` prova senza GPU, senza rete,
+senza modelli e senza Qt i casi che su questa macchina non capitano mai. Sotto la
+riga di mezzo c'e' quello che tocca il disco e non decide niente.
+
+**Le soglie non sono nuove**, e ciascuna cita da dove viene: `SINTESI_MAX_MS =
+500` sta in mezzo fra i 299 di Kokoro su CUDA e i 725 su CPU; `PASSO_MINIMO = 10`
+car/s e' la domanda che ha tolto il quarto motore (Qwen ne faceva 8,4);
+`TRADUZIONE_MAX_MS = 500` **e'** `speaker.decide_after_ms`, perche' la traduzione
+sta dentro quell'attesa e il numero che conta e' il p95, non il p50.
+
+**Il provider dichiarato propone, i millisecondi dispongono.** ORT dice se la
+CUDA c'e'; `Sonda.provider` dice cosa la sessione ha **davvero** preso; e i tempi
+misurati possono smentire tutti e due, perche' una sessione puo' dire «CUDA» e
+andare come una CPU. Una misura puo' solo **retrocedere** — da Kokoro si torna a
+Piper, da Piper non si sale: promuovere sulla base di una prova fatta a gioco
+spento vorrebbe dire scegliere il motore che compete per la GPU senza il gioco
+acceso.
+
+**Niente `pip`, ed e' un confine e non una prudenza.** `onnxruntime` e
+`onnxruntime-gpu` non convivono, e un `pip install argostranslate` ingenuo tira
+dentro il primo spegnendo la CUDA in silenzio. Se un pacchetto manca, il passo lo
+**dichiara** e consegna la riga da incollare. Scarica invece modelli e coppie di
+lingue — e non tutti: 326 MB per un motore che non verra' acceso sono 326 MB, e
+la coppia di lingue entra solo con la traduzione accesa.
+
+Due cose che sarebbero mancate scrivendo solo la cura. `dopo_lo_scarico()`: se i
+pesi arrivano e gli stili no, **non e' «quasi»**, e senza quella riga resterebbe
+scritto `tts.backend=kokoro` con i pesi non sul disco. E `applica()` scrive
+quello che ha **verificato** e non quello che ha scelto — `vision.ocr_backend =
+oneocr` con OneOCR non copiato sarebbe una catena che non parte con la scusa che
+il banco aveva promesso.
+
+**Le due schermate che contano non si vedono scorrendo la guida**, quindi si
+posano: `Tutorial.posa_banco()` mette il passo «mentre scarica» e «non e'
+arrivato» davanti alla macchina fotografica, come `BarraCarico.posa`. La seconda
+e' l'unica in cui il riquadro passa in ambra, ed e' il caso per cui il passo
+esiste. `core.banco.AVVISI` dice quali motivi sono **rinunce** e non conferme:
+«nessuna scheda video» e' un fatto, «chiesta la GPU e ottenuta la CPU» no, e
+dargli la stessa spunta verde sarebbe il ripiego silenzioso messo in figura.
+
+`preferenze.TUTORIAL` e' salito a **2** — e' esattamente il caso per cui e' un
+numero: chi la guida l'aveva gia' vista non ha mai visto questo passo.
 
 ## Le aree multiple sono state tolte, e cosa resta della lezione
 

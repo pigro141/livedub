@@ -2,7 +2,7 @@
 
 Non un carosello di schermate. Chi apre questo programma per la prima volta non
 sa cos'e' un loopback, non sa che il gioco deve stare in finestra, e non ha mai
-sentito nominare Voicemeeter — e se dopo sei schermate non riesce a sentire una
+sentito nominare Voicemeeter — e se dopo sette schermate non riesce a sentire una
 battuta doppiata, il tutorial ha fallito anche se e' bello.
 
 ## Dove puo', **controlla** invece di chiedere fiducia
@@ -43,15 +43,26 @@ Si apre da solo la prima volta e mai piu' (`core.preferenze.tutorial_da_mostrare
 che sta fuori da Qt apposta: «va mostrato?» e' una regola, e si verifica senza
 aprire una finestra). Si puo' saltare sempre, e saltarlo segna la stessa cosa che
 finirlo — se no si riaprirebbe a ogni avvio, cioe' saltarlo lascerebbe il
-programma **peggio** di non averlo mai aperto. La sola cosa che scrive in
-configurazione e' la lingua, e solo se la si sceglie.
+programma **peggio** di non averlo mai aperto.
+
+## Quello che scrive, e solo se glielo si chiede
+
+Due cose, e tutte e due dopo un gesto: la **lingua**, se la si sceglie, e i
+**motori**, se si preme il bottone del passo 6. Niente parte da solo: il banco
+misura e scarica fino a mezzo gigabyte, e un dialogo che comincia a scaricare
+perche' lo si e' aperto e' peggio di uno che non scarica affatto.
+
+La regola che decide *quali* motori sta in `core/banco.py` e non qui, per la
+ragione di sempre — si prova con numeri finti, senza CUDA, senza rete e senza
+aprire una finestra. Qui restano le parole con cui la si racconta, che e' l'unica
+cosa che ha bisogno del catalogo.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QThread, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
@@ -174,6 +185,28 @@ PASSI: tuple[Passo, ...] = (
         vivo="schede",
     ),
     Passo(
+        "Questo PC: cosa riesce a fare, e cosa manca",
+        (
+            "Quale voce e quale traduttore convengano non si decide a occhio: "
+            "dipende da questa macchina, e si decide con un numero. Il bottone "
+            "qui sotto misura, sceglie da solo e scarica quello che manca. Meno "
+            "di un minuto, piu' il tempo dello scaricamento.",
+            # **Niente asterischi nei paragrafi.** Sono `QLabel` di testo
+            # semplice, non Markdown: visto nella schermata, i due asterischi si
+            # leggevano tali e quali in mezzo alla frase.
+            "Serve perche' un modello che manca non da' errore. I programmi sono "
+            "gia' installati; i modelli no — si prendono alla prima richiesta, e "
+            "se non arrivano il programma non si ferma: ripiega su qualcosa di "
+            "piu' leggero e va avanti. Senza questo passo staresti ascoltando il "
+            "ripiego senza saperlo.",
+            "Non installa nessun programma, e non e' pigrizia: i programmi di "
+            "questo ambiente dipendono l'uno dall'altro, e installarne uno da qui "
+            "potrebbe spegnere la scheda video senza dirlo. Se ne manca uno, "
+            "trovi qui sotto la riga esatta da incollare.",
+        ),
+        vivo="banco",
+    ),
+    Passo(
         "Premi Avvia, e guarda due cose",
         (
             "Da quel momento il programma legge lo schermo, capisce chi parla dalla "
@@ -188,7 +221,6 @@ PASSI: tuple[Passo, ...] = (
             "battute, latenza, compressione, underrun. L'unico rosso e' underrun, e "
             "non e' un numero fuori norma: e' una battuta che non si e' sentita.",
         ),
-        vivo="macchina",
     ),
 )
 
@@ -237,6 +269,85 @@ INDIETRO = "Passo precedente"
 AVANTI = "Passo successivo"
 FINE = "Chiudi la guida"
 SCARICA = "Scarica Voicemeeter (facoltativo)"
+# **Il bottone del banco dice cosa fa, non «Avvia».** Preme chi non sa cos'e' un
+# motore di sintesi, e sotto quel bottone ci sono fino a mezzo gigabyte di
+# scaricamento: un'etichetta corta qui vorrebbe dire un download a sorpresa.
+MISURA = "Misura questo PC e scarica quello che manca"
+# E si annulla **fra un pezzo e l'altro**: un trasferimento interrotto a meta'
+# lascia un file troncato, ed e' precisamente il difetto che il controllo di
+# completezza degli stili esiste per non avere. L'etichetta lo dice, se no il
+# bottone sembra rotto per i secondi in cui non succede niente.
+ANNULLA = "Annulla: si ferma dopo il file che sta scaricando"
+NIENTE_DA_FARE = "c'e' gia' tutto: non serve scaricare niente"
+
+# **Perche' si e' scelto cosi'.** Le regole stanno in `core/banco.py` e parlano
+# per **codici** (`cuda_no`, `sintesi_lenta`); qui ci sono le frasi, che e'
+# l'unica meta' che ha bisogno di un catalogo. Le due liste non possono
+# scollarsi: la verifica `banco` pretende che le chiavi di questo dizionario
+# siano esattamente `core.banco.MOTIVI` — un codice nuovo e non tradotto
+# uscirebbe come una riga **vuota**, cioe' la spiegazione sparita senza errore.
+MOTIVI: dict[str, str] = {
+    "cuda_si":
+        "c'e' una scheda video utilizzabile: viene usata la voce che articola "
+        "meglio",
+    "cuda_no":
+        "nessuna scheda video utilizzabile: la voce migliore costerebbe 725 ms "
+        "per ogni frase detta invece di 207, quindi resta la voce leggera",
+    "cuda_persa":
+        "la scheda video e' stata chiesta, ma e' arrivato {0}: sarebbero i "
+        "tempi del processore",
+    "sintesi_ok":
+        "la voce costa {0} ms per ogni frase detta, su questo PC",
+    "sintesi_lenta":
+        "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si "
+        "accettano: si torna alla voce leggera",
+    "passo_corto":
+        "questo motore dice {0} caratteri al secondo invece di {1}: ogni frase "
+        "uscirebbe schiacciata",
+    "traduzione_locale":
+        "la traduzione resta su questo PC: nessun sottotitolo esce da qui",
+    "traduzione_llm":
+        "la traduzione resta su questo PC, con il modello in memoria: piu' lenta "
+        "della prima scelta ma non esce niente",
+    "traduzione_manca":
+        "manca il programma della traduzione locale. Da incollare in PowerShell, "
+        "nella cartella del programma: {0}",
+    "traduzione_lenta":
+        # **I due numeri hanno tutti e due la loro unita', e sono due frasi.**
+        # Con «piu' dei {1} di attesa» l'hindi si e' **mangiato il secondo
+        # segnaposto**: una cifra sparita e nessun errore, perche' `format`
+        # non si lamenta di un argomento in piu'. La verifica dei segnaposto
+        # l'ha preso, e la cura sta nella frase italiana e non in un catalogo.
+        "la traduzione costa {0} ms, e l'attesa per sapere chi parla e' di "
+        "{1} ms: la voce arrivera' piu' tardi",
+    "motore_mancante":
+        "il modello della voce migliore non e' arrivato: resta la voce leggera",
+}
+
+# Come si chiamano i pezzi, per chi guarda scaricare. I codici sono quelli di
+# `core.banco.PEZZI` piu' le due fasi di misura, che passano dallo **stesso**
+# canale di avanzamento: due canali vorrebbero dire due posti in cui aggiornare
+# la stessa riga a schermo, e il secondo non lo aggiorna mai nessuno.
+PEZZI_NOMI: dict[str, str] = {
+    "piper": "le due voci italiane",
+    "kokoro": "il modello della voce",
+    "voci_kokoro": "gli stili di voce",
+    "ecapa": "il riconoscimento di chi parla",
+    "oneocr": "il lettore di testo di Windows",
+    "traduzione": "la coppia di lingue",
+    "misura_sintesi": "sto misurando la voce",
+    "misura_traduzione": "sto misurando la traduzione",
+}
+
+# **Quello che si vede solo mentre il banco lavora, o dopo che ha finito.**
+# La verifica `tutorial` percorre il dialogo passo per passo e pretende che ogni
+# stringa dichiarata compaia **davvero** — una riga elencata e mai mostrata e'
+# una chiave tradotta per niente. Queste compaiono, ma in stati che quella
+# passeggiata non attraversa: il bottone mentre scarica, la riga di «c'e' gia'
+# tutto», e i nomi dei pezzi, che finiscono **dentro** un modello riempito e
+# quindi dentro un widget `nontradurre`. Dichiararle qui e' la differenza fra
+# una verifica che sa cosa aspettarsi e una che si disattiva.
+SOLO_DURANTE: tuple[str, ...] = (ANNULLA, NIENTE_DA_FARE, *PEZZI_NOMI.values())
 
 # **Le frasi che si compongono a runtime.** Dentro ci finiscono nomi di
 # dispositivi, codici di lingua e numeri, quindi il widget che le porta e'
@@ -268,6 +379,12 @@ MODELLI: tuple[str, ...] = (
     "lettura del testo: {0}",
     "scheda video: {0}",
     "motore della voce: {0}",
+    # Il banco: cosa sta facendo, quanto manca, e cosa non ce l'ha fatta.
+    "{0} di {1}: {2}",
+    "da scaricare: {0} MB",
+    "pronto: {0} MB scaricati",
+    "{0}: non riuscito — {1}",
+    *MOTIVI.values(),
 )
 
 
@@ -278,12 +395,18 @@ def testi() -> tuple[str, ...]:
     finche' non lo si apre non puo' essere trovato percorrendo la finestra, e
     senza questa dichiarazione le sue parole non finirebbero in nessun catalogo.
     """
-    fuori: list[str] = [TITOLO, SOTTOTITOLO, SALTA, INDIETRO, AVANTI, FINE, SCARICA]
+    fuori: list[str] = [TITOLO, SOTTOTITOLO, SALTA, INDIETRO, AVANTI, FINE, SCARICA,
+                        MISURA, ANNULLA, NIENTE_DA_FARE]
     for p in PASSI:
         fuori.append(p.titolo)
         fuori.extend(p.righe)
     for nome, riga in SCHEDE:
         fuori.extend((nome, riga))
+    # I nomi dei pezzi sono frasi intere e non modelli: finiscono **dentro** un
+    # modello come valore, quindi vanno tradotti per conto loro. Senza questa
+    # riga la frase uscirebbe tradotta con dentro un pezzo di italiano, che e'
+    # peggio dell'italiano intero — sembra una parola che non si traduce.
+    fuori.extend(PEZZI_NOMI.values())
     fuori.extend(MODELLI)
     return tuple(dict.fromkeys(fuori))
 
@@ -401,11 +524,71 @@ def controllo_macchina(cfg) -> tuple[Esito, ...]:
     return tuple(fuori)
 
 
+def motivo_in_riga(m, codice_lingua: str) -> str:
+    """Un `core.banco.Motivo` diventa una frase, nella lingua della finestra.
+
+    Sta fuori dalla classe perche' e' l'unico pezzo di traduzione del banco che
+    si puo' provare senza costruire il dialogo — e un `Motivo` senza frase e' una
+    riga vuota a schermo, cioe' il difetto che non da' errore.
+    """
+    modello = MOTIVI.get(m.codice)
+    if not modello:
+        # Non puo' succedere finche' la verifica `banco` e' verde. Se succede,
+        # meglio il codice nudo che una riga vuota: un nome strano si vede, il
+        # nulla no.
+        return m.codice
+    return _T(modello, codice_lingua, *m.valori)
+
+
+class _Lavoro(QThread):
+    """Il banco, in un thread suo. **La guida non si deve poter bloccare.**
+
+    E' un dialogo modale, e in questo progetto un modale ha gia' tenuto ferma la
+    suite oltre dieci minuti senza stampare una riga — non rossa: appesa. Qui il
+    lavoro dura da qualche secondo a qualche minuto (mezzo gigabyte di modelli),
+    e farlo nel thread della finestra vorrebbe dire una finestra che non si
+    ridisegna, cioe' Windows che la dichiara «non risponde» mentre invece sta
+    lavorando benissimo.
+
+    **Il padre e' l'applicazione e non il dialogo**, ed e' la riga che evita un
+    crash: chiudendo la guida a scaricamento in corso, un `QThread` figlio del
+    dialogo verrebbe distrutto mentre gira. Cosi' invece finisce per conto suo —
+    e finire e' innocuo, perche' l'unico effetto e' che i modelli sono sul disco,
+    che e' esattamente cio' che si voleva.
+    """
+
+    avanza = Signal(str, int, int)
+    finito = Signal(object)
+
+    def __init__(self, cfg) -> None:
+        from PySide6.QtWidgets import QApplication
+
+        super().__init__(QApplication.instance())
+        self.cfg = cfg
+        self._ferma = False
+
+    def annulla(self) -> None:
+        self._ferma = True
+
+    def run(self) -> None:  # pragma: no cover - gira solo con un dito sopra
+        from core import banco
+
+        try:
+            esito = banco.esegui(self.cfg, passo=self.avanza.emit,
+                                 fermati=lambda: self._ferma)
+        except Exception as guasto:
+            # **Un guasto qui non deve sparire.** Il thread muore in silenzio di
+            # suo: senza questa riga il bottone resterebbe «Annulla» per sempre,
+            # con la barra che scorre su un lavoro che non c'e' piu'.
+            esito = guasto
+        self.finito.emit(esito)
+
+
 # ============================================================== il dialogo ====
 
 
 class Tutorial(QDialog):
-    """Sei passi, uno alla volta, e in fondo tre bottoni sempre uguali.
+    """Sette passi, uno alla volta, e in fondo tre bottoni sempre uguali.
 
     Uno alla volta e non una pagina sola da scorrere: una pagina lunga si legge
     in diagonale, e i due passi che qui contano davvero — l'audio e l'area — sono
@@ -418,6 +601,29 @@ class Tutorial(QDialog):
         self.cfg = cfg if cfg is not None else padre.cfg
         self._prima_volta = prima_volta
         self._i = 0
+        # Lo stato del banco vive sul **dialogo** e non sul widget del passo:
+        # navigando avanti e indietro `_mostra()` ricostruisce la pagina da zero,
+        # e uno stato tenuto nel widget sparirebbe insieme a lui — cioe' un
+        # scaricamento in corso che a tornare indietro sembra non essere mai
+        # partito.
+        self._lavoro: _Lavoro | None = None
+        self._banco_esito = None
+        self._banco_riga = ""
+        # Quanto si sta per scaricare, detto **prima** di premere. Si calcola una
+        # volta e si tiene: guardare il disco costa poco, ma rifarlo a ogni
+        # ridisegno della pagina lo farebbe pagare anche a chi passa di li' e va
+        # avanti.
+        self._banco_da_prendere = None
+        # Lo stato in cui **posare** il banco per fotografarlo. Si veda
+        # `posa_banco`.
+        self._banco_posa = ""
+        # I tre widget vivi del passo 6, o `None` se la pagina di adesso e'
+        # un'altra. Si azzerano in cima a `_mostra()`: toccare da un segnale un
+        # widget che Qt ha gia' distrutto e' un crash, e i segnali arrivano
+        # quando pare a loro.
+        self._b_bottone = None
+        self._b_stato = None
+        self._b_barra = None
 
         self.setWindowTitle(TITOLO)
         self.setModal(True)
@@ -512,6 +718,9 @@ class Tutorial(QDialog):
 
     def _mostra(self) -> None:
         passo = PASSI[self._i]
+        # Si veda `__init__`: da qui in poi i widget del banco sono quelli della
+        # pagina che si sta per costruire, e quelli di prima non esistono piu'.
+        self._b_bottone = self._b_stato = self._b_barra = None
         dentro = QWidget()
         dentro.setObjectName("gruppo")
         C = QVBoxLayout(dentro)
@@ -562,9 +771,248 @@ class Tutorial(QDialog):
             return self._verifiche([controllo_area(self.cfg)])
         if quale == "schede":
             return self._tabella_schede()
-        if quale == "macchina":
-            return self._verifiche(list(controllo_macchina(self.cfg)))
+        if quale == "banco":
+            return self._banco()
         return None
+
+    # -- il banco ------------------------------------------------------------
+
+    def _banco(self) -> QWidget:
+        """Cosa c'e' su questo PC, il bottone che misura, e com'e' andata.
+
+        Le tre righe in cima sono le stesse che stavano nell'ultimo passo
+        (`controllo_macchina`): lettore, scheda video, motore della voce. Sono
+        andate a stare qui perche' e' qui che diventano una **risposta** invece
+        che una descrizione — la terza riga, dopo il bottone, dice il motore che
+        il banco ha appena scelto.
+        """
+        from ui.qt_controlli import BarraCarico
+
+        w = QWidget()
+        w.setObjectName("gruppo")
+        C = QVBoxLayout(w)
+        C.setContentsMargins(0, 0, 0, 0)
+        C.setSpacing(tema.S2)
+
+        # 1. cosa c'e' qui, misurato e non dedotto
+        adesso = self._verifiche(list(controllo_macchina(self.cfg)))
+        if adesso is not None:
+            C.addWidget(adesso)
+
+        # 2. il bottone, la barra e la riga di stato
+        in_corso = (self._banco_posa == "in corso"
+                    or (self._lavoro is not None and self._lavoro.isRunning()))
+        riga = QHBoxLayout()
+        riga.setSpacing(tema.S3)
+        self._b_bottone = QPushButton(ANNULLA if in_corso else MISURA)
+        self._b_bottone.setCursor(Qt.PointingHandCursor)
+        self._b_bottone.clicked.connect(self._banco_premuto)
+        riga.addWidget(self._b_bottone)
+        riga.addStretch(1)
+        C.addLayout(riga)
+
+        self._b_barra = BarraCarico()
+        self._b_barra.veste(self._tavolozza())
+        C.addWidget(self._b_barra)
+        if in_corso:
+            # Indeterminata, e non una percentuale: quanto duri lo scaricamento
+            # di un modello lo decidono la rete e il disco, e una barra che
+            # promette una fine che non sa dice una cosa falsa.
+            self._b_barra.scorre()
+        else:
+            self._b_barra.ferma()
+
+        # Prima di premere, la riga dice **quanto costa premere**. Sono fino a
+        # mezzo gigabyte: un bottone che non dichiara cosa sta per scaricare e'
+        # un download a sorpresa, e questo lo preme chi ha appena installato il
+        # programma.
+        if not in_corso and self._banco_esito is None:
+            self._banco_riga = self._preventivo()
+
+        # La riga di stato porta dentro nomi di pezzi e numeri gia' composti:
+        # e' un modello riempito, quindi la passeggiata non la deve toccare.
+        self._b_stato = QLabel(self._banco_riga)
+        self._b_stato.setObjectName("tenue")
+        self._b_stato.setProperty(lingua.MARCHIO, True)
+        self._b_stato.setWordWrap(True)
+        self._b_stato.setVisible(bool(self._banco_riga))
+        C.addWidget(self._b_stato)
+
+        # 3. com'e' andata, quando e' andata
+        esito = self._verifiche(self._righe_esito())
+        if esito is not None:
+            C.addWidget(esito)
+        return w
+
+    def posa_banco(self, quale: str) -> None:
+        """Mette il passo del banco in uno stato preciso, **per fotografarlo**.
+
+        E' la stessa ragione di `BarraCarico.posa`: i due stati che contano di
+        questo passo — mentre scarica, e quando qualcosa non e' arrivato — non
+        si vedono ne' aprendo la guida ne' facendola scorrere, e in questo
+        progetto un pezzo che nessuno ha guardato non e' «scritto», e'
+        «supposto». Aspettare uno scaricamento vero per fotografarlo vorrebbe
+        dire un'immagine diversa a ogni giro e nessuna quando serve.
+
+        Lo stato «non e' arrivato» e' quello che vale di piu': e' l'unico in cui
+        il riquadro passa in ambra, ed e' il caso per cui questo passo esiste.
+        """
+        from core import banco
+
+        self._banco_posa = quale
+        if quale == "in corso":
+            self._banco_esito = None
+            self._banco_riga = _T("{0} di {1}: {2}", self.cfg.ui.lingua, 2, 4,
+                                  lingua.traduci(PEZZI_NOMI["kokoro"],
+                                                 self.cfg.ui.lingua))
+        elif quale == "finito":
+            self._banco_esito = banco.Referto(
+                scelta=banco.Scelta(
+                    tts="piper", traduzione="locale",
+                    motivi=(banco.Motivo("cuda_si"),
+                            banco.Motivo("motore_mancante"),
+                            banco.Motivo("traduzione_locale"))),
+                sonda=banco.Sonda(cuda=True),
+                falliti={"kokoro": "ConnectionError: rete non raggiungibile"},
+                mb=117)
+            self._banco_riga = ""
+        else:
+            self._banco_esito = None
+            self._banco_riga = ""
+        self._mostra()
+
+    def _preventivo(self) -> str:
+        """«da scaricare: 451 MB», oppure «c'e' gia' tutto».
+
+        **Si guarda cosa c'e' dentro le cartelle, non che ci siano**: la
+        risposta la danno gli stessi controlli che usano i backend
+        (`core.banco.presenti`), e non un secondo elenco di file scritto qui.
+        L'archivio delle voci di Kokoro si considerava «buono» perche' il file
+        esisteva, e la prima voce inglese e' morta con un `KeyError` dentro la
+        libreria, lontanissimo dal difetto.
+        """
+        from core import banco
+
+        codice = self.cfg.ui.lingua
+        if self._banco_da_prendere is None:
+            try:
+                sonda = banco.sonda_veloce(self.cfg)
+                scelta = banco.scegli(sonda)
+                self._banco_da_prendere = banco.peso_mb(banco.da_scaricare(
+                    banco.serve(scelta, traduzione=self.cfg.translate.enabled),
+                    sonda.presenti))
+            except Exception:  # pragma: no cover - dipende dall'ambiente
+                # Un preventivo che non si riesce a fare non deve impedire di
+                # premere: il bottone sa gia' rifare questo conto da solo.
+                self._banco_da_prendere = 0
+        if not self._banco_da_prendere:
+            return lingua.traduci(NIENTE_DA_FARE, codice)
+        return _T("da scaricare: {0} MB", codice, self._banco_da_prendere)
+
+    def _righe_esito(self) -> list[Esito]:
+        """Le righe da mettere sotto il bottone: i perche' e i fallimenti.
+
+        **I fallimenti non sono un dettaglio in fondo**: sono la ragione per cui
+        questo passo esiste. Senza rete si scarica quello che si puo' e si
+        continua — ma cio' che non e' arrivato deve stare scritto accanto alla
+        scelta che ne dipende, se no il ripiego torna a essere muto e siamo al
+        punto di prima.
+        """
+        esito = self._banco_esito
+        if esito is None:
+            return []
+        codice = self.cfg.ui.lingua
+        if isinstance(esito, Exception):
+            return [Esito(False, _T("{0}: non riuscito — {1}", codice,
+                                    lingua.traduci(MISURA, codice),
+                                    f"{type(esito).__name__}: {esito}"))]
+
+        # **Una rinuncia non porta la spunta.** Quali motivi lo siano lo dice
+        # `core.banco.AVVISI` e non un elenco scritto qui: un secondo elenco
+        # diverge al primo motivo nuovo, e diverge dalla parte sbagliata —
+        # verso il verde.
+        from core.banco import AVVISI
+
+        righe = [Esito(m.codice not in AVVISI, motivo_in_riga(m, codice))
+                 for m in esito.scelta.motivi]
+        for pezzo, perche in esito.falliti.items():
+            righe.append(Esito(False, _T(
+                "{0}: non riuscito — {1}", codice,
+                lingua.traduci(PEZZI_NOMI.get(pezzo, pezzo), codice), perche)))
+        if esito.mb:
+            righe.append(Esito(True, _T("pronto: {0} MB scaricati", codice, esito.mb)))
+        elif not esito.falliti:
+            righe.append(Esito(True, lingua.traduci(NIENTE_DA_FARE, codice)))
+        return righe
+
+    def _banco_premuto(self) -> None:
+        """Il bottone fa due cose opposte, e lo dice: parte, oppure annulla."""
+        if self._lavoro is not None and self._lavoro.isRunning():
+            self._lavoro.annulla()
+            return
+        self._banco_esito = None
+        self._banco_da_prendere = None
+        self._lavoro = _Lavoro(self.cfg)
+        self._lavoro.avanza.connect(self._banco_avanza)
+        self._lavoro.finito.connect(self._banco_finito)
+        self._lavoro.start()
+        self._banco_riga = ""
+        self._mostra()
+
+    def _banco_avanza(self, pezzo: str, fatti: int, quanti: int) -> None:
+        codice = self.cfg.ui.lingua
+        nome = lingua.traduci(PEZZI_NOMI.get(pezzo, pezzo), codice)
+        # Le due fasi di misura arrivano da questo stesso canale con `quanti = 0`:
+        # «3 di 0» non vuol dire niente, quindi li' si scrive solo cosa si sta
+        # facendo.
+        self._banco_riga = (_T("{0} di {1}: {2}", codice, fatti + 1, quanti, nome)
+                            if quanti else nome)
+        self._aggiorna_riga()
+
+    def _aggiorna_riga(self) -> None:
+        """Scrive la riga di stato **se quel widget esiste ancora**.
+
+        Un segnale arriva quando pare a lui, e nel frattempo l'utente puo' aver
+        premuto «Passo precedente»: allora `_mostra()` ha ricostruito la pagina e
+        il widget di prima Qt lo ha gia' distrutto. In Python l'oggetto e' ancora
+        li' e chiamargli `setText` solleva — un dialogo che si chiude da solo
+        mentre scarica, per un bottone premuto due schermate prima.
+        """
+        if self._b_stato is None:
+            return
+        try:
+            self._b_stato.setText(self._banco_riga)
+            self._b_stato.setVisible(bool(self._banco_riga))
+        except RuntimeError:  # pragma: no cover - il widget non c'e' piu'
+            self._b_stato = None
+
+    def _banco_finito(self, esito) -> None:
+        """Finito: si scrive in configurazione e si ridipinge il passo.
+
+        **Solo se e' andata**: `banco.applica` scrive quello che ha verificato,
+        non quello che ha scelto, e un guasto arriva qui come eccezione — in quel
+        caso la configurazione resta quella di prima e la riga lo dice. Cambiare
+        `tts.backend` dopo che lo scaricamento e' fallito vorrebbe dire una
+        catena che parte con un motore che non c'e'.
+        """
+        from core import banco
+
+        self._banco_esito = esito
+        self._banco_riga = ""
+        if not isinstance(esito, Exception):
+            banco.applica(self.cfg, esito)
+            if self.padre is not None:
+                self.padre._riallinea()
+        # La guida puo' essere gia' stata chiusa: il thread e' figlio
+        # dell'applicazione apposta, quindi finisce comunque, e i modelli sul
+        # disco restano presi. Ridipingere una finestra chiusa no.
+        if self.isVisible() and PASSI[self._i].vivo == "banco":
+            self._mostra()
+
+    def _tavolozza(self):
+        from PySide6.QtWidgets import QApplication
+
+        return tema.attuale(QApplication.instance())
 
     def _scelta_lingua(self) -> QWidget:
         w = QWidget()
@@ -717,6 +1165,23 @@ class Tutorial(QDialog):
         """
         preferenze.tutorial_visto()
         self.accept()
+
+    def done(self, r: int) -> None:
+        """Chiudendo si **chiede** al banco di fermarsi, e non lo si aspetta.
+
+        Non lo si aspetta perche' un pezzo in corso puo' essere un modello da
+        326 MB: bloccare la chiusura finche' non arriva vorrebbe dire una
+        finestra che non si chiude, che e' peggio del problema. E lasciarlo
+        finire e' innocuo — il suo unico effetto e' che i modelli finiscono sul
+        disco, cioe' proprio quello per cui e' stato acceso, e la volta dopo li
+        trova gia' li'.
+
+        `annulla()` morde comunque **prima del pezzo successivo**, quindi chi
+        chiude non si porta dietro mezzo gigabyte che non voleva.
+        """
+        if self._lavoro is not None and self._lavoro.isRunning():
+            self._lavoro.annulla()
+        super().done(r)
 
 
 # ============================================ come si riapre, e chi lo apre ===

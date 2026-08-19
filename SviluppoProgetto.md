@@ -45,7 +45,7 @@ ripiego silenzioso girato dall'altra parte.
 selettori che si filtrano digitando (`giapp`, `ja` e `pones` trovano la stessa
 riga) e che marcano quelle che il backend scelto non sa fare.
 
-**La guida iniziale**, sei passi, il primo è la lingua. Dove può **controlla**
+**La guida iniziale**, sette passi, il primo è la lingua. Dove può **controlla**
 invece di chiedere fiducia: conta le schede audio, chiede il provider CUDA a ONNX
 Runtime, misura l'altezza dell'area. Dice che VoiceMeeter è facoltativo.
 
@@ -549,7 +549,7 @@ che si sono chiuse con un "no".)*
     → Da destra a sinistra (arabo, ebraico, persiano, urdu): `setLayoutDirection`, e
     guardato in una schermata.
   * \[x]  Creare un tutorial iniziale per un neofita dove spiega tutta linterfaccia, con anche la spiegazione se va installato qualcosa, es VoiceMeeter.
-    → **fatto** (`ui/tutorial.py`): sei passi, si apre da solo la prima volta e si rivede
+    → **fatto** (`ui/tutorial.py`): sette passi, si apre da solo la prima volta e si rivede
     col «?» in testata. Il primo passo e' la **lingua della finestra**, che `ui.lingua`
     adesso mette su `auto` di serie — chi apre il programma lo trova nella lingua in cui
     usa il computer, e la guida gliela fa confermare invece di lasciarla implicita.

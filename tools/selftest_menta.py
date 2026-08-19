@@ -451,6 +451,12 @@ def test_finestra_menta(c) -> None:
     app = QApplication.instance() or QApplication([])
     app.setStyle("Fusion")
 
+    from core import registro
+
+    # **Prima di costruire la finestra**, se no il registro si apre su quello
+    # dell'utente e ci restano le righe di questo gruppo — 64 volte, contate.
+    registro.banco()
+
     import tools.ui_qt as U
 
     class FintiArgs:
@@ -537,10 +543,28 @@ def test_finestra_menta(c) -> None:
         # -- le marche di gravita' nel log ----------------------------------
         # Il testo resta del colore del testo: il canale del colore appartiene
         # alle voci, e colorare di rosso una riga di errore lo brucia.
+        #
+        # **E queste tre righe non devono finire nel registro dell'utente.**
+        # `Finestra.scrivi` scrive anche su file: prima di `registro.banco()` ce
+        # ne sono finite 64 come la terza, indistinguibili da un guasto vero, e
+        # sono costate una sessione d'indagine su un guasto mai esistito. Si
+        # misura il **file vero** e non un modello di file, perche' la cosa da
+        # provare e' proprio che quel file non cresca.
+        import datetime as _dt
+
+        from core import registro
+
+        vero = registro.cartella_log() / registro.nome(_dt.date.today(), False)
+        quanto_era = vero.stat().st_size if vero.exists() else -1
         f.log.clear()
         f.scrivi("carico piper...")
         f.scrivi("! l'area e' alta 0,180 dello schermo")
         f.scrivi("! l'audio si e' fermato: OSError")
+        c.eq(vero.stat().st_size if vero.exists() else -1, quanto_era,
+             "tre righe scritte dal banco, e il registro dell'utente non cresce "
+             "di un byte")
+        c.ok(registro.di_banco(),
+             "perche' questo processo ha dichiarato di simulare")
         html_log = f.log.document().toHtml().lower()
         c.ok(f.tavolozza.ambra.lower() in html_log, "l'avviso ha la sua marca ambra")
         c.ok(f.tavolozza.rosso.lower() in html_log, "il guasto ha la sua marca rossa")

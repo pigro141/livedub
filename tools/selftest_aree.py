@@ -738,10 +738,17 @@ def test_coerenza(c) -> None:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication
 
+    from core import registro
     from core.config import Config
-    from tools.ui_qt import Finestra
     from ui.qt_controlli import leggi
     from ui.qt_pannello import Pannello
+
+    # Prima della finestra: costruendola si apre il registro, e i campi che
+    # questo gruppo cambia (`tts.speed = 1.4`, l'area, il colore) finivano nel
+    # registro dell'utente come se li avesse toccati lui.
+    registro.banco()
+
+    from tools.ui_qt import Finestra
 
     c.group("coerenza")
     app = QApplication.instance() or QApplication([])

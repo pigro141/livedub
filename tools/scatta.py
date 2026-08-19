@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from core import preferenze  # noqa: E402
+from core import preferenze, registro  # noqa: E402
 from ui import qt_tema as tema  # noqa: E402
 
 
@@ -134,7 +134,15 @@ def _finta_sessione(app, f) -> None:
 
     f.ora.mostra_fase(f._fase_tradotta(fase_catena({"viva": True, "parla": True})),
                       f.tavolozza.accento, True)
-    f.scrivi("! l'audio si e' fermato: OSError: [Errno -9988] Stream closed")
+    # **Il guasto da fotografare dev'essere un guasto che puo' capitare.** Qui
+    # c'era `[Errno -9988] Stream closed`, e -9988 e' `paBadStreamPtr`: quello
+    # succede solo se **noi** chiudiamo il flusso mentre qualcuno ci sta ancora
+    # leggendo, cioe' mai (misurato: cinque Ferma di fila, zero guasti). Non e'
+    # nemmeno `paInputOverflowed`, che sarebbe -9981. La scritta finta descriveva
+    # un caso impossibile, e su quello si e' indagato per una sessione intera.
+    # -9985 e' `paDeviceUnavailable`: le cuffie staccate, cioe' proprio cio' che
+    # la tessera qui sotto dice di fare.
+    f.scrivi("! l'audio si e' fermato: OSError: [Errno -9985] Device unavailable")
 
     f._in_attesa[:] = ["vision.ocr_backend", "tts.backend"]
     f.striscia.setVisible(True)
@@ -142,7 +150,7 @@ def _finta_sessione(app, f) -> None:
         "2 modifiche in attesa (vision.ocr_backend, tts.backend): si applicano "
         "rifacendo la catena, un paio di secondi")
     f.tessera.mostra(
-        "L'audio si e' fermato", "OSError: [Errno -9988] Stream closed",
+        "L'audio si e' fermato", "OSError: [Errno -9985] Device unavailable",
         "Probabile: cuffie o altoparlanti staccati, oppure il device e' cambiato "
         "sotto i piedi. Ricollega e premi RIPROVA.")
     # Con un valore in ambra e uno in rosso: sono gli unici due stati che quella
@@ -297,6 +305,12 @@ def main(argv: list[str] | None = None) -> int:
 
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setStyle("Fusion")
+
+    # **Da qui in poi il registro e' quello di banco.** Le righe che riempiono
+    # queste schermate — battute, avvisi, il guasto audio — passano da
+    # `Finestra.scrivi`, che scrive anche su file: senza questa riga finivano nel
+    # registro dell'utente, e ci sono finite 56 volte.
+    registro.banco()
 
     from tools.ui_qt import Finestra
 

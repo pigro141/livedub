@@ -74,9 +74,15 @@ def _finestra(app, cfg=None):
     """
     from PySide6.QtCore import Qt
 
-    from core import preferenze
-    from tools.ui_qt import Finestra
+    from core import preferenze, registro
     from ui import qt_tema as tema
+
+    # Prima di costruirla: la finestra apre il registro nascendo, e quello che
+    # si scrive percorrendola (la lingua scelta, le note) non e' successo a
+    # nessuno.
+    registro.banco()
+
+    from tools.ui_qt import Finestra
 
     class _Args:
         profile = None; loopback = "voicemeeter"; output = None; block = 480

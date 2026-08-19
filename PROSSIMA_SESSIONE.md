@@ -1,9 +1,3 @@
-# Prompt per la prossima sessione
-
-Copia da qui in giù.
-
----
-
 Lavoro su **livedub** (`C:\Users\filde\Documents\!code\CLAUDE\livedub`),
 doppiaggio italiano dal vivo dei sottotitoli dei videogiochi.
 
@@ -28,7 +22,7 @@ ogni task.
 
 ## Dove siamo
 
-Suite verde a **1764 verifiche**. `SviluppoProgetto.md`: **17 step su 19**.
+Suite verde a **1813 verifiche**. `SviluppoProgetto.md`: **17 step su 19**.
 
 Restano **due decisioni tue** — il repo GitHub e il sito — **più l'exe**, che è
 lavoro vero. Il link donazioni è chiuso (Ko-fi, «Buy me a token!», nel README).
@@ -69,6 +63,12 @@ stringendo il carattere, **spento di serie**).
 
 ## Quindi il lavoro di adesso, in ordine
 
+> **`SESSIONI.md` è la versione operativa di questo elenco**: otto sessioni (A–H),
+> una per compito, ognuna col prompt già scritto da incollare in una sessione
+> nuova di Claude Code. L'ordine lì dentro non è un suggerimento — le sessioni
+> F, G e H producono artefatti (immagini, exe, sito) e un artefatto generato
+> prima che il programma sia fermo nasce già scaduto.
+
 1. **Provare dal vivo col gioco acceso**, che è la cosa che manca a tutto il
    resto. Gli screenshot dicono che la finestra è quella del documento, non come
    sta **accanto a una partita**. Da guardare in particolare: la scheda Sessione
@@ -87,25 +87,37 @@ stringendo il carattere, **spento di serie**).
    riquadro ma diventa piccolo, e a un certo punto si legge peggio dell'originale
    che copre. Nessuna misura può decidere dove sta quel punto.
 
-3. **L'HUD pronunciata**, l'unico difetto vero rimasto aperto dalla prova dal
-   vivo dell'11 agosto, e aspetta una decisione fra due strade perché una tocca
-   una soglia che vale per tutti i sottotitoli. La misura è già fatta: le letture
-   consecutive di `Sali sul <spazzatura>` si somigliano fra **0,58 e 0,77** e
-   `vision.continue_similarity` vale 0,75, quindi dieci su dodici aprono una
-   battuta nuova invece di continuare quella di prima. L'altra strada è una
-   regola sul **prefisso comune**, che non tocca il caso generale.
+   *(L'HUD pronunciata è stata **chiusa senza intervento**, per decisione
+   dell'utente il 18 agosto: entrambe le strade — abbassare
+   `vision.continue_similarity` e la regola sul prefisso comune — costavano più
+   di quanto valesse il difetto.)*
 
-4. **`! l'audio si e' fermato: OSError [Errno -9988]`**, visto otto volte nel
-   registro del 17 agosto e mai più dopo. Va capito se è il guasto vero che
-   quella guardia esiste per prendere, o il normale **Ferma** raccontato come
-   guasto: si scioglie guardando se quelle righe cadono sempre subito dopo uno
-   stop.
+3. ~~**`! l'audio si e' fermato: OSError [Errno -9988]`**~~ — **chiuso il 19
+   agosto, e non era nessuno dei due casi.** Quelle righe non le ha mai scritte
+   il ciclo audio: su **122 occorrenze** nei cinque registri, **zero** vengono
+   dalla catena viva. 56 le scrive `tools/scatta.py` (una stringa finta, per
+   avere un guasto da fotografare) e 64 un gruppo della suite, e finivano nel
+   registro dell'utente perché `Finestra.__init__` lo apre e `Finestra.scrivi`
+   ci scrive. La prova è una data: il 17 agosto le venti righe cadono fra le
+   18:23 e le 18:55, e le uniche quattro sessioni dal vivo di quel giorno
+   partono alle **19:06**. Il controllo dall'altra parte: cinque Ferma di fila
+   sul motore vero, zero messaggi `guasto`.
 
-5. **`menta-anteprima.png` si è scollata dal prodotto**: mostra quattro schede,
+   Curato con `registro.banco()` — chi simula scrive in
+   `livedub-banco-<data>.log`, le righe non spariscono — e la guardia del
+   guasto audio è rimasta intatta, perché non era lei a sbagliare.
+
+   **Una cosa da decidere tu**: nei registri di ieri e dei giorni prima restano
+   le righe finte già scritte (35 il 16, 44 il 17, 41 il 18, 3 oggi). Non ho
+   cancellato niente dal tuo disco. Se domani leggi quei file, tieni presente
+   che «l'audio si è fermato» lì dentro non è mai successo davvero; e i file
+   scadono da soli in sette giorni.
+
+4. **`menta-anteprima.png` si è scollata dal prodotto**: mostra quattro schede,
    oggi sono cinque. È l'immagine che finirebbe nel README o nel sito. Si
    rigenera con `tools/scatta.py`, che fotografa la finestra vera.
 
-6. **Cancellare la finestra Tk**, quando la Qt avrà fatto una sessione vera senza
+5. **Cancellare la finestra Tk**, quando la Qt avrà fatto una sessione vera senza
    sorprese. Oggi resta solo per il confronto (`prova.ps1 -Tk`), non è vestita
    Menta e non è più l'entry point di niente.
 
@@ -117,7 +129,7 @@ stringendo il carattere, **spento di serie**).
    trailer `Co-Authored-By: Claude`. Dal 18 in poi non ce ne sono più. Toglierli
    dai vecchi significa **riscrivere la storia**, e dopo la pubblicazione si
    riscriverebbe una storia già clonata: la finestra per decidere è adesso.
-2. **Il sito.**
+2. **Il sito.** hostato su github
 
 E una decisione d'orecchio che resta da mesi: **promuovere `line_pad` a 0,2 come
 default**. Misurato meglio su tutti e due i giochi, ma cambia il gioco principale
@@ -126,7 +138,7 @@ default**. Misurato meglio su tutti e due i giochi, ma cambia il gioco principal
 ## Come si prova quello che scrivi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest                    # 1764 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest                    # 1813 verifiche
 .\.venv\Scripts\python.exe -m tools.selftest lingue ui_lingua tutorial
 .\.venv\Scripts\python.exe -m tools.selftest menta menta_regole menta_finestra
 .\.venv\Scripts\python.exe -m tools.ui_qt --profile live        # la finestra, dal vivo
@@ -172,5 +184,3 @@ guida di aprirsi durante le verifiche copriva «costruita e dichiarata fuori
 schermo» e non «costruita e mai mostrata»: la suite è rimasta appesa dieci minuti
 senza stampare una riga. Non rossa — appesa. La domanda che la prende è sempre
 *«cosa fa la strada vecchia che questa non fa?»*.
-
-Fine del prompt.

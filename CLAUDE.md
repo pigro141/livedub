@@ -37,7 +37,7 @@ esperimento GPU buttato via, senza avvicinare torch a questo venv.)
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest              # 1764 verifiche
+.\.venv\Scripts\python.exe -m tools.selftest              # 1813 verifiche
 .\.venv\Scripts\python.exe -m tools.selftest speaker pool # gruppi scelti
 .\.venv\Scripts\python.exe -m tools.selftest -v           # con i verdi in chiaro
 
@@ -1268,6 +1268,17 @@ rami paralleli — **«cosa fa la strada vecchia che questa non fa?»** — e va
 anche per una cura: *fermare i thread non e' fermare la sessione, spegnere la
 registrazione non e' spegnere l'orologio, salvare non e' rileggere*.
 
+**Il primo di quei cinque adesso e' chiuso, e questa riga serve a non
+ricercarlo.** Rilette il 19 agosto, tutte e tre le strade che fermano una
+sessione lasciano la finestra in uno stato che esiste: `_audio_guasto`
+(`tools/ui_qt.py`) chiama `ferma()` se la catena e' viva e `_fine_thread()` se
+era gia' morta — quindi Avvia torna acceso, la scheda Preparazione si riapre, la
+sessione si chiude e il WAV si scrive; `_riprova` fa lo stesso piu' `avvia()`; e
+`avvia()` nasconde la tessera del guasto. Resta solo che dopo un guasto un Ferma
+volontario lascia la tessera rossa a schermo finche' non si preme Avvia o
+RIPROVA, che e' l'unico modo di poterla ancora leggere. Un difetto documentato
+come **trovato** e mai dichiarato **curato** si ricerca da capo a ogni rilettura.
+
 **E il posto dove guardare per primo e' quello che nessuna verifica tocca.**
 Quattro di quei cinque stavano nella finestra Qt o al suo confine, che era
 l'unica parte del programma senza **nessuna** verifica. Il rimedio non e'
@@ -1288,6 +1299,40 @@ battute corte di personaggi che non parlano mai abbastanza da essere confermati.
 Prima di leggere un confronto, verificare che le due passate abbiano visto le
 **stesse immagini**: `riparti.py` di quella sessione lo faceva rifiutandosi di
 misurare se due catture a un secondo di distanza erano identiche.
+
+**Prima di indagare su una riga di registro, chiedersi chi altro scrive in quel
+file.** `! l'audio si e' fermato: OSError [Errno -9988]` compariva otto volte nel
+registro del 17 agosto, e sembrava la scelta fra un guasto vero e il normale
+Ferma raccontato male. Non era ne' l'uno ne' l'altro: **nessuna** delle 122
+occorrenze nei cinque registri veniva dalla catena viva. Cinquantasei le scrive
+`tools/scatta.py` per avere un guasto da fotografare, sessantaquattro un gruppo
+della suite, e ci finivano perche' `Finestra.__init__` apre il registro e
+`Finestra.scrivi` ci scrive — quindi ogni strumento che costruisce la finestra
+fuori dal vivo sporcava il file dell'utente.
+
+La prova non e' stata un ragionamento, e' una **data**: il 17 agosto le venti
+righe cadono fra le 18:23 e le 18:55, e le uniche quattro sessioni dal vivo di
+quel giorno partono alle **19:06**. Quando il messaggio e' stato scritto, il
+ciclo audio quel giorno non era ancora mai partito. Il 18 agosto ce ne sono
+quindici con **zero** sessioni dal vivo. Il controllo dall'altra parte —
+riprodurlo — dice la stessa cosa: cinque Ferma di fila sul motore vero, `ferma()`
+in 0,05-0,07 s e **zero** messaggi `guasto`; e nemmeno uscendo dal processo senza
+fermarlo.
+
+Da qui `registro.banco()`: chi simula scrive in `livedub-banco-<data>.log`. Le
+righe **non spariscono** — sparire in silenzio sarebbe lo stesso difetto girato
+dall'altra parte — e l'elenco di chi deve dichiararlo si **ricava** dal sorgente
+con `ast`, cosi' uno strumento nuovo non puo' tornare a sporcare in silenzio. La
+verifica misura il file vero: si scrivono tre righe dal banco e il registro
+dell'utente non deve crescere di un byte (provata a rovescio, cresce di 843).
+
+E la parte che vale oltre il registro: **una stringa finta descriveva un caso
+impossibile**. `-9988` e' `paBadStreamPtr` («Stream closed»), che succede solo se
+siamo noi a chiudere il flusso sotto una lettura — cioe' mai; non e'
+`paInputOverflowed`, che sarebbe `-9981`. Un esempio scritto a mano e' un dato
+che qualcuno un giorno leggera' come una misura: nelle schermate adesso c'e'
+`-9985` (`paDeviceUnavailable`), che e' il guasto che la tessera dice di
+riparare.
 
 **E la piu' importante: l'orecchio dell'utente trova cio' che la suite non puo'.**
 E' successo a ogni difetto serio di questo progetto, con la suite verde. Quando

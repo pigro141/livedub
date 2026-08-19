@@ -42,7 +42,7 @@ sottotitolo compare, quando l'embedding audio e' ancora incerto.
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest              # suite completa (1764 verifiche)
+.\.venv\Scripts\python.exe -m tools.selftest              # suite completa (1813 verifiche)
 .\.venv\Scripts\python.exe -m tools.selftest ring config  # un gruppo solo
 .\.venv\Scripts\python.exe -m tools.demo                  # scena finta completa -> runs\demo_mix.wav
 .\.venv\Scripts\python.exe -m tools.demo --no-duck        # la stessa, per sentire cosa fa il duck

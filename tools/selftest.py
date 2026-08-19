@@ -4358,6 +4358,136 @@ def test_tutorial(c: Check) -> None:
             os.environ["LOCALAPPDATA"] = vecchio
 
 
+def test_registro(c: Check) -> None:
+    """Il registro dice cosa e' successo — e chi simula scrive in un altro file.
+
+    **Il difetto che questo gruppo chiude era gia' costato una sessione.** Nel
+    registro dell'utente c'erano 122 righe «l'audio si e' fermato» e **zero**
+    vere: 56 dalle schermate (`tools/scatta.py`) e 64 dalla suite, scritte per
+    avere qualcosa da fotografare o da controllare e finite nello stesso file
+    dove finiscono i guasti veri. Il 17 agosto le venti righe `-9988` cadono
+    tutte fra le 18:23 e le 18:55, e le uniche quattro sessioni dal vivo di quel
+    giorno partono alle 19:06: il ciclo audio, quando quel messaggio e' stato
+    scritto, non era ancora mai partito.
+
+    Tre domande, e nessuna ha bisogno di aprire una finestra:
+
+    - **come si chiama il file?** e' una regola pura (`nome`), e sta in
+      `core/registro.py` per lo stesso motivo per cui `colore_stato` sta in
+      `core/motore.py`;
+    - **la riga finta arriva altrove davvero?** si scrive e si guarda il disco,
+      con la commutazione fatta a registro **gia' aperto**, che e' il caso
+      difficile;
+    - **chi costruisce la finestra fuori dal vivo lo dichiara?** l'elenco non si
+      scrive, si **ricava** dal sorgente: il canale e' `Finestra.__init__`, e
+      qualunque strumento nuovo che costruisca una finestra tornerebbe a
+      sporcare senza che niente lo dica.
+    """
+    c.group("registro")
+
+    import ast
+    import datetime as dt
+    import fnmatch
+    import os
+    import tempfile
+    from pathlib import Path
+
+    from core import registro as R
+
+    # -- la regola, senza toccare il disco ---------------------------------
+    giorno = dt.date(2026, 8, 17)
+    vero_nome = R.nome(giorno, False)
+    banco_nome = R.nome(giorno, True)
+    c.eq(vero_nome, "livedub-2026-08-17.log", "il registro dell'utente porta la data")
+    c.eq(banco_nome, "livedub-banco-2026-08-17.log",
+         "e quello di banco si distingue **dal nome**: chi apre la cartella deve "
+         "poterli separare senza aprirli")
+    # La pulizia dei sette giorni conta una famiglia per volta, e il glob deve
+    # tenerle separate: con un `livedub-*.log` solo, un pomeriggio di schermate
+    # avrebbe fatto scadere il registro vero.
+    forma = f"{R.PREFISSO}-????-??-??.log"
+    c.ok(fnmatch.fnmatch(vero_nome, forma), "il glob della pulizia prende il registro vero")
+    c.ok(not fnmatch.fnmatch(banco_nome, forma),
+         "e non prende quello di banco: sette giorni di schermate non fanno "
+         "scadere il registro di ieri")
+
+    # -- e sul disco, con la commutazione a registro gia' aperto ------------
+    # In una tana di passaggio: una suite che scrivesse davvero nel registro
+    # dell'utente per provare che non ci scrive sarebbe la verifica che si
+    # guarda allo specchio.
+    vecchio = os.environ.get("LOCALAPPDATA")
+    era_di_banco = R.di_banco()
+    tana = tempfile.mkdtemp(prefix="livedub-log-")
+    os.environ["LOCALAPPDATA"] = tana
+    try:
+        R.banco(False)
+        R.chiudi()
+        R.apri()
+        vero_file = R.file_oggi()
+        c.ok(vero_file.name.startswith(f"{R.PREFISSO}-2"),
+             "dal vivo si scrive nel registro dell'utente")
+        R.scrivi("! l'audio si e' fermato: un guasto vero")
+        quanto_era = vero_file.stat().st_size
+        c.ok(quanto_era > 0, "e quello che si scrive ci arriva davvero")
+
+        R.banco()
+        banco_file = R.file_oggi()
+        c.ok(banco_file != vero_file, "chi simula scrive in un altro file")
+        R.scrivi("! l'audio si e' fermato: OSError: [Errno -9985] Device unavailable")
+        c.eq(vero_file.stat().st_size, quanto_era,
+             "e il registro dell'utente non cresce di un byte")
+        # **La riga non sparisce**: sparire in silenzio sarebbe lo stesso difetto
+        # girato dall'altra parte, cioe' quello che questa cura sta chiudendo.
+        c.ok(banco_file.exists() and "Device unavailable" in
+             banco_file.read_text(encoding="utf-8"),
+             "ma la riga non sparisce: sta nel registro di banco, leggibile")
+
+        R.banco(False)
+        c.eq(R.file_oggi(), vero_file,
+             "e si torna indietro: la scelta e' del processo, non del file")
+    finally:
+        R.chiudi()
+        # **Si rimette lo stato di prima, e non si lascia acceso il banco.**
+        # Lasciandolo acceso, i gruppi che aprono una finestra troverebbero il
+        # lavoro gia' fatto da qui, e la verifica che sta in `menta_finestra` —
+        # «il registro dell'utente non cresce» — non potrebbe piu' fallire nel
+        # caso per cui esiste, cioe' quel gruppo che smette di dichiararlo.
+        R.banco(era_di_banco)
+        if vecchio is None:
+            os.environ.pop("LOCALAPPDATA", None)
+        else:
+            os.environ["LOCALAPPDATA"] = vecchio
+
+    # -- chi costruisce la finestra fuori dal vivo lo dichiara --------------
+    def _chiamato(n) -> str:
+        if isinstance(n.func, ast.Name):
+            return n.func.id
+        if isinstance(n.func, ast.Attribute):
+            return n.func.attr
+        return ""
+
+    strumenti = Path(__file__).resolve().parent
+    costruttori: list[str] = []
+    zitti: list[str] = []
+    for sorgente in sorted(strumenti.glob("*.py")):
+        # `ui_qt.py` e' il vivo: il registro dell'utente e' proprio il suo.
+        if sorgente.name == "ui_qt.py":
+            continue
+        albero = ast.parse(sorgente.read_text(encoding="utf-8"))
+        nomi = {_chiamato(n) for n in ast.walk(albero) if isinstance(n, ast.Call)}
+        if "Finestra" not in nomi:
+            continue
+        costruttori.append(sorgente.name)
+        if "banco" not in nomi:
+            zitti.append(sorgente.name)
+    c.ok(len(costruttori) >= 4,
+         f"gli strumenti che costruiscono la finestra fuori dal vivo sono "
+         f"{len(costruttori)}: {', '.join(costruttori)}")
+    c.eq(zitti, [],
+         "e ognuno dichiara `registro.banco()`: l'elenco si ricava dal sorgente, "
+         "cosi' uno strumento nuovo non puo' tornare a sporcare in silenzio")
+
+
 GROUPS = {
     "clock": test_clock,
     "session": test_session,
@@ -4419,6 +4549,9 @@ GROUPS = {
     "ripresa": test_ripresa,
     "guasto_audio": test_guasto_audio,
     "uscita_audio": test_uscita_audio,
+    # Il registro su file, e la regola che tiene fuori chi simula. Sta prima dei
+    # gruppi che aprono una finestra, perche' sono loro a doverla rispettare.
+    "registro": test_registro,
     "solo_roi": test_solo_roi,
     # I due cicli fuori dalle finestre, e le due finestre che li chiamano.
     "motore": test_motore,

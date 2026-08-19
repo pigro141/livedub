@@ -15,7 +15,7 @@ selettore delle tecnologie, impostazioni con la spiegazione accanto, modifica a
 caldo, installatore, licenza, README col diagramma — è fatto e guardato a
 schermo.
 
-**Suite: 1764 verifiche verdi** (`tools/selftest.py`). Erano 1899 prima del 18
+**Suite: 1813 verifiche verdi** (`tools/selftest.py`). Erano 1899 prima del 18
 agosto: le 135 in meno sono le verifiche delle aree multiple, tolte con la
 funzione.
 
@@ -500,7 +500,7 @@ che si sono chiuse con un "no".)*
     l'HUD incollata dentro le battute e pronunciata (`'Raggiungi i'`, `'Sali sul'`,
     `.San An`) — era l'11% delle battute e non faceva scattare niente, perché per la
     catena erano righe lette con successo.
-    → Corretti tutti e quattro, suite a **1172 verifiche** (oggi 1764). Il dettaglio
+    → Corretti tutti e quattro, suite a **1172 verifiche** (oggi 1813). Il dettaglio
     e le misure stanno in `CLAUDE.md` e in `PROSSIMA_SESSIONE.md`.
     → **Il cancello è aperto: da qui si va sulla UI.**
     → **E l'11 agosto, a sera, la prova è stata rifatta in autonomia**, senza chiedertela:

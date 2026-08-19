@@ -22,7 +22,65 @@ ogni task.
 
 ## Dove siamo
 
-Suite verde a **1813 verifiche**. `SviluppoProgetto.md`: **17 step su 19**.
+Suite verde a **1889 verifiche**. `SviluppoProgetto.md`: **17 step su 19**.
+
+### Il 19-20 agosto: il bug delle «battute in ritardo» erano **tre bug**
+
+Chiuso, e **verificato dal vivo dall'utente** («torna tutto e va bene»), non sul
+banco. Suite verde a **1889**.
+
+Il sintomo era uno solo e durava da settimane: le battute escono sempre piu' in
+ritardo, i sottotitoli smettono di essere letti finche' non si fa **alt-tab**, e
+alla fine la finestra si pianta. Sotto c'erano tre cause indipendenti, e nessuna
+delle tre era dove si era guardato prima.
+
+**1. `b2a6557` + `4d0ce52` — ogni Avvia lasciava accesa la cattura di quello
+prima.** I callback di WGC sono chiusure su se stessi e il ciclo video non
+chiamava mai `close()`: la sorgente restava viva per tutto il processo e
+continuava a copiare la finestra del gioco a ogni fotogramma. Cinque Avvia = **5
+catture accese, 285 copie al secondo invece di 57**, e il costo si vedeva a
+valle: sintesi da 162,9 a 180,4 ms, `classify_lines` da 30 a 47.
+
+| | prima | dopo (dal vivo) |
+|---|---|---|
+| 1ª passata | 962 ms | 908 ms |
+| 4ª-5ª passata | **8580 · 9453 ms** | **1984 · 1290 ms** |
+| peggior caso | **46938 ms** | 5346 ms |
+| `vision.classify` | 30 -> 47 ms | **33-37 ms, piatto** |
+
+La quarta passata di controllo aveva **146 battute** — la piu' lunga della
+giornata — e stava a 1290 ms. `mix.underrun` 0 in tutte.
+
+**2. `a15ae1b` — `Motore.acceso` mentiva durante la partenza.** Valeva
+`bool(self.threads)`, e i thread nascono in fondo a `_prepara`: per tutti i
+secondi in cui si aprono i device e si carica il TTS il motore diceva «fermo»
+mentre stava partendo. Un Ferma o un RIPROVA li' dentro faceva salire una
+**seconda catena**, e i bottoni di una rimettevano quelli dell'altra — da cui lo
+stato che l'utente ha visto: sessione «avviata», Ferma spento, Avvia acceso, e
+Avvia che non fa niente. Ora `Motore.stato` (quattro stati) + `core.motore.bottoni()`
+sono la fonte unica, **fuori da Qt**, e i bottoni la leggono invece di dedurla.
+
+**3. Il cancello del diff normalizzava sull'area, e l'utente aveva ragione.**
+Era stato scritto in questo file che un'area troppo alta e' «muta» come se fosse
+un limite legittimo da aggirare tirando il rettangolo stretto. Non lo e': un
+sottotitolo occupa **lo stesso numero di pixel** che l'area sia stretta o larga,
+quindi dividere per l'area e' la **sesta** volta della forma «una soglia misurata
+su una distribuzione e applicata a un'altra». Il cancello ora non normalizza piu':
+con l'area a 0,95 le comparse viste passano da **33 a 42 su 44**, e a 0,06 e
+0,187 non cambia niente (43 e 44 battute, identiche prima e dopo). Vale il
+criterio dell'utente: **area piu' larga = meno precisione, ma legge sempre**.
+Il consiglio «tirala stretta» resta, ma solo per la qualita' del blur.
+
+Misurato che il cancello **non deriva nel tempo** (200 cicli identici danno lo
+stesso risultato all'inizio e alla fine): erano davvero tre difetti distinti, e
+non sono stati forzati in uno.
+
+**E Argos era gia' il default**, non c'era niente da promuovere — ma il commento
+di `translate.backend` adesso porta la misura che lo sceglie, che e' il **p95 e
+non il p50**: la traduzione avviene dentro i 500 ms di attesa, quindi cio' che
+sta sotto e' gratis e cio' che li supera si paga intero. Argos p95 **67 ms**,
+google **1188**. Dal vivo: google 9 battute anticipate su 65 e 1828 ms di
+latenza, Argos **65 su 65** e 962 ms.
 
 ### La notte del 18-19 agosto: tre commit, e il piu' importante non era in programma
 

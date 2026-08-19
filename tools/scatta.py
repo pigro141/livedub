@@ -89,7 +89,7 @@ def _finta_sessione(app, f) -> None:
     Quello che non si riempie non si guarda, e quello che non si guarda si
     consegna rotto.
     """
-    from core.motore import Misura
+    from core.motore import ACCESA, Misura
 
     # **L'orologio della misura si ferma**, se no fotografiamo la sua ultima
     # passata invece della nostra. I numeri qui sotto sono scritti a mano proprio
@@ -103,6 +103,14 @@ def _finta_sessione(app, f) -> None:
     # questa riga la fotografia esce con il pannello ancora sopra il log,
     # cioe' mostra uno stato che dal vivo dura un quinto di secondo.
     f._guscio_passi.setVisible(False)
+    # **Anche i bottoni devono dire che la sessione e' accesa.** Finora questa
+    # scena fotografava un log vivo sopra un Avvia premibile e un Ferma spento —
+    # cioe' proprio lo stato incoerente in cui il programma si e' piantato, messo
+    # in una fotografia di riferimento senza che nessuno lo notasse. Lo stato e'
+    # uno solo (`core.motore`), quindi per fingere una sessione viva si scrive
+    # quello e si ridipinge: non c'e' un secondo posto in cui mentire.
+    f.motore._stato = ACCESA
+    f._dipingi_bottoni()
     f.stato("in corso  |  120 frame  |  34 battute  |  6 personaggi  |  4 voci")
     f.scrivi("carico piper...")
     f.scrivi("! l'area e' alta 0,180 dello schermo: tirala stretta attorno alla riga")

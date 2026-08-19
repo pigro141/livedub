@@ -83,10 +83,13 @@ from PySide6.QtWidgets import (  # noqa: E402
 from core import preferenze, registro  # noqa: E402
 from core.config import PROFILES_DIR, Config  # noqa: E402
 from core.motore import (  # noqa: E402
+    ACCESA,
+    FERMO,
     STATO_GUASTO,
     Motore,
     Opzioni,
     barra_misura,
+    bottoni,
     colore_stato,
     fase_catena,
     gravita,
@@ -1517,7 +1520,10 @@ class Finestra(QMainWindow):
         L.addWidget(self.b_avvia)
         self.b_ferma = QPushButton("Ferma")
         self.b_ferma.setAccessibleName("ferma il doppiaggio")
-        self.b_ferma.setEnabled(False)
+        # Non si spegne qui: lo stato iniziale lo dipinge `_dipingi_bottoni` in
+        # fondo alla costruzione, dalla stessa regola di tutti gli altri. Una
+        # riga «tanto all'inizio e' cosi'» e' il primo posto da cui una copia
+        # comincia a divergere.
         self.b_ferma.clicked.connect(self.ferma)
         L.addWidget(self.b_ferma)
 
@@ -1559,6 +1565,11 @@ class Finestra(QMainWindow):
         def dillo(testo: str) -> str:
             return lingua.traduci(testo, self.cfg.ui.lingua)
 
+        # **Anche i tre passi leggono la regola**, non `motore.acceso`. Erano la
+        # terza deduzione sullo stesso stato, ed e' la deduzione che l'utente ha
+        # visto mentire: la scheda Sessione con la spunta su «Avvia» sopra un
+        # bottone Avvia premibile.
+        b = bottoni(self.motore.stato)
         manca = []
         if self.motore.finestra is None:
             manca.append(dillo("scegli la finestra del gioco"))
@@ -1566,7 +1577,7 @@ class Finestra(QMainWindow):
             manca.append(dillo("sistema l'audio"))
         if self.cfg.vision.roi[3] > 0.12:
             manca.append(dillo("l'area e' troppo alta"))
-        if self.motore.acceso:
+        if b.avviato:
             testo = ""
         elif manca:
             testo = dillo("da fare nella preparazione:") + "  " + " · ".join(manca)
@@ -1582,8 +1593,34 @@ class Finestra(QMainWindow):
             self.passi.aggiorna([
                 self.motore.finestra is not None,
                 self._area_scelta,
-                self.motore.acceso,
+                b.avviato,
             ])
+
+    def _dipingi_bottoni(self) -> None:
+        """**Un posto solo dove si decide cosa e' premibile**, e si ridipinge.
+
+        Prima Avvia, Ferma e la scheda Preparazione venivano messi a mano in tre
+        punti (`avvia`, `_fine_thread` e — per la sola Preparazione — nessuno
+        quando la partenza falliva), ognuno con la sua idea di che stato fosse.
+        Bastava che uno dei tre girasse per la sessione sbagliata perche' la
+        finestra restasse a dire due cose diverse **senza dare errore**: e' cosi'
+        che l'utente si e' trovato «avviato» con Ferma spento e Avvia inerte.
+
+        E si chiama anche dal giro delle misure, a 2 Hz. Non e' ridondanza: e'
+        la meta' che rende la cura piu' larga del difetto. Una strada nuova che
+        si dimentichi di ridipingere non puo' piu' lasciare la finestra bloccata,
+        perche' mezzo secondo dopo i bottoni tornano a dire quello che il motore
+        dice — e la fonte e' una sola.
+        """
+        # Il `hasattr` non e' prudenza generica: `stato()` viene chiamata mentre
+        # la finestra si costruisce, cioe' prima che la barra dei bottoni esista.
+        if not hasattr(self, "b_avvia"):
+            return
+        b = bottoni(self.motore.stato)
+        self.b_avvia.setEnabled(b.avvia)
+        self.b_ferma.setEnabled(b.ferma)
+        self.schede.setTabEnabled(self.PREPARAZIONE, b.preparazione)
+        self.aggiorna_pronto()
 
     def _striscia(self) -> QWidget:
         self.striscia = QWidget()
@@ -1991,7 +2028,7 @@ class Finestra(QMainWindow):
         # un timer: chi ha scritto «tre secondi bastano» ha scritto un numero che
         # e' giusto su una macchina e sbagliato su tutte le altre. La prima riga
         # di stato viva vuol dire che i due cicli sono partiti.
-        if hasattr(self, "ora") and self.motore.acceso:
+        if hasattr(self, "ora") and self.motore.stato == ACCESA:
             self.ora.pronto()
         self._aggiorna_misura()
         # **Il logo cambia sulla stessa regola, non su una seconda.** Un elenco di
@@ -2195,7 +2232,12 @@ class Finestra(QMainWindow):
     # -- avvio e arresto ----------------------------------------------------
 
     def avvia(self) -> None:
-        if self.motore.acceso:
+        # **Il guardiano e' lo stato, non i thread.** `motore.acceso` valeva
+        # `bool(threads)` e diceva «fermo» per tutti i secondi in cui i device si
+        # aprono e il TTS si carica: due clic li' dentro — o il Ferma+Avvia che
+        # `applica_in_attesa` e `_riprova` fanno da soli — mettevano in piedi due
+        # catene sullo stesso processo.
+        if self.motore.stato != FERMO:
             return
         # **L'overlay si costruisce adesso, con la configurazione di adesso.**
         # E si dice a chiare lettere se c'e' o no: una traduzione che esce e non
@@ -2218,14 +2260,18 @@ class Finestra(QMainWindow):
                 + ("il tradotto si disegna sopra il gioco" if self.overlay is not None
                    else "! solo voce, niente a schermo (translate.overlay e' spento)")
             )
-        self.b_avvia.setEnabled(False)
-        self.b_ferma.setEnabled(True)
-        self.schede.setTabEnabled(self.PREPARAZIONE, False)
-        self.aggiorna_pronto()
+        # I bottoni si dipingono **dopo**, leggendo lo stato che `avvia()` ha
+        # appena messo: metterli prima vorrebbe dire scriverli a mano una
+        # seconda volta, e sono le copie a divergere.
         self.motore.avvia()
+        self._dipingi_bottoni()
 
     def ferma(self) -> None:
         self.motore.ferma()
+        # `ferma()` non e' sempre istantanea: se la catena stava ancora salendo
+        # lascia lo stato «in arresto» e la chiude chi sta partendo. Dipingere
+        # subito e' quello che dice all'utente che il tasto e' arrivato.
+        self._dipingi_bottoni()
 
     def _riprova(self) -> None:
         """Il bottone dentro la tessera del guasto: rimette in piedi la sessione.
@@ -2238,22 +2284,45 @@ class Finestra(QMainWindow):
         self.tessera.setVisible(False)
         if self.motore.acceso or self.motore.pipeline is not None:
             self.ferma()
-        self.avvia()
+        self._riparti_quando_ferma()
+
+    def _riparti_quando_ferma(self, tentativi: int = 40) -> None:
+        """Riaccende la catena **appena e' davvero ferma**, e non un istante prima.
+
+        `ferma()` puo' lasciare lo stato «in arresto»: quando arriva mentre la
+        catena sta ancora salendo, la chiusura tocca a chi sta partendo e finisce
+        qualche secondo dopo. Un `avvia()` dentro quella finestra viene
+        **rifiutato in silenzio**, cioe' RIPROVA che non riprova e un riavvio
+        automatico che non riavvia — la stessa forma di difetto che ha appeso
+        questa finestra, girata dall'altra parte. Qui si aspetta lo stato vero e,
+        se non arriva, **lo si dice** invece di lasciar credere che sia ripartito.
+        """
+        if self.motore.stato == FERMO:
+            # La coda si svuota **prima** di ripartire, se no il rapporto della
+            # sessione appena chiusa uscirebbe dopo le righe di quella nuova.
+            # Prima lo garantivano 400 ms di attesa, cioe' una speranza.
+            self._svuota_coda()
+            self.avvia()
+            return
+        if tentativi <= 0:
+            self.scrivi("! la sessione precedente non si e' chiusa: non riparto. "
+                        "Chiudi e riapri la finestra")
+            self._dipingi_bottoni()
+            return
+        QTimer.singleShot(100, lambda: self._riparti_quando_ferma(tentativi - 1))
 
     def _fine_thread(self) -> None:
-        self.b_avvia.setEnabled(True)
-        self.b_ferma.setEnabled(False)
+        # **Un posto solo per «cosa e' premibile».** Qui si scrivevano a mano i
+        # due bottoni e la scheda Preparazione, e quella copia poteva girare per
+        # una sessione diversa da quella viva: un avvio fallito rimetteva i
+        # bottoni di una catena che stava ancora suonando, e da li' «avviato»
+        # con Avvia acceso, Ferma spento e niente che ripartisse.
+        self._dipingi_bottoni()
         # Anche l'avvio **fallito** finisce qui, ed e' il ramo che si dimentica:
         # senza, una barra di caricamento resterebbe a scorrere sopra una catena
         # che non e' mai partita.
         self.ora.pronto()
-        # **La preparazione si spegne tutta, non due bottoni.** Cosa si cattura,
-        # da dove arriva l'audio e dove sono i sottotitoli si leggono all'avvio:
-        # lasciarli toccabili a sessione accesa vorrebbe dire una finestra che
-        # mostra una configurazione diversa da quella in uso.
-        self.schede.setTabEnabled(self.PREPARAZIONE, True)
         self._mostra_attesa()
-        self.aggiorna_pronto()
 
     def _audio_guasto(self, dettaglio: str) -> None:
         """Il ciclo audio e' morto: si chiude la sessione come se fosse un Ferma.
@@ -2298,6 +2367,12 @@ class Finestra(QMainWindow):
         dati = self.motore.misure()
         dati["stato"] = self._stato_testo
         self.misura.mostra(barra_misura(dati))
+        # **E qui i bottoni tornano a dire quello che il motore dice.** Non e'
+        # una ridipintura per bellezza: e' la rete sotto tutte le strade che
+        # portano allo stato: una che si dimentichi di chiamare
+        # `_dipingi_bottoni` costava una finestra bloccata, adesso costa mezzo
+        # secondo. La fonte resta una sola, quindi ridipingere non puo' inventare.
+        self._dipingi_bottoni()
         if hasattr(self, "ora"):
             self.ora.mostra_fase(
                 self._fase_tradotta(fase_catena(dati)),
@@ -2466,9 +2541,12 @@ class Finestra(QMainWindow):
         self.scrivi(f"--- rifaccio la catena per applicare: {cosa}")
         self.stato("riavvio in corso", self.tavolozza.ambra)
         self.ferma()
-        # Si riparte al giro dopo, cosi' `ferma()` ha finito di svuotare la coda
-        # e il log dice le cose nell'ordine in cui sono successe.
-        QTimer.singleShot(400, self.avvia)
+        # Si riparte **quando e' davvero ferma**, e non dopo 400 ms: quel numero
+        # era giusto per una chiusura sincrona e sbagliato per una catena colta
+        # mentre saliva — li' l'`avvia()` cadeva dentro la chiusura, veniva
+        # rifiutato in silenzio, e la finestra restava con le modifiche applicate
+        # e nessuna sessione.
+        self._riparti_quando_ferma()
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -576,6 +576,196 @@ def test_motore(c) -> None:
     c.eq(tr.n_falliti, 6, "ma il conto va avanti, ed e' quello che finisce nella testata")
 
 
+def test_stato_sessione(c) -> None:
+    """**In che stato e' la sessione, e quali bottoni ne conseguono.**
+
+    Il difetto che questo gruppo esiste per prendere l'ha visto l'utente, con la
+    suite verde: la scheda Sessione diceva «avviato», Ferma era **spento**, Avvia
+    era acceso e premerlo non faceva niente. Uno stato del genere non esiste, e
+    non dava errore da nessuna parte perche' nessuno lo teneva: «acceso» era
+    `bool(threads)`, dedotto in cinque punti di due finestre, e i due bottoni si
+    scrivevano a mano in tre.
+
+    Sono due difetti dello stesso buco. `bool(threads)` dice «fermo» per tutti i
+    secondi in cui i device si aprono e il TTS si carica: li' dentro un secondo
+    Avvia — o il Ferma+Avvia che `applica_in_attesa` e RIPROVA fanno da soli —
+    metteva in piedi **una seconda catena** nello stesso processo, e un `finito`
+    di una partenza fallita rimetteva i bottoni di quella **viva**.
+
+    Qui si parte dallo **stato** e si chiede quali bottoni ne conseguono, non il
+    contrario: ricopiare la deduzione della finestra darebbe una verifica che
+    non puo' fallire proprio nel caso per cui esiste — lo sbaglio gia' fatto una
+    volta con la guardia del tutorial, che modellava l'attributo invece della
+    cosa vera.
+
+    Gira senza aprire niente: e' una regola, non un disegno.
+    """
+    import ast
+    import queue as _q
+    import threading
+    import time
+    from pathlib import Path
+
+    from core.config import Config
+    from core.motore import (
+        ACCESA,
+        FERMO,
+        IN_ARRESTO,
+        IN_PARTENZA,
+        STATI,
+        Motore,
+        Opzioni,
+        bottoni,
+        in_coda,
+    )
+
+    c.group("stato")
+
+    # -- la regola, stato per stato -----------------------------------------
+    for s in STATI:
+        b = bottoni(s)
+        c.ok(not (b.avvia and b.ferma),
+             f"«{s}»: Avvia e Ferma non sono mai premibili insieme")
+        # **La riga per cui questo gruppo esiste.** E' lo stato esatto in cui la
+        # finestra si e' piantata: «avviato» scritto sopra un Avvia premibile.
+        c.ok(not (b.avviato and b.avvia),
+             f"«{s}»: «avviato» e «Avvia si preme» non possono valere insieme")
+        c.eq(b.avvia, s == FERMO,
+             f"«{s}»: Avvia si preme solo da fermo (durante la partenza no: era "
+             f"il secondo clic che raddoppiava la catena)")
+        c.eq(b.avviato, s == ACCESA,
+             f"«{s}»: il terzo passo e' spuntato solo a catena davvero partita")
+        c.eq(b.preparazione, s == FERMO,
+             f"«{s}»: la Preparazione si tocca solo quando toccarla ha un effetto")
+    c.ok(bottoni(IN_PARTENZA).ferma,
+         "mentre parte, Ferma si preme: e' l'unico modo di rinunciare a "
+         "un'apertura di device che dura secondi")
+    c.raises(ValueError, lambda: bottoni("boh"),
+             "uno stato che non esiste non si dipinge lo stesso: un ripiego "
+             "plausibile qui e' una finestra coerente su una sessione che non c'e'")
+
+    # -- e nella finestra Qt quella regola ha **un solo** punto di applicazione
+    # Tre punti che scrivevano gli stessi due bottoni sono tre idee di che stato
+    # fosse: bastava che una girasse per la sessione sbagliata. Si legge il
+    # sorgente con `ast` perche' la domanda e' «chi lo scrive», e a quella non
+    # risponde nessuna finestra aperta.
+    radice = Path(__file__).resolve().parent.parent
+    albero = ast.parse((radice / "tools" / "ui_qt.py").read_text(encoding="utf-8"))
+    scrittori: set[str] = set()
+    for f in ast.walk(albero):
+        if not isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for n in ast.walk(f):
+            if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)):
+                continue
+            if n.func.attr not in ("setEnabled", "setTabEnabled"):
+                continue
+            testo = ast.unparse(n.func.value)
+            if testo in ("self.b_avvia", "self.b_ferma") or (
+                    testo == "self.schede" and "PREPARAZIONE" in ast.unparse(n)):
+                scrittori.add(f.name)
+    c.eq(sorted(scrittori), ["_dipingi_bottoni"],
+         "Avvia, Ferma e la scheda Preparazione li scrive un metodo solo")
+
+    # -- il ciclo di vita, sul codice vero -----------------------------------
+    # `_monta` e' la parte che tocca l'hardware; quella che decide chi vince fra
+    # una partenza e un Ferma sta in `_prepara`, e **questa** e' quella che si
+    # prova. Sono separate apposta: una copia della macchina degli stati scritta
+    # qui proverebbe se stessa.
+    def aspetta(cond, secondi: float = 3.0) -> bool:
+        scade = time.perf_counter() + secondi
+        while time.perf_counter() < scade:
+            if cond():
+                return True
+            time.sleep(0.01)
+        return bool(cond())
+
+    class Lento(Motore):
+        """Un motore i cui device si aprono quando glielo si dice."""
+
+        def __init__(self, *a, **k) -> None:
+            super().__init__(*a, **k)
+            self.apri = threading.Event()
+            self.montaggi = 0
+
+        def _monta(self) -> bool:
+            self.apri.wait(3.0)
+            self.montaggi += 1
+            t = threading.Thread(target=self.stop.wait, daemon=True)
+            t.start()
+            self.threads.append(t)
+            return True
+
+    def nuovo(classe=Lento):
+        coda: _q.Queue = _q.Queue()
+        return classe(Config(), Opzioni(no_save=True), in_coda(coda)), coda
+
+    def svuota(coda):
+        fuori = []
+        while not coda.empty():
+            fuori.append(coda.get_nowait())
+        return fuori
+
+    # (a) due Avvia nei secondi del caricamento fanno **una** catena
+    m, _coda = nuovo()
+    c.eq(m.stato, FERMO, "un motore appena costruito e' fermo")
+    c.ok(m.avvia() is True, "il primo Avvia parte")
+    c.eq(m.stato, IN_PARTENZA,
+         "e la partenza si **dichiara**: prima qui si leggeva «fermo», ed e' il "
+         "buco da cui e' passato tutto il resto")
+    c.ok(m.acceso, "«c'e' qualcosa in piedi?» risponde di si' anche mentre sale")
+    c.ok(m.avvia() is False, "un secondo Avvia in quei secondi viene rifiutato")
+    m.apri.set()
+    c.ok(aspetta(lambda: m.stato == ACCESA), "finito di aprire, la sessione e' accesa")
+    c.eq(m.montaggi, 1,
+         "una catena sola: due erano due pipeline e quattro thread nello stesso "
+         "processo, cioe' cio' che si accumulava fra un Avvia e l'altro")
+    c.ok(bottoni(m.stato).avviato and not bottoni(m.stato).avvia,
+         "e i bottoni dicono la stessa cosa della scheda Sessione")
+    m.ferma()
+    c.eq(m.stato, FERMO, "Ferma su una catena in piedi chiude e basta")
+
+    # (b) Ferma **mentre** sta partendo: non si finge, e non si blocca
+    m2, coda2 = nuovo()
+    m2.avvia()
+    m2.ferma()
+    c.eq(m2.stato, IN_ARRESTO,
+         "fermare mentre si sta partendo non e' fermare: non c'e' ancora niente "
+         "da chiudere, e aspettarlo qui congelerebbe la finestra")
+    b = bottoni(m2.stato)
+    c.ok(not b.avvia and not b.ferma and not b.avviato,
+         "e in arresto non si preme niente, che e' la verita' e non un blocco")
+    m2.apri.set()
+    c.ok(aspetta(lambda: m2.stato == FERMO),
+         "la chiude chi stava partendo, appena ha qualcosa in mano")
+    c.eq(m2.montaggi, 1, "e la catena montata resta una")
+    c.ok(not m2.threads,
+         "i due cicli non restano vivi dietro una finestra che dice «fermo»")
+    tipi2 = [t for t, _ in svuota(coda2)]
+    c.eq(tipi2.count("finito"), 1, "«finito» arriva una volta sola")
+    c.ok(bottoni(m2.stato).avvia, "e adesso si puo' ripartire davvero")
+
+    # (c) una partenza che fallisce non lascia in giro quello che aveva costruito
+    class Rotto(Motore):
+        def _monta(self) -> bool:
+            self.pipeline = object()  # la catena nasce **prima** dei device
+            raise OSError("il device non c'e' piu'")
+
+    m3, coda3 = nuovo(Rotto)
+    m3.avvia()
+    c.ok(aspetta(lambda: m3.stato == FERMO), "un avvio fallito torna fermo")
+    c.eq(m3.pipeline, None,
+         "e non lascia in giro la catena che aveva gia' costruito: dire «finito» "
+         "e basta ne accumulava una per ogni Avvia")
+    msg3 = svuota(coda3)
+    c.ok("finito" in [t for t, _ in msg3], "la finestra viene avvisata")
+    c.eq([d for t, d in msg3 if t == "stato"][-1], "fermo", "e lo stato torna «fermo»")
+    c.ok(any("chiusura della catena fallita" in str(d) for t, d in msg3 if t == "nota"),
+         "e una chiusura che a sua volta fallisce si **dice** invece di saltare il "
+         "resto: era scritto nella docstring e non nel codice")
+    c.ok(bottoni(m3.stato).avvia, "dopo un avvio fallito Avvia si preme")
+
+
 def test_overlay_base(c) -> None:
     """La geometria dell'overlay, senza aprire nessuna finestra.
 

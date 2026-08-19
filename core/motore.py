@@ -72,6 +72,85 @@ MAX_SPOKEN = 400
 # a doverle dire, e due copie diventano due messaggi diversi al primo ritocco.
 STATO_GUASTO = "! audio interrotto"
 
+# **Gli stati di una sessione sono quattro, e per anni ne sono stati dichiarati
+# due.** L'unica domanda che il motore sapeva rispondere era `acceso`, cioe'
+# `bool(threads)`: vera quando i due cicli girano, falsa in tutti gli altri casi
+# — **compresi i secondi in cui i device si aprono e il TTS si carica**, che con
+# Kokoro sono parecchi. In quella finestra il motore diceva «fermo» mentre stava
+# partendo, e da li' sono usciti due difetti che sembravano scollegati:
+#
+#   - `avvia()` non era idempotente: un secondo Avvia in quei secondi — o un
+#     Ferma seguito da un Avvia, che `applica_in_attesa` e `_riprova` fanno da
+#     soli — metteva in piedi **una seconda catena** sullo stesso processo, con
+#     i suoi due thread e la sua pipeline. E' cosi' che qualcosa si accumula fra
+#     un Avvia e l'altro;
+#   - un `finito` mandato da una partenza fallita rimetteva i bottoni di una
+#     sessione **viva**: Ferma spento, Avvia acceso, la scheda Sessione che dice
+#     «avviato» e Avvia che non fa niente perche' `acceso` e' vero. E' lo stato
+#     esatto in cui l'utente si e' trovato bloccato, ed e' l'immagine rovesciata
+#     del guasto audio gia' curato — *una cura e' quasi sempre piu' stretta del
+#     difetto*.
+#
+# Quattro stati e una regola sola (`bottoni`) rispondono a tutte e due, e la
+# regola sta qui e non nella finestra perche' e' una **regola**: si verifica
+# senza aprire niente, ed e' una sola per due front-end.
+FERMO = "fermo"
+IN_PARTENZA = "in partenza"
+ACCESA = "accesa"
+IN_ARRESTO = "in arresto"
+STATI = (FERMO, IN_PARTENZA, ACCESA, IN_ARRESTO)
+
+
+@dataclass(frozen=True)
+class Bottoni:
+    """Cosa si puo' premere, e cosa dice la finestra, dato lo stato.
+
+    `avviato` non e' un bottone: e' la spunta del terzo passo, cioe' **cio' che
+    la scheda Sessione dichiara**. Sta qui insieme ai due bottoni apposta —
+    erano dedotti in punti diversi della finestra, e due deduzioni sulla stessa
+    domanda sono due risposte al primo caso di bordo.
+    """
+
+    avvia: bool
+    ferma: bool
+    preparazione: bool
+    avviato: bool
+
+
+def bottoni(stato: str) -> Bottoni:
+    """Da uno stato di sessione, i comandi che ne conseguono.
+
+    Gli invarianti che questa tabella tiene — e che la suite verifica a uno a
+    uno, partendo dallo **stato** e non ricopiando la logica della finestra:
+
+    - Avvia e Ferma non sono mai premibili insieme, ne' mai spenti tutti e due
+      salvo mentre si sta chiudendo, che e' l'unico momento in cui non c'e'
+      davvero niente da chiedere;
+    - **`avviato` implica Avvia spento**: «la sessione e' avviata» e «Avvia si
+      puo' premere» non possono convivere. E' letteralmente lo stato in cui il
+      programma si e' piantato, quindi e' la riga che questa regola esiste per
+      far fallire;
+    - Avvia e' premibile **solo** da fermo: durante la partenza non lo e', ed e'
+      la meta' che mancava — un secondo Avvia li' dentro raddoppiava la catena.
+
+    La scheda Preparazione segue Avvia: cosa si cattura, da dove arriva l'audio
+    e dove sono i sottotitoli si leggono alla partenza, quindi restano toccabili
+    solo quando toccarli ha un effetto.
+    """
+    if stato == FERMO:
+        return Bottoni(avvia=True, ferma=False, preparazione=True, avviato=False)
+    if stato == IN_PARTENZA:
+        return Bottoni(avvia=False, ferma=True, preparazione=False, avviato=False)
+    if stato == ACCESA:
+        return Bottoni(avvia=False, ferma=True, preparazione=False, avviato=True)
+    if stato == IN_ARRESTO:
+        return Bottoni(avvia=False, ferma=False, preparazione=False, avviato=False)
+    # **Uno stato che non esiste non si dipinge lo stesso.** Ripiegare su una
+    # riga plausibile qui vorrebbe dire una finestra coerente che descrive una
+    # sessione che non c'e': il silenzio e' proprio il difetto che questo pezzo
+    # e' stato scritto per togliere.
+    raise ValueError(f"stato di sessione sconosciuto: {stato!r}")
+
 
 def in_coda(coda):
     """Il `manda` che le finestre passano al motore: impacchetta e infila.
@@ -317,6 +396,13 @@ class Motore:
         self.sessione: Session | None = None
         self.threads: list[threading.Thread] = []
         self.stop = threading.Event()
+        # Lo stato **dichiarato**, che e' l'unica fonte per «cosa si puo'
+        # premere». Il lucchetto copre le sole transizioni — tre righe — e mai
+        # una chiusura: tenerlo durante `_chiudi` vorrebbe dire il thread della
+        # finestra fermo su un `join`, cioe' la finestra congelata, che e' il
+        # sintomo da cui e' partita tutta questa storia.
+        self._stato = FERMO
+        self._lucchetto = threading.Lock()
         self._registro = None
         # Fino a quando il tradotto resta a schermo. Lo scrivono in due — il
         # ciclo video quando il sottotitolo del gioco c'e' ancora, la finestra
@@ -383,8 +469,25 @@ class Motore:
     # -- quello che la finestra chiede a lui -------------------------------
 
     @property
+    def stato(self) -> str:
+        """In che stato e' la sessione: **la fonte unica**, e non si deduce.
+
+        Prima si deduceva da `bool(self.threads)`, in cinque punti di due
+        finestre. Una quantita' dedotta in cinque punti e' una quantita' che al
+        primo caso di bordo ha cinque valori — e infatti la finestra e' arrivata
+        a dire «avviato» sopra un bottone Avvia premibile.
+        """
+        return self._stato
+
+    @property
     def acceso(self) -> bool:
-        return bool(self.threads)
+        """C'e' una sessione in piedi **o che sta salendo**.
+
+        Il `bool(self.threads)` di prima escludeva la partenza: chi chiedeva
+        «c'e' qualcosa da fermare?» durante il caricamento del TTS si sentiva
+        rispondere di no, e ne apriva un'altra.
+        """
+        return self._stato in (IN_PARTENZA, ACCESA)
 
     def ritardo(self, ms: float) -> None:
         """Quanto e' vecchio il ritaglio quando arriva a schermo.
@@ -450,87 +553,138 @@ class Motore:
 
     # -- avvio -------------------------------------------------------------
 
-    def avvia(self) -> None:
-        """Parte in un thread suo: aprire i device e caricare il TTS costa secondi."""
-        if self.threads:
-            return
+    def avvia(self) -> bool:
+        """Parte in un thread suo: aprire i device e caricare il TTS costa secondi.
+
+        **Risponde `False` se non era fermo**, e non e' un dettaglio: il guardiano
+        di prima (`if self.threads: return`) era cieco proprio nei secondi della
+        partenza, cioe' esattamente quando qualcuno preme di nuovo perche' non
+        vede succedere niente. Da li' due catene sullo stesso processo, ognuna
+        con i suoi due thread e la sua pipeline.
+        """
+        with self._lucchetto:
+            if self._stato != FERMO:
+                return False
+            self._stato = IN_PARTENZA
         self.stop.clear()
         threading.Thread(target=self._prepara, daemon=True).start()
+        return True
 
     def _prepara(self) -> None:
+        """Monta la catena e poi **dichiara come e' andata**, che sono due cose.
+
+        Il montaggio (`_monta`) apre device, carica il TTS e fa partire i due
+        cicli: costa secondi ed e' l'unica parte che tocchi l'hardware. Quello
+        che sta qui e' la macchina degli stati — chi vince fra una partenza e un
+        Ferma arrivato nel frattempo — ed e' la parte in cui i difetti non danno
+        errore. Sono separate apposta: cosi' la suite prova **questo codice** con
+        un montaggio finto, invece di provare una copia di questo codice.
+        """
         try:
-            set_clock(RealClock())
-            _loops, default = list_devices()
-            entrata = find_loopback(self.opz.loopback)
-            uscita = default
-            if self.opz.output:
-                # **Fra le uscite, non fra i loopback**: quelli hanno zero canali
-                # di uscita, quindi il nome giusto dava `OSError -9998` e il nome
-                # sbagliato dava la predefinita **in silenzio**, cioe' il
-                # doppiaggio che suona da un'altra parte senza dirlo.
-                uscita = find_output(self.opz.output)
-            if stesso_dispositivo(entrata, uscita):
-                self.manda("nota", f"! catturi e suoni sulla stessa scheda "
-                                   f"({nome_scheda(entrata)}): il doppiaggio rientrerebbe "
-                                   f"nella cattura e verrebbe ri-doppiato. Scegli un'altra "
-                                   f"uscita, oppure usa Voicemeeter.")
-                self.manda("finito", None)
+            if not self._monta():
                 return
-            self.manda("nota", f"carico {self.cfg.tts.backend}...")
-            from tools.live import costruisci_tts
-
-            tts = costruisci_tts(self.cfg.tts.backend, self.cfg)
-            self.pipeline = DubPipeline(
-                self.cfg, tts, samplerate=SR,
-                dillo=lambda riga: self.manda("nota", riga),
-            )
-            self.pipeline.max_spoken = MAX_SPOKEN
-            # **Se la traduzione fallisce, lo deve sapere chi guarda.** Il
-            # ripiego «si tiene l'originale» e' giusto, ma da solo e' muto:
-            # l'errore finiva su `stderr`, che dietro una finestra non lo legge
-            # nessuno. Misurato nella sessione dell'utente: quattro sessioni,
-            # zero traduzioni su diciannove battute, nessuna riga a schermo e
-            # nessuna spiegazione.
-            if getattr(self.pipeline, "traduci", None) is not None:
-                self.pipeline.traduci.dillo = lambda riga: self.manda("nota", riga)
-            # **`ui.save_mix` era dichiarato e non lo leggeva nessuno**: il
-            # quinto campo di questa forma, dopo `max_ocr_hz`, `tts.device`,
-            # `background_mode` e `overlay.ritardo`. Chi lo metteva a `false` si
-            # ritrovava lo stesso 660 MB di RAM e 340 MB di WAV per mezz'ora.
-            self.sessione = None if self.opz.no_save else Session(
-                samplerate=SR, salva_mix=bool(self.cfg.ui.save_mix)
-            )
-            if self.sessione is not None and self.cfg.ui.save_mix:
-                self.manda("nota", "registro l'audio: ~11 MB al minuto su disco, "
-                                   "fino a 660 MB di RAM (ui.save_mix=false lo spegne)")
-            # **Il registro delle impronte anche dal vivo.** Senza, di una
-            # sessione dal vivo si sa cosa e' stato detto ma non cosa il
-            # riconoscitore ha visto — e quando dal vivo va peggio che sul banco
-            # non c'e' modo di sapere se cambia il segnale, il ritaglio o il
-            # modello. Costa due decimi di megabyte e si rigioca con
-            # `tools.recluster`.
-            if self.sessione is not None:
-                self._registro = (self.sessione.dir / "speaker.jsonl").open(
-                    "w", encoding="utf-8"
-                )
-                self.pipeline.speaker_log = self._registro
-            self.manda("nota", f"catturo: {entrata}")
-            self.manda("nota", f"suono su: {uscita}")
-            x, y, w, h = self.cfg.vision.roi
-            self.manda("nota", f"ROI  x{x:.3f}  y{y:.3f}  w{w:.3f}  h{h:.3f}   "
-                               f"attesa voce {self.cfg.speaker.decide_after_ms} ms")
-
-            pronto = threading.Event()
-            t_avvio = self.t_avvio = time.perf_counter()
-            for f in (self._ciclo_audio, self._ciclo_video):
-                t = threading.Thread(target=f, args=(entrata, uscita, pronto, t_avvio),
-                                     daemon=True)
-                t.start()
-                self.threads.append(t)
+            # **Un Ferma arrivato mentre si apriva non si puo' ignorare.** In
+            # quei secondi non c'era ancora niente da fermare, quindi `ferma()`
+            # ha solo dichiarato l'intenzione: la chiusura tocca a chi ha
+            # costruito, cioe' a qui. Senza questo ramo i due cicli restavano
+            # vivi con la finestra che diceva «fermo» — due catene che suonano
+            # insieme, e nessun contatore che lo dica.
+            with self._lucchetto:
+                fermare = self._stato == IN_ARRESTO
+                if not fermare:
+                    self._stato = ACCESA
+            if fermare:
+                self._chiudi()
+                return
             self.manda("stato", "in corso")
         except Exception as exc:  # un errore di device non deve chiudere la finestra
             self.manda("nota", f"! avvio fallito: {type(exc).__name__}: {exc}")
-            self.manda("finito", None)
+            # **Un avvio fallito lasciava in piedi quello che aveva gia'
+            # costruito**: catena, sessione e file delle impronte nascono prima
+            # dei device, e dire «finito» e basta li lasciava vivi nel processo.
+            # Un Avvia dopo l'altro ne accumulava una copia per volta. Si chiude
+            # quello che c'e', come farebbe un Ferma.
+            self._chiudi()
+
+    def _monta(self) -> bool:
+        """Device, catena, sessione e i due cicli. `False` = non se ne fa niente.
+
+        Solleva se qualcosa non si apre: chi chiama sa cosa farne, e in un posto
+        solo.
+        """
+        set_clock(RealClock())
+        _loops, default = list_devices()
+        entrata = find_loopback(self.opz.loopback)
+        uscita = default
+        if self.opz.output:
+            # **Fra le uscite, non fra i loopback**: quelli hanno zero canali
+            # di uscita, quindi il nome giusto dava `OSError -9998` e il nome
+            # sbagliato dava la predefinita **in silenzio**, cioe' il
+            # doppiaggio che suona da un'altra parte senza dirlo.
+            uscita = find_output(self.opz.output)
+        if stesso_dispositivo(entrata, uscita):
+            self.manda("nota", f"! catturi e suoni sulla stessa scheda "
+                               f"({nome_scheda(entrata)}): il doppiaggio rientrerebbe "
+                               f"nella cattura e verrebbe ri-doppiato. Scegli un'altra "
+                               f"uscita, oppure usa Voicemeeter.")
+            # **Anche il rifiuto passa dalla chiusura**, che qui non ha
+            # niente da chiudere ma rimette lo stato a `fermo`. Mandare solo
+            # «finito» e lasciare lo stato com'era e' il modo in cui i bottoni
+            # e la sessione hanno finito per dire due cose diverse.
+            self._chiudi()
+            return False
+        self.manda("nota", f"carico {self.cfg.tts.backend}...")
+        from tools.live import costruisci_tts
+
+        tts = costruisci_tts(self.cfg.tts.backend, self.cfg)
+        self.pipeline = DubPipeline(
+            self.cfg, tts, samplerate=SR,
+            dillo=lambda riga: self.manda("nota", riga),
+        )
+        self.pipeline.max_spoken = MAX_SPOKEN
+        # **Se la traduzione fallisce, lo deve sapere chi guarda.** Il
+        # ripiego «si tiene l'originale» e' giusto, ma da solo e' muto:
+        # l'errore finiva su `stderr`, che dietro una finestra non lo legge
+        # nessuno. Misurato nella sessione dell'utente: quattro sessioni,
+        # zero traduzioni su diciannove battute, nessuna riga a schermo e
+        # nessuna spiegazione.
+        if getattr(self.pipeline, "traduci", None) is not None:
+            self.pipeline.traduci.dillo = lambda riga: self.manda("nota", riga)
+        # **`ui.save_mix` era dichiarato e non lo leggeva nessuno**: il
+        # quinto campo di questa forma, dopo `max_ocr_hz`, `tts.device`,
+        # `background_mode` e `overlay.ritardo`. Chi lo metteva a `false` si
+        # ritrovava lo stesso 660 MB di RAM e 340 MB di WAV per mezz'ora.
+        self.sessione = None if self.opz.no_save else Session(
+            samplerate=SR, salva_mix=bool(self.cfg.ui.save_mix)
+        )
+        if self.sessione is not None and self.cfg.ui.save_mix:
+            self.manda("nota", "registro l'audio: ~11 MB al minuto su disco, "
+                               "fino a 660 MB di RAM (ui.save_mix=false lo spegne)")
+        # **Il registro delle impronte anche dal vivo.** Senza, di una
+        # sessione dal vivo si sa cosa e' stato detto ma non cosa il
+        # riconoscitore ha visto — e quando dal vivo va peggio che sul banco
+        # non c'e' modo di sapere se cambia il segnale, il ritaglio o il
+        # modello. Costa due decimi di megabyte e si rigioca con
+        # `tools.recluster`.
+        if self.sessione is not None:
+            self._registro = (self.sessione.dir / "speaker.jsonl").open(
+                "w", encoding="utf-8"
+            )
+            self.pipeline.speaker_log = self._registro
+        self.manda("nota", f"catturo: {entrata}")
+        self.manda("nota", f"suono su: {uscita}")
+        x, y, w, h = self.cfg.vision.roi
+        self.manda("nota", f"ROI  x{x:.3f}  y{y:.3f}  w{w:.3f}  h{h:.3f}   "
+                           f"attesa voce {self.cfg.speaker.decide_after_ms} ms")
+
+        pronto = threading.Event()
+        t_avvio = self.t_avvio = time.perf_counter()
+        for f in (self._ciclo_audio, self._ciclo_video):
+            t = threading.Thread(target=f, args=(entrata, uscita, pronto, t_avvio),
+                                 daemon=True)
+            t.start()
+            self.threads.append(t)
+        return True
 
     # -- il ciclo audio ----------------------------------------------------
 
@@ -714,24 +868,62 @@ class Motore:
     # -- arresto -----------------------------------------------------------
 
     def ferma(self) -> None:
+        """Chiude la sessione — e se sta ancora partendo, **dichiara di volerlo**.
+
+        Fermare durante la partenza non e' fermare: aprire i device e caricare il
+        TTS costa secondi, e in quei secondi non c'e' ancora niente da chiudere.
+        Aspettarli qui vorrebbe dire il thread della finestra bloccato, cioe' la
+        finestra congelata; non aspettarli affatto vorrebbe dire una catena che
+        finisce di salire dopo che tutti hanno dichiarato «fermo» — ed e' cosi'
+        che si e' arrivati a due catene vive, ai bottoni di una che rimettevano
+        quelli dell'altra e a un Avvia che non faceva niente.
+
+        Quindi qui si passa a «in arresto» e la chiusura vera la fa **chi sta
+        partendo**, appena ha qualcosa in mano. Chi guarda i bottoni lo vede: in
+        arresto non si preme niente, perche' non c'e' niente da chiedere.
+        """
+        with self._lucchetto:
+            if self._stato == IN_ARRESTO:
+                return  # ci sta gia' pensando qualcuno
+            fra_poco = self._stato == IN_PARTENZA
+            if fra_poco:
+                self._stato = IN_ARRESTO
+        if fra_poco:
+            self.stop.set()
+            return
+        self._chiudi()
+
+    def _chiudi(self) -> None:
         """Ferma i cicli **e** chiude la sessione. Le due cose non sono la stessa.
 
         La prima versione di questa cura si era fermata a meta': i due thread
         uscivano, ma la sessione restava aperta col WAV mai scritto. Qui si fa
         tutto e in ordine — thread, catena, rapporto, file — e ogni pezzo che
         possa fallire non deve impedire i successivi.
+
+        **E adesso quella frase e' anche vera.** Era scritta e non fatta: il
+        rapporto della catena stava fuori da qualunque `try`, quindi un
+        `finish()` che sollevasse — su una catena costruita a meta' da un avvio
+        fallito e' il caso normale — saltava il salvataggio, lo stato «fermo» e
+        il «finito», cioe' lasciava esattamente i bottoni incoerenti che questo
+        file esiste per non produrre piu'. Lo stato torna a `fermo` in ogni caso.
         """
+        self._stato = IN_ARRESTO
         self.stop.set()
         for t in self.threads:
             t.join(timeout=2.0)
         self.threads.clear()
-        if self.pipeline is not None:
-            self.pipeline.finish()
-            self.manda("nota", "--- personaggi ---")
-            if self.pipeline.tracker is not None:
-                for r in self.pipeline.tracker.report().splitlines():
-                    self.manda("nota", r)
-            self.manda("nota", self.pipeline.pool.report())
+        try:
+            if self.pipeline is not None:
+                self.pipeline.finish()
+                self.manda("nota", "--- personaggi ---")
+                if self.pipeline.tracker is not None:
+                    for r in self.pipeline.tracker.report().splitlines():
+                        self.manda("nota", r)
+                self.manda("nota", self.pipeline.pool.report())
+        except Exception as exc:
+            self.manda("nota", f"! chiusura della catena fallita: "
+                               f"{type(exc).__name__}: {exc}")
         if self.sessione is not None:
             try:
                 if self._registro is not None:
@@ -751,5 +943,9 @@ class Motore:
         self.pipeline = None
         self.sessione = None
         self._registro = None
+        # **Lo stato prima dei messaggi.** Chi riceve «finito» ridipinge i
+        # bottoni leggendo `stato`: mandandolo prima, la finestra leggerebbe «in
+        # arresto» e si spegnerebbe tutta, restando cosi' fino al giro dopo.
+        self._stato = FERMO
         self.manda("stato", "fermo")
         self.manda("finito", None)

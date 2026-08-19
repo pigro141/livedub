@@ -3330,6 +3330,7 @@ from tools.selftest_aree import (  # noqa: E402
     test_uscita_audio,
     test_solo_roi,
     test_motore,
+    test_stato_sessione,
     test_overlay_base,
     test_overlay_quando,
     test_manopole,
@@ -4568,6 +4569,11 @@ GROUPS = {
     "solo_roi": test_solo_roi,
     # I due cicli fuori dalle finestre, e le due finestre che li chiamano.
     "motore": test_motore,
+    # **In che stato e' la sessione, e quali bottoni ne conseguono.** La regola
+    # sta in `core/motore.py` e non nella finestra, come `colore_stato`: e' cosi'
+    # che si prova senza aprire Qt lo stato in cui il programma si e' piantato —
+    # «avviato» scritto sopra un Avvia premibile che non faceva niente.
+    "stato": test_stato_sessione,
     "overlay_base": test_overlay_base,
     "overlay_quando": test_overlay_quando,
     # I controlli della finestra: quale manopola per quale campo, e la

@@ -1423,6 +1423,31 @@ class TranslateConfig:
     #   `ollama`  parla con Ollama in HTTP: i modelli stanno fuori dal venv e si
     #             cambiano senza reinstallare niente. `TranslateGemma` e' il piu'
     #             fluente dei locali, ma si veda `preserve_register`.
+    #
+    # **Il default e' `locale` per il p95, non per il p50**, e il numero che
+    # decide non e' quanto costa in media ma quanto costa nel caso peggiore.
+    # La traduzione avviene **dentro** i 500 ms in cui si aspetta di sapere chi
+    # parla (`core/anticipa.py`): tutto cio' che sta sotto quella soglia e'
+    # gratis, tutto cio' che la supera si paga intero. Misurato su 120
+    # sottotitoli veri dell'archivio, it->en:
+    #
+    #   backend   p50     p95      max      p95/p50
+    #   locale     39 ms    67 ms    97 ms    1,70
+    #   google    491 ms  1188 ms  2496 ms    2,42
+    #   llm       589 ms   869 ms  1062 ms    1,47
+    #
+    # Argos ci sta dentro con un fattore 7, e sulle 160 battute piu' lunghe mai
+    # lette (fino a 217 caratteri) il caso peggiore e' 220 ms. Google e'
+    # **bimodale**: dal vivo ha dato 427 ms in una passata e 1077 in quella
+    # dopo, stessa macchina — e una cosa che varia di un fattore dieci non si
+    # puo' nascondere dentro una finestra fissa. Dal vivo: con google 9 battute
+    # anticipate su 65 e latenza 1828 ms, con Argos **65 su 65** e 962 ms.
+    # I 3937 ms di caricamento a freddo si pagano ad Avvia, non a battuta.
+    #
+    # E la domanda che viene **prima** della velocita' — il modello dice cio'
+    # che c'e' scritto? — Argos la passa: 14 battute italiane volgari vere,
+    # 14/14 col registro tenuto, zero rifiuti. La resa e' piu' ruvida di
+    # google, ma e' un difetto di qualita', non di contenuto ammorbidito.
     backend: str = "locale"  # locale | llm | ollama | google | nessuno
     llm_model: str = ""  # vuoto = `models/llm/gemma-3-1b-it-Q4_K_M.gguf`
     ollama_model: str = "translategemma:4b"  # 4b | 12b | 27b, o un altro modello

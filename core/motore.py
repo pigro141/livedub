@@ -737,133 +737,144 @@ class Motore:
         # creata altrove non solleva — restituisce `None` a ogni grab.
         rois_aperte, schermo = self._apri_cattura()
         self.manda("nota", f"cattura: {schermo.name}")
-        pronto.wait(timeout=10.0)
-        periodo = 1.0 / max(1e-6, self.cfg.capture.fps)
-        prossimo = time.perf_counter()
-        n = vuoti = 0
-        while not self.stop.is_set():
-            ora = time.perf_counter()
-            if ora < prossimo:
-                time.sleep(min(0.002, prossimo - ora))
-                continue
-            prossimo += periodo
-            # **Se si e' rimasti indietro, si riparte da adesso.** Sommando il
-            # periodo e basta, un giro lento lascia `prossimo` nel passato: il
-            # ciclo smette di dormire e gira a tutta velocita' per rimettersi in
-            # pari, prendendosi la CPU che serve al thread audio. Misurato nella
-            # sessione dell'utente: `speaker.ring_lag` a 4674 ms, cioe' quasi
-            # cinque secondi di campioni mai arrivati. Saltare i giri arretrati
-            # costa qualche fotogramma; non saltarli costa l'audio.
-            if prossimo < ora:
-                prossimo = ora + periodo
-            # **L'area si sposta col mouse a sessione accesa, e la fascia
-            # catturata deve seguirla.** Senza, spostare il rettangolo con la
-            # cattura ridotta darebbe il difetto peggiore possibile: si legge il
-            # **nero** fuori dalla vecchia fascia, e a schermo non succede piu'
-            # niente.
-            if rois_aperte and (tuple(self.cfg.vision.roi),) != rois_aperte:
-                schermo.close()
-                rois_aperte, schermo = self._apri_cattura()
-                self.manda("nota", "area cambiata: rifaccio la cattura")
-                continue
-            g = schermo.grab()
-            if not g.ok:
-                # **`None` vuol dire due cose diverse, e si distinguono solo dal
-                # tempo.** Desktop Duplication risponde `None` quando lo schermo
-                # non e' cambiato — normale — e risponde `None` anche quando non
-                # funziona affatto, che su questa macchina e' il caso: 1071 grab,
-                # zero fotogrammi, con un video a tutto schermo. La seconda non
-                # finisce mai, e senza questo ripiego la finestra resta li' a non
-                # fare niente **senza dire perche'**.
-                vuoti += 1
-                # `startswith` e non `==`: con la fascia sola il nome diventa
-                # `dxcam+roi`, e un confronto esatto avrebbe spento il ripiego
-                # proprio nella configurazione nuova.
-                if (n == 0 and vuoti > 2 * self.cfg.capture.fps
-                        and schermo.name.startswith("dxcam")):
+        try:
+            pronto.wait(timeout=10.0)
+            periodo = 1.0 / max(1e-6, self.cfg.capture.fps)
+            prossimo = time.perf_counter()
+            n = vuoti = 0
+            while not self.stop.is_set():
+                ora = time.perf_counter()
+                if ora < prossimo:
+                    time.sleep(min(0.002, prossimo - ora))
+                    continue
+                prossimo += periodo
+                # **Se si e' rimasti indietro, si riparte da adesso.** Sommando il
+                # periodo e basta, un giro lento lascia `prossimo` nel passato: il
+                # ciclo smette di dormire e gira a tutta velocita' per rimettersi in
+                # pari, prendendosi la CPU che serve al thread audio. Misurato nella
+                # sessione dell'utente: `speaker.ring_lag` a 4674 ms, cioe' quasi
+                # cinque secondi di campioni mai arrivati. Saltare i giri arretrati
+                # costa qualche fotogramma; non saltarli costa l'audio.
+                if prossimo < ora:
+                    prossimo = ora + periodo
+                # **L'area si sposta col mouse a sessione accesa, e la fascia
+                # catturata deve seguirla.** Senza, spostare il rettangolo con la
+                # cattura ridotta darebbe il difetto peggiore possibile: si legge il
+                # **nero** fuori dalla vecchia fascia, e a schermo non succede piu'
+                # niente.
+                if rois_aperte and (tuple(self.cfg.vision.roi),) != rois_aperte:
                     schermo.close()
-                    rois_aperte = (tuple(self.cfg.vision.roi),) if self.cfg.capture.solo_roi else ()
-                    schermo = apri_cattura(
-                        "mss", monitor=self.opz.monitor,
-                        rois=rois_aperte, margine=self.cfg.capture.roi_margin,
-                    )
-                    self.manda("nota",
-                               "! la cattura veloce non restituisce fotogrammi: passo a mss")
-                    vuoti = 0
-                continue
-            n += 1
-            # **Il ritaglio per la sfocatura parte subito, prima dell'OCR.**
-            # Stava in fondo al giro, dopo `on_frame`, e quindi pagava tutto il
-            # costo del riconoscimento prima di essere spedito: misurato nella
-            # sessione dell'utente, `vision.ocr` sta a **84 ms al p50 e 137 al
-            # massimo** — cioe' la macchia arrivava a schermo con quattro
-            # fotogrammi di ritardo sulla scena. Per sfocare non serve sapere cosa
-            # c'e' scritto.
-            if self.overlay is not None and self.overlay._visibile:
-                pezzo = ritaglia(g.frame, self.overlay.rett)
-                if pezzo is not None:
-                    self.manda("aggiorna", (pezzo, time.perf_counter()))
-            for riga in self.pipeline.on_frame(g.frame):
-                if self.sessione is not None:
-                    self.sessione.line(riga)
-                self.manda("riga", (riga.speaker_id or "—",
-                                    riga.voice_id or "(solo scritta)", riga.text,
-                                    riga.live_latency_ms, time.perf_counter() - t_avvio))
-                # **La sostituzione grafica dal vivo.** Si passa dalla coda come
-                # tutto il resto: disegnare da qui vorrebbe dire toccare la
-                # finestra dal thread video. Si manda solo se c'e' stata una
-                # traduzione — se no si coprirebbe il sottotitolo con se' stesso.
-                if self.overlay is not None and riga.text_original:
-                    # **Quanto resta a schermo il tradotto: quanto il sottotitolo
-                    # del gioco, non quanto la nostra voce.** La durata dell'audio
-                    # doppiato e' quasi sempre piu' corta della permanenza del
-                    # sottotitolo: usando quella, la finestra spariva mentre
-                    # l'originale era ancora li'.
-                    resta = self.pipeline.timing.predict(riga.text)
-                    fine = time.perf_counter() + max(riga.duration, resta)
-                    # **La geometria viene dal fotogramma in cui il sottotitolo
-                    # c'era, non da questo.** Fra la lettura e adesso sono passati
-                    # piu' di due secondi: `inchiostro()` cercava l'inchiostro su
-                    # una scena gia' cambiata, e cio' che trovava era scenario.
-                    # `riga.boxes` sono le bande accettate allora.
-                    # `riga.roi` dice **di quale area** sono quei rettangoli:
-                    # con due aree dichiarate, prendere sempre `vision.roi`
-                    # disegnerebbe la traduzione del cartello dentro la fascia
-                    # del dialogo. Vuoto = la ROI, che e' il caso di sempre.
-                    trovato = inchiostro_da_box(
-                        g.frame, self.cfg, riga.boxes, riga.ink, riga.roi or None)
-                    if trovato[0] is None:
-                        trovato = inchiostro(g.frame, self.cfg)
-                    self.manda("overlay", (riga.text, riga.text_original, fine,
-                                           riga.t_subtitle, *trovato))
-            # **Chi decide se il tradotto resta a schermo e' il lettore**, non un
-            # orologio e nemmeno i pixel: prima si prolungava il timer finche' la
-            # finestra era visibile — un anello chiuso su se' stesso — e la
-            # finestra non spariva piu'.
-            #
-            # **Si contano i giri vuoti.** L'OCR perde una riga per qualche
-            # fotogramma e la ritrova subito: spegnere al primo giro vuoto fa
-            # lampeggiare il tradotto.
-            if self.overlay is not None and self.overlay._visibile:
-                if self.pipeline.a_schermo(self.overlay.t_on):
-                    self.overlay._vuoti = 0
-                    self.overlay_fino_a = time.perf_counter() + 0.4
-                else:
-                    self.overlay._vuoti += 1
-                    if (self.overlay._vuoti >= self.cfg.translate.overlay_hold_frames
-                            and time.perf_counter() >= self.overlay_fino_a):
-                        self.manda("spegni", None)
-            if n % 30 == 0:
-                p = len(self.pipeline.tracker) if self.pipeline.tracker else 0
-                riga = (f"in corso  |  {n} frame  |  {self.pipeline.dette} battute"
-                        f"  |  {p} personaggi  |  {len(self.pipeline.pool)} voci")
-                # Le traduzioni fallite stanno **nella testata** e non solo nel
-                # log: il log scorre, e questa e' la differenza fra «sta
-                # doppiando» e «sta ripetendo l'originale».
-                tradu = getattr(self.pipeline, "traduci", None)
-                if tradu is not None and tradu.n_falliti:
-                    riga += f"  |  ! {tradu.n_falliti} traduzioni fallite"
-                self.manda("stato", riga)
+                    rois_aperte, schermo = self._apri_cattura()
+                    self.manda("nota", "area cambiata: rifaccio la cattura")
+                    continue
+                g = schermo.grab()
+                if not g.ok:
+                    # **`None` vuol dire due cose diverse, e si distinguono solo dal
+                    # tempo.** Desktop Duplication risponde `None` quando lo schermo
+                    # non e' cambiato — normale — e risponde `None` anche quando non
+                    # funziona affatto, che su questa macchina e' il caso: 1071 grab,
+                    # zero fotogrammi, con un video a tutto schermo. La seconda non
+                    # finisce mai, e senza questo ripiego la finestra resta li' a non
+                    # fare niente **senza dire perche'**.
+                    vuoti += 1
+                    # `startswith` e non `==`: con la fascia sola il nome diventa
+                    # `dxcam+roi`, e un confronto esatto avrebbe spento il ripiego
+                    # proprio nella configurazione nuova.
+                    if (n == 0 and vuoti > 2 * self.cfg.capture.fps
+                            and schermo.name.startswith("dxcam")):
+                        schermo.close()
+                        rois_aperte = (tuple(self.cfg.vision.roi),) if self.cfg.capture.solo_roi else ()
+                        schermo = apri_cattura(
+                            "mss", monitor=self.opz.monitor,
+                            rois=rois_aperte, margine=self.cfg.capture.roi_margin,
+                        )
+                        self.manda("nota",
+                                   "! la cattura veloce non restituisce fotogrammi: passo a mss")
+                        vuoti = 0
+                    continue
+                n += 1
+                # **Il ritaglio per la sfocatura parte subito, prima dell'OCR.**
+                # Stava in fondo al giro, dopo `on_frame`, e quindi pagava tutto il
+                # costo del riconoscimento prima di essere spedito: misurato nella
+                # sessione dell'utente, `vision.ocr` sta a **84 ms al p50 e 137 al
+                # massimo** — cioe' la macchia arrivava a schermo con quattro
+                # fotogrammi di ritardo sulla scena. Per sfocare non serve sapere cosa
+                # c'e' scritto.
+                if self.overlay is not None and self.overlay._visibile:
+                    pezzo = ritaglia(g.frame, self.overlay.rett)
+                    if pezzo is not None:
+                        self.manda("aggiorna", (pezzo, time.perf_counter()))
+                for riga in self.pipeline.on_frame(g.frame):
+                    if self.sessione is not None:
+                        self.sessione.line(riga)
+                    self.manda("riga", (riga.speaker_id or "—",
+                                        riga.voice_id or "(solo scritta)", riga.text,
+                                        riga.live_latency_ms, time.perf_counter() - t_avvio))
+                    # **La sostituzione grafica dal vivo.** Si passa dalla coda come
+                    # tutto il resto: disegnare da qui vorrebbe dire toccare la
+                    # finestra dal thread video. Si manda solo se c'e' stata una
+                    # traduzione — se no si coprirebbe il sottotitolo con se' stesso.
+                    if self.overlay is not None and riga.text_original:
+                        # **Quanto resta a schermo il tradotto: quanto il sottotitolo
+                        # del gioco, non quanto la nostra voce.** La durata dell'audio
+                        # doppiato e' quasi sempre piu' corta della permanenza del
+                        # sottotitolo: usando quella, la finestra spariva mentre
+                        # l'originale era ancora li'.
+                        resta = self.pipeline.timing.predict(riga.text)
+                        fine = time.perf_counter() + max(riga.duration, resta)
+                        # **La geometria viene dal fotogramma in cui il sottotitolo
+                        # c'era, non da questo.** Fra la lettura e adesso sono passati
+                        # piu' di due secondi: `inchiostro()` cercava l'inchiostro su
+                        # una scena gia' cambiata, e cio' che trovava era scenario.
+                        # `riga.boxes` sono le bande accettate allora.
+                        # `riga.roi` dice **di quale area** sono quei rettangoli:
+                        # con due aree dichiarate, prendere sempre `vision.roi`
+                        # disegnerebbe la traduzione del cartello dentro la fascia
+                        # del dialogo. Vuoto = la ROI, che e' il caso di sempre.
+                        trovato = inchiostro_da_box(
+                            g.frame, self.cfg, riga.boxes, riga.ink, riga.roi or None)
+                        if trovato[0] is None:
+                            trovato = inchiostro(g.frame, self.cfg)
+                        self.manda("overlay", (riga.text, riga.text_original, fine,
+                                               riga.t_subtitle, *trovato))
+                # **Chi decide se il tradotto resta a schermo e' il lettore**, non un
+                # orologio e nemmeno i pixel: prima si prolungava il timer finche' la
+                # finestra era visibile — un anello chiuso su se' stesso — e la
+                # finestra non spariva piu'.
+                #
+                # **Si contano i giri vuoti.** L'OCR perde una riga per qualche
+                # fotogramma e la ritrova subito: spegnere al primo giro vuoto fa
+                # lampeggiare il tradotto.
+                if self.overlay is not None and self.overlay._visibile:
+                    if self.pipeline.a_schermo(self.overlay.t_on):
+                        self.overlay._vuoti = 0
+                        self.overlay_fino_a = time.perf_counter() + 0.4
+                    else:
+                        self.overlay._vuoti += 1
+                        if (self.overlay._vuoti >= self.cfg.translate.overlay_hold_frames
+                                and time.perf_counter() >= self.overlay_fino_a):
+                            self.manda("spegni", None)
+                if n % 30 == 0:
+                    p = len(self.pipeline.tracker) if self.pipeline.tracker else 0
+                    riga = (f"in corso  |  {n} frame  |  {self.pipeline.dette} battute"
+                            f"  |  {p} personaggi  |  {len(self.pipeline.pool)} voci")
+                    # Le traduzioni fallite stanno **nella testata** e non solo nel
+                    # log: il log scorre, e questa e' la differenza fra «sta
+                    # doppiando» e «sta ripetendo l'originale».
+                    tradu = getattr(self.pipeline, "traduci", None)
+                    if tradu is not None and tradu.n_falliti:
+                        riga += f"  |  ! {tradu.n_falliti} traduzioni fallite"
+                    self.manda("stato", riga)
+        finally:
+            # **La cattura si chiude qui, e non e' un dettaglio di pulizia.**
+            # I callback di WGC sono chiusure su se stessi: senza questa riga la
+            # sorgente resta viva per tutto il processo e continua a copiare la
+            # finestra del gioco a ogni fotogramma. Misurato, cinque Avvia nello
+            # stesso processo lasciavano **cinque catture accese** — 285 copie al
+            # secondo invece di 57 — e il costo si vedeva a valle: la sintesi da
+            # 162,9 a 180,4 ms, `classify_lines` da 30 a 47. Non e' una perdita
+            # di memoria che si nota: e' una sessione che va sempre peggio.
+            schermo.close()
 
     # -- arresto -----------------------------------------------------------
 

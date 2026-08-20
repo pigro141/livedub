@@ -166,11 +166,12 @@ PASSI: tuple[Passo, ...] = (
         (
             "Tira un rettangolo stretto attorno alla riga dei sottotitoli, non "
             "attorno a mezzo schermo.",
-            "Un'area grande non legge peggio: non legge. Quello che decide se "
-            "rileggere lo schermo guarda la frazione di pixel cambiati, e lo stesso "
-            "sottotitolo diluito in un'area grande non la supera piu' — a schermo "
-            "intero, misurato, zero letture.",
-            "Sopra 0,30 di altezza il programma te lo dice da solo, mentre tiri il "
+            "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno "
+            "precisa, non muta.",
+            "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato "
+            "sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' "
+            "l'area e' alta piu' quella ricostruzione prende roba che non c'entra. "
+            "Sopra 0,12 di altezza il programma te lo dice, mentre tiri il "
             "rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 "
             "della scheda «Preparazione».",
         ),

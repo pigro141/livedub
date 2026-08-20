@@ -1549,6 +1549,7 @@ class TranslateConfig:
     local_model: str = ""
 
     # -- come si vede a schermo -------------------------------------------
+
     # **La sostituzione grafica**: il testo tradotto viene ridisegnato sopra il
     # sottotitolo originale, dentro un riquadro pieno che lo copre. Senza il
     # riquadro si leggerebbero due testi sovrapposti, che e' peggio di nessuno

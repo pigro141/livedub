@@ -171,6 +171,134 @@ def _finta_sessione(app, f) -> None:
     ])
 
 
+# ======================================================== la scena di vetrina ==
+#
+# **Una seconda scena, perche' e' una seconda domanda.** `_finta_sessione` mette
+# in campo la tessera rossa del guasto audio, la striscia ambra delle modifiche
+# in attesa e un `underrun` in rosso: e' giusta per il suo scopo, che e' guardare
+# gli stati brutti — quelli esistono solo mentre qualcosa non va, e quello che
+# non si guarda si consegna rotto. Ma usata per rispondere ad «ecco com'e' il
+# programma» dice **rotto** di un prodotto che funziona: non e' piu' onesta di
+# una che nasconde il guasto, e' imprecisa nella direzione opposta.
+#
+# **E i numeri non si inventano.** Tutti quelli qui sotto vengono da una sola
+# sessione **dal vivo**, `runs/2026-08-20_00-01-56`: undici minuti di GTA V in
+# italiano con Kokoro su CUDA, 146 battute doppiate, `mix.underrun` 0. Il
+# ritratto e' quella sessione a **6'21"**, cioe' all'istante della battuta
+# `E sempre San Andreas.`; le battute, le sigle, le voci, le latenze e la fretta
+# sono copiate riga per riga da `speaker.jsonl`, i conteggi contati li' dentro.
+#
+# Un solo numero e' del **quadro intero** e non di quell'istante, e vale la pena
+# dirlo invece di lasciarlo credere esatto: la latenza p50. La barra scrive
+# `dub.latency_live` (non `dub.latency`, che nel `report.txt` e' 1290) e quella
+# quantita' esiste **solo** come aggregato di fine sessione — 1949 ms. Le altre
+# tengono: `underrun` e' un contatore che sale, zero alla fine vuol dire zero
+# anche prima; la compressione e' la mediana della fretta delle battute fino a
+# li'; l'OCR e' `vision.read` su tutta la sessione (10724 letture in 674,9 s),
+# che a cattura ferma non si muove.
+#
+# La riga ambra sulla ROI **ci resta**. E' vera — quella sessione aveva l'area
+# alta 0,214 e la finestra sopra 0,12 lo dice — ed e' un avviso, cioe' una marca
+# da tre pixel nel margine, non un guasto. Toglierla farebbe di questa
+# fotografia una sessione mai esistita. (E vale la pena saperlo: **nessuna**
+# delle sessioni del 19-20 agosto sta sotto 0,12, la piu' stretta e' 0,147.
+# Quel consiglio non lo segue nessuno, il che e' un problema del prodotto e non
+# della fotografia.)
+SESSIONE = "runs/2026-08-20_00-01-56"
+
+# `sid -> battute` **in ordine di comparsa**, fino a un attimo prima delle sette
+# qui sotto. L'ordine e' l'informazione: `_colore_voce` assegna le tinte in
+# ordine di prima comparsa, quindi seminare i conteggi in un ordine diverso
+# darebbe a ogni personaggio il colore di un altro.
+PRIMA = (("S?", 21), ("S13", 10), ("S4", 31), ("S1", 7), ("S12", 1), ("S11", 1),
+         ("S14", 1))
+
+# Le sette battute a schermo: `(secondo, sigla, voce, latenza ms, fretta, testo)`.
+# Sono consecutive e vere. Due personaggi che si rispondono, due voci diverse
+# dallo stesso modello a semitoni diversi — che e' il pregio del prodotto, e su
+# una fila di battute dello stesso personaggio non si vedrebbe.
+BATTUTE = (
+    (361.0, "S4", "nicola-2_5", 1312, 1.00, "Eccola. Quella distesa disordinata. Los Santos."),
+    (367.0, "S4", "nicola-2_5", 1026, 1.00, "Oh. Ci siamo! Ci siamo!"),
+    (371.9, "S1", "nicola+2_5", 1105, 1.00, "Quindi questa è Los Santos?"),
+    (374.5, "S4", "nicola-2_5", 948, 1.00, "Direi di sì."),
+    (376.7, "S1", "nicola+2_5", 1080, 1.00, "Ho sempre voluto venire qui."),
+    (378.9, "S4", "nicola-2_5", 1203, 1.00, "Ma sei rimasto bloccato nel deserto?"),
+    (381.0, "S1", "nicola+2_5", 1705, 1.00, "E sempre San Andreas."),
+)
+
+# La ROI di quella sessione, dal suo `config.json`.
+ROI = (0.232, 0.786, 0.599, 0.214)
+
+
+def _vetrina(app, f, fuori: Path, sigla: str) -> int:
+    """Il programma **mentre lavora**, senza niente di rotto addosso.
+
+    Passa dalle stesse strade del vivo — `motore.barra_misura` per i numeri in
+    fondo, `motore.fase_catena` per la parola in cima, `_scrivi_voce` e
+    `ora.dillo` per le battute — perche' un secondo posto in cui decidere di che
+    colore va un numero e' un posto che si scolla dal primo senza dare errore.
+    Qui si scrivono i **dati**, non i verdetti.
+    """
+    from core.motore import ACCESA, barra_misura, fase_catena
+
+    f.orologio_misura.stop()
+    f._mostra_log()
+    f._guscio_passi.setVisible(False)
+    f.motore._stato = ACCESA
+    f._dipingi_bottoni()
+    f.scrivi("carico kokoro...")
+    f.scrivi(f"! l'area e' alta {ROI[3]:.3f} dello schermo: tirala stretta "
+             f"attorno alla riga")
+
+    # I conteggi di prima si seminano **senza** scrivere le loro battute nel
+    # log: il log e' scorrevole e a schermo se ne vedono le ultime, ma la fila
+    # dei personaggi e' cumulativa dall'inizio della sessione. Le due cose
+    # rispondono a due domande diverse e vanno riempite in due modi diversi.
+    for sid, quante in PRIMA:
+        f._conta[sid] = quante
+        f._colore_voce(sid)
+    f.personaggi.aggiorna(f._conta, f._colore_voce)
+
+    for t, sid, voce, lat, fretta, testo in BATTUTE:
+        f._scrivi_voce(sid, f"{t:6.1f}s · {sid} · {voce} · {lat:.0f} ms · {testo}")
+        f._conta[sid] = f._conta.get(sid, 0) + 1
+        f.ora.dillo(sid, voce, testo, f._colore_voce(sid), lat, fretta)
+        f.personaggi.aggiorna(f._conta, f._colore_voce)
+
+    battute = sum(f._conta.values())
+    # `n` sono i fotogrammi catturati (`vision.read` a 15,9 Hz per 381 s), `p` le
+    # identita' vive scritte nella battuta stessa (`identita_vive`: 15) e le voci
+    # il `pool_size` di quella configurazione. La riga la compone `core/motore.py`
+    # ogni trenta fotogrammi: qui si ricopia la sua forma, non se ne inventa una.
+    f.stato(f"in corso  |  6060 frame  |  {battute} battute  |  15 personaggi  |"
+            f"  6 voci")
+
+    # **Le dissolvenze si lasciano finire prima di scattare.** Ogni tessera di
+    # personaggio compare sfumando, e un velo che nessuno fa girare lascia il
+    # widget a opacita' zero: la fila uscirebbe vuota sotto il suo titolo.
+    _lascia_finire(app, 2 * tema.MS_CONTROLLO)
+
+    f.ora.mostra_fase(f._fase_tradotta(fase_catena({"viva": True, "parla": True})),
+                      f.tavolozza.accento, True)
+    # I verdetti — quale numero va in ambra, quale in rosso — li da' la regola,
+    # non questa funzione: qui si consegna il dizionario che `misure()`
+    # consegnerebbe dal vivo.
+    f.misura.mostra(barra_misura({
+        "stato": f._stato_testo,
+        "viva": True,
+        "ocr_hz": 15.9,
+        "battute": battute,
+        "latenza_ms": 1949.0,
+        "compressione": 1.00,
+        "underrun": 0,
+        "roi": ROI,
+    }))
+    app.processEvents()
+    f.grab().save(str(fuori / f"{sigla}-vetrina.png"))
+    return 1
+
+
 def _elenco(app, fuori: Path, sigla: str, tavolozza) -> int:
     """I quattro stati di una riga d'elenco, **fotografati davvero**.
 
@@ -316,6 +444,13 @@ def main(argv: list[str] | None = None) -> int:
     # fotografa passo per passo, nei due temi, con lo stesso metodo.
     ap.add_argument("--tutorial", action="store_true",
                     help="fotografa i passi della guida iniziale invece delle schede")
+    # **La scena di vetrina risponde a un'altra domanda** e per questo e' un'altra
+    # scena: si veda il commento sopra `_vetrina`. Una sola scena che serva sia a
+    # guardare i guasti sia a mostrare il prodotto finisce per fare male tutte e
+    # due le cose.
+    ap.add_argument("--vetrina", action="store_true",
+                    help="una sola schermata: la sessione viva e sana, coi numeri "
+                         f"di {SESSIONE}")
     ap.add_argument("--largo", type=int, default=tema.LARGO)
     ap.add_argument("--alto", type=int, default=tema.ALTO)
     args = ap.parse_args(argv)
@@ -353,9 +488,10 @@ def main(argv: list[str] | None = None) -> int:
             f.setAttribute(Qt.WA_DontShowOnScreen, True)
             f.show()
             app.processEvents()
-            if args.tutorial:
+            if args.tutorial or args.vetrina:
+                scena = _tutorial if args.tutorial else _vetrina
                 try:
-                    scritti += _tutorial(app, f, fuori, f"{sigla}{nome}")
+                    scritti += scena(app, f, fuori, f"{sigla}{nome}")
                 finally:
                     f.close()
                 continue

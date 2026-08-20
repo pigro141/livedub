@@ -48,6 +48,26 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# **Il figlio di OneOCR, quando questo file e' un eseguibile.** `vision/ocr.py`
+# apre il worker con `sys.executable -m vision.oneocr_worker`, e nel pacchetto
+# `sys.executable` **e' questo programma**: quei due argomenti arrivano
+# all'argparse in fondo al file, che risponde `unrecognized arguments` e chiude
+# con 2. Misurato sul pacchetto: OneOCR — il lettore che il banco sceglie quando
+# c'e', e che `installa.ps1` copia da Windows — non partiva **mai** dall'exe.
+#
+# Si intercetta qui e non in `vision/ocr.py` perche' cosi' la riga di comando
+# resta **una sola** in sviluppo e nel pacchetto: nessun ramo che gira solo
+# dentro l'exe, che e' il difetto contro cui e' scritto `livedub.spec`.
+#
+# E sta **prima** degli import di Qt e di tutto il resto apposta: quel processo
+# esiste per non avere `onnxruntime` in memoria (OneOCR porta il proprio e
+# pretende un'altra versione di API), quindi non deve importare niente che se lo
+# tiri dietro. Sopra questa riga ci sono solo moduli della libreria standard.
+if sys.argv[1:3] == ["-m", "vision.oneocr_worker"]:
+    from vision.oneocr_worker import main as _oneocr_worker  # noqa: E402
+
+    raise SystemExit(_oneocr_worker())
+
 from PySide6.QtCore import (  # noqa: E402
     QEasingCurve,
     QPoint,
@@ -891,7 +911,21 @@ class FilaPersonaggi(QWidget):
         self._tavolozza = tavolozza
 
     def svuota(self, quando_dirlo: str) -> None:
+        """Rimette la fila com'era prima della prima battuta, **tessere comprese**.
+
+        Scriveva solo il segnaposto e le tessere le lasciava dov'erano: chiamata
+        con la fila piena dava «nessuno ancora» **accanto** a M1, M2, M3, cioe'
+        una riga che dice due cose opposte. Non e' uno stato che esiste dal vivo,
+        ed e' finito in una fotografia di riferimento senza che nessuno lo
+        notasse — svuotare la fila non era svuotare la fila.
+        """
+        for t, _, _ in self._tessere.values():
+            self.riga.removeWidget(t)
+            t.setParent(None)
+            t.deleteLater()
+        self._tessere.clear()
         self.vuoto.setText(quando_dirlo)
+        self.vuoto.setVisible(True)
 
     def aggiorna(self, conteggi: dict[str, int], colore) -> None:
         """`conteggi` in ordine di comparsa; `colore(sid)` da' la tinta."""
@@ -1934,19 +1968,42 @@ class Finestra(QMainWindow):
     def _svuota_sessione(self, forza: bool = False) -> None:
         """I due segnaposto della scheda Sessione, **nella lingua della finestra**.
 
-        `forza` cancella anche una battuta gia' detta, e lo chiede solo chi
-        fotografa: lo stato «sto partendo» esiste **prima** della prima battuta,
-        e mostrarlo sopra una battuta gia' uscita sarebbe un'immagine che dal
-        vivo non capita mai.
+        `forza` chiede lo stato di **prima della prima battuta**, e lo chiede solo
+        chi fotografa: «sto partendo» sopra una battuta gia' uscita sarebbe
+        un'immagine che dal vivo non capita mai.
 
-        Si compongono qui e non stanno scritti su un widget perche' altrimenti la
-        passeggiata dei cataloghi li ricorderebbe come originale italiano e al
-        primo cambio di lingua li congelerebbe: e' lo stesso difetto della riga
-        «da fare nella preparazione», gia' pagato una volta.
+        **E per una sessione bisogna svuotare la sessione, non due segnaposto.**
+        La prima stesura toccava la tessera della battuta e il segnaposto della
+        fila, e lasciava dov'erano il log con dentro le battute gia' dette, le
+        tessere dei personaggi e la tessera del guasto audio: la fotografia
+        usciva con «in attesa della prima frase» sopra quattro battute, tre
+        personaggi e un errore acceso. La docstring dichiarava a parole proprio
+        lo stato che il codice produceva, ed e' la forma di sempre — *una cura
+        piu' stretta del difetto*, con la prova scritta accanto e nessuno che
+        l'abbia riletta. La domanda che la prende: **cosa fa la strada vera che
+        questa non fa?** — `avvia()` la tessera del guasto la nasconde.
+
+        Senza `forza` non si tocca niente di tutto questo, e non e' prudenza: qui
+        ci passa anche il cambio di lingua a sessione accesa, e cancellare il log
+        di una partita in corso per aver scelto il tedesco sarebbe una cura che
+        rompe qualcosa che nessuno stava guardando.
+
+        I segnaposto si compongono qui e non stanno scritti su un widget perche'
+        altrimenti la passeggiata dei cataloghi li ricorderebbe come originale
+        italiano e al primo cambio di lingua li congelerebbe: e' lo stesso
+        difetto della riga «da fare nella preparazione», gia' pagato una volta.
         """
         def dillo(testo: str) -> str:
             return lingua.traduci(testo, self.cfg.ui.lingua)
 
+        if forza:
+            # Le tinte dei personaggi se ne vanno **con** i conteggi: sono
+            # assegnate in ordine di comparsa, e tenerle senza le battute
+            # vorrebbe dire ricominciare a colorare dal quarto colore.
+            self._conta.clear()
+            self._voci.clear()
+            self.log.clear()
+            self.tessera.setVisible(False)
         if forza or self.ora.vuota:
             self.ora.svuota(dillo("in attesa della prima frase"))
         if forza or not self._conta:

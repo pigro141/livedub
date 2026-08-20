@@ -25,7 +25,77 @@ percorsi relativi a `__file__` — che qui puntano a `models/`, `profiles/` e
 import sys
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
+
 RADICE = Path(SPECPATH)
+
+# ============================ i dati che stanno dentro le librerie, non qui ===
+#
+# **PyInstaller impacchetta il codice e butta i dati.** Segue gli `import` e
+# porta i `.py` e i `.pyd`; i file che quei moduli aprono per percorso — un
+# `config.yaml`, un dizionario di espeak, una DLL caricata con `ctypes` — non
+# li vede nessuno, perche' nessuno li importa. Il pacchetto si costruisce senza
+# un avviso e il difetto esce alla prima battuta.
+#
+# Misurato sul pacchetto del 20 agosto, guardando cosa c'era in `_internal`:
+# **quattro delle cinque librerie che portano dati non ne avevano nemmeno uno**,
+# e fra queste ci sono i due motori *di serie* — PP-OCR (`vision.ocr_backend`)
+# e Piper (`tts.backend`). Cioe' l'eseguibile si apriva, mostrava la finestra
+# giusta, e non sapeva ne' leggere ne' parlare.
+#
+# Ognuna e' qui col motivo per cui serve, perche' un elenco di nomi di pacchetto
+# non si sa piu' potare: chi legge non puo' distinguere la riga che regge il
+# default da quella rimasta li' da una prova.
+DATI_LIBRERIE = []
+BINARI_LIBRERIE = []
+
+# ================================ i profili, meno la sessione di chi compila ==
+#
+# `profiles/*.json` sono le calibrazioni, e servono. Ma in quella cartella ci
+# finisce anche **`ultima.json`**, che non e' un profilo: e' la configurazione
+# con cui si e' chiuso l'ultimo avvio, la scrive `core.preferenze` uscendo e la
+# **rilegge aprendo** quando nessuno chiede un profilo — che e' esattamente il
+# caso dell'eseguibile, lanciato con un doppio clic e senza argomenti.
+#
+# E' gitignorata, quindi da un clone pulito non esiste; su una macchina che
+# sviluppa esiste sempre. Prendendo la cartella intera, il pacchetto del 20
+# agosto partiva con addosso la sessione di chi lo aveva compilato: `ocr_backend
+# = oneocr`, `tts.backend = kokoro`, `tts.device = cuda` e la ROI del suo
+# schermo. Non dava errore — la barra della misura mostrava `ROI x0.232 y0.786`,
+# e per accorgersene bisognava riconoscere quel numero.
+#
+# Quindi si elencano i file, uno per uno, invece di consegnare una cartella.
+PROFILI = [(str(p), "profiles")
+           for p in sorted((RADICE / "profiles").glob("*.json"))
+           if p.name != "ultima.json"]
+
+# PP-OCR: `config.yaml` piu' i tre ONNX (rilevatore, riconoscitore,
+# classificatore) che stanno **dentro il pacchetto pip**, non in `models/`.
+# E' il backend di serie di `vision.ocr_backend`.
+DATI_LIBRERIE += collect_data_files("rapidocr_onnxruntime")
+
+# Piper: `espeak-ng-data`, il g2p. E' il motore di serie di `tts.backend`, ed e'
+# la voce che sente chi apre il pacchetto senza toccare niente.
+DATI_LIBRERIE += collect_data_files("piper")
+
+# Kokoro fonemizza con espeak per un'altra strada: `kokoro_onnx.tokenizer`
+# importa `espeakng_loader` e `phonemizer`, e la DLL la carica **per percorso**
+# (`ctypes`), quindi va messa dove il modulo la cerca — accanto a se stesso.
+DATI_LIBRERIE += collect_data_files("espeakng_loader")
+DATI_LIBRERIE += collect_data_files("kokoro_onnx")
+DATI_LIBRERIE += collect_data_files("phonemizer")
+BINARI_LIBRERIE += collect_dynamic_libs("espeakng_loader")
+
+# E dietro a `phonemizer` ce n'e' un'altra che non si sarebbe indovinata:
+# `segments` -> `csvw` -> `language_tags`, che tiene l'elenco dei codici di
+# lingua in quattordici JSON. Trovata solo premendo «Misura questo PC»: la
+# misura della voce rispondeva `FileNotFoundError: ...\language_tags\data\json\
+# index.json`, e nessun `import` in nessun nostro file la nomina.
+DATI_LIBRERIE += collect_data_files("language_tags")
+
+# Il traduttore `llm` (Gemma in-process): `llama_cpp` carica le sue DLL a mano
+# da `llama_cpp/lib`, quindi l'analisi statica non le trova.
+BINARI_LIBRERIE += collect_dynamic_libs("llama_cpp")
 
 a = Analysis(
     # **La finestra Qt, non quella Tk.** L'eseguibile impacchettava
@@ -35,7 +105,7 @@ a = Analysis(
     # parte. La Tk resta nel sorgente per il confronto, ma non e' il prodotto.
     ["tools/ui_qt.py"],
     pathex=[str(RADICE)],
-    binaries=[],
+    binaries=BINARI_LIBRERIE,
     # I profili di calibrazione servono: senza, la prima cosa che l'utente vede
     # e' una ROI che inquadra il tappeto.
     # **E `core/config.py` come *dato*, non come codice.** Il pannello delle
@@ -54,8 +124,16 @@ a = Analysis(
     # tornerebbe la sola voce «it» e l'eseguibile sarebbe **solo in italiano**.
     # Non darebbe errore: darebbe un menu con una voce sola, e sembrerebbe una
     # scelta. E' la stessa forma del difetto di `core/config.py` qui sopra.
-    datas=[("profiles", "profiles"), ("core/config.py", "core"),
-           ("assets/logo", "assets/logo"), ("ui/lingue", "ui/lingue")],
+    # **E le licenze, che qui non sono un adempimento.** Il programma e'
+    # GPL-3.0-or-later e la finestra lo dichiara nel pannello «info»: «Licenza:
+    # GPL-3.0-or-later (vedi LICENZE.md)» — rimandando a un file che nel
+    # pacchetto non c'era. `LICENZE.md` e' anche il posto dove sta scritto
+    # perche' i modelli **non** viaggiano con l'eseguibile, che e' la scelta che
+    # regge tutto questo file.
+    datas=PROFILI + [("core/config.py", "core"),
+                     ("assets/logo", "assets/logo"), ("ui/lingue", "ui/lingue"),
+                     ("LICENSE", "."), ("LICENZE.md", ".")]
+    + DATI_LIBRERIE,
     # **Gli import che PyInstaller non puo' vedere**, perche' qui i backend si
     # costruiscono per nome (`make_tts`, `make_ocr`) e non con un `import` in
     # cima. E' il prezzo della factory unica, ed e' un prezzo che val la pena
@@ -65,7 +143,12 @@ a = Analysis(
         "speak.backends.piper",
         "speak.backends.supertonic",
         "speak.backends.kokoro",
-        "speak.backends.tone",
+        # `speak.backends.tone` stava qui e **non esiste**: `tone` e `silent`
+        # vivono dentro `speak/base.py`. PyInstaller lo diceva
+        # (`ERROR: Hidden import not found`) in mezzo a millecento righe di
+        # INFO, e il pacchetto veniva su lo stesso: un elenco scritto a mano che
+        # nessuno rilegge, la forma gia' vista di `tools/say.py` con il
+        # `choices` rimasto indietro.
         "vision.oneocr_worker",
         "translate.locale",
         "translate.llm",
@@ -83,7 +166,13 @@ a = Analysis(
         "PIL._tkinter_finder",
     ],
     hookspath=[],
-    runtime_hooks=[],
+    # **Senza questa riga l'eseguibile non puo' scaricare niente.** `console=
+    # False` lascia `sys.stdout` e `sys.stderr` a `None`, e la barra di
+    # avanzamento di `huggingface_hub` scrive su stderr: misurato sul pacchetto
+    # del 20 agosto, il banco rispondeva `AttributeError: 'NoneType' object has
+    # no attribute 'write'` a **ognuno** dei modelli da prendere. Il perche' per
+    # esteso sta in `pyi_uscite.py`.
+    runtime_hooks=["pyi_uscite.py"],
     # **Torch adesso deve entrare, e non perche' serva.** Questa riga diceva
     # «torch non c'e' e non deve entrare», ed era vera finche' la traduzione
     # offline era opzionale. Ora `translate.locale` e' il default installato di

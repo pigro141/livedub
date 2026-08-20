@@ -108,6 +108,17 @@ soundfile==0.14.0
 PyAudioWPatch==0.2.12.8
 numpy==2.4.6
 
+# --- la finestra, che e' il prodotto ----------------------------------------
+# **Mancava**, e non e' un dettaglio: `tools/ui_qt.py` e' cio' che apre
+# `livedub.bat`, cio' che impacchetta `livedub.spec` e cio' che l'utente chiama
+# «il programma». Da un clone pulito, `installa.ps1` installava tutta la catena
+# — sintesi, visione, audio, traduzione — e poi il doppio clic moriva su
+# `ModuleNotFoundError: PySide6`. Il difetto era invisibile qui dentro perche'
+# nessun altro pacchetto la tira: su questa macchina c'era e basta.
+#
+# La Tk (`tools/ui.py`) non e' un ripiego: non e' vestita Menta e non lo sara'.
+PySide6==6.11.1
+
 # --- modelli e video ---------------------------------------------------------
 huggingface_hub==1.25.1     # scarica Piper, ECAPA e Kokoro dentro models/
 imageio-ffmpeg==0.6.0       # il montaggio degli MP4 di prova (tools/dub.py --mp4)

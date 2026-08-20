@@ -209,7 +209,26 @@ def _commenti() -> dict[tuple[str, str], str]:
             while j >= 0:
                 riga = righe[j].strip()
                 if riga.startswith("#"):
-                    sopra.append(riga.lstrip("#").strip())
+                    contenuto = riga.lstrip("#").strip()
+                    # **Un separatore di sezione non e' la spiegazione di un
+                    # campo, ed e' qui che la risalita si ferma.** Una riga come
+                    # `# -- come si vede a schermo -----` titola cio' che segue:
+                    # attaccarla al primo campo sotto di lei gli mette in testa
+                    # dei trattini, e nel pannello si legge
+                    # `-- come si vede a schermo ----- La sostituzione grafica...`.
+                    #
+                    # La riga vuota **non** basta a staccare, ed e' la cura piu'
+                    # stretta del difetto che era stata provata prima: il ramo
+                    # qui sotto salta apposta le righe vuote e riprende se sopra
+                    # trova ancora commento — che e' esattamente questo caso.
+                    # Quel comportamento serve (un commento lungo con un
+                    # capoverso in mezzo deve restare attaccato al campo), quindi
+                    # non si tocca: si insegna invece a **riconoscere il
+                    # titolo**, cosi' vale anche per i separatori futuri e non e'
+                    # una disposizione da ricordarsi.
+                    if contenuto.startswith("--"):
+                        break
+                    sopra.append(contenuto)
                 elif riga == "" and sopra:
                     # una riga vuota dentro un blocco di commento lo continua,
                     # ma solo se sopra c'e' ancora commento

@@ -237,7 +237,7 @@ class Misura:
 #
 # | soglia | da dove viene |
 # |---|---|
-# | OCR < 15 Hz | schermo intero 14,7 Hz contro fascia 19,9: **cinque sottotitoli in meno** |
+# | OCR < 15 Hz | schermo intero 14,7 Hz contro fascia 19,9: **cinque sottotitoli in meno**. Sono **letture** (`vision.read`), non chiamate all'OCR: vedi `misure()` |
 # | latenza p50 > 2500 ms | la soglia scritta **prima** della prova di Qwen dal vivo |
 # | compressione > 1,30 | oltre 1,3 le consonanti spariscono (WSOLA) |
 # | underrun > 0 | zero e' l'unico valore accettabile: un buco nell'audio si sente |
@@ -435,7 +435,27 @@ class Motore:
             return dati
         m = p.metrics
         trascorso = max(1e-6, time.perf_counter() - self.t_avvio) if self.t_avvio else 0.0
-        letture = m.timer("vision.ocr").count
+        # **`vision.read` e non `vision.ocr`**, e la differenza e' un fattore 2,7.
+        # `vision.read` conta i fotogrammi **guardati**; `vision.ocr` solo quelli
+        # che passano il cancello del diff, cioe' quelli in cui qualcosa e'
+        # cambiato. La soglia qui sotto e' misurata sulle **letture** (la tabella
+        # di `OCR_MINIMO_HZ` dice 14,7 contro 19,9, e quei numeri sono letture),
+        # quindi applicarla alle chiamate all'OCR e' la settima volta in questo
+        # progetto della forma «una quantita' misurata e un'altra applicata».
+        #
+        # Misurato su `runs/2026-08-20_00-01-56`: `vision.read` 10724 e
+        # `vision.ocr` 3883 su 674,9 s, cioe' **15,9 Hz contro 5,8**. Quella
+        # sessione ha tenuto l'OCR **in ambra per undici minuti** con
+        # `mix.underrun` 0, compressione 1,00 e 146 battute doppiate — un valore
+        # fuori norma che fuori norma non era. Un ambra bruciato dove non e'
+        # successo niente e' cio' che insegna a non guardare piu' l'ambra la
+        # volta che conta: lo stesso difetto del `!` speso su `auto` quando
+        # funzionava.
+        #
+        # Il tasso **con il cancello acceso** sarebbe un'altra misura, con una
+        # sua soglia: oggi quella soglia non esiste, e inventarla qui vorrebbe
+        # dire scrivere un numero non misurato.
+        letture = m.timer("vision.read").count
         dati.update(
             ocr_hz=(letture / trascorso) if trascorso else 0.0,
             battute=p.dette,

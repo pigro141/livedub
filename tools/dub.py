@@ -331,7 +331,7 @@ Format: Name, Fontname, Fontsize, PrimaryColour, BackColour, Bold, BorderStyle, 
 Style: ocr,Consolas,{max(14, larghezza // 44)},&H00FFFFFF,&HFF000000,0,4,3,0,8,20,20,8,1
 
 [Events]
-Format: Layer, Start, End, Style, Text
+Format: Layer, Start, End, Style, Name, Text
 """
     eventi = []
     for r in righe:
@@ -431,7 +431,7 @@ Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold
 Style: dub,{cfg.font},{corpo},{_ass_colore(cfg.color or "#ffffff")},{contorno},{sfondo},0,{bordo},{cfg.outline},0,2,{margine_l},{margine_r},{margine_v},1
 
 [Events]
-Format: Layer, Start, End, Style, Text
+Format: Layer, Start, End, Style, Name, Text
 """
     eventi, intervalli = [], []
     for r in tradotte:

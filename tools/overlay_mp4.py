@@ -199,16 +199,22 @@ def main(argv=None) -> int:
     misura = MisuraCarattere()
     video = None
     scritti = png = 0
-    # **Le scritte a schermo sono N, non una**, e questa e' la differenza fra
-    # guardare un sottotitolo e guardare uno schermo tradotto. Prima qui c'era
-    # una sola `corrente`, tenuta perche' con una fascia di dialogo la battuta
-    # attiva e' sempre l'ultima comparsa: con un'area `schermo` ce ne sono
-    # quante ne ha lo schermo, contemporanee, e tenerne una vorrebbe dire
-    # montare un video che mostra una funzione diversa da quella che c'e'.
+    # **A schermo c'e' una scritta sola, ed e' l'ultima comparsa.** Qui si
+    # tenevano vive tutte le battute degli otto secondi precedenti e si
+    # dipingevano insieme: residuo delle aree multiple, dove ce n'erano N
+    # contemporanee. Tolte quelle, su una fascia di dialogo se ne sovrapponevano
+    # cinque — e dal vivo non succede mai, perche' `core/motore.py` manda un
+    # `overlay` per volta e la finestra **sostituisce** il precedente. Un
+    # montatore che mostra una cosa mentre il vivo ne fa un'altra e' peggio di
+    # nessun montatore: e' esattamente com'era nato il difetto che questo
+    # strumento esiste per far vedere.
     #
-    # La chiave e' `(t_on, testo)` e non il solo `t_on`: N battute nascono nello
-    # **stesso** fotogramma, quindi il solo istante non le distingue e ne
-    # resterebbe una sola.
+    # Gli otto secondi restano come **tetto** alla permanenza, non come durata:
+    # quasi sempre e' la battuta dopo a chiudere quella prima.
+    #
+    # La chiave resta `(t_on, testo)` e non il solo `t_on`: e' quella che dice
+    # se la battuta a schermo e' ancora la stessa, e quindi se la geometria
+    # gia' preparata si puo' riusare invece di rifarla a ogni fotogramma.
     correnti: dict = {}
     ultimo_png = None
     while True:
@@ -220,7 +226,11 @@ def main(argv=None) -> int:
         # dell'audio doppiato la faceva sparire mentre l'originale era ancora a
         # schermo; ridisegnarla a ogni fotogramma la faceva tremare.
         tr = t - args.offset
-        attive = [r for r in righe if r["t"] <= tr < r["t"] + 8.0]
+        aperte = [r for r in righe if r["t"] <= tr < r["t"] + 8.0]
+        # L'ultima comparsa, e una sola: `max` sul solo `t` sceglierebbe a caso
+        # fra due battute nate nello stesso fotogramma, quindi si prende
+        # l'ultima nell'ordine del file, che e' quello in cui sono state lette.
+        attive = aperte[-1:]
         chiavi = {(r["t"], r["testo"]) for r in attive}
         for morta in [k for k in correnti if k not in chiavi]:
             del correnti[morta]

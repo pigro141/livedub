@@ -23,7 +23,17 @@
 onnxruntime-gpu[cuda,cudnn]==1.28.0
 
 # --- sintesi -----------------------------------------------------------------
-piper-tts==1.6.0            # tier A, default, CPU
+# **`piper-tts` va installato con `--no-deps`**, e non e' una rifinitura: tira
+# `onnxruntime` CPU, che accanto a `onnxruntime-gpu` **spegne la CUDA in
+# silenzio** (misurato: restano `AzureExecutionProvider, CPUExecutionProvider`).
+# E' la stessa trappola gia' scritta piu' sotto per `minisbd`, su un pacchetto
+# diverso.
+#
+# La 1.6.0 e' bloccata da Smart App Control: `espeakbridge.pyd` non carica — e
+# non si vede all'installazione, perche' quel `.pyd` si apre **pigramente alla
+# prima sintesi**. Cioe' il difetto compare a sessione accesa, sulla prima
+# battuta, che e' il momento peggiore.
+piper-tts==1.3.0            # tier A, default, CPU. INSTALLARE CON --no-deps
 supertonic==1.3.1           # dieci voci native, CPU
 kokoro-onnx==0.5.0          # richiede la GPU; tira espeakng-loader + phonemizer-fork
                             # per il g2p italiano (verificato su Windows: i binari
@@ -91,9 +101,31 @@ llama-cpp-python==0.3.34
 # (+ torch 2.13.0, che si porta dietro stanza).
 
 # --- visione e riconoscimento ------------------------------------------------
+#
+# **Le versioni qui sotto non sono "l'ultima che funziona": sono le uniche che
+# Smart App Control lascia caricare**, ed e' un vincolo del prodotto e non di una
+# macchina. SAC e' **acceso di serie sulle installazioni pulite di Windows 11**,
+# quindi cio' che blocca lo blocca a chiunque scarichi il programma.
+#
+# Il criterio non e' «non firmato» — numpy e ctranslate2 non lo sono e passano —
+# ed e' la **reputazione del singolo file** (ISG): non «vecchio passa, nuovo no»,
+# tanto che opencv 4.14 e' bloccata e la 4.13 no. Quindi ogni riga qui sotto e'
+# stata provata **importandola in un venv nuovo**, non dedotta.
+#
+# ⚠️ E non si verifica dentro un `.venv` che ha quei file da mesi: misurato,
+# `ctranslate2/_ext.pyd` carica qui dentro mentre la sua copia **byte-identica**
+# (stesso sha256) e' bloccata. Il verdetto sta in cache **sulla copia**, non sul
+# contenuto — quindi un ambiente gia' installato **non puo' esprimere** la
+# risposta alla domanda «cosa succede a chi installa adesso», e ogni verde letto
+# li' e' falso. E' la stessa forma gia' costata cinque volte in questo progetto:
+# una misura che non puo' dare la risposta che le si chiede.
 rapidocr-onnxruntime==1.4.4
-opencv-python==5.0.0.93
-pillow==12.3.0
+opencv-python==4.13.0.92    # 5.0.0.93 e 4.14 bloccate; provate morphologyEx,
+                            # find_bands e inchiostro(), non solo l'import
+pillow==11.3.0              # era 12.3.0 (codec opzionali bloccati)
+pyclipper==1.3.0.post6      # rapidocr tira la 1.4.0, bloccata
+cffi==2.0.0                 # soundfile tira la 2.1.0, bloccata
+rpds-py==0.27.1             # jsonschema (via kokoro) tira la 2026.6.3, bloccata
 mss==10.2.0
 # `oneocr` non e' un pacchetto pip: le DLL si copiano da Windows con
 # `tools/fetch_oneocr.py`, e girano in un processo figlio perche' portano la

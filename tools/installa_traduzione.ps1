@@ -32,7 +32,12 @@ Write-Host "`n== traduzione offline (Argos) ==" -ForegroundColor Cyan
 & $py -m pip install --quiet "argostranslate==1.11.0" --no-deps
 # Le dipendenze vere, a mano. `sacremoses` e `stanza` sono pinnate come le vuole
 # argos: con la sacremoses 0.2.0 pip dichiara l'incompatibilita' e la lascia li'.
-& $py -m pip install --quiet "ctranslate2==4.8.1" "sentencepiece==0.2.2" "sacremoses==0.1.1" "stanza==1.10.1" packaging
+# **Le versioni sono quelle che Smart App Control lascia caricare**, provate in un
+# venv nuovo: `ctranslate2` 4.8.1 e 4.4.0 sono bloccate e la 4.6.0 no,
+# `sentencepiece` 0.2.2 e' bloccata e la 0.2.0 no. E `torch` va chiesto esplicito
+# a 2.8.0, se no `stanza` tira la 2.13.0, che e' bloccata — cioe' l'installazione
+# riesce e la traduzione muore al primo uso.
+& $py -m pip install --quiet "ctranslate2==4.6.0" "sentencepiece==0.2.0" "sacremoses==0.1.1" "stanza==1.10.1" "torch==2.8.0" --extra-index-url https://download.pytorch.org/whl/cpu packaging
 
 # **La verifica che conta non e' «il comando non ha dato errore».** ORT ripiega
 # sulla CPU senza dirlo: se qui dentro e' rientrato `onnxruntime`, la GPU e'

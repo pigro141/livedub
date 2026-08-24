@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>livedub — doppiaggio italiano dal vivo dei sottotitoli di un videogioco</title>
+<meta name="description" content="livedub legge i sottotitoli a schermo mentre giochi, capisce dall'audio chi sta parlando, sintetizza la battuta con la voce di quel personaggio e la mixa sopra il gioco. Tutto in locale, su Windows.">
+<link rel="icon" href="assets/logo/livedub.ico">
+<meta property="og:type" content="website">
+<meta property="og:title" content="livedub — doppiaggio italiano dal vivo dei sottotitoli di un videogioco">
+<meta property="og:description" content="Legge i sottotitoli a schermo, capisce chi parla, dà una voce a ciascuno e la mixa sopra il gioco. Tutto in locale.">
+<meta property="og:image" content="assets/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<style>
+/* ---------------------------------------------------------------------------
+   La tavolozza e' quella della finestra, copiata da `ui/qt_tema.py` e non
+   scelta a occhio: il sito e' la vetrina del programma, e due menta diverse a
+   due clic di distanza si notano. `#43f1c1` fa 12,9:1 sul fondo scuro e 1,44:1
+   sul bianco — qui il fondo e' scuro, quindi la menta puo' fare anche da testo.
+   Il tema e' scuro e basta, apposta: i sei colori delle voci nel registro
+   **sono** l'informazione, e sul chiaro si slavano.
+--------------------------------------------------------------------------- */
+:root{
+  --fondo:#0f131b; --superficie:#181e29; --superficie-alta:#212836;
+  --bordo:#2c3444; --bordo-forte:#3b4557;
+  --testo:#e4e9f2; --tenue:#808ba5; --fioco:#545e71;
+  --menta:#43f1c1; --menta-chiara:#95ffdf; --menta-scura:#1fb894;
+  --su-menta:#06231c; --ambra:#f5b544; --rosso:#ff6b5e;
+  --v1:#ffb86b; --v2:#79c0ff; --v3:#ff8fb1; --v4:#c9a0ff; --v5:#f2d65c; --v6:#9ee85f;
+  --largo:960px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--fondo); color:var(--testo);
+  font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.avvolge{max-width:var(--largo); margin:0 auto; padding:0 20px}
+a{color:var(--menta); text-decoration:none}
+a:hover{text-decoration:underline}
+h1,h2,h3{line-height:1.25; letter-spacing:-.01em}
+h2{font-size:1.75rem; margin:0 0 .2em}
+h3{font-size:1.15rem; margin:2em 0 .4em}
+p{margin:0 0 1em}
+code{font-family:"Cascadia Mono",Consolas,"SF Mono",monospace; font-size:.9em;
+  background:var(--superficie-alta); border:1px solid var(--bordo);
+  border-radius:5px; padding:.1em .4em}
+hr{border:0; border-top:1px solid var(--bordo); margin:0}
+
+/* --- testata ------------------------------------------------------------ */
+header{text-align:center; padding:64px 0 48px}
+header img.logo{width:112px; height:112px; image-rendering:auto}
+header h1{font-size:2.9rem; margin:.25em 0 .1em; letter-spacing:-.02em}
+.occhiello{font-size:1.2rem; color:var(--testo); max-width:640px; margin:0 auto 1.2em}
+.occhiello b{color:var(--menta); font-weight:600}
+.sotto{color:var(--tenue); font-size:.95rem; max-width:620px; margin:0 auto}
+
+.marche{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:1.6em 0}
+.marca{font-size:.78rem; color:var(--tenue); background:var(--superficie);
+  border:1px solid var(--bordo); border-radius:999px; padding:5px 12px; white-space:nowrap}
+.marca b{color:var(--testo); font-weight:600}
+
+.bottoni{display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:1.8em}
+.btn{display:inline-block; padding:11px 22px; border-radius:10px; font-weight:600;
+  font-size:.95rem; border:1px solid var(--bordo-forte); color:var(--testo);
+  background:var(--superficie-alta)}
+.btn:hover{text-decoration:none; border-color:var(--menta-scura)}
+.btn.pieno{background:var(--menta); color:var(--su-menta); border-color:var(--menta)}
+.btn.pieno:hover{background:var(--menta-chiara); border-color:var(--menta-chiara)}
+
+/* --- sezioni ------------------------------------------------------------ */
+section{padding:52px 0}
+section + section{border-top:1px solid var(--bordo)}
+.etichetta{font-size:.75rem; text-transform:uppercase; letter-spacing:.12em;
+  color:var(--menta); font-weight:700; margin-bottom:.7em}
+.intro{color:var(--tenue); max-width:660px; margin-bottom:2em}
+
+/* --- video -------------------------------------------------------------- */
+figure{margin:0 0 40px}
+figure video, figure img.piena{width:100%; display:block; border-radius:12px;
+  border:1px solid var(--bordo); background:#000}
+figcaption{color:var(--tenue); font-size:.92rem; margin-top:.8em}
+figcaption b{color:var(--testo)}
+.muto{color:var(--fioco); font-size:.82rem; font-style:italic}
+
+/* --- passi -------------------------------------------------------------- */
+ol.passi{list-style:none; counter-reset:p; padding:0; margin:0}
+ol.passi li{counter-increment:p; position:relative; padding:0 0 26px 52px;
+  border-left:1px solid var(--bordo); margin-left:15px}
+ol.passi li:last-child{border-left-color:transparent; padding-bottom:0}
+ol.passi li::before{content:counter(p); position:absolute; left:-16px; top:-2px;
+  width:32px; height:32px; border-radius:9px; background:var(--menta);
+  color:var(--su-menta); font-weight:700; font-size:.95rem;
+  display:grid; place-items:center}
+ol.passi li b{display:block; margin-bottom:.25em; font-size:1.05rem}
+ol.passi li p{color:var(--tenue); margin:0}
+
+/* --- griglie ------------------------------------------------------------ */
+.scatti{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:16px; margin:1.6em 0}
+.scatti img{width:100%; display:block; border-radius:10px; border:1px solid var(--bordo)}
+
+table{width:100%; border-collapse:collapse; margin:1.2em 0; font-size:.93rem}
+th,td{text-align:left; padding:10px 12px; border-bottom:1px solid var(--bordo);
+  vertical-align:top}
+th{color:var(--tenue); font-weight:600; font-size:.8rem; text-transform:uppercase;
+  letter-spacing:.06em}
+td b{color:var(--menta-chiara)}
+.sorgente{color:var(--fioco); font-size:.85rem}
+.tab-scorre{overflow-x:auto; -webkit-overflow-scrolling:touch}
+
+/* --- nota --------------------------------------------------------------- */
+.nota{background:var(--superficie); border:1px solid var(--bordo);
+  border-left:3px solid var(--menta); border-radius:0 10px 10px 0;
+  padding:16px 20px; margin:1.6em 0; color:var(--tenue)}
+.nota b{color:var(--testo)}
+.nota.ambra{border-left-color:var(--ambra)}
+
+pre{background:var(--superficie); border:1px solid var(--bordo); border-radius:10px;
+  padding:16px 18px; overflow-x:auto; font-size:.88rem; line-height:1.6;
+  font-family:"Cascadia Mono",Consolas,"SF Mono",monospace; color:var(--testo)}
+pre code{background:none; border:0; padding:0; font-size:1em}
+
+/* --- sostegno ----------------------------------------------------------- */
+.sostegno{text-align:center; background:var(--superficie); border:1px solid var(--bordo);
+  border-radius:14px; padding:36px 24px}
+.sostegno h2{margin-bottom:.4em}
+.sostegno p{color:var(--tenue); max-width:520px; margin:0 auto 1.4em}
+
+footer{padding:44px 0 60px; border-top:1px solid var(--bordo); color:var(--fioco);
+  font-size:.88rem; text-align:center}
+footer a{color:var(--tenue)}
+
+@media (max-width:640px){
+  header{padding:44px 0 34px}
+  header h1{font-size:2.2rem}
+  section{padding:40px 0}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="avvolge">
+    <img class="logo" src="assets/logo/livedub-256.png" alt="il logo di livedub">
+    <h1>livedub</h1>
+    <p class="occhiello">
+      Legge i sottotitoli a schermo mentre giochi, capisce dall'audio
+      <b>chi sta parlando</b>, sintetizza la battuta con la voce di quel
+      personaggio e la mixa sopra il gioco.
+    </p>
+    <p class="sotto">
+      Tutto in locale, su Windows. Nessun account, nessun server, niente da
+      estrarre dal gioco: guarda lo schermo e suona nelle cuffie, come un
+      giocatore.
+    </p>
+
+    <div class="marche">
+      <span class="marca">GPL-3.0-or-later</span>
+      <span class="marca">Windows <b>10 · 11</b></span>
+      <span class="marca">Python <b>3.11</b></span>
+      <span class="marca">la rete <b>non serve</b></span>
+      <span class="marca">la finestra parla <b>42 lingue</b></span>
+      <span class="marca">GPU NVIDIA <b>facoltativa</b></span>
+    </div>
+
+    <div class="bottoni">
+      <a class="btn pieno" href="#video">Guarda com'è</a>
+      <a class="btn" href="https://github.com/filde/livedub">Il codice su GitHub</a>
+      <a class="btn" href="https://ko-fi.com/filippodebenedittis">☕ Buy me a token!</a>
+    </div>
+  </div>
+</header>
+
+<hr>
+
+<!-- =====================================================================
+     I VIDEO INTERI. E' la ragione per cui questo sito esiste: nel README
+     di GitHub un `<video>` non si renderizza, e una GIF non ha l'audio —
+     cioe' non puo' mostrare l'unica cosa che questo programma fa.
+     ===================================================================== -->
+<section id="video">
+  <div class="avvolge">
+    <div class="etichetta">Guarda com'è</div>
+    <h2>I video interi, con l'audio</h2>
+    <p class="intro">
+      Alzate il volume: nel README di GitHub questi non si possono suonare, ed è
+      il motivo per cui questa pagina esiste.
+    </p>
+
+    <figure>
+      <video controls preload="metadata" playsinline
+             poster="assets/vetrina/doppiaggio-gtav-poster.jpg">
+        <source src="assets/vetrina/doppiaggio-gtav.mp4" type="video/mp4">
+        Il tuo browser non sa suonare questo video.
+      </video>
+      <figcaption>
+        <b>Il doppiaggio italiano, su GTA V.</b> La banda nera in alto è il testo
+        <b>letto dall'OCR</b> con la voce che gli è stata assegnata: serve a
+        distinguere «ha sbagliato a leggere» da «ha sbagliato a dire», ed è così
+        che si consegna ogni prova d'ascolto di questo progetto. Si sente il
+        cambio di voce fra due personaggi — <code>[nicola]</code> e
+        <code>[nicola-2_5]</code> sono la stessa voce a due altezze.
+      </figcaption>
+    </figure>
+
+    <figure>
+      <video controls preload="metadata" playsinline
+             poster="assets/vetrina/traduzione-overlay-poster.jpg">
+        <source src="assets/vetrina/traduzione-overlay.mp4" type="video/mp4">
+        Il tuo browser non sa suonare questo video.
+      </video>
+      <figcaption>
+        <b>La traduzione, disegnata sopra il gioco</b> — qui italiano verso
+        inglese. Il sottotitolo originale viene <b>cancellato ricostruendo lo
+        sfondo</b>, non coperto da un rettangolo, e al suo posto c'è il tradotto
+        con il carattere e il colore <b>copiati dal gioco</b>. La traduzione è
+        una funzione a parte, <b>spenta di serie</b>.
+      </figcaption>
+    </figure>
+
+    <figure>
+      <video controls preload="metadata" playsinline muted
+             poster="assets/vetrina/finestra-menta-poster.jpg">
+        <source src="assets/vetrina/finestra-menta.mp4" type="video/mp4">
+        Il tuo browser non sa suonare questo video.
+      </video>
+      <figcaption>
+        <b>La finestra mentre lavora.</b> Un colore per personaggio nel registro,
+        e in fondo la barra della misura: letture al secondo, battute, latenza,
+        compressione, underrun e area, a 2 Hz. La domanda che ti fai guardandola
+        non è «cosa ha detto» ma <b>«è sempre lo stesso a parlare?»</b>, e a
+        quella l'occhio risponde da un colore molto prima che da una sigla.
+        <span class="muto">Questo non ha audio: è solo la finestra.</span>
+      </figcaption>
+    </figure>
+
+    <div class="nota">
+      <b>Una cosa sui video, che vale la pena dire.</b> Sono montati facendo
+      girare <b>la stessa identica catena</b> su una registrazione: stesso
+      codice, OCR vero, audio vero, impronta vera, sintesi vera, mixer vero, e la
+      causalità rispettata — la catena non vede mai il futuro. Non è una
+      simulazione. <b>Ma il banco regala il tempo</b>: con l'orologio virtuale la
+      sintesi costa zero e nessun fotogramma viene saltato, quindi da lì si può
+      mostrare tutto <b>tranne quanto è veloce</b>. I numeri di latenza qui sotto
+      vengono da sessioni dal vivo, col gioco acceso, e c'è scritto da quale.
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="uso">
+  <div class="avvolge">
+    <div class="etichetta">Come si usa</div>
+    <h2>Nell'ordine in cui lo incontri</h2>
+    <p class="intro">Non c'è niente da configurare prima: si apre e si segue.</p>
+
+    <ol class="passi">
+      <li>
+        <b>Si apre.</b>
+        <p>La finestra è già nella lingua in cui usi Windows — 41 cataloghi più
+        l'italiano del sorgente. Arabo, ebraico, persiano e urdu ribaltano anche
+        il verso della finestra.</p>
+      </li>
+      <li>
+        <b>La guida ti prende per mano: sette passi.</b>
+        <p>Si apre da sola la prima volta e si rivede col <code>?</code>. Dove
+        può, <b>controlla invece di raccontare</b>: conta le schede audio che ci
+        sono, chiede a ONNX Runtime se la CUDA c'è davvero invece di dedurlo,
+        misura l'altezza dell'area con la regola vera.</p>
+      </li>
+      <li>
+        <b>Il banco misura questo PC e sceglie i motori.</b>
+        <p>È il sesto passo, e non è una comodità: <b>un modello che manca non dà
+        errore</b>. I programmi si installano una volta, i modelli no — si
+        scaricano alla prima richiesta, e se non arrivano la catena ripiega su
+        qualcosa di più leggero e va avanti. Senza questo passo staresti
+        ascoltando il ripiego senza saperlo. Il banco misura, sceglie, scarica
+        quello che manca, e <b>non installa nessun programma</b>: se ne manca uno
+        ti dà la riga esatta da incollare.</p>
+      </li>
+      <li>
+        <b>Scegli la finestra del gioco.</b>
+        <p>Si cattura <b>una finestra sola</b>, non lo schermo: così nel
+        fotogramma che va all'OCR non entra nient'altro, nemmeno le nostre
+        finestre. Il gioco deve stare in finestra o <i>senza bordi</i>, non a
+        schermo intero esclusivo.</p>
+      </li>
+      <li>
+        <b>Tira l'area attorno alla riga dei sottotitoli.</b>
+        <p>Due secondi col mouse. L'area è <b>relativa alla finestra</b>: se
+        sposti il gioco, l'area lo segue.</p>
+      </li>
+      <li>
+        <b>Avvia.</b>
+        <p>Da lì il programma legge, capisce chi parla, sintetizza e mixa. La
+        voce arriva sempre un po' dopo il sottotitolo, ed è voluto: mezzo secondo
+        serve a capire chi sta parlando prima di scegliere la voce.</p>
+      </li>
+    </ol>
+
+    <div class="scatti">
+      <img src="assets/guida-1.png" alt="il primo passo della guida: la lingua della finestra">
+      <img src="assets/guida-4.png" alt="il passo della guida sull'area di lettura">
+      <img src="assets/guida-banco.png" alt="il banco che misura il PC e sceglie i motori">
+      <img src="assets/guida-banco-rotto.png" alt="il banco che dichiara cosa non è arrivato">
+    </div>
+    <p class="sorgente">
+      Il riquadro passa in ambra quando qualcosa <b>non</b> è arrivato: «nessuna
+      scheda video» è un fatto, «chiesta la GPU e ottenuta la CPU» no, e dargli
+      la stessa spunta verde sarebbe un ripiego silenzioso messo in figura.
+    </p>
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="finestra">
+  <div class="avvolge">
+    <div class="etichetta">La finestra</div>
+    <h2>Sei schede, e nessuna va toccata per sentire la prima battuta</h2>
+    <p class="intro">Si aprono quando servono.</p>
+
+    <div class="tab-scorre">
+    <table>
+      <tr><th>scheda</th><th>a cosa serve</th></tr>
+      <tr><td><b>Preparazione</b></td><td>i quattro passi in ordine — è l'unica che serve prima di Avvia</td></tr>
+      <tr><td><b>Sessione</b></td><td>chi parla, adesso, un colore per personaggio</td></tr>
+      <tr><td><b>Voce</b></td><td>quale motore, quante voci nel pool, quanto aspettare prima di decidere chi parla</td></tr>
+      <tr><td><b>Volumi</b></td><td>quanto si abbassa il gioco e quanto si alza la nostra voce, <b>mentre ascolti</b></td></tr>
+      <tr><td><b>Traduzione</b></td><td>solo per giocare in una lingua diversa da quella dei sottotitoli</td></tr>
+      <tr><td><b>Tutte le impostazioni</b></td><td>i 170 parametri, con la ricerca</td></tr>
+    </table>
+    </div>
+
+    <div class="scatti">
+      <img src="assets/menta-preparazione.png" alt="la scheda Preparazione">
+      <img src="assets/menta-volumi.png" alt="la scheda Volumi">
+      <img src="assets/menta-traduzione.png" alt="la scheda Traduzione">
+      <img src="assets/menta-anteprima.png" alt="la finestra durante una partita">
+    </div>
+
+    <p>
+      <b>I parametri.</b> 170 in tutto; <b>131 si applicano subito</b>, i 39 che
+      si leggono solo all'avvio <b>lo dicono</b> invece di fingere. Centoventisette
+      hanno un <code>?</code> che spiega cosa fanno, quanto è stato misurato e
+      cosa si rischia a cambiarli — ed è lo stesso testo che sta accanto al
+      parametro dentro <code>core/config.py</code>, non una seconda copia che
+      nessuno aggiorna.
+    </p>
+
+    <div class="nota ambra">
+      <b>Le due lingue sono due cose diverse, e stanno a due schede di distanza
+      apposta.</b> <code>ui.lingua</code>, nella Preparazione, decide cosa c'è
+      <b>scritto sui bottoni</b>; <code>translate.source</code> e
+      <code>translate.target</code>, nella Traduzione, decidono cosa viene
+      <b>detto</b>. Confonderle costa una sessione: si mette <code>en</code> nel
+      posto sbagliato credendo di aver acceso la traduzione, e la catena continua
+      a doppiare in italiano.
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="numeri">
+  <div class="avvolge">
+    <div class="etichetta">I numeri</div>
+    <h2>E da quale sessione vengono</h2>
+    <p class="intro">
+      Solo sessioni <b>dal vivo</b>, col gioco acceso. Nessuno di questi numeri
+      viene dal banco, per il motivo scritto più su.
+    </p>
+
+    <div class="tab-scorre">
+    <table>
+      <tr><th></th><th>Piper (CPU)</th><th>Kokoro (CUDA)</th></tr>
+      <tr><td class="sorgente">sessione</td>
+          <td class="sorgente"><code>runs/2026-08-11_18-31-55</code></td>
+          <td class="sorgente"><code>runs/2026-08-20_00-01-56</code></td></tr>
+      <tr><td>battute doppiate</td><td>44</td><td><b>146</b></td></tr>
+      <tr><td>latenza p50, dal sottotitolo alla voce</td><td><b>665 ms</b></td><td><b>1290 ms</b></td></tr>
+      <tr><td>costo della sintesi, p50 <span class="sorgente">(già dentro la latenza, non in aggiunta)</span></td><td>57 ms</td><td>580 ms</td></tr>
+      <tr><td>compressione del parlato, p50</td><td>1,00 <span class="sorgente">(nessuna)</span></td><td>1,00 <span class="sorgente">(nessuna)</span></td></tr>
+      <tr><td><code>mix.underrun</code> — battute non sentite</td><td><b>0</b></td><td><b>0</b></td></tr>
+    </table>
+    </div>
+
+    <p>
+      Dalla stessa sessione da 146 battute: l'OCR gira a <b>15,9 letture al
+      secondo</b> (10 724 letture in 675 s di partita), e il ritaglio che
+      l'overlay porta a schermo è vecchio di <b>9,7 ms al p50</b>, 19,2 nel caso
+      peggiore.
+    </p>
+    <p>
+      Piper è più veloce e Kokoro articola meglio: sono due scelte, non una scala
+      di qualità, ed è il banco del passo 6 a dire quale delle due regge su una
+      macchina.
+    </p>
+
+    <h3>Su quanti core serve un motore</h3>
+    <p class="intro">
+      Questa riga viene dal banco e <b>non è una latenza</b>: è il costo della
+      sintesi per battuta a parità di tutto il resto, cronometrato al muro
+      restringendo l'affinità del processo. È un <b>limite inferiore</b> al
+      rallentamento di un PC vecchio — simula meno core, non core più lenti.
+    </p>
+    <div class="tab-scorre">
+    <table>
+      <tr><th>core fisici</th><th>Piper</th><th>SuperTonic</th></tr>
+      <tr><td>8</td><td>~48 ms</td><td>493–573 ms</td></tr>
+      <tr><td>6</td><td>109 ms</td><td>946 ms</td></tr>
+      <tr><td>4</td><td><b>261 ms</b></td><td><b>1315 ms — non usabile</b></td></tr>
+      <tr><td>2</td><td>491 ms</td><td>3627 ms</td></tr>
+    </table>
+    </div>
+    <p>Cioè: <b>sotto i 6 core fisici, Piper.</b></p>
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="privacy">
+  <div class="avvolge">
+    <div class="etichetta">Privacy</div>
+    <h2>Gira tutto sulla tua macchina</h2>
+    <p class="intro">Non è uno slogan, è la lista di cosa esce dal computer.</p>
+
+    <div class="tab-scorre">
+    <table>
+      <tr><th></th><th>esce qualcosa?</th></tr>
+      <tr><td>lettura dei sottotitoli (OCR)</td><td><b>no</b> — OneOCR o PP-OCR, in locale</td></tr>
+      <tr><td>chi parla (impronta vocale)</td><td><b>no</b> — ECAPA, in locale</td></tr>
+      <tr><td>sintesi della voce</td><td><b>no</b> — Piper, SuperTonic o Kokoro, in locale</td></tr>
+      <tr><td>traduzione con <code>locale</code>, <code>llm</code>, <code>ollama</code></td><td><b>no</b></td></tr>
+      <tr><td>traduzione con <code>google</code></td><td><b>sì</b>, e il programma lo scrive ogni volta</td></tr>
+      <tr><td>scaricamento dei modelli</td><td><b>una volta sola</b>, al primo uso</td></tr>
+    </table>
+    </div>
+
+    <p>
+      L'unico modo di far uscire del testo è scegliere esplicitamente il
+      traduttore <code>google</code>. Nessuna telemetria, nessun account, nessuna
+      connessione a un server nostro — non esiste un server nostro.
+    </p>
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="requisiti">
+  <div class="avvolge">
+    <div class="etichetta">Requisiti e installazione</div>
+    <h2>Cosa serve</h2>
+
+    <p>
+      <b>Funziona bene con</b>: Windows 10 o 11, Python 3.11, 4 core, 8 GB di
+      RAM, nessuna scheda video particolare, motore di voce <b>Piper</b>.
+    </p>
+    <p>
+      <b>Meglio con</b>: Windows 11, 8 core, 16 GB di RAM e una <b>GPU NVIDIA</b>
+      con almeno 4 GB liberi — motore <b>Kokoro</b> su CUDA (1128 MB di VRAM
+      occupati su una RTX 4060 da 8 GB, mentre GTA V girava) e OCR <b>OneOCR</b>,
+      il riconoscitore dello Strumento di cattura di Windows 11, che sul testo
+      bordato dei giochi legge molto meglio di PP-OCR.
+    </p>
+    <p>
+      <b>Serve anche</b> un modo di sentire l'audio del gioco senza risentire il
+      proprio doppiaggio in circolo: basta il loopback WASAPI di Windows, già
+      incluso. <a href="https://vb-audio.com/Voicemeeter/">Voicemeeter</a>
+      <b>non è obbligatorio</b> — serve solo se vuoi tutto in un paio di cuffie
+      sole.
+    </p>
+
+    <h3>Installazione</h3>
+<pre><code>git clone https://github.com/filde/livedub.git
+cd livedub
+powershell -ExecutionPolicy Bypass -File installa.ps1</code></pre>
+    <p>
+      Lo script <b>verifica di aver ottenuto quello che ha chiesto</b> invece di
+      dire «fatto»: Python, venv, dipendenze, OneOCR, il provider CUDA vero, i
+      modelli, e chiude eseguendo la suite di verifica. Quello che manca lo
+      elenca con il perché e cosa comporta. Senza GPU NVIDIA si aggiunge
+      <code>-SenzaGpu</code>.
+    </p>
+
+    <h3>Partire</h3>
+<pre><code>.\.venv\Scripts\python.exe -m tools.ui_qt --profile live</code></pre>
+    <p>Nella finestra: <b>Scegli finestra</b> → <b>Seleziona area</b> → <b>Avvia</b>.</p>
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="giochi">
+  <div class="avvolge">
+    <div class="etichetta">Compatibilità</div>
+    <h2>Funziona con il mio gioco?</h2>
+    <p class="intro">
+      Provato su due: <b>GTA V</b> e <b>Mafia: The Old Country</b>, tutti e due
+      in italiano. Onestamente, questo è quello che si sa.
+    </p>
+
+    <p><b>Serve sempre</b>, per ogni gioco: tirare l'area attorno ai sottotitoli,
+    e togliere la spunta «Ignora i sottotitoli colorati» se il gioco colora il
+    nome di chi parla.</p>
+
+    <p><b>Ha buone probabilità di funzionare subito</b> se il gioco scrive testo
+    <b>chiaro su fondo scuro</b>, in una riga in basso.</p>
+
+    <p><b>È da provare</b> se scrive testo scuro su fondo chiaro: su fotogrammi
+    costruiti apposta legge ma sporca (<code>Andiamo via di qui.</code> →
+    <code>Andamo via di quL</code>). Su un gioco vero non l'ha mai provato
+    nessuno.</p>
+
+    <p><b>Non è previsto</b>: sottotitoli dentro fumetti che seguono il
+    personaggio, o posizioni che cambiano da una battuta all'altra.</p>
+
+    <div class="nota">
+      <b>E non traduce tutto lo schermo: legge una riga di sottotitolo alla
+      volta</b>, nell'area che gli tiri attorno. È una scelta, non una mancanza —
+      tutta la catena è costruita su quella forma. <i>Una versione precedente
+      prometteva più aree di lettura insieme: è stata tolta, perché l'overlay
+      disegna una scritta per volta e la promessa non era mantenibile dal
+      vivo.</i>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="sostieni">
+  <div class="avvolge">
+    <div class="sostegno">
+      <h2>Sostieni il progetto</h2>
+      <p>
+        livedub è gratuito, gira tutto sulla tua macchina e non ha né account né
+        server: non c'è niente da vendere e nessun dato da raccogliere. Se ti è
+        utile:
+      </p>
+      <a class="btn pieno" href="https://ko-fi.com/filippodebenedittis">☕ Buy me a token!</a>
+      <p style="margin-top:1.4em; font-size:.9rem">
+        Non sblocca funzioni e non toglie limiti — non ce ne sono.
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="avvolge">
+    <p>
+      <b>livedub</b> — GPL-3.0-or-later, e non per gusto: il sintetizzatore di
+      default (Piper) e il g2p di Kokoro (eSpeak NG) sono GPL-3, quindi qualunque
+      cosa venga distribuita lo è.
+    </p>
+    <p>
+      <a href="https://github.com/filde/livedub">Codice</a> ·
+      <a href="https://github.com/filde/livedub/blob/main/LICENZE.md">Il conto delle licenze</a> ·
+      <a href="https://ko-fi.com/filippodebenedittis">Ko-fi</a>
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>

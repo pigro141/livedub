@@ -34,7 +34,7 @@ Tutto in locale.
 Qui sotto tre spezzoni **muti**, perché un README non suona: GitHub anima una GIF
 ma non le dà audio, e questo programma **parla** — sentirlo è metà di quello che
 c'è da vedere. Ogni spezzone è cliccabile e porta al video intero, con la voce:
-**[la vetrina](https://filde.github.io/livedub/#video)**.
+**[la vetrina](https://pigro141.github.io/livedub/#video)**.
 
 ### Il doppiaggio, su GTA V
 
@@ -43,7 +43,7 @@ assegnata. Serve a distinguere «ha sbagliato a leggere» da «ha sbagliato a di
 ed è il motivo per cui ogni prova d'ascolto di questo progetto si consegna così.
 Qui si vede il cambio di voce fra due personaggi: `[nicola]` e `[nicola-2_5]`.
 
-[![doppiaggio su GTA V](assets/vetrina/doppiaggio-gtav.gif)](https://filde.github.io/livedub/#video)
+[![doppiaggio su GTA V](assets/vetrina/doppiaggio-gtav.gif)](https://pigro141.github.io/livedub/#video)
 
 *Cliccalo per sentirlo: senza audio si vede che legge, non che dice.*
 
@@ -53,14 +53,14 @@ Il sottotitolo italiano viene **cancellato ricostruendo lo sfondo** — non cope
 da un rettangolo — e al suo posto viene disegnato il tradotto, con il carattere e
 il colore copiati dal gioco.
 
-[![overlay tradotto](assets/vetrina/traduzione-overlay.gif)](https://filde.github.io/livedub/#video)
+[![overlay tradotto](assets/vetrina/traduzione-overlay.gif)](https://pigro141.github.io/livedub/#video)
 
 ### La finestra, mentre lavora
 
 Un colore per personaggio nel registro, e in fondo la barra della misura:
 letture al secondo, battute, latenza, compressione, underrun, area.
 
-[![la finestra Menta](assets/vetrina/finestra-menta.gif)](https://filde.github.io/livedub/#video)
+[![la finestra Menta](assets/vetrina/finestra-menta.gif)](https://pigro141.github.io/livedub/#video)
 
 ---
 
@@ -291,7 +291,7 @@ solo se vuoi tutto in un paio di cuffie sole.
 ## Installazione
 
 ```powershell
-git clone https://github.com/filde/livedub.git
+git clone https://github.com/pigro141/livedub.git
 cd livedub
 powershell -ExecutionPolicy Bypass -File installa.ps1
 ```

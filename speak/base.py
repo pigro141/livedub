@@ -195,15 +195,9 @@ def _famiglia(backend: str, lingua: str) -> tuple[str, ...]:
     caricamento due volte: una a vuoto all'avvio e una sulla prima battuta, che
     e' precisamente cio' che il precaricamento esiste per evitare.
     """
-    from speak.pool import FAMIGLIE
+    from speak.pool import basi_per
 
-    if backend == "kokoro":
-        from speak.backends.kokoro import PER_LINGUA
-
-        per = PER_LINGUA.get((lingua or "it").split("-")[0])
-        if per:
-            return per
-    return FAMIGLIE.get(backend, ())
+    return basi_per(backend, lingua)
 
 
 def make_tts(cfg, *, download: bool = True, preload: bool = True, lingua: str = "it"):
@@ -237,7 +231,10 @@ def make_tts(cfg, *, download: bool = True, preload: bool = True, lingua: str = 
     if nome == "piper":
         from speak.backends.piper import PiperTts
 
-        tts = PiperTts(samplerate=cfg.samplerate, download=download)
+        # **La lingua di arrivo va a tutti e tre**, e non solo a Kokoro: Piper
+        # la usa per il passo (il numero con cui si prevedono le durate) e
+        # SuperTonic anche per fonemizzare, visto che e' un modello multilingue.
+        tts = PiperTts(samplerate=cfg.samplerate, download=download, lingua=lingua)
     elif nome == "supertonic":
         from speak.backends.supertonic import SupertonicTts
 
@@ -246,6 +243,7 @@ def make_tts(cfg, *, download: bool = True, preload: bool = True, lingua: str = 
             steps=cfg.steps,
             speed=cfg.speed,
             download=download,
+            lingua=lingua,
         )
     elif nome == "kokoro":
         from speak.backends.kokoro import KokoroTts

@@ -317,7 +317,9 @@ class DubPipeline:
         )
         # La voce di chi non si sa ancora chi sia. Fuori dal pool: nessuno se la
         # tiene, quindi non diventa mai la voce di un personaggio.
-        self._neutra = voce_neutra(self.pool.voices, backend=cfg.tts.backend)
+        self._neutra = voce_neutra(
+            self.pool.voices, backend=cfg.tts.backend, lingua=lingua_voce
+        )
         # Chi parla scritto dal gioco, se il gioco lo scrive. Spento di default:
         # si veda `LabelConfig`, dove sta anche il perche' non si indovina.
         self.label = LabelReader(cfg.label) if cfg.label.enabled else None

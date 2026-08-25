@@ -117,13 +117,31 @@ VARIANTS: tuple[tuple[str, float, float], ...] = (
     ("kokoro-sara", +4.0, 1.00),  # femminile molto acuta
 )
 
-# Le basi di ciascun backend: serve a `build_pool` quando non si dichiara nulla,
-# e a evitare che una sessione SuperTonic si ritrovi in pool una voce Piper.
+# Le basi di ciascun backend **in italiano**: serve a `build_pool` quando non si
+# dichiara nulla, e a evitare che una sessione SuperTonic si ritrovi in pool una
+# voce Piper. Per le altre lingue si passa da `basi_per`, che va a leggere il
+# catalogo del motore.
 FAMIGLIE = {
     "piper": tuple(k for k in NATIVE if k.startswith("it_IT-")),
     "supertonic": tuple(k for k in NATIVE if k.startswith("supertonic-")),
     "kokoro": tuple(k for k in NATIVE if k.startswith("kokoro-")),
 }
+
+# Gli scostamenti con cui si allarga un pool che ha poche voci native, per le
+# lingue **non dichiarate** in `VARIANTS`. Prima tutte le native (una voce vera
+# batte sempre una spostata di semitoni), poi la scala.
+#
+# E' la stessa scala delle due italiane di Piper, semplificata: li' maschile e
+# femminile hanno scostamenti diversi perche' sono stati tarati a orecchio su
+# quelle due voci, e a orecchio su una lingua che nessuno ascolta non si tara
+# niente. Quindi qui la stessa scala per tutte, dichiarata come tale.
+SCOSTAMENTI: tuple[tuple[float, float], ...] = (
+    (0.0, 1.00),
+    (-2.5, 0.96),
+    (+2.5, 1.03),
+    (-4.0, 1.00),
+    (+4.0, 1.00),
+)
 
 # **Per quali lingue esiste una voce, motore per motore.** Il nome di una voce
 # non dice la lingua — `supertonic-M1` potrebbe parlare qualunque cosa — quindi
@@ -136,13 +154,21 @@ FAMIGLIE = {
 # gia' pagata con `preload_dlls()`: nessun contatore lo mostra, l'audio esce, la
 # suite e' verde.
 #
-# Kokoro non sta qui: le sue lingue le dichiara `PER_LINGUA` in
-# `speak/backends/kokoro.py`, e copiarle sarebbe il secondo posto che dice la
-# stessa cosa. `lingue_con_voce` le va a leggere la', e una verifica tiene
-# insieme le due.
-LINGUE_VOCE: dict[str, tuple[str, ...]] = {
-    "piper": ("it",),         # le due voci sono `it_IT-paola` e `it_IT-riccardo`
-    "supertonic": ("it",),    # dieci voci, tutte italiane
+# **Nessun elenco di lingue sta qui.** Ognuno dei tre motori ha il suo catalogo,
+# e sono diversi per costruzione: Piper monta un modello per lingua (51),
+# SuperTonic e' un modello multilingue con dieci stili (31), Kokoro ha le lingue
+# scritte nel nome delle sue voci (9). Copiarli qui sarebbe il secondo posto che
+# dice la stessa cosa — la forma «una tabella scritta due volte, e la seconda non
+# l'aggiorna nessuno» che questo progetto ha gia' pagato sette volte.
+#
+# Fino a ieri qui c'era invece scritto `piper: ("it",)` e `supertonic: ("it",)`,
+# ed era **falso in entrambi i casi**: non un limite dei motori, un limite di
+# questo file. Si traduceva in spagnolo e poi lo leggeva una voce italiana, senza
+# nessun errore.
+CATALOGHI: dict[str, str] = {
+    "piper": "speak.backends.piper_voci",
+    "supertonic": "speak.backends.supertonic",
+    "kokoro": "speak.backends.kokoro",
 }
 
 # I motori che non pronunciano parole: un bip e il silenzio non hanno lingua, e
@@ -150,18 +176,77 @@ LINGUE_VOCE: dict[str, tuple[str, ...]] = {
 SENZA_LINGUA: tuple[str, ...] = ("tone", "silent", "none", "")
 
 
+def famiglia_lingua(lingua: str) -> str:
+    """`pt-BR`, `zh_CN`, `IT` -> il codice a due lettere con cui si indicizza.
+
+    `zh-CN` e `pt-BR` sono varianti di una lingua che i cataloghi trattano
+    intera, ed e' la stessa riga che `build_pool` usa per scegliere la famiglia.
+    """
+    return (lingua or "it").replace("_", "-").split("-")[0].lower()
+
+
 def lingue_con_voce(backend: str) -> tuple[str, ...]:
     """Le lingue per cui `backend` ha almeno una voce nativa.
 
     Vuoto vuol dire «non si sa», non «nessuna»: un motore che questo modulo non
     conosce non deve far comparire un avviso inventato.
+
+    **Si legge il catalogo del motore, non un elenco locale.** Il prezzo e' un
+    import per motore, e si paga volentieri: nessuno di questi tre moduli tira
+    dentro il pacchetto del motore al livello del modulo, quindi la domanda «che
+    lingue parla?» si risponde senza avere il motore installato.
     """
     nome = (backend or "").strip().lower()
+    modulo = CATALOGHI.get(nome)
+    if modulo is None:
+        return ()
+    import importlib
+
+    m = importlib.import_module(modulo)
+    if nome == "supertonic":
+        return tuple(m.LINGUE)
     if nome == "kokoro":
+        return tuple(m.PER_LINGUA)
+    return tuple(m.LINGUE)
+
+
+def basi_per(backend: str, lingua: str = "it") -> tuple[str, ...]:
+    """Le voci native di quel motore **in quella lingua**.
+
+    E' la funzione che sceglie *quali* voci esistono; `build_pool` decide poi
+    quante e con che trasformazioni. Sta separata perche' la usa anche il
+    precaricamento (`speak.base._famiglia`): scaldare le voci italiane per poi
+    parlare inglese vorrebbe dire pagare il caricamento due volte.
+
+    **Dove c'e' una famiglia dichiarata, vince quella.** L'italiano di tutti e
+    tre i motori e l'inglese di Kokoro sono le uniche combinazioni che qualcuno
+    abbia ascoltato e su cui sono state fatte tutte le misure del progetto: il
+    catalogo non le tocca, se no ogni numero di `CLAUDE.md` si riferirebbe a un
+    pool diverso da quello che gira.
+    """
+    nome = (backend or "").strip().lower()
+    fam = famiglia_lingua(lingua)
+    if nome == "kokoro":
+        # Kokoro passa **sempre** da `PER_LINGUA`, anche in italiano: la sua
+        # famiglia in `FAMIGLIE` contiene le italiane e le inglesi insieme — sono
+        # le otto dichiarate in `NATIVE` — e prenderla per l'italiano darebbe un
+        # pool inglese con l'aria di essere quello di sempre.
         from speak.backends.kokoro import PER_LINGUA
 
-        return tuple(PER_LINGUA)
-    return LINGUE_VOCE.get(nome, ())
+        return PER_LINGUA.get(fam, ())
+    if fam == "it" and nome in FAMIGLIE:
+        return FAMIGLIE[nome]
+    if nome == "supertonic":
+        from speak.backends.supertonic import LINGUE
+
+        # Dieci stili di parlante che valgono per tutte e trentuno le lingue:
+        # la lingua non cambia le voci, cambia la fonemizzazione.
+        return FAMIGLIE["supertonic"] if fam in LINGUE else ()
+    if nome == "piper":
+        from speak.backends.piper_voci import voci_per
+
+        return voci_per(fam, 6)
+    return FAMIGLIE.get(nome, ())
 
 
 def ha_voce(backend: str, lingua: str) -> bool:
@@ -176,9 +261,85 @@ def ha_voce(backend: str, lingua: str) -> bool:
     note = lingue_con_voce(nome)
     if not note:
         return True
-    # `zh-CN` e `pt-BR` sono varianti di una lingua che il pool tratta intera:
-    # e' la stessa riga che `build_pool` usa per scegliere la famiglia.
-    return (lingua or "it").replace("_", "-").split("-")[0].lower() in note
+    return famiglia_lingua(lingua) in note
+
+
+def nome_corto(base: str) -> str:
+    """Il `voice_id` che si legge nei rapporti: `it_IT-paola-medium` -> `paola`.
+
+    **L'indice del parlante ci resta attaccato**, e non e' un dettaglio: i
+    novecentoquattro parlanti di `en_US-libritts-high` sono lo stesso modello, e
+    senza l'indice due voci diverse avrebbero lo stesso nome — cioe' il pool
+    crederebbe di averne data una sola e `assegnata()` risponderebbe di un'altra.
+    """
+    chiave, _, indice = base.partition("#")
+    pezzi = chiave.split("-")
+    corto = pezzi[1] if len(pezzi) > 1 else chiave
+    return f"{corto}{indice}" if indice else corto
+
+
+def genere(base: str) -> str:
+    """`m`, `f`, o `?` quando il catalogo non lo dice.
+
+    **`?` non e' pigrizia, e' quello che si sa.** Kokoro scrive il sesso nella
+    seconda lettera del nome della voce e SuperTonic nei suoi (`M1`..`F5`);
+    l'indice di Piper **non ha il campo**, quindi fuori dall'italiano — dove le
+    due voci sono dichiarate a mano — resta `?` e il pool ripiega sull'ordine
+    invece di alternare maschile e femminile. E' un peggioramento dichiarato:
+    l'alternanza e' il motivo per cui due personaggi consecutivi si distinguono.
+    """
+    dichiarato = NATIVE.get(base)
+    if dichiarato is not None:
+        return dichiarato[0]
+    for modulo in ("speak.backends.kokoro", "speak.backends.supertonic"):
+        import importlib
+
+        voci = getattr(importlib.import_module(modulo), "VOICES", {})
+        if base in voci:
+            return voci[base][1]
+    return "?"
+
+
+def conosciuta(base: str) -> bool:
+    """Questa voce esiste in uno dei tre cataloghi?
+
+    Serve perche' `--set tts.voices=<refuso>` deve dare un errore all'avvio e non
+    un pool costruito su una voce che nessun motore sapra' aprire: sarebbe una
+    sessione che muore alla prima battuta con la configurazione stampata verde.
+    """
+    if base in NATIVE:
+        return True
+    import importlib
+
+    for modulo in ("speak.backends.kokoro", "speak.backends.supertonic"):
+        if base in getattr(importlib.import_module(modulo), "VOICES", {}):
+            return True
+    from speak.backends.piper_voci import VOCI, normale
+
+    chiave = base.split("#")[0]
+    return chiave in VOCI.get(normale(chiave.split("_")[0]), ())
+
+
+def varianti_per(basi: tuple[str, ...]) -> list[tuple[str, float, float]]:
+    """Le varianti da mettere in pool per queste basi, in ordine di assegnazione.
+
+    Dove `VARIANTS` le dichiara si usano quelle — sono le combinazioni tarate a
+    orecchio, e cambiarle cambierebbe ogni misura scritta in `CLAUDE.md`. Per le
+    basi che nessuno ha ascoltato si generano con `SCOSTAMENTI`, che e' la stessa
+    forma: prima tutte le native, poi la scala.
+    """
+    ignote = [b for b in basi if not conosciuta(b)]
+    if ignote:
+        raise ValueError(f"voci sconosciute a tutti i cataloghi: {sorted(ignote)}")
+    dichiarate = [v for v in VARIANTS if v[0] in basi]
+    coperte = {v[0] for v in dichiarate}
+    resto = [b for b in basi if b not in coperte]
+    generate = [
+        (b, semitoni, velocita)
+        for semitoni, velocita in SCOSTAMENTI
+        for b in resto
+    ]
+    return dichiarate + generate
 
 
 def build_pool(
@@ -200,23 +361,16 @@ def build_pool(
     le regole sbagliate. Oggi solo Kokoro ha voci in piu' lingue; per gli altri
     `lingua` non cambia niente.
     """
-    per_lingua = None
-    if not voices and backend == "kokoro":
-        from speak.backends.kokoro import PER_LINGUA
-
-        per_lingua = PER_LINGUA.get((lingua or "it").split("-")[0])
-    allowed = set(
-        voices or per_lingua or FAMIGLIE.get(backend, FAMIGLIE["piper"])
-    )
+    basi = tuple(voices) if voices else basi_per(backend, lingua)
+    if not basi:
+        basi = FAMIGLIE.get(backend, FAMIGLIE["piper"])
     pool: list[VoiceSpec] = []
-    for base, semitones, rate in VARIANTS:
-        if base not in allowed:
-            continue
-        gender = NATIVE.get(base, ("?", 22050))[0]
+    for base, semitones, rate in varianti_per(basi):
+        gender = genere(base)
         suffix = "" if semitones == 0 else f"{semitones:+g}".replace(".", "_")
         pool.append(
             VoiceSpec(
-                voice_id=f"{base.split('-')[1]}{suffix}",
+                voice_id=f"{nome_corto(base)}{suffix}",
                 backend=backend,
                 base_voice=base,
                 semitones=semitones,
@@ -227,11 +381,12 @@ def build_pool(
         if len(pool) >= size:
             break
     if not pool:
-        raise ValueError(f"nessuna voce costruibile da {sorted(allowed)}")
+        raise ValueError(f"nessuna voce costruibile da {sorted(basi)}")
     return pool
 
 
-def voce_neutra(pool: list[VoiceSpec], backend: str = "piper") -> VoiceSpec:
+def voce_neutra(pool: list[VoiceSpec], backend: str = "piper",
+                lingua: str = "it") -> VoiceSpec:
     """La voce con cui si parla mentre non si sa ancora chi sia.
 
     **Sta fuori dal pool assegnabile, ed e' il punto.** Se fosse una voce del
@@ -250,12 +405,15 @@ def voce_neutra(pool: list[VoiceSpec], backend: str = "piper") -> VoiceSpec:
     `SpeakerConfig.gender_defer_max_lines`.
     """
     prese = {v.voice_id for v in pool}
-    basi = set(FAMIGLIE.get(backend, FAMIGLIE["piper"]))
-    for base, semitones, rate in VARIANTS:
-        if base not in basi:
-            continue
+    # **La lingua conta anche qui**, e dimenticarlo sarebbe il difetto peggiore
+    # della lista: la voce d'attesa e' quella che parla mentre non si sa chi sia,
+    # cioe' la prima che si sente. Presa dalla famiglia italiana mentre la scena
+    # e' in spagnolo, sarebbe l'unica battuta di ogni personaggio nuovo detta con
+    # i fonemi sbagliati.
+    basi = basi_per(backend, lingua) or FAMIGLIE.get(backend, FAMIGLIE["piper"])
+    for base, semitones, rate in varianti_per(basi):
         suffix = "" if semitones == 0 else f"{semitones:+g}".replace(".", "_")
-        vid = f"{base.split('-')[1]}{suffix}"
+        vid = f"{nome_corto(base)}{suffix}"
         if vid in prese:
             continue
         return VoiceSpec(

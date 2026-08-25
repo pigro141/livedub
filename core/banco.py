@@ -447,7 +447,7 @@ def sonda_veloce(cfg) -> Sonda:
     davvero, ed e' per questo che `Sonda.provider` esiste separato da
     `Sonda.cuda`.
     """
-    import importlib.util as iu
+    from core import bloccati
 
     try:
         from core.onnx import preload
@@ -459,10 +459,21 @@ def sonda_veloce(cfg) -> Sonda:
     except Exception:  # onnxruntime assente o rotto: si dira' altrove
         cuda = False
 
+    # **`find_spec` diceva di si' su un pacchetto che non si carica**, ed e' la
+    # forma di verde falso piu' cara di questo progetto. Il file c'e' sul disco,
+    # quindi `find_spec` lo trova; poi Windows si rifiuta di caricare la libreria
+    # nativa che ci sta dentro. Il passo 6 concludeva percio' «traduzione: llm»,
+    # scriveva `translate.backend = llm` e consegnava una sessione che muore alla
+    # prima battuta — cioe' esattamente la cosa che questo modulo esiste per non
+    # fare: `applica()` scrive quello che ha **verificato**, non quello che ha
+    # scelto, e per verificarlo bisogna **caricarlo**.
+    #
+    # Il costo e' un import per pacchetto, pagato una volta (`core.bloccati` ha
+    # la cache) e dentro un passo che gia' apre modelli veri.
     return Sonda(
         cuda=cuda,
-        argos=iu.find_spec("argostranslate") is not None,
-        llm=iu.find_spec("llama_cpp") is not None,
+        argos=bloccati.pezzo("argos").ok,
+        llm=bloccati.pezzo("llm").ok,
         presenti=presenti(cfg),
     )
 

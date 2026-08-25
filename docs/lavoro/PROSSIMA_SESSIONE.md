@@ -123,6 +123,82 @@ misura che lo sceglie, ed è il **p95 e non il p50** (Argos 67 ms, google 1188).
 
 ---
 
+## «Se seguo l'installazione su una macchina nuova, funziona tutto?»
+
+**Adesso sì, e la misura è sotto. Fino al 25 agosto la risposta era no: non
+installava niente.**
+
+`pip install -r requirements.txt` — il comando in testata a quel file, quello che
+lancia `installa.ps1`, quello che il README indica — si fermava **prima di
+installare qualunque cosa**, su `llama-cpp-python==0.3.34`: su Windows quella
+versione non esiste né su PyPI (solo l'sdist, quindi pip compila e senza MSVC
+esce `CMake Error: CMAKE_C_COMPILER not set`) né sull'indice CPU di abetlen che
+il commento sopra la riga indicava (l'ultima `cp311-win_amd64` è la **0.3.19**).
+Il file contraddiceva se stesso e la riga installabile vinceva sul commento.
+
+E sotto c'era il secondo difetto: **quattro pacchetti tiravano dentro
+`onnxruntime` (CPU)** accanto a `onnxruntime-gpu`, cioè la cosa che spegne la
+CUDA in silenzio. Il file avvertiva del solo Piper. Il quarto è quello che nessun
+commento nominava — **`rapidocr-onnxruntime`, il lettore di serie**: anche
+togliendo tutti e tre i motori di sintesi, da solo rimetteva dentro la ruota CPU.
+
+Curato in `3399edb` (i quattro in `requirements-nodeps.txt`, con `--no-deps`) e
+`5abb20d` (senza `llama_cpp` installato `collect_dynamic_libs` sollevava, e il
+pacchetto non si costruiva affatto).
+
+### La prova, che non è «il comando è finito»
+
+Installato **da zero in un venv nuovo** (mai in `.venv`, per la ragione scritta
+più su) e poi **usati** i pezzi, non importati:
+
+| | esito |
+|---|---|
+| `pip install -r requirements.txt` | 0 |
+| `pip install -r requirements-nodeps.txt --no-deps` | 0 |
+| `onnxruntime` CPU accanto a quello GPU | **assente** |
+| provider ORT | `Tensorrt, CUDA, CPU` — **la GPU è viva** |
+| rapidocr su una riga disegnata | ha letto `LAVORIAMO INSIEME` |
+| `tools.say` con Piper | 1,71 s di audio, primo campione a **88,5 ms** |
+| `cv2.morphologyEx` (la cancellatura) | 2800 px |
+| la finestra Qt | costruita, 6 schede |
+| soundfile / PyAudioWPatch / mss | 4800 campioni · 36 dispositivi · 200x60 px |
+| profili e cataloghi | 170 campi, 42 lingue |
+
+**Dieci su dieci.** E la sintesi Piper conta doppio: `espeakbridge.pyd` si apre
+**pigramente alla prima sintesi**, quindi è l'unica prova che dica qualcosa su
+quella libreria — un import non l'avrebbe nemmeno toccata.
+
+### Cosa resta rotto, dichiarato
+
+- **La traduzione offline non la installa nessuno dei due comandi.** È il default
+  di `translate.backend` ma costa ~3 GB (`stanza` → `torch`), e `installa.ps1`
+  non chiama `tools\installa_traduzione.ps1`. Siccome `translate.enabled` è
+  `false` di serie il programma doppia lo stesso; chi accende la traduzione
+  troverebbe un default che non c'è. Ora la riga finale di `installa.ps1` lo
+  dice. **Se debba installarla di serie è una decisione da prendere**, non l'ho
+  presa io.
+- **`llm` (Gemma in-process) resta facoltativo** e, sotto SAC, bloccato in ogni
+  versione provata: nessuna regressione, ma nemmeno una strada.
+- La suite resta a **12 fallite su 1795**, le stesse dodici di SAC.
+
+### Segnalazioni raccolte e non curate (fuori perimetro)
+
+- `installa.ps1` **chiama già** `tools.fetch_oneocr` (riga 98): la segnalazione
+  «manca oneocr» non ha un difetto sotto. `oneocr` non è un pacchetto pip, ed è
+  giusto che non sia in `requirements.txt`.
+- `tools/controlla_traduzione.py` fa già la domanda giusta («c'è `onnxruntime`
+  CPU accanto a quello GPU?») ma gira **solo dopo** l'installazione di Argos e
+  incolpa `minisbd`: la guardia esisteva, era corretta, e stava a valle del
+  punto in cui il danno era già fatto.
+- Un `--dry-run` di pip **non può esprimere** se un pacchetto si compila: si
+  ferma alla preparazione dei metadati, che per `llama-cpp-python` riesce anche
+  senza compilatore. E lo stesso `--dry-run` con la cache locale piena diceva
+  «si installa» per un pacchetto che a chi installa adesso non si installa.
+  Settima e ottava volta della forma «una misura che non può dare la risposta
+  che le si chiede».
+
+---
+
 ## Cosa è rotto adesso, e aspetta una decisione
 
 ### 1. L'eseguibile non parte, e non è colpa del pacchetto

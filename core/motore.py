@@ -555,6 +555,20 @@ class Motore:
             self.overlay = None
         if not (self.cfg.translate.enabled and self.cfg.translate.overlay):
             return
+        # **Chi disegna il tradotto ha bisogno di opencv, e lo si guarda
+        # adesso.** Sfocatura e cancellatura lo importano *dentro* la funzione
+        # che dipinge, cioe' dentro il ciclo video: bloccato, il difetto uscirebbe
+        # come un ImportError su un fotogramma qualunque, dove nessuno lo collega
+        # alla riga che l'ha acceso. Qui non si rinuncia a niente — il tradotto
+        # si disegna lo stesso, con il riquadro pieno che non usa opencv — ma si
+        # dice cosa non si potra' fare.
+        from core import bloccati
+
+        occhi = bloccati.pezzo("opencv")
+        if not occhi.ok:
+            self.manda("nota", "! " + bloccati.spiega("opencv")
+                       + ". Il tradotto si disegna lo stesso: metti "
+                         "translate.background_mode=riquadro")
         self.overlay = costruisci()
         self.overlay.riposiziona(self.cfg.vision.roi)
         if self.finestra is None:
@@ -762,6 +776,7 @@ class Motore:
             periodo = 1.0 / max(1e-6, self.cfg.capture.fps)
             prossimo = time.perf_counter()
             n = vuoti = 0
+            detto_nero = False
             while not self.stop.is_set():
                 ora = time.perf_counter()
                 if ora < prossimo:
@@ -813,6 +828,20 @@ class Motore:
                         vuoti = 0
                     continue
                 n += 1
+                # **Un fotogramma nero non e' un errore, ed e' il difetto
+                # peggiore che questa cattura possa avere.** `PrintWindow`
+                # riesce anche su una finestra Direct3D che non ha una
+                # superficie da consegnare: torna `1`, e dentro c'e' il buio.
+                # La sessione resta accesa, i contatori restano verdi, l'OCR non
+                # legge mai niente e sembra rotto lui. Si dichiara **una volta**,
+                # appena la sorgente ha guardato abbastanza fotogrammi per
+                # poterlo dire (`PrintWindowSource.nero`).
+                if getattr(schermo, "nero", False) and not detto_nero:
+                    detto_nero = True
+                    self.manda("nota",
+                               "! questo gioco non si lascia catturare per finestra: "
+                               "i fotogrammi arrivano neri. Nella Preparazione scegli "
+                               "lo schermo intero invece della finestra.")
                 # **Il ritaglio per la sfocatura parte subito, prima dell'OCR.**
                 # Stava in fondo al giro, dopo `on_frame`, e quindi pagava tutto il
                 # costo del riconoscimento prima di essere spedito: misurato nella

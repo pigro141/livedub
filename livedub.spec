@@ -95,7 +95,17 @@ DATI_LIBRERIE += collect_data_files("language_tags")
 
 # Il traduttore `llm` (Gemma in-process): `llama_cpp` carica le sue DLL a mano
 # da `llama_cpp/lib`, quindi l'analisi statica non le trova.
-BINARI_LIBRERIE += collect_dynamic_libs("llama_cpp")
+#
+# **Ed e' facoltativo, quindi la sua assenza non deve fermare la costruzione.**
+# `llama-cpp-python` non e' piu' in `requirements.txt`: su Windows non ha una
+# ruota ne' su PyPI ne' sull'indice CPU di abetlen, e la riga fermava tutta
+# l'installazione (si veda il commento in `requirements.txt`). Senza questo `try`
+# `collect_dynamic_libs` solleva `ValueError` e il pacchetto non si costruisce
+# affatto — cioe' un pezzo opzionale spegnerebbe il prodotto.
+try:
+    BINARI_LIBRERIE += collect_dynamic_libs("llama_cpp")
+except Exception as e:  # noqa: BLE001 — qualunque cosa dica, il senso e' «non c'e'»
+    print(f"livedub.spec: llama_cpp non c'e', il traduttore `llm` restera' fuori ({e})")
 
 a = Analysis(
     # **La finestra Qt, non quella Tk.** L'eseguibile impacchettava

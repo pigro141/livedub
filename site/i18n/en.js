@@ -16,8 +16,8 @@
    mano e' gia' finito in una schermata ed e' stato riletto come una misura —
    un numero finto in una vetrina e' peggio: lo legge chi decide se installare.
 
-   L'elenco dei segnaposto, con cosa ci va e da dove si prende, sta nel
-   passaggio di consegne dell'impalcatura.
+   Ne resta **uno solo**, `{{DOWNLOADS}}`: l'eseguibile entra quando la
+   costruzione in CI e' verde, e non un minuto prima.
 
    ## Il markup ammesso dentro una stringa
 
@@ -42,11 +42,12 @@
       sotto: "Everything runs on your own machine, on Windows. No account, no server, nothing to extract from the game: it watches the screen and plays into your headphones, the way a player does.",
       marche: [
         "GPL-3.0-or-later",
-        "Windows <b>{{OS_SUPPORTED}}</b>",
-        "Python <b>{{PYTHON_VERSION}}</b>",
+        "Windows <b>10 · 11</b>",
+        "Python <b>3.11</b>",
         "the network is <b>not needed</b>",
-        "the interface speaks <b>{{UI_LANGUAGES_COUNT}}</b>",
-        "NVIDIA GPU <b>{{GPU_REQUIREMENT}}</b>"
+        "the interface speaks <b>42 languages</b>",
+        "it speaks out loud in <b>Italian and English</b>",
+        "NVIDIA GPU <b>optional</b>"
       ],
       bottoni: [
         { x: "See it and hear it", href: "#watch", pieno: true },
@@ -110,10 +111,10 @@
             voci: [
               {
                 b: "You open it.",
-                p: "The window is already in the language you use Windows in — {{UI_LANGUAGES_COUNT}} in total. Arabic, Hebrew, Persian and Urdu also flip the window the other way round."
+                p: "The window is already in the language you use Windows in — 42 languages in total, and every one of the 41 catalogs is complete: 254 strings out of 254, none of them half-done. Arabic, Hebrew, Persian and Urdu also flip the window the other way round."
               },
               {
-                b: "A guide takes you through it, in {{TUTORIAL_STEPS}} steps.",
+                b: "A guide takes you through it, in 7 steps.",
                 p: "It opens by itself the first time and comes back with <code>?</code>. Wherever it can it <b>checks instead of telling</b>: it counts the audio devices you actually have, it asks ONNX Runtime whether CUDA is really there instead of assuming, and it measures the height of your reading area with the real rule."
               },
               {
@@ -130,7 +131,7 @@
               },
               {
                 b: "Start.",
-                p: "From there it reads, works out who is speaking, synthesises and mixes. The voice always arrives a little after the subtitle, and that is deliberate: {{SPEAKER_DECIDE_MS}} of game audio is what it takes to know who is talking before choosing a voice."
+                p: "From there it reads, works out who is speaking, synthesises and mixes. The voice always arrives a little after the subtitle, and that is deliberate: <b>500 ms</b> of game audio is what it takes to know who is talking before choosing a voice."
               }
             ]
           },
@@ -154,7 +155,7 @@
         id: "window",
         nav: "The window",
         etichetta: "The window",
-        titolo: "{{TABS_COUNT}} tabs, and none of them has to be touched to hear the first line",
+        titolo: "Six tabs, and none of them has to be touched to hear the first line",
         lede: "They open when you need them.",
         blocchi: [
           {
@@ -166,7 +167,7 @@
               ["<b>Voice</b>", "which engine, how many voices in the pool, how long to wait before deciding who is speaking"],
               ["<b>Levels</b>", "how far the game ducks and how far our voice comes up, <b>while you listen</b>"],
               ["<b>Translation</b>", "only for playing a game whose subtitles are not in your language"],
-              ["<b>All settings</b>", "the {{PARAMS_TOTAL}} parameters, with a search box"]
+              ["<b>All settings</b>", "the 170 parameters, with a search box"]
             ]
           },
           {
@@ -180,11 +181,11 @@
           },
           {
             t: "p",
-            x: "<b>The parameters.</b> {{PARAMS_TOTAL}} of them; <b>{{PARAMS_HOT}} apply straight away</b>, and the {{PARAMS_COLD}} that are only read at startup <b>say so</b> instead of pretending. {{PARAMS_WITH_HELP}} of them carry a <code>?</code> that explains what they do, what was measured, and what you risk by changing them — and it is the same text that sits beside the parameter inside <code>core/config.py</code>, not a second copy nobody updates."
+            x: "<b>The parameters.</b> 170 of them; <b>131 apply straight away</b>, and the 39 that are only read at startup <b>say so</b> instead of pretending. 127 of them carry a <code>?</code> that explains what they do, what was measured, and what you risk by changing them — and it is the same text that sits beside the parameter inside <code>core/config.py</code>, not a second copy nobody updates."
           },
           {
             t: "p",
-            x: "<b>The bar along the bottom</b> reports reads per second, lines, median latency, compression, underruns and the reading area, {{MEASURE_BAR_HZ}}. The only red one is <code>underrun</code>, and it is not a number out of range: it is a line you did not hear."
+            x: "<b>The bar along the bottom</b> reports reads per second, lines, median latency, compression, underruns and the reading area, <b>twice a second</b> — not thirty times, because a number that flickers is a number nobody reads. The only red one is <code>underrun</code>, and it is not a number out of range: it is a line you did not hear."
           },
           {
             t: "nota",
@@ -201,17 +202,50 @@
         titolo: "And which session they come from",
         lede: "Live sessions only, with the game running. None of these come from the bench, for the reason written further up.",
         blocchi: [
-          { t: "posto", nome: "LIVE_NUMBERS_TABLE", forma: "a table: one column per engine, one row per figure (lines dubbed, median latency from subtitle to voice, synthesis cost, speech compression, underruns), plus the session folder each column comes from" },
+          {
+            t: "tabella",
+            testa: ["", "piper, on CPU", "kokoro, on CUDA", "kokoro on CUDA, translation on"],
+            righe: [
+              ["lines dubbed", "44", "146", "<b>589</b>, in one 44-minute session"],
+              ["<b>subtitle → voice</b>, median", "<b>665 ms</b>", "<b>1290 ms</b>", "<b>1421 ms</b>"],
+              ["synthesis, median", "57 ms", "580 ms", "248 ms"],
+              ["speech compression, median", "<b>1.00</b> — none at all", "<b>1.00</b> — none at all", "<b>1.00</b> — none at all"],
+              ["<code>underrun</code> — lines you did not hear", "<b>0</b>", "<b>0</b>", "<b>0</b>"],
+              ["subtitle reads per second", "not recorded", "15.3", "18.8"],
+              ["the session it comes from", "<code>runs/2026-08-11_18-31-55</code>", "<code>runs/2026-08-20_00-01-56</code>", "<code>runs/2026-08-07_01-40-16</code>"]
+            ]
+          },
+          {
+            t: "p",
+            x: "<b>The figure that is worth more than any latency: not one <code>underrun</code>, in any of the 53 live sessions</b> in <code>runs/</code> that used one of the three current engines. And the Piper column is not a lucky pass — four sibling sessions the same evening gave 664, 669, 687 and 687 ms."
+          },
           {
             t: "p",
             x: "Two engines is two choices, not a quality ladder: one is faster, the other articulates better — and it is the bench in the setup guide that says which of them holds up on a given machine."
+          },
+          {
+            t: "nota",
+            x: "<b>Where the time actually goes, once the engine is fast.</b> Of Kokoro's latency, about <b>500 ms is the wait to find out who is speaking</b> — more than the synthesis itself. That is the number to attack if you want it quicker, and the price of lowering it is getting the speaker wrong more often, which only your ear can judge."
           },
           { t: "h3", x: "How many cores an engine needs" },
           {
             t: "p",
             x: "This one comes from the bench and <b>is not a latency</b>: it is the cost of synthesising one line with everything else held equal, timed on the wall clock while the process is restricted to fewer cores. It is a <b>lower bound</b> on how much an older PC would slow down — it simulates fewer cores, not slower ones."
           },
-          { t: "posto", nome: "CPU_CORES_TABLE", forma: "a table: physical cores against the per-line synthesis cost of each engine, and the line where an engine stops being usable" }
+          {
+            t: "tabella",
+            testa: ["physical cores", "one Piper line, median", "p95", "against 8 cores"],
+            righe: [
+              ["8", "<b>78 ms</b>", "144 ms", "1.00×"],
+              ["6", "<b>88 ms</b>", "236 ms", "1.12×"],
+              ["4", "<b>302 ms</b>", "544 ms", "<b>3.85×</b>"],
+              ["2", "363 ms", "1050 ms", "4.63×"]
+            ]
+          },
+          {
+            t: "p",
+            x: "<b>The cliff is between 6 and 4 cores</b>, and that is why the recommended machine below says 6 rather than 8: the step from 8 to 6 costs 12%, the step from 6 to 4 costs nearly four times. Only Piper was measured this way, so this page puts no number on the heavier engines — the bench in the guide measures them on <i>your</i> machine, which is the answer that matters anyway."
+          }
         ]
       },
 
@@ -248,7 +282,24 @@
         titolo: "What it takes, and how to get it running",
         blocchi: [
           { t: "posto", nome: "DOWNLOADS", forma: "the packaged build: what to download and for which Windows. It goes in only once the build on CI is green — until then this page promises no executable, because a download that is announced and not there is worse than one that is not announced" },
-          { t: "posto", nome: "HARDWARE_TABLE", forma: "a table: what it runs well on and what it runs better on — OS, Python, cores, RAM, GPU and VRAM, and which engines each row makes available" },
+          {
+            t: "tabella",
+            testa: ["", "runs on", "runs better on"],
+            righe: [
+              ["CPU", "6 physical cores", "8 physical cores"],
+              ["GPU", "<b>none</b> — nothing breaks without one", "any NVIDIA with about 2 GB of free VRAM: the measured need is <b>1128 MB</b>"],
+              ["RAM", "8 GB", "16 GB"],
+              ["disk", "<b>1.6 GB</b> — the environment without the CUDA libraries, plus 225 MB of models", "<b>3.5 GB</b> — with the CUDA libraries and 543 MB of models. Offline translation adds <b>3.2 GB</b> on top of either"],
+              ["Windows", "<b>10</b> — capture goes through <code>PrintWindow</code>, which lives in <code>user32.dll</code> and needs nothing installed", "<b>11</b> — OneOCR only exists there, and it reads the outlined text of a game far better"],
+              ["Python", "3.11", "3.11"],
+              ["<b>what you get</b>", "<b>Piper on CPU.</b> 665 ms from subtitle to voice, no underruns, no speeding the speech up. The recogniser is PP-OCR.", "<b>Kokoro on CUDA</b>: better articulation, and the only non-Italian voices in the product. 1290 ms."],
+              ["<b>what the step buys</b>", "below 6 cores Piper's synthesis goes from 88 ms to <b>302 ms</b> — see the table above", "the graphics card buys <b>3.5× on synthesis</b> (741 ms down to 213 ms) and the six English voices"]
+            ]
+          },
+          {
+            t: "p",
+            x: "<b>A requirement cannot be read without the machine it was measured on</b>, so here it is: an Intel Core i9-11900K (8 physical cores), an <b>RTX 4060 with 8 GB</b> — <i>with GTA V running on it at the same time</i> — 31.8 GB of RAM, Windows 11 Pro build 26200, Python 3.11.9. Every number on this page comes from that machine unless it says otherwise, and the recommended column is not a wish list: it is that machine."
+          },
           {
             t: "p",
             x: "<b>You also need</b> a way to hear the game's audio without your own dubbing looping back into it: the WASAPI loopback that ships with Windows is enough. <a href=\"https://vb-audio.com/Voicemeeter/\">Voicemeeter</a> is <b>optional</b> — it only helps if you want everything in a single pair of headphones."
@@ -273,12 +324,12 @@
             ambra: true,
             righe: [
               "<b>If your Windows has Smart App Control switched on.</b> It ships in <i>evaluation</i> mode and Windows switches it off by itself as soon as it sees developer tools being run — and once off it cannot be switched back on without reinstalling Windows. So this is a minority of machines, not the normal case.",
-              "On a machine where it is still on, {{SAC_BLOCKED_LIST}}"
+              "On a machine where it is still on, exactly <b>two packages are blocked and they are one capability</b>: Windows Graphics Capture. Capture then falls back to <code>PrintWindow</code>, which needs nothing installed. <b>Everything else keeps working</b> — reading the subtitles, working out who is speaking, all three synthesis engines, the mixer, the overlay, offline translation and the window itself. Any PyInstaller executable is blocked too, this project's included: every build is a new file, and a new file has no reputation by construction."
             ]
           },
           {
             t: "p",
-            x: "<b>Why you can trust the numbers.</b> There is a test suite of <b>{{SELFTEST_CHECKS}} checks</b> in {{SELFTEST_GROUPS}} groups that runs without a game, without a GPU and without any model, and a bench that runs <b>the same chain</b> over a recording. The measurements that changed a decision are written <b>next to the parameter they decided</b>, inside <code>core/config.py</code> — which is the same text the window shows when you press <code>?</code>."
+            x: "<b>Why you can trust the numbers.</b> There is a test suite of <b>1932 checks</b> in 75 groups that runs without a game, without a GPU and without any model, and a bench that runs <b>the same chain</b> over a recording. The measurements that changed a decision are written <b>next to the parameter they decided</b>, inside <code>core/config.py</code> — which is the same text the window shows when you press <code>?</code>."
           }
         ]
       },
@@ -288,7 +339,7 @@
         nav: "Your game",
         etichetta: "Compatibility",
         titolo: "Will it work with my game?",
-        lede: "Tested on {{GAMES_TESTED}}. Honestly, that is what is known.",
+        lede: "Tested on two: <b>GTA V</b> and <b>Mafia: The Old Country</b>, both in Italian. Honestly, that is what is known.",
         blocchi: [
           {
             t: "p",
@@ -320,14 +371,56 @@
         titolo: "Three different things called language",
         lede: "What it can <b>read</b>, what it can <b>say</b>, and what the <b>buttons</b> are written in. They are set in different places, and they are worth keeping apart.",
         blocchi: [
+          { t: "h3", x: "The short answer, before the detail" },
+          {
+            t: "tabella",
+            testa: ["", "how many", "where you set it"],
+            righe: [
+              ["what the <b>buttons</b> are written in", "<b>42</b>", "<code>ui.lingua</code>, in the Setup tab"],
+              ["what it can <b>translate a subtitle into</b>", "<b>133</b> with the online backend — the offline ones have no closed list", "<code>translate.target</code>, in the Translation tab"],
+              ["what it can <b>say out loud</b>", "<b>2</b> — Italian, and English on one engine", "it follows the engine you pick"]
+            ]
+          },
+          {
+            t: "nota",
+            ambra: true,
+            x: "<b>The interface speaks 42 languages, the translator reaches 133, and the mouth speaks 2.</b> That last number is the one to read twice, because it is the one that decides whether this program is useful to you: <b>Italian with any engine, English only with Kokoro</b> — which needs an NVIDIA card. There is no third language, and nothing on the way."
+          },
           { t: "h3", x: "What it can say" },
           {
-            t: "p",
-            x: "This is the honest limit, and it is worth stating plainly: a character beyond the number of native voices is told apart by shifting the pitch, which is what you hear in the first clip. <b>And the menu says so when a voice is missing</b>: translating into a language you have no voice for would not raise an error — you would get a voice from another language pronouncing it, which is a model phonemised by the wrong rules, with audio coming out and the logs all green."
+            t: "tabella",
+            testa: ["engine", "languages with a real voice", "how many voices", "runs on"],
+            righe: [
+              ["<b>piper</b> <i>— default</i>", "<b>Italian only</b>", "2 native (<code>paola</code>, <code>riccardo</code>), taken to 8 in the pool by shifting the pitch", "CPU"],
+              ["<b>supertonic</b>", "<b>Italian only</b>", "10 native (M1–M5, F1–F5) — no shifting needed", "CPU"],
+              ["<b>kokoro</b>", "<b>Italian and English</b>", "Italian 2, shifted to 8; English <b>6 native</b>", "CUDA"],
+              ["<code>tone</code>, <code>silent</code>", "none — a beep has no language", "—", "—"]
+            ]
           },
-          { t: "posto", nome: "VOICE_LANGUAGES_TABLE", forma: "a table: engine, how many voices and in which languages, and whether it runs on CPU or GPU" },
+          {
+            t: "p",
+            x: "A character beyond the number of native voices is told apart by shifting the pitch, which is what you hear in the first clip: <code>[nicola]</code> and <code>[nicola-2_5]</code> are one voice at two pitches."
+          },
+          {
+            t: "nota",
+            ambra: true,
+            x: "<b>Asking for a language with no voice does not raise an error, and this is the trap worth stating plainly.</b> Measured: ask Kokoro for Japanese and you get eight voices back — the six English ones and the two Italian ones — reading Japanese text. What comes out is a model phonemised by the wrong rules: the audio plays, the counters stay green, the test suite stays green. What exists is a <b>declaration, not a block</b>: the menu marks the choice as having no voice, and then lets you make it."
+          },
           { t: "h3", x: "What it can translate (off by default)" },
-          { t: "posto", nome: "TRANSLATION_BACKENDS_TABLE", forma: "a table: backend, whether it needs the network, how many language pairs, and the one line of caveat each deserves" },
+          {
+            t: "tabella",
+            testa: ["backend", "network", "how many languages", "worth knowing"],
+            righe: [
+              ["<b><code>locale</code></b>, Argos <i>— default</i>", "<b>no</b>", "no closed list: whichever pairs Argos publishes, downloaded when you press Start", "does not understand <code>auto</code> — it quietly becomes <i>from English</i>"],
+              ["<code>llm</code>, Gemma 3 1B in this same process", "<b>no</b>", "depends on the model you point it at", "same <code>auto</code> caveat"],
+              ["<code>ollama</code>, TranslateGemma outside the environment", "<b>no</b>, but a local server has to be running", "depends on the model", "the slowest in practice: the live sessions using it sit at 1592–1805 ms end to end"],
+              ["<code>google</code>", "<b>yes</b>, and the program says so every time", "<b>133</b> — the only closed list of the four", "the only one that understands <code>auto</code>"]
+            ]
+          },
+          {
+            t: "p",
+            x: "The menu <b>shows all four and declares</b> rather than filtering: three of them have no closed list, so a filter would hide choices that work and let through choices that do not, with the air of knowing."
+          },
           {
             t: "nota",
             ambra: true,
@@ -336,7 +429,47 @@
           { t: "h3", x: "What the buttons are written in" },
           {
             t: "p",
-            x: "{{UI_LANGUAGES_COUNT}}, generated once and committed into the repo — not asked from the network while the window opens, because a window that asks the network for its own text is a blank window when the network is not there, <i>and blank without an error</i>. It follows your Windows language and changes without a restart."
+            x: "<b>42 languages</b>: 41 catalogs plus Italian, which is the language the source is written in. All 41 are <b>complete — 254 strings out of 254</b>, with none half-translated. Four of them run right to left and turn the whole window round: Arabic, Hebrew, Persian and Urdu."
+          },
+          {
+            t: "p",
+            x: "They are generated once and committed into the repo — not asked from the network while the window opens, because a window that asks the network for its own text is a blank window when the network is not there, <i>and blank without an error</i>. It follows your Windows language and changes without a restart."
+          },
+          {
+            t: "p",
+            x: "What is <b>not</b> translated, and on purpose: the explanations behind the <code>?</code> on each parameter. They come from the comments in <code>core/config.py</code> with the measurements inside them, and running a measurement through a machine translator is how a measurement quietly stops being one. The log and the measurement bar stay in Italian for the same reason — they are numbers and device names."
+          }
+        ]
+      },
+
+      {
+        id: "limits",
+        nav: "Limits",
+        etichetta: "Limits",
+        titolo: "What it does not do",
+        lede: "The quickest way to be disappointed by a program is to find this list out by using it. So here it is before you install.",
+        blocchi: [
+          {
+            t: "tabella",
+            testa: ["", ""],
+            righe: [
+              ["<b>It speaks two languages</b>", "Italian with any engine, English only with Kokoro on an NVIDIA card. A third language does not raise an error — you get an Italian or English voice pronouncing it with the wrong rules."],
+              ["<b>One subtitle line at a time</b>", "inside the box you drag: not the whole screen, not several areas at once. An earlier version promised several reading areas and it was removed, because the overlay draws one line at a time and the promise could not be kept live."],
+              ["<b>The game must be windowed or borderless</b>", "exclusive fullscreen is not captured."],
+              ["<b>Windows only</b>", "and the recogniser that reads a game's outlined text best, OneOCR, exists only on Windows 11. On Windows 10 you get PP-OCR."],
+              ["<b>The voice arrives after the subtitle</b>", "about half a second of it is the wait for enough game audio to say who is speaking — and that wait, not the synthesis, is the largest single piece of the delay."],
+              ["<b>More characters than voices share one</b>", "past the number of native voices they are told apart by shifting the pitch, and you can hear it."],
+              ["<b>One player, one window</b>", "it is not a streaming tool, not a localisation pipeline and not multiplayer."]
+            ]
+          },
+          { t: "h3", x: "Where the capture can fail" },
+          {
+            t: "p",
+            x: "It grabs the game's window through Windows Graphics Capture where that is available, and falls back to <code>PrintWindow</code> — <b>saying so in the log</b> — where it is not. The fallback needs nothing installed, but it is synchronous and costs more: <b>17.5 ms</b> for a 1191×958 window, measured. And on a game drawing through a Direct3D flip-model swap chain, <code>PrintWindow</code> can <b>succeed and hand back a black frame</b>; the program inspects the first eight frames and declares it instead of quietly reading black. <b>Nobody has yet tried that fallback on GTA V itself.</b>"
+          },
+          {
+            t: "nota",
+            x: "<b>And the honest frame around every number on this page.</b> They were measured on one machine, on two games, by one person. A game that writes dark text on a light background reads on purpose-built frames and smudges; nobody has run it on a real one. Where a figure has not been measured, this page leaves the gap visible instead of filling it."
           }
         ]
       },

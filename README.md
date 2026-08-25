@@ -9,7 +9,15 @@ It reads the text on screen while you play, works out who is speaking from the
 game's audio, synthesises the line in that character's voice and mixes it over
 the game. All on your own machine.
 
-{{BADGES}}
+![licence](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b)
+![windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b)
+![python](https://img.shields.io/badge/Python-3.11-2b8a6b)
+![network](https://img.shields.io/badge/network-not%20needed-2b8a6b)
+![checks](https://img.shields.io/badge/checks-1932-2b8a6b)
+![interface languages](https://img.shields.io/badge/interface%20languages-42-2b8a6b)
+![spoken languages](https://img.shields.io/badge/spoken%20languages-2-b8860b)
+![gpu](https://img.shields.io/badge/NVIDIA%20GPU-optional-6b7280)
+![version](https://img.shields.io/badge/version-0.9.0-b8860b)
 
 <img src="assets/menta-anteprima.png" alt="the livedub window during a game" width="760">
 
@@ -79,7 +87,7 @@ reads per second, lines, latency, compression, underruns, reading area.
 | **Mixes** | it ducks **only the centre channel** of the game, where the dialogue sits: music and effects stay where they are |
 | **Translates** *(off by default)* | several backends, most of them with no network at all |
 | **Rewrites the subtitle on screen** *(off by default)* | erases the original and draws the translated line |
-| **Speaks {{UI_LANGUAGES_COUNT}}** *(the interface)* | follows your Windows language, and changes without a restart |
+| **Speaks 42 languages** *(the interface)* | follows your Windows language, and changes without a restart |
 
 ---
 
@@ -88,10 +96,10 @@ reads per second, lines, latency, compression, underruns, reading area.
 There is nothing to configure first: you open it and follow along.
 
 **1. You open it.** The window is already in the language you use Windows in —
-{{UI_LANGUAGES_COUNT}}. Arabic, Hebrew, Persian and Urdu also flip the window
+42 languages. Arabic, Hebrew, Persian and Urdu also flip the window
 the other way round.
 
-**2. A guide takes you through it**, {{TUTORIAL_STEPS}} steps, and it comes back
+**2. A guide takes you through it**, 7 steps, and it comes back
 with `?`. Wherever it can it **checks instead of telling**: it counts the audio
 devices you actually have, it asks ONNX Runtime whether CUDA is really there
 instead of assuming, and it measures the height of your reading area with the
@@ -121,7 +129,7 @@ area is **relative to the window**: move the game and the area follows it.
 mixes.
 
 The voice always arrives a little after the subtitle, and that is deliberate:
-{{SPEAKER_DECIDE_MS}} of game audio is what it takes to know who is talking
+500 ms of game audio is what it takes to know who is talking
 before choosing a voice.
 
 ---
@@ -130,7 +138,7 @@ before choosing a voice.
 
 ```mermaid
 flowchart TD
-    subgraph W["the wait · {{SPEAKER_DECIDE_MS}} · speaker.decide_after_ms"]
+    subgraph W["the wait · 500 ms · speaker.decide_after_ms"]
       direction LR
       W1["game audio piles up<br/>for the fingerprint"]
       W2["the line is <b>translated</b><br/><i>(optional)</i>"]
@@ -178,7 +186,26 @@ the very same chain over a recording — real code, not a simulation — but **t
 bench gives time away**: on a virtual clock synthesis costs nothing and no frame
 is ever dropped. No latency comes from there, and none in this table does.
 
-{{LIVE_NUMBERS_TABLE}}
+| | piper, on CPU | kokoro, on CUDA | kokoro on CUDA, translation on |
+|---|---|---|---|
+| lines dubbed | 44 | 146 | **589**, in one 44-minute session |
+| **subtitle → voice**, median | **665 ms** | **1290 ms** | **1421 ms** |
+| synthesis, median | 57 ms | 580 ms | 248 ms |
+| speech compression, median | **1.00** — none at all | **1.00** — none at all | **1.00** — none at all |
+| `underrun` — lines you did not hear | **0** | **0** | **0** |
+| subtitle reads per second | not recorded | 15.3 | 18.8 |
+| the session it comes from | `runs/2026-08-11_18-31-55` | `runs/2026-08-20_00-01-56` | `runs/2026-08-07_01-40-16` |
+
+**The figure that is worth more than any latency: not one `underrun`, in any of
+the 53 live sessions** in `runs/` that used one of the three current engines.
+And the Piper column is not a lucky pass — four sibling sessions the same
+evening gave 664, 669, 687 and 687 ms.
+
+**Where the time actually goes, once the engine is fast.** Of Kokoro's latency,
+about **500 ms is the wait to find out who is speaking** — more than the
+synthesis itself. That is the number to attack if you want it quicker, and the
+price of lowering it is getting the speaker wrong more often, which only your
+ear can judge.
 
 **How many cores an engine needs.** This one comes from the bench and is not a
 latency: it is the **cost of synthesising one line** with everything else held
@@ -186,7 +213,18 @@ equal, timed on the wall clock while the process is restricted to fewer cores.
 It is a **lower bound** on how much an older PC would slow down — it simulates
 fewer cores, not slower ones.
 
-{{CPU_CORES_TABLE}}
+| physical cores | one Piper line, median | p95 | against 8 cores |
+|---|---|---|---|
+| 8 | **78 ms** | 144 ms | 1.00× |
+| 6 | **88 ms** | 236 ms | 1.12× |
+| 4 | **302 ms** | 544 ms | **3.85×** |
+| 2 | 363 ms | 1050 ms | 4.63× |
+
+**The cliff is between 6 and 4 cores**, and that is why the table below asks for
+6 rather than 8: the step from 8 to 6 costs 12%, the step from 6 to 4 costs
+nearly four times. Only Piper was measured this way, so this README puts no
+number on the heavier engines — the bench in the setup guide measures them on
+*your* machine, which is the answer that matters anyway.
 
 ---
 
@@ -211,7 +249,23 @@ ours.
 
 ## Requirements
 
-{{HARDWARE_TABLE}}
+| | runs on | runs better on |
+|---|---|---|
+| CPU | 6 physical cores | 8 physical cores |
+| GPU | **none** — nothing breaks without one | any NVIDIA with about 2 GB of free VRAM: the measured need is **1128 MB** |
+| RAM | 8 GB | 16 GB |
+| disk | **1.6 GB** — the environment without the CUDA libraries, plus 225 MB of models | **3.5 GB** — with the CUDA libraries and 543 MB of models. Offline translation adds **3.2 GB** on top of either |
+| Windows | **10** — capture goes through `PrintWindow`, which lives in `user32.dll` and needs nothing installed | **11** — OneOCR only exists there, and it reads the outlined text of a game far better |
+| Python | 3.11 | 3.11 |
+| **what you get** | **Piper on CPU.** 665 ms from subtitle to voice, no underruns, no speeding the speech up. The recogniser is PP-OCR. | **Kokoro on CUDA**: better articulation, and the only non-Italian voices in the product. 1290 ms. |
+| **what the step buys** | below 6 cores Piper's synthesis goes from 88 ms to **302 ms** — see the table above | the graphics card buys **3.5× on synthesis** (741 ms down to 213 ms) and the six English voices |
+
+**A requirement cannot be read without the machine it was measured on**, so here
+it is: an Intel Core i9-11900K (8 physical cores), an **RTX 4060 with 8 GB** —
+*with GTA V running on it at the same time* — 31.8 GB of RAM, Windows 11 Pro
+build 26200, Python 3.11.9. Every number in this README comes from that machine
+unless it says otherwise, and the *runs better on* column is not a wish list: it
+is that machine.
 
 **You also need** a way to hear the game's audio without your own dubbing
 looping back into it: the WASAPI loopback that ships with Windows is enough.
@@ -254,13 +308,19 @@ also just double-click `livedub.bat`.
 > *evaluation* mode and Windows switches it off by itself as soon as it sees
 > developer tools being run — and once off it cannot be switched back on without
 > reinstalling Windows. So this is a minority of machines, not the normal case.
-> On one where it is still on, {{SAC_BLOCKED_LIST}}
+> On one where it is still on, it blocks exactly **two packages, and they
+> are one capability**: Windows Graphics Capture. Capture then falls back to
+> `PrintWindow`, which needs nothing installed. **Everything else keeps
+> working** — reading the subtitles, working out who is speaking, all three
+> synthesis engines, the mixer, the overlay, offline translation and the window
+> itself. Any PyInstaller executable is blocked too, this project's included:
+> every build is a new file, and a new file has no reputation by construction.
 
 ---
 
 ## The window
 
-{{TABS_COUNT}} tabs. **None of them has to be touched to hear the first line**:
+Six tabs. **None of them has to be touched to hear the first line**:
 they open when you need them.
 
 | tab | what it is for |
@@ -270,7 +330,7 @@ they open when you need them.
 | **Voice** | which engine, how many voices in the pool, how long to wait before deciding who is speaking |
 | **Levels** | how far the game ducks and how far our voice comes up, **while you listen** |
 | **Translation** | only for playing a game whose subtitles are not in your language |
-| **All settings** | the {{PARAMS_TOTAL}} parameters, with a search box |
+| **All settings** | the 170 parameters, with a search box |
 
 <img src="assets/menta-preparazione.png" alt="the Setup tab" width="440"> <img src="assets/menta-volumi.png" alt="the Levels tab" width="440">
 
@@ -280,9 +340,9 @@ log underneath. The question you ask yourself watching it is not *what did it
 say* but **is it still the same person talking?** — and a colour answers that
 long before a label does.
 
-**The parameters.** {{PARAMS_TOTAL}} in total; **{{PARAMS_HOT}} apply straight
-away**, and the {{PARAMS_COLD}} that are only read at startup **say so** instead
-of pretending. {{PARAMS_WITH_HELP}} carry a `?` that explains what they do, what
+**The parameters.** 170 in total; **131 apply straight
+away**, and the 39 that are only read at startup **say so** instead
+of pretending. 127 carry a `?` that explains what they do, what
 was measured and what you risk by changing them — and it is the same text that
 sits beside the parameter inside [`core/config.py`](core/config.py), not a
 second copy nobody updates.
@@ -296,7 +356,7 @@ purpose.** `ui.lingua`, in Setup, decides what is **written on the buttons**;
 
 ## Will it work with my game?
 
-Tested on {{GAMES_TESTED}}. Honestly, that is what is known.
+Tested on two: **GTA V** and **Mafia: The Old Country**, both in Italian. Honestly, that is what is known.
 
 **Always needed**, for any game: dragging the area around the subtitles, and
 clearing the *ignore coloured subtitles* box if the game colours the speaker's
@@ -327,39 +387,114 @@ the rectangle and again when you start.
 
 ## Languages
 
+Three different things get called *language* here, they are set in three
+different places, and merging them is how a program ends up promising what it
+does not have.
+
+| | how many | where you set it |
+|---|---|---|
+| what the **buttons** are written in | **42** | `ui.lingua`, in the Setup tab |
+| what it can **translate a subtitle into** | **133** with the online backend — the offline ones have no closed list | `translate.target`, in the Translation tab |
+| what it can **say out loud** | **2** — Italian, and English on one engine | it follows the engine you pick |
+
+> **The interface speaks 42 languages, the translator reaches 133, and the mouth
+> speaks 2.** That last number is the one to read twice, because it is the one
+> that decides whether this program is useful to you: **Italian with any engine,
+> English only with Kokoro** — which needs an NVIDIA card. There is no third
+> language, and nothing on the way.
+
 **Reading**: whatever the recogniser can read.
 
 **Speaking**, with the voices that are wired up today:
 
-{{VOICE_LANGUAGES_TABLE}}
+| engine | languages with a real voice | how many voices | runs on |
+|---|---|---|---|
+| **piper** *(default)* | **Italian only** | 2 native (`paola`, `riccardo`), taken to 8 in the pool by shifting the pitch | CPU |
+| **supertonic** | **Italian only** | 10 native (M1–M5, F1–F5) — no shifting needed | CPU |
+| **kokoro** | **Italian and English** | Italian 2, shifted to 8; English **6 native** | CUDA |
+| `tone`, `silent` | none — a beep has no language | — | — |
+
+> **Asking for a language with no voice does not raise an error**, and this is
+> the trap worth stating plainly. Measured: ask Kokoro for Japanese and you get
+> eight voices back — the six English ones and the two Italian ones — reading
+> Japanese text. What comes out is a model phonemised by the wrong rules: the
+> audio plays, the counters stay green, the test suite stays green. What exists
+> is a **declaration, not a block**: the menu marks the choice as having no
+> voice, and then lets you make it.
 
 Beyond the number of native voices, characters are told apart by shifting the
-pitch — that is what you hear in the first GIF. **And the menu says so when a
-voice is missing**: translating into a language you have no voice for would not
-raise an error — you would get a voice from another language pronouncing it,
-which is a model phonemised by the wrong rules, with audio coming out and the
-logs all green.
+pitch — that is what you hear in the first GIF: `[nicola]` and `[nicola-2_5]`
+are one voice at two pitches.
 
 **Translation** *(off by default)*:
 
-{{TRANSLATION_BACKENDS_TABLE}}
+| backend | network | how many languages | worth knowing |
+|---|---|---|---|
+| **`locale`**, Argos *(default)* | **no** | no closed list: whichever pairs Argos publishes, downloaded when you press Start | does not understand `auto` — it quietly becomes *from English* |
+| `llm`, Gemma 3 1B in this same process | **no** | depends on the model you point it at | same `auto` caveat |
+| `ollama`, TranslateGemma outside the environment | **no**, but a local server has to be running | depends on the model | the slowest in practice: the live sessions using it sit at 1592–1805 ms end to end |
+| `google` | **yes**, and the program says so every time | **133** — the only closed list of the four | the only one that understands `auto` |
+
+The menu **shows all four and declares** rather than filtering: three of them
+have no closed list, so a filter would hide choices that work and let through
+choices that do not, with the air of knowing.
 
 > **Something no counter shows.** On coarse language, local models **rewrite it
 > in silence**. The translation succeeds beautifully: it says something else.
 > Before asking whether a translator is good, ask whether it says what is
 > written.
 
-**The interface language** is a third thing again: {{UI_LANGUAGES_COUNT}},
+**The interface language** is a third thing again: **42** — 41 catalogs plus
+Italian, which is the language the source is written in. All 41 are **complete,
+254 strings out of 254**, with none half-translated; four of them run right to
+left and turn the whole window round (Arabic, Hebrew, Persian, Urdu). They are
 generated once and committed into the repo — not asked from the network while
 the window opens, because a window that asks the network for its own text is a
 blank window when the network is not there, *and blank without an error*.
+
+What is **not** translated, on purpose: the explanations behind the `?` on each
+parameter. They come from the comments in
+[`core/config.py`](core/config.py) with the measurements inside them, and
+running a measurement through a machine translator is how a measurement quietly
+stops being one. The log and the measurement bar stay in Italian for the same
+reason — they are numbers and device names.
+
+---
+
+## What it does not do
+
+The quickest way to be disappointed by a program is to find this list out by
+using it. So here it is before you install.
+
+| | |
+|---|---|
+| **It speaks two languages** | Italian with any engine, English only with Kokoro on an NVIDIA card. A third language does not raise an error — you get an Italian or English voice pronouncing it with the wrong rules. |
+| **One subtitle line at a time** | inside the box you drag: not the whole screen, not several areas at once. An earlier version promised several reading areas and it was removed, because the overlay draws one line at a time and the promise could not be kept live. |
+| **The game must be windowed or borderless** | exclusive fullscreen is not captured. |
+| **Windows only** | and the recogniser that reads a game's outlined text best, OneOCR, exists only on Windows 11. On Windows 10 you get PP-OCR. |
+| **The voice arrives after the subtitle** | about half a second of it is the wait for enough game audio to say who is speaking — and that wait, not the synthesis, is the largest single piece of the delay. |
+| **More characters than voices share one** | past the number of native voices they are told apart by shifting the pitch, and you can hear it. |
+| **One player, one window** | it is not a streaming tool, not a localisation pipeline and not multiplayer. |
+
+**Where the capture can fail.** It grabs the game's window through Windows
+Graphics Capture where that is available, and falls back to `PrintWindow` —
+**saying so in the log** — where it is not. The fallback needs nothing
+installed, but it is synchronous and costs more: **17.5 ms** for a 1191×958
+window, measured. And on a game drawing through a Direct3D flip-model swap
+chain, `PrintWindow` can **succeed and hand back a black frame**; the program
+inspects the first eight frames and declares it instead of quietly reading
+black. **Nobody has yet tried that fallback on GTA V itself.**
+
+> **And the honest frame around every number here.** They were measured on one
+> machine, on two games, by one person. Where a figure has not been measured,
+> this README leaves the gap visible instead of filling it.
 
 ---
 
 ## How it is built, and why the numbers can be trusted
 
-There is no pytest: the suite is a runnable module, **{{SELFTEST_CHECKS}}
-checks** in {{SELFTEST_GROUPS}} groups.
+There is no pytest: the suite is a runnable module, **1932
+checks** in 75 groups.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

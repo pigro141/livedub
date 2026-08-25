@@ -239,7 +239,7 @@ section{padding:64px 0; border-top:1px solid var(--bordo)}
    da leggere, e si vede subito che nessuno l'ha guardata. Le immagini, i video,
    le tabelle e i riquadri restano larghi. */
 section > .avvolge > p, section > .avvolge > h3 + p{max-width:74ch}
-ol.passi li p, ol.passi li b{max-width:70ch}
+ol.passi li p, ol.passi > li > b{max-width:70ch}
 figcaption{max-width:74ch}
 .lede{color:var(--tenue); max-width:680px; font-size:1.02rem; margin-bottom:2em}
 
@@ -259,7 +259,11 @@ ol.passi li::before{content:counter(p); position:absolute; left:-16px; top:-3px;
   width:32px; height:32px; border-radius:9px; background:var(--menta);
   color:var(--su-menta); font-weight:700; font-size:.95rem;
   display:grid; place-items:center}
-ol.passi li b{display:block; margin-bottom:.3em; font-size:1.05rem}
+/* Solo il **titolo** del passo va a capo da solo: `li > b`, non `li b`.
+   Un `<b>` dentro la spiegazione e' enfasi in mezzo a una frase, e con il
+   discendente diventava una riga a se' — «It captures / one window / , not
+   the screen». Si vede solo guardando la pagina. */
+ol.passi > li > b{display:block; margin-bottom:.3em; font-size:1.05rem}
 ol.passi li p{color:var(--tenue); margin:0}
 
 /* Due colonne e non «quante ci stanno»: le griglie qui hanno quattro

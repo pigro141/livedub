@@ -4690,7 +4690,7 @@ def test_banco(c: Check) -> None:
     # -- la traduzione --------------------------------------------------------
     c.eq(B.scegli(B.Sonda(argos=False, llm=True)).traduzione, "llm",
          "senza Argos si ripiega sul modello in memoria, che resta in locale")
-    nessuna = B.scegli(B.Sonda(argos=False, llm=False))
+    nessuna = B.scegli(B.Sonda(argos=False, llm=False, traduzione_accesa=True))
     c.eq(nessuna.traduzione, "",
          "e senza nessuno dei due **non si sceglie**: l'unica alternativa che "
          "funzionerebbe sempre e' google, che manda i sottotitoli fuori dal PC")
@@ -4699,6 +4699,25 @@ def test_banco(c: Check) -> None:
          "si consegna la riga di pip invece di eseguirla: `onnxruntime` e "
          "`onnxruntime-gpu` non convivono, e un'installazione da dentro "
          "spegnerebbe la CUDA in silenzio")
+    # **E la riga consegnata deve installare la traduzione.** Era
+    # `pip install -r requirements.txt`, che dal 25 agosto argostranslate non lo
+    # porta piu': una riga da incollare che non fa la cosa per cui la si incolla
+    # e' peggio di nessuna riga.
+    c.ok("installa_traduzione" in B.RIGA_PIP,
+         "la riga consegnata e' lo script che mette Argos con `--no-deps`, non "
+         "un `pip install -r requirements.txt` che non lo installa affatto")
+    # **Il peso si dice prima, perche' e' il numero su cui uno decide.**
+    c.ok(any(m.codice == "traduzione_manca" and B.TRADUZIONE_MB in m.valori
+             for m in nessuna.motivi),
+         f"e con quanto pesa ({B.TRADUZIONE_MB} MB): un'attesa dichiarata e' "
+         "un'attesa, un'attesa muta e' una finestra bloccata")
+    # **Con la traduzione spenta non e' una notizia, e' rumore.** Su GTA V in
+    # italiano non c'e' niente da tradurre: senza questa riga l'avviso ambra
+    # ce l'avrebbero tutti, e gli avvisi che nessuno deve soddisfare si spengono
+    # da soli nella testa di chi li legge.
+    zitta = B.scegli(B.Sonda(argos=False, llm=False, traduzione_accesa=False))
+    c.ok(not any(m.codice == "traduzione_manca" for m in zitta.motivi),
+         "e non lo si dice a chi la traduzione non l'ha accesa")
     piano = B.scegli(B.Sonda(argos=True, traduzione_ms=B.TRADUZIONE_MAX_MS + 1))
     c.ok(any(m.codice == "traduzione_lenta" for m in piano.motivi),
          "una traduzione che sfora l'attesa di `decide_after_ms` si dichiara: "

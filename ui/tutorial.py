@@ -311,8 +311,14 @@ MOTIVI: dict[str, str] = {
         "la traduzione resta su questo PC, con il modello in memoria: piu' lenta "
         "della prima scelta ma non esce niente",
     "traduzione_manca":
-        "manca il programma della traduzione locale. Da incollare in PowerShell, "
-        "nella cartella del programma: {0}",
+        # **La dimensione va detta prima, ed e' il senso di questa riga.** Non e'
+        # un modello che il banco possa scaricare da solo — sono pacchetti, e il
+        # banco non fa `pip` — quindi l'unica cosa che puo' fare per l'utente e'
+        # dirgli **cosa** deve arrivare e **quanto pesa** prima che decida, e
+        # consegnargli la riga giusta invece di una che gli spegne la GPU.
+        "per tradurre servono {0} MB da scaricare (torch, che la traduzione non "
+        "usa mai ma senza cui non parte). Da incollare in PowerShell, nella "
+        "cartella del programma: {1}",
     "traduzione_lenta":
         # **I due numeri hanno tutti e due la loro unita', e sono due frasi.**
         # Con «piu' dei {1} di attesa» l'hindi si e' **mangiato il secondo

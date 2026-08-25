@@ -78,9 +78,28 @@ PASSO_MINIMO = 10.0
 # (p50/p95/max), google 491/1188/2496, llm 589/869/1062.
 TRADUZIONE_MAX_MS = 500.0
 
-# La riga da incollare quando un **pacchetto** manca. Non la si esegue: si veda
-# il confine dichiarato in testata.
-RIGA_PIP = ".\\.venv\\Scripts\\python.exe -m pip install -r requirements.txt"
+# La riga da incollare quando manca il **pacchetto** della traduzione offline.
+# Non la si esegue: si veda il confine dichiarato in testata.
+#
+# **Ed e' lo script, non `pip install -r requirements.txt`.** Quella riga stava
+# qui e dal 25 agosto non installa piu' la traduzione affatto: argostranslate non
+# e' in `requirements.txt` e non ci puo' stare, perche' va messo con `--no-deps`
+# — `pip install argostranslate` ingenuo tira dentro `minisbd` e con lui
+# `onnxruntime` (CPU), che accanto a `onnxruntime-gpu` spegne la CUDA in
+# silenzio. Consegnare la riga sbagliata e' peggio che non consegnarne nessuna:
+# chi la incolla ottiene un errore che non capisce, o peggio un successo che gli
+# rompe la sintesi.
+RIGA_PIP = "powershell -ExecutionPolicy Bypass -File tools\\installa_traduzione.ps1"
+
+# **Quanto pesa, detto prima.** E' il numero su cui uno decide, quindi non puo'
+# arrivare a scaricamento iniziato: 3038 MB sono di **solo torch**, misurati sul
+# venv completo, e torch la traduzione non lo usa mai — Argos gira su
+# CTranslate2. Lo tira dentro `stanza`, che `argostranslate/sbd.py` importa in
+# cima al modulo in tutte e due le versioni utili.
+#
+# E' un numero a se' e non un `Pezzo`, perche' i `Pezzi` li scarica il banco e
+# questo no: sono **pacchetti**, e il banco non fa `pip`.
+TRADUZIONE_MB = 3100
 
 
 # =================================================== quello che si e' trovato =
@@ -107,6 +126,10 @@ class Sonda:
     passo: float = 0.0         # caratteri di parlato al secondo, misurati
     traduzione_ms: float = 0.0  # p95 misurato
     argos: bool = False        # il pacchetto della traduzione locale e' importabile
+    # **Se l'utente la traduzione la vuole.** Non e' una misura di questa
+    # macchina come gli altri campi, ed e' qui lo stesso perche' senza di lei
+    # `scegli` non puo' sapere se «manca il pacchetto» sia una notizia o rumore.
+    traduzione_accesa: bool = False
     llm: bool = False          # llama-cpp-python e' importabile
     # I pezzi gia' sul disco, per codice (si veda `PEZZI`). E' un elenco di
     # **contenuti verificati**, non di file esistenti: la differenza e' costata
@@ -245,7 +268,14 @@ def scegli(s: Sonda) -> Scelta:
         motivi.append(Motivo("traduzione_llm"))
     else:
         traduzione = ""
-        motivi.append(Motivo("traduzione_manca", (RIGA_PIP,)))
+        # **Lo si dice a chi la traduzione l'ha accesa, e a nessun altro.** Da
+        # quando argostranslate non e' piu' in `requirements.txt`, *tutti* si
+        # troverebbero questo avviso ambra addosso — e su GTA V in italiano non
+        # c'e' niente da tradurre. Un avviso che quasi nessuno deve soddisfare e'
+        # gia' scritto qui come il difetto che si spegne da solo nella testa di
+        # chi lo legge: la ROI sotto 0,12, che c'era in tutte le sessioni.
+        if s.traduzione_accesa:
+            motivi.append(Motivo("traduzione_manca", (TRADUZIONE_MB, RIGA_PIP)))
 
     if traduzione and s.traduzione_ms > TRADUZIONE_MAX_MS:
         motivi.append(Motivo("traduzione_lenta",
@@ -474,6 +504,7 @@ def sonda_veloce(cfg) -> Sonda:
         cuda=cuda,
         argos=bloccati.pezzo("argos").ok,
         llm=bloccati.pezzo("llm").ok,
+        traduzione_accesa=cfg.translate.enabled,
         presenti=presenti(cfg),
     )
 

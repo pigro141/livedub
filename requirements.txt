@@ -106,16 +106,24 @@ phonemizer-fork==3.3.2      # kokoro: il g2p italiano
 # «assente» quando non lo si e' installato affatto, che e' il caso di serie.
 
 # --- la traduzione offline, e le sue due trappole ----------------------------
-# **E' il default di `translate.backend`, e la installa `installa.ps1`** — non
-# questo file, per la ragione scritta piu' sotto. La **coppia di lingue** invece
-# e' un modello e si scarica al primo uso, come gia' fanno silero ed ECAPA.
+# **Non la installa nessuno dei due comandi in testata, e non e' una
+# dimenticanza.** E' il default di `translate.backend`, ma costa ~3 GB — `stanza`
+# tira `torch`, che la traduzione non usa mai — e su GTA V in italiano non serve:
+# `translate.enabled` e' false di serie. Farli pagare a chiunque installi il
+# programma, per una cosa che quasi nessuno accende, e' il contrario di una
+# scelta.
 #
-# ⚠️ Chi installa a mano con i due comandi in testata **non ce l'ha**: la
-# traduzione e' spenta di serie (`translate.enabled=false`, e su GTA V in italiano
-# non serve), quindi il programma parte e doppia lo stesso. Ma accendendola
-# troverebbe un default che non c'e'. Il comando e':
+# **Arriva quando serve, e dicendo prima quanto pesa.** Chi accende la traduzione
+# lo scopre al passo 6 della guida (`core/banco.py`), che e' lo stesso meccanismo
+# gia' usato per i 541 MB dei modelli: guarda cosa manca, **dichiara la
+# dimensione prima** che uno decida, e consegna la riga da incollare. La consegna
+# invece di eseguirla perche' questi sono **pacchetti** e il banco non fa `pip`:
+# un `pip install argostranslate` ingenuo tira dentro `onnxruntime` (CPU) e
+# spegne la CUDA in silenzio. Se non arriva, e' una **rinuncia dichiarata**
+# (`core.banco.AVVISI`), non un ripiego muto.
 #
-#   powershell -ExecutionPolicy Bypass -File tools\installa_traduzione.ps1
+# La **coppia di lingue** invece e' un modello, pesa 98 MB, e quella il banco la
+# scarica da solo — ma solo con la traduzione accesa.
 #
 # Le righe qui sotto sembrano barocche e non lo sono. `pip install argostranslate`
 # e basta fa **due** danni, misurati con `--dry-run` prima di installare:

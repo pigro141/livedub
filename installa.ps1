@@ -190,12 +190,17 @@ if ($mancano.Count -eq 0) {
 Write-Host "  .\.venv\Scripts\python.exe -m tools.ui_qt --profile live" -ForegroundColor White
 Write-Host "  (nella finestra: Scegli finestra -> Seleziona area -> Avvia)`n" -ForegroundColor DarkGray
 
-# **Quello che questo script di proposito non installa.** La traduzione offline
-# (Argos) e' il default di `translate.backend`, ma costa ~3 GB perche' tira
-# `stanza` e con lui `torch` — e su GTA V in italiano non serve: `translate.
-# enabled` e' false di serie. Chi non la installa doppia lo stesso; chi accende la
-# traduzione senza averla installata troverebbe un default che non c'e', ed e'
-# per questo che la riga sta qui invece che in nessun posto.
-Write-Host "Non e' installata la traduzione offline (~3 GB, serve solo se accendi" -ForegroundColor DarkGray
-Write-Host "translate.enabled). Quando ti serve:" -ForegroundColor DarkGray
-Write-Host "  powershell -ExecutionPolicy Bypass -File tools\installa_traduzione.ps1`n" -ForegroundColor DarkGray
+# **La traduzione offline non si installa qui, e non e' una dimenticanza.** Costa
+# ~3 GB (`stanza` tira `torch`, che la traduzione non usa mai) e su GTA V in
+# italiano non serve: `translate.enabled` e' false di serie. Metterla qui vorrebbe
+# dire far pagare tre giga a chiunque installi il programma, per una cosa che
+# quasi nessuno accende.
+#
+# Serve quando serve, ed e' esattamente il meccanismo che il programma ha gia': il
+# **passo 6 della guida** («Misura questo PC») guarda cosa manca, dice **quanto
+# pesa prima** che uno decida, e consegna la riga da incollare — perche' sono
+# pacchetti e il banco non fa `pip`. Rimandare li' invece di stampare un comando
+# qui vuol dire un posto solo che risponde a questa domanda, invece di due che
+# prima o poi si contraddicono.
+Write-Host "La traduzione offline non e' installata: si accende dalla guida," -ForegroundColor DarkGray
+Write-Host "al passo «Misura questo PC», che dice quanto pesa prima di partire.`n" -ForegroundColor DarkGray

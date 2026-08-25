@@ -59,6 +59,18 @@ kokoro-onnx==0.5.0          # richiede la GPU; tira espeakng-loader + phonemizer
 #
 # Il modello (`gemma-3-1b-it-Q4_K_M.gguf`, ~800 MB) si scarica da solo in
 # `models/llm/` alla prima chiamata.
+#
+# **Con Smart App Control acceso non carica, e non ce n'e' una versione che lo
+# faccia.** Provate 0.3.35 / 0.3.34 / 0.3.2 da PyPI e la ruota dell'indice CPU
+# di abetlen qui sopra, che e' un **file diverso** e quindi meritava una prova a
+# se': bloccata pure quella. Qui il pezzo nativo non e' nemmeno un `.pyd` — e'
+# `llama_cpp/lib/llama.dll`, aperta con `ctypes` — il che dice che il criterio
+# non guarda come si carica una libreria, guarda **quale**.
+#
+# Non e' un `ImportError`, e la guardia scritta per prenderlo non scattava: quel
+# che esce e' `RuntimeError: Failed to load shared library ... [WinError 4551]`.
+# Adesso passa da `core/bloccati.py`, che lo dichiara e manda su «locale» o
+# «ollama» invece di consegnare quella riga.
 llama-cpp-python==0.3.34
 
 # --- la traduzione offline, e le sue due trappole ----------------------------
@@ -159,4 +171,20 @@ imageio-ffmpeg==0.6.0       # il montaggio degli MP4 di prova (tools/dub.py --mp
 # Non e' una comodita': catturando lo schermo, nel fotogramma che va
 # all'OCR finisce anche cio' che sta davanti al gioco — comprese le
 # nostre finestre — e il programma legge se stesso.
+#
+# **Su una macchina con Smart App Control acceso non carica, e non ce n'e' una
+# versione che lo faccia.** Provate 2.0.1 / 2.0.0 / 1.5.0 / 1.4.4, e provato
+# anche l'unico altro pacchetto che espone la stessa API — `winrt-Windows.
+# Graphics.Capture` di pywinrt, in tutte e cinque le versioni pubblicate
+# (3.2.1 / 3.1.0 / 3.0.0 / 2.3.0 / 2.0.1) — che porta giu' anche il suo
+# `winrt-runtime`. Non e' quella libreria: e' **ogni file nuovo**, perche' il
+# criterio guarda la reputazione della singola copia.
+#
+# Resta qui perche' dove SAC e' spento e' il modo migliore, e perche' il ripiego
+# e' **dichiarato**: senza, `capture/screen.py` passa a `PrintWindow` di
+# `user32.dll` scrivendolo nel registro (`capture.screen.apri_finestra`).
+# `PrintWindow` cattura la stessa finestra senza niente da installare — 6,2 ms
+# per la fascia che si legge contro 17,6 per la finestra intera — e ha un
+# difetto che WGC non ha: su un gioco Direct3D puo' **riuscire e restituire
+# nero**. Anche quello e' dichiarato (`PrintWindowSource.nero`).
 windows-capture

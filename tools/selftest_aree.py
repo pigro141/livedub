@@ -1427,4 +1427,23 @@ def test_manopole(c) -> None:
     c.eq(sf.valore(), "kokoro", "e tornando a uno valido l'intruso sparisce")
     c.eq(sf.combo.count(), 2, "senza lasciare voci finte nell'elenco")
 
+    # **E una scelta che su questa macchina non funziona si marca, non si
+    # toglie.** Togliere una voce nasconderebbe che il programma la sa fare e che
+    # il difetto e' della macchina, e lascerebbe l'utente a chiedersi dove sia
+    # finita. La ragione deve stare sulla casella **chiusa** e non solo sulla
+    # voce in elenco: il valore che non funziona e' quasi sempre quello gia'
+    # scritto in configurazione, e quello lo si vede senza aprire niente.
+    fr = SceltaFra(("locale", "llm", "google"), {"locale": "sul tuo PC"},
+                   indisponibili={"locale": "bloccato dal criterio"})
+    fr.imposta("locale")
+    c.eq(fr.combo.count(), 3, "la voce che non funziona resta in elenco")
+    c.ok("⚠" in fr.combo.currentText(), "marcata")
+    c.eq(fr.combo.toolTip(), "bloccato dal criterio",
+         "e con la ragione leggibile a tendina chiusa: un segno senza "
+         "spiegazione e' meta' dell'avviso, e la meta' che serve e' l'altra")
+    fr.imposta("google")
+    c.eq(fr.combo.toolTip(), "",
+         "tornando a una che funziona la ragione se ne va, se no resterebbe "
+         "quella del valore di prima")
+
 

@@ -4385,6 +4385,239 @@ def test_tutorial(c: Check) -> None:
             os.environ["LOCALAPPDATA"] = vecchio
 
 
+def test_bloccati(c: Check) -> None:
+    """Le rinunce dichiarate: **cosa non carica qui, e come lo si dice**.
+
+    Gira senza Qt, senza rete e senza toccare i pacchetti veri: quello che si
+    verifica e' la **regola**, cioe' la parte che decide come si racconta un
+    blocco. La parte che misura sta sotto la riga di mezzo di `core/bloccati.py`
+    e dipende da questa macchina, quindi qui non si guarda.
+
+    I casi che contano sono tre, e sono tre modi di sbagliare gia' pagati:
+
+    - **riconoscere il blocco in una lingua sola.** La frase con cui Windows
+      dice «criterio di controllo» e' tradotta: cercarne una scritta a mano
+      funzionerebbe qui e non altrove, e altrove il blocco tornerebbe a essere
+      l'`ImportError` incomprensibile da cui si e' partiti;
+    - **confondere «non installato» con «bloccato».** Sono due frasi diverse
+      perche' chiedono all'utente due cose diverse: la prima si cura con un
+      `pip install`, la seconda no;
+    - **dichiarare a torto.** `ok` deve restare `ok`, se no il pannello marca
+      con un `⚠` una scelta che funziona — e un avviso che nessuno puo'
+      soddisfare si spegne da solo nella testa di chi lo legge.
+    """
+    c.group("bloccati")
+
+    from core import bloccati as B
+
+    # -- la frase la dice Windows, non noi -----------------------------------
+    frase = B.frase_di_sistema()
+    c.ok(bool(frase), "Windows sa dire con che frase blocca un file: la si "
+                      "chiede a lui perche' e' tradotta, e una scritta a mano "
+                      "riconoscerebbe il blocco solo sulle macchine italiane")
+
+    class _Finta(OSError):
+        pass
+
+    con_numero = _Finta("qualcosa")
+    con_numero.winerror = B.CODICE_CRITERIO
+    c.ok(B.e_criterio(con_numero),
+         "un `ctypes.CDLL` fallito porta il numero 4551 e si legge quello")
+    c.ok(B.e_criterio(ImportError(
+        f"DLL load failed while importing _x: {frase}")),
+        "un `import` fallito non porta nessun numero — Python lascia solo il "
+        "testo — e li' si confronta con la frase che il sistema stesso da'")
+    c.ok(not B.e_criterio(ImportError("DLL load failed: modulo non trovato")),
+         "e un errore qualunque non diventa un blocco: dichiarare a torto e' il "
+         "ripiego silenzioso girato dall'altra parte")
+
+    # -- importare non e' usare ----------------------------------------------
+    B.dimentica()
+    c.eq(B.prova("modulo_che_non_esiste_mai").stato, B.ASSENTE,
+         "un modulo che non c'e' e' «assente», e si cura con un pip install")
+    B.dimentica()
+
+    def _muore(_m):
+        raise ImportError(f"DLL load failed while importing _y: {frase}")
+
+    e = B.prova("json", usa=_muore, nome="finto_bloccato")
+    c.eq(e.stato, B.CRITERIO,
+         "**importare non e' usare**: `piper` importa e muore alla prima "
+         "sintesi, `llama_cpp` apre la sua DLL con ctypes. Per questo `prova` "
+         "accetta un `usa`, e quello che solleva li' conta come il resto")
+    c.ok(B.prova("json", usa=None, nome="finto_bloccato") is e,
+         "e la risposta resta in cache: un `usa` puo' costare una sintesi vera")
+    B.dimentica("finto_bloccato")
+    c.ok(B.prova("json", nome="finto_bloccato").ok,
+         "`dimentica` la butta via, se no chi installa dovrebbe riavviare")
+
+    # -- le tre frasi dicono tre cose diverse --------------------------------
+    riga = B.perche(B.Esito("x", B.CRITERIO), "la traduzione locale", "usa google")
+    c.ok("Smart App Control" in riga and "cade la traduzione locale" in riga
+         and "usa google" in riga,
+         "la riga dice **cosa cade**, perche' e cosa fare: senza la prima e' "
+         "una curiosita' tecnica, senza l'ultima e' una porta chiusa")
+    c.ok("Smart App Control" not in B.perche(B.Esito("x", B.ASSENTE)),
+         "«non installato» non si racconta come un blocco di Windows: manderebbe "
+         "a cercare la cura sbagliata")
+    c.ok(not B.Esito("x", B.OK).rinuncia and B.Esito("x", B.ASSENTE).rinuncia,
+         "e le rinunce sono dichiarate come in `core.banco.AVVISI`: dare lo "
+         "stesso segno di spunta a «funziona» e a «non c'e'» e' il ripiego "
+         "silenzioso messo in figura")
+
+    # -- la mappa fra pannello e pezzi ---------------------------------------
+    from core.config import Config
+
+    cfg = Config()
+    for percorso, quali in B.SCELTE.items():
+        c.ok(cfg.get(percorso) is not None,
+             f"«{percorso}» e' un campo vero della configurazione")
+        for valore, chiave in quali.items():
+            c.ok(chiave in B.PEZZI,
+                 f"«{percorso}={valore}» rimanda a un pezzo dichiarato")
+    c.eq(B.scelte_indisponibili("campo.che.non.esiste"), {},
+         "un campo che non dipende da niente non produce nessun avviso")
+
+    # -- e la prova per il menu ha un tetto ----------------------------------
+    # **Una prova che riesce puo' costare piu' di una che fallisce**: qui un
+    # pacchetto bloccato risponde in 49-157 ms, ma `argostranslate` che
+    # *funziona* tira dentro stanza e torch. Pagarli mentre si disegna una scheda
+    # vorrebbe dire una finestra lenta per scrivere un avviso che quasi sempre
+    # non serve. Sforato il tetto **non si marca**, che non promette niente —
+    # marcare a torto sarebbe un avviso che nessuno puo' soddisfare.
+    B.dimentica()
+    lento = {"modulo": "time", "serve_a": "niente"}
+    vecchio = B.PEZZI.get("finto_lento")
+    vecchie_scelte = B.SCELTE.get("finto.campo")
+    B.PEZZI["finto_lento"] = lento
+    B.SCELTE["finto.campo"] = {"x": "finto_lento"}
+    try:
+        def _lentissimo(_m):
+            import time as _t
+            _t.sleep(0.4)
+            raise ImportError(f"DLL load failed: {frase}")
+
+        lento["usa"] = _lentissimo
+        c.eq(B.scelte_indisponibili("finto.campo", entro_ms=20), {},
+             "una prova che non risponde in tempo non marca niente: «non lo so "
+             "ancora» non e' «non funziona»")
+        # E intanto la prova e' andata avanti per conto suo: si aspetta il suo
+        # comodo e la risposta c'e'.
+        import time as _t
+
+        for _ in range(60):
+            if B._fatte.get("finto_lento") is not None:
+                break
+            _t.sleep(0.05)
+        c.ok("x" in B.scelte_indisponibili("finto.campo"),
+             "ma finisce in cache, quindi la scheda disegnata dopo l'avviso ce "
+             "l'ha")
+    finally:
+        B.PEZZI.pop("finto_lento", None)
+        if vecchio is not None:
+            B.PEZZI["finto_lento"] = vecchio
+        B.SCELTE.pop("finto.campo", None)
+        if vecchie_scelte is not None:
+            B.SCELTE["finto.campo"] = vecchie_scelte
+        B.dimentica()
+
+    # -- la rinuncia e' un'eccezione che si sa leggere ------------------------
+    r = B.Rinuncia(B.Esito("llm", B.CRITERIO), "la traduzione llm")
+    c.ok(isinstance(r, RuntimeError) and r.esito.stato == B.CRITERIO,
+         "chi la prende decide cosa fare, ma la prende sapendo **cosa** e' "
+         "successo: e' l'unica cosa che l'ImportError grezzo non diceva")
+
+
+def test_finestra_gdi(c: Check) -> None:
+    """La cattura di una finestra sola **senza nessuna libreria da installare**.
+
+    `PrintWindow` sta in `user32.dll`, cioe' in Windows: fuori dal criterio per
+    costruzione, dove `windows_capture` e `winrt-Windows.Graphics.Capture` sono
+    bloccati in tutte le versioni pubblicate.
+
+    Quello che si verifica qui e' la **geometria** e la **rinuncia**, non la
+    qualita' dell'immagine: quella la si e' guardata, ed e' l'unico modo (una
+    correzione geometrica si verifica sull'immagine).
+    """
+    c.group("finestra-gdi")
+
+    from capture.printwindow import PrintWindowSource
+    from capture.screen import fascia_da_roi
+
+    # -- la fascia, in frazioni e non in pixel -------------------------------
+    f = fascia_da_roi([(0.1, 0.80, 0.8, 0.10)], 0.08)
+    c.ok(f is not None and abs(f[0] - 0.72) < 1e-6 and abs(f[1] - 0.98) < 1e-6,
+         "la fascia prende la riga piu' il margine, che non e' prudenza: "
+         "l'overlay sfoca i pixel attorno e **cresce verso l'alto**")
+    c.eq(fascia_da_roi([]), None, "senza aree non c'e' niente da stringere")
+    c.eq(fascia_da_roi([(0, 0.02, 1, 0.95)]), None,
+         "e una fascia che copre quasi tutto non si ritaglia: non farebbe "
+         "risparmiare niente e aggiungerebbe un modo di sbagliare")
+    su, giu = fascia_da_roi([(0, 0.9, 1, 0.08)], 0.5)
+    c.ok(su >= 0.0 and giu <= 1.0,
+         "un margine grande non porta la fascia fuori dalla finestra")
+
+    # -- la striscia si ricalcola sull'altezza di adesso ---------------------
+    s = PrintWindowSource(0, fascia=(0.75, 0.95))
+    c.eq(s._striscia(1000), (750, 200),
+         "la striscia e' in **frazioni**: un gioco che passa a schermo intero "
+         "cambia l'altezza, e una striscia in pixel finirebbe a leggere un altro "
+         "punto **senza errore**")
+    c.eq(s._striscia(400), (300, 80), "e a un'altra misura segue da sola")
+    c.eq(PrintWindowSource(0)._striscia(720), (0, 720),
+         "senza fascia si prende tutto")
+
+    # -- il nero si dichiara, ma non troppo presto ---------------------------
+    c.ok(not s.nero and not s.deciso,
+         "appena aperta non dice niente: una finestra puo' dare un fotogramma "
+         "vuoto prima di aver disegnato, e chiamarlo subito nero sarebbe una "
+         "rinuncia dichiarata a torto")
+    s._viste, s._con_pixel = 8, 0
+    c.ok(s.nero and s.deciso,
+         "guardati abbastanza fotogrammi e tutti neri, si dice: un fotogramma "
+         "nero non e' un errore — la sessione resta accesa, i contatori restano "
+         "verdi e sembra rotto l'OCR")
+    s._con_pixel = 1
+    c.ok(not s.nero,
+         "**uno** che porta pixel basta: la domanda e' «si legge?», non «si "
+         "legge sempre»")
+
+    # -- una finestra che non esiste si dichiara chiusa ----------------------
+    morta = PrintWindowSource(0)
+    c.ok(morta.chiusa, "un hwnd che non e' una finestra e' «chiusa», non un giro "
+                       "di grab a vuoto")
+    c.ok(not morta.grab().ok, "e il suo fotogramma non c'e'")
+
+    # -- su una finestra vera: geometria e costo -----------------------------
+    from capture.finestre import elenco
+
+    vere = elenco()
+    if not vere:
+        c.ok(True, "(nessuna finestra da catturare: la parte dal vivo si salta)")
+        return
+    v = vere[0]
+    intera = PrintWindowSource(v.hwnd)
+    g = intera.grab()
+    c.ok(g.ok, "su una finestra vera il fotogramma arriva")
+    if g.ok:
+        alta, larga = g.frame.shape[:2]
+        c.ok(larga == v.larghezza or abs(larga - v.larghezza) < 40,
+             "ed e' largo quanto la finestra")
+        con_fascia = PrintWindowSource(v.hwnd, fascia=(0.8, 0.95))
+        g2 = con_fascia.grab()
+        c.ok(g2.ok and g2.frame.shape == g.frame.shape,
+             "**con la fascia il fotogramma resta grande uguale**: si reincolla "
+             "in una tela della misura della finestra, perche' ROI e ritaglio "
+             "dell'overlay sono in coordinate del fotogramma intero e "
+             "consegnarne uno piu' piccolo vorrebbe dire cambiare quel sistema "
+             "in cinque posti")
+        if g2.ok:
+            su, quanto = con_fascia._striscia(alta)
+            fuori = g2.frame[:su]
+            c.ok(fuori.size == 0 or int(fuori.max()) == 0,
+                 "e fuori dalla fascia c'e' nero, non immagine vecchia")
+
+
 def test_banco(c: Check) -> None:
     """Il mini banco della guida: **quali motori, dati questi numeri**.
 
@@ -4766,6 +4999,10 @@ GROUPS = {
     # **Quali motori su questa macchina**, con numeri finti: niente GPU, niente
     # rete, niente modelli, niente Qt. La regola sta in `core/banco.py` proprio
     # per poter provare qui i casi che su questo PC non capitano mai.
+    # Le rinunce dichiarate stanno **prima** del banco: e' il banco a dipendere
+    # da loro, perche' «questo pacchetto c'e'?» adesso vuol dire «si carica?».
+    "bloccati": test_bloccati,
+    "finestra-gdi": test_finestra_gdi,
     "banco": test_banco,
     # Il registro su file, e la regola che tiene fuori chi simula. Sta prima dei
     # gruppi che aprono una finestra, perche' sono loro a doverla rispettare.

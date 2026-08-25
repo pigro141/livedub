@@ -107,8 +107,10 @@ def test_schema(c) -> None:
     # -- le scelte, prese dalla convenzione gia' in uso -----------------------
     c.eq(
         per_nome["capture.backend"].scelte,
-        ("auto", "wgc", "dxcam", "mss"),
-        "`auto | wgc | dxcam | mss` diventa un elenco di scelte",
+        ("auto", "wgc", "finestra-gdi", "dxcam", "mss"),
+        "`auto | wgc | finestra-gdi | dxcam | mss` diventa un elenco di scelte, "
+        "e il nome col trattino ci sta dentro: l'elenco si ricava dal commento "
+        "del campo, non da una tupla scritta a mano",
     )
     c.eq(per_nome["tts.device"].scelte, ("cpu", "cuda", "auto"), "e cosi' il dispositivo")
     # **I quattro selettori di tecnologia escono da qui**, non da un elenco

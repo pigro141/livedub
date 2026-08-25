@@ -170,13 +170,23 @@ quella libreria — un import non l'avrebbe nemmeno toccata.
 
 ### Cosa resta rotto, dichiarato
 
-- **La traduzione offline non la installa nessuno dei due comandi.** È il default
-  di `translate.backend` ma costa ~3 GB (`stanza` → `torch`), e `installa.ps1`
-  non chiama `tools\installa_traduzione.ps1`. Siccome `translate.enabled` è
-  `false` di serie il programma doppia lo stesso; chi accende la traduzione
-  troverebbe un default che non c'è. Ora la riga finale di `installa.ps1` lo
-  dice. **Se debba installarla di serie è una decisione da prendere**, non l'ho
-  presa io.
+- **La traduzione offline non la installa nessuno dei due comandi, ed è
+  deciso.** Costa ~3 GB (`stanza` → `torch`, che la traduzione non usa mai) e su
+  GTA V in italiano non serve: farli pagare a chiunque installi il programma è il
+  contrario di una scelta. Arriva **quando serve**, dal **passo 6** — lo stesso
+  meccanismo dei 541 MB di modelli: guarda cosa manca, **dichiara i 3100 MB
+  prima** che uno decida, e consegna la riga da incollare. La consegna invece di
+  eseguirla perché sono **pacchetti** e il banco non fa `pip`. Se non arriva è una
+  **rinuncia dichiarata** (`core.banco.AVVISI`), non un ripiego muto.
+
+  Due difetti trovati facendolo, e sono la stessa forma. `RIGA_PIP` valeva
+  `pip install -r requirements.txt`, che **dal 25 agosto non installa più la
+  traduzione affatto**: una riga da incollare che non fa la cosa per cui la si
+  incolla. E `traduzione_manca` si diceva a **tutti**, anche a chi la traduzione
+  non l'ha accesa — cioè quasi tutti, da quando Argos non è più di serie: un
+  avviso ambra che nessuno deve soddisfare, che è già scritto qui come quello che
+  si spegne da solo nella testa di chi lo legge (la ROI sotto 0,12). Ora `Sonda`
+  ha `traduzione_accesa` e `scegli` tace se è spenta.
 - **`llm` (Gemma in-process) resta facoltativo** e, sotto SAC, bloccato in ogni
   versione provata: nessuna regressione, ma nemmeno una strada.
 - La suite resta a **12 fallite su 1795**, le stesse dodici di SAC.
@@ -190,6 +200,16 @@ quella libreria — un import non l'avrebbe nemmeno toccata.
   CPU accanto a quello GPU?») ma gira **solo dopo** l'installazione di Argos e
   incolpa `minisbd`: la guardia esisteva, era corretta, e stava a valle del
   punto in cui il danno era già fatto.
+- **`--estrai` ha fatto emergere un debito del ramo, non solo il mio.** La riga
+  nuova del passo 6 ne mancava una; i cataloghi ne mancavano **sette**, e le altre
+  sei erano i marcatori `⚠` delle scelte bloccate (`core/bloccati.SCELTE`),
+  aggiunti su questo ramo e mai estratti. Non si vedevano perché `_chiavi.json`
+  non li aveva: la verifica confronta i cataloghi con quell'elenco, quindi
+  **taceva su ciò che nessuno le aveva detto di cercare**. Chiuso: 258 chiavi,
+  tutti e 41 i cataloghi a 258/258, zero righe ancora in italiano.
+- `tools/traduci_ui.py --controlla` **esce con un `UnicodeEncodeError`** su una
+  console cp1252: stampa un `⚠` che quella tabella codici non ha. Difetto suo,
+  vecchio, fuori perimetro.
 - Un `--dry-run` di pip **non può esprimere** se un pacchetto si compila: si
   ferma alla preparazione dei metadati, che per `llama-cpp-python` riesce anche
   senza compilatore. E lo stesso `--dry-run` con la cache locale piena diceva

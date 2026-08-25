@@ -67,48 +67,122 @@ PESI = {
 }
 DEFAULT_PESI = "fp32"
 
-# Le voci italiane, nome nel pool -> nome del file nel repo HF. Si scaricano le
-# due che servono (510 KB l'una) invece del `voices-v1.0.bin` da 26 MB che
-# contiene tutte e cinquantaquattro le lingue.
-VOICES = {
-    "kokoro-nicola": ("im_nicola", "m"),
-    "kokoro-sara": ("if_sara", "f"),
-    # **Le voci inglesi, che servono quando si traduce.** Kokoro ne ha due sole in
-    # italiano — oltre il secondo personaggio si spostano i semitoni — ma in
-    # inglese ne ha molte, quindi tradurre verso l'inglese e' l'unico caso in cui
-    # il pool non e' un vincolo del modello. I nomi sono quelli del repo:
-    # `a` = American, `b` = British, `f`/`m` = femminile/maschile.
-    "kokoro-heart": ("af_heart", "f"),
-    "kokoro-bella": ("af_bella", "f"),
-    "kokoro-michael": ("am_michael", "m"),
-    "kokoro-fenrir": ("am_fenrir", "m"),
-    "kokoro-emma": ("bf_emma", "f"),
-    "kokoro-george": ("bm_george", "m"),
+# **Le cinquantaquattro voci del modello, e il nome le classifica.** La prima
+# lettera e' la lingua (`a` American, `b` British, `e` Spanish, `f` French,
+# `h` Hindi, `i` Italian, `j` Japanese, `p` Portoghese brasiliano, `z` Mandarino),
+# la seconda il sesso. Quindi qui non si indovina niente: la lingua e il genere
+# di una voce Kokoro **stanno scritti nel suo nome**, ed e' il contrario di
+# Piper, dove l'indice non dice il sesso e fuori dall'italiano resta `?`.
+#
+# Si scaricano solo le voci della lingua che si parlera' (510 KB l'una) invece
+# del `voices-v1.0.bin` da 26 MB — e la stessa scelta e' il motivo per cui
+# `voices_path` deve guardare **cosa** c'e' nell'archivio, non che ci sia.
+#
+# `voices/af.bin` esiste nel repo e non e' qui: e' la miscela storica della
+# v0.19, non una voce del set v1.0.
+_PREFISSI = {
+    "a": ("en", "en-us"), "b": ("en", "en-gb"), "e": ("es", "es"),
+    "f": ("fr", "fr-fr"), "h": ("hi", "hi"), "i": ("it", "it"),
+    "j": ("ja", "ja"), "p": ("pt", "pt-br"), "z": ("zh", "cmn"),
 }
 
-# Le famiglie per lingua: `build_pool` prende quella giusta invece di mescolare
-# voci italiane e inglesi nello stesso pool — che darebbe a un personaggio una
-# voce che pronuncia l'altra lingua.
-PER_LINGUA = {
-    "it": ("kokoro-nicola", "kokoro-sara"),
+_NOMI: tuple[str, ...] = (
+    "af_alloy", "af_aoede", "af_bella", "af_heart", "af_jessica", "af_kore",
+    "af_nicole", "af_nova", "af_river", "af_sarah", "af_sky",
+    "am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam", "am_michael",
+    "am_onyx", "am_puck", "am_santa",
+    "bf_alice", "bf_emma", "bf_isabella", "bf_lily",
+    "bm_daniel", "bm_fable", "bm_george", "bm_lewis",
+    "ef_dora", "em_alex", "em_santa",
+    "ff_siwis",
+    "hf_alpha", "hf_beta", "hm_omega", "hm_psi",
+    "if_sara", "im_nicola",
+    "jf_alpha", "jf_gongitsune", "jf_nezumi", "jf_tebukuro", "jm_kumo",
+    "pf_dora", "pm_alex", "pm_santa",
+    "zf_xiaobei", "zf_xiaoni", "zf_xiaoxiao", "zf_xiaoyi",
+    "zm_yunjian", "zm_yunxi", "zm_yunxia", "zm_yunyang",
+)
+
+# Le tabelle si **ricavano** dai nomi invece di essere riscritte: un elenco
+# scritto due volte e' un elenco di cui la seconda copia non aggiorna nessuno,
+# e in questo progetto e' gia' successo sette volte.
+#
+# **Il nome corto non basta piu'.** Con le sole voci italiane e inglesi era
+# unico; sulle cinquantaquattro ci sono tre `santa`, due `dora`, due `alex` e
+# due `alpha` in lingue diverse. Chi collide prende davanti il codice della sua
+# lingua, e chi non collide resta com'era — cosi' `kokoro-nicola`,
+# `kokoro-heart` e le altre gia' misurate non cambiano nome.
+def _chiavi() -> dict[str, tuple[str, str]]:
+    from collections import Counter
+
+    quanti = Counter(n.split("_", 1)[1] for n in _NOMI)
+    fuori: dict[str, tuple[str, str]] = {}
+    for n in _NOMI:
+        corto = n.split("_", 1)[1]
+        lingua = _PREFISSI[n[0]][0]
+        chiave = f"kokoro-{corto}" if quanti[corto] == 1 else f"kokoro-{lingua}_{corto}"
+        if chiave in fuori:  # pragma: no cover - lo prende la verifica `lingue_voci`
+            raise ValueError(f"due voci Kokoro con la stessa chiave: {chiave}")
+        fuori[chiave] = (n, n[1])
+    return fuori
+
+
+VOICES: dict[str, tuple[str, str]] = _chiavi()
+
+# **Le famiglie per lingua**: `build_pool` prende quella giusta invece di
+# mescolare voci di lingue diverse nello stesso pool — che darebbe a un
+# personaggio una voce che pronuncia l'altra lingua. L'ordine alterna maschile e
+# femminile, perche' due personaggi consecutivi si distinguono molto di piu' se
+# cambia il genere che se cambia il timbro.
+#
+# **Le voci gia' scelte restano davanti.** Le sei inglesi qui sotto sono quelle
+# con il voto piu' alto nella scheda ufficiale del modello (A, A-, B-, C+, C+,
+# C) e sono le sole di questo motore che qualcuno abbia ascoltato: le altre
+# ventidue entrano dopo, perche' «esiste una voce in questa lingua» e «e' una
+# voce buona» sono due affermazioni diverse e qui se ne dichiara solo la prima.
+PREFERITE: dict[str, tuple[str, ...]] = {
     "en": (
         "kokoro-michael", "kokoro-heart", "kokoro-fenrir",
         "kokoro-bella", "kokoro-george", "kokoro-emma",
     ),
 }
 
+
+def _per_lingua() -> dict[str, tuple[str, ...]]:
+    fuori: dict[str, list[str]] = {}
+    for chiave, (nome, _g) in VOICES.items():
+        fuori.setdefault(_PREFISSI[nome[0]][0], []).append(chiave)
+    ordinate: dict[str, tuple[str, ...]] = {}
+    for lingua, voci in fuori.items():
+        teste = [v for v in PREFERITE.get(lingua, ()) if v in voci]
+        resto = [v for v in voci if v not in teste]
+        m = [v for v in resto if VOICES[v][1] == "m"]
+        f = [v for v in resto if VOICES[v][1] == "f"]
+        alterne: list[str] = list(teste)
+        for i in range(max(len(m), len(f))):
+            if i < len(m):
+                alterne.append(m[i])
+            if i < len(f):
+                alterne.append(f[i])
+        ordinate[lingua] = tuple(alterne)
+    return ordinate
+
+
+PER_LINGUA: dict[str, tuple[str, ...]] = _per_lingua()
+
 LINGUA = "it"
 
 # La lingua che `espeak` deve fonemizzare, per codice ISO. **Non e' un dettaglio
 # di cortesia**: fonemizzare l'inglese con le regole italiane produce parlato
 # comprensibile a meta', e sembrerebbe un difetto del modello.
-FONEMI_LINGUA = {
-    "it": "it",
-    "en": "en-us",
-    "es": "es",
-    "fr": "fr-fr",
-    "de": "de",
-    "pt": "pt",
+#
+# Si ricava dai prefissi delle voci, cosi' una lingua non puo' avere voci senza
+# avere anche le sue regole di fonemizzazione — che era il modo esatto in cui
+# questo file mentiva prima: `FONEMI_LINGUA` elencava gia' es/fr/de/pt e le voci
+# no, quindi la fonemizzazione era pronta per lingue che il pool non sapeva
+# parlare, e le voci di sette lingue restavano invisibili.
+FONEMI_LINGUA: dict[str, str] = {
+    _PREFISSI[n[0]][0]: _PREFISSI[n[0]][1] for n in reversed(_NOMI)
 }
 
 # Quanti fonemi il modello accetta in un colpo. Le battute vere di GTA V ne
@@ -206,36 +280,60 @@ def model_path(quale: str = DEFAULT_PESI, download: bool = True) -> Path:
     return local
 
 
-def voices_path(download: bool = True) -> Path:
-    """L'archivio degli stili, costruito dalle voci dichiarate in `VOICES`.
+def nomi_richiesti(lingua: str = LINGUA) -> tuple[str, ...]:
+    """I nomi HF delle voci che servono per parlare quella lingua.
+
+    Sono quelle e non tutte: cinquantaquattro stili fanno 27 MB, e ventotto sono
+    inglesi. Chi doppia in italiano non ha nessun motivo di avere sul disco le
+    voci mandarine.
+    """
+    chiavi = PER_LINGUA.get((lingua or LINGUA).replace("_", "-").split("-")[0].lower())
+    if not chiavi:
+        chiavi = PER_LINGUA[LINGUA]
+    return tuple(VOICES[c][0] for c in chiavi)
+
+
+def voices_path(download: bool = True, lingua: str = LINGUA) -> Path:
+    """L'archivio degli stili, con dentro **almeno** le voci di questa lingua.
 
     `kokoro_onnx` vuole un file che `np.load` sappia aprire; il repo HF tiene le
     voci una per file. Si scaricano solo quelle che servono e si impacchettano,
-    cosi' non si tirano giu' 26 MB di voci giapponesi e hindi.
+    cosi' non si tirano giu' 26 MB di voci giapponesi e hindi per doppiare in
+    italiano.
 
-    **Si controlla che l'archivio sia completo, non solo che esista.** La prima
-    versione tornava indietro appena il file c'era: aggiungendo le voci inglesi a
-    `VOICES`, il file vecchio — con dentro le sole due italiane — e' rimasto
-    buono agli occhi di questa funzione, e la prima voce inglese e' morta con un
-    `KeyError` dentro `kokoro_onnx`. Un artefatto in cache che non sa di essere
-    scaduto e' un difetto che si manifesta lontano da dove sta.
+    **Si controlla che l'archivio contenga quello che serve, non che esista.**
+    La prima versione tornava indietro appena il file c'era: aggiungendo le voci
+    inglesi, il file vecchio — con dentro le sole due italiane — e' rimasto buono
+    agli occhi di questa funzione, e la prima voce inglese e' morta con un
+    `KeyError` dentro `kokoro_onnx`, lontanissimo da dove stava il difetto. Con
+    cinquantaquattro voci in nove lingue quel difetto non e' piu' un caso di
+    frontiera: e' la **norma**, perche' cambiare lingua cambia le voci che
+    servono a ogni sessione.
+    E l'archivio si **allarga** invece di essere rifatto: chi ha gia' scaricato
+    le due italiane e passa allo spagnolo paga tre file, non cinquantaquattro.
     """
     local = MODELS_DIR / "voices.npz"
+    servono = set(nomi_richiesti(lingua))
+    gia: dict[str, np.ndarray] = {}
     if local.exists():
         try:
             with np.load(local) as z:
-                if set(n for n, _ in VOICES.values()) <= set(z.files):
+                if servono <= set(z.files):
                     return local
+                gia = {n: z[n] for n in z.files}
         except Exception:  # pragma: no cover - archivio corrotto: si rifa'
-            pass
+            gia = {}
     if not download:
-        raise FileNotFoundError(f"voci non presenti o incomplete: {local}")
+        raise FileNotFoundError(
+            f"voci non presenti o incomplete in {local}: mancano "
+            f"{sorted(servono - set(gia))}"
+        )
 
     from huggingface_hub import hf_hub_download
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    stili = {}
-    for nome, _ in VOICES.values():
+    stili = dict(gia)
+    for nome in sorted(servono - set(gia)):
         p = hf_hub_download(REPO, f"voices/{nome}.bin", local_dir=str(MODELS_DIR))
         crudo = np.fromfile(p, dtype=np.float32)
         # Il reshape e' la verifica: un file troncato darebbe un array plausibile
@@ -378,7 +476,9 @@ class KokoroTts:
             str(model_path(self.pesi, self.download)), providers=providers
         )
         self._provider = verifica_provider(sess, "kokoro", providers)
-        self._k = Kokoro.from_session(sess, str(voices_path(self.download)))
+        self._k = Kokoro.from_session(
+            sess, str(voices_path(self.download, self.lingua_base))
+        )
         return self._k
 
     def _stile(self, base_voice: str):

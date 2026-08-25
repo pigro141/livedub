@@ -1,4 +1,4 @@
-"""Backend SuperTonic 3: dieci voci italiane invece di due.
+"""Backend SuperTonic 3: dieci voci, e parlano trentuno lingue.
 
 Il piano dichiarava che le due voci italiane di Piper erano il tetto del tier A
 e che per superarlo serviva la GPU (F6, Qwen3-TTS). SuperTonic 3 lo supera
@@ -26,6 +26,13 @@ ritmo a un riferimento verificato.
 
 I modelli (~398 MB) finiscono nella cache di SuperTonic, non in `models/`: li
 gestisce il pacchetto e non ha senso duplicarli.
+
+**E le dieci voci non sono italiane: sono multilingui.** `supertonic-3` parla
+trentuno lingue con gli stessi dieci stili di parlante — un download solo per
+tutte, che e' l'opposto di Piper. Questo backend passava `lang="it"` fisso,
+quindi ogni lingua diversa dall'italiano usciva fonemizzata con le regole
+italiane: e' la forma di difetto piu' cara di questo progetto, perche' l'audio
+esce e nessun contatore lo mostra.
 """
 
 from __future__ import annotations
@@ -40,6 +47,33 @@ from speak.base import Speech, taglia_silenzio
 
 # Frequenza nativa del vocoder.
 NATIVE_RATE = 44100
+
+# **Le lingue sono trentuno, non una.** `supertonic-3` e' un modello
+# multilingue: le stesse dieci voci parlano tutte queste lingue, e la scelta si
+# fa con l'argomento `lang` di `synthesize`. Questo backend lo passava
+# **fisso a `"it"`**, quindi tradurre verso lo spagnolo produceva spagnolo
+# fonemizzato con le regole italiane: audio che esce, contatori verdi, e una
+# voce che pronuncia un'altra lingua.
+#
+# L'elenco sta scritto qui e non chiesto al pacchetto per la regola gia' pagata
+# con `translate/lingue.py` — un elenco che dipende da un import si svuota quando
+# quell'import non c'e', e un menu vuoto non da' errore. Che le due copie non
+# divergano lo tiene la verifica `lingue_voci`, che le confronta quando
+# `supertonic` e' importabile: e' il modo di avere una tabella ferma senza avere
+# una tabella scritta due volte.
+#
+# **Le dieci voci non sono per lingua**: sono stili di parlante, e valgono per
+# tutte e trentuno. E' l'opposto di Piper, dove ogni lingua e' un modello suo.
+LINGUE: tuple[str, ...] = (
+    "ar", "bg", "cs", "da", "de", "el", "en", "es", "et", "fi", "fr", "hi",
+    "hr", "hu", "id", "it", "ja", "ko", "lt", "lv", "nl", "pl", "pt", "ro",
+    "ru", "sk", "sl", "sv", "tr", "uk", "vi",
+)
+
+# La lingua che il pacchetto usa quando non conosce quella chiesta. **Non e' un
+# ripiego accettabile qui**: se una lingua non e' fra le trentuno si cambia
+# motore, non si consegna una fonemizzazione «generica» dicendo che va bene.
+SCONOSCIUTA = "na"
 
 # Le dieci voci preimpostate. I nomi sono quelli dei file di stile del modello.
 VOICES = {
@@ -104,6 +138,58 @@ VELOCITA_MIN, VELOCITA_MAX = 0.7, 2.0
 # innocuo mentre quello che succede e' che spariscono parole.
 VELOCITA_INTEGRA = 1.10
 
+# Caratteri di parlato al secondo **per unita' di `speed`**, nell'unita' di
+# `spoken_length()`.
+#
+# L'italiano e' misurato su **dodici battute vere** di scena. Le altre trenta su
+# **una frase sola** ciascuna (`tools/censisci_voci.py --misura`), e la
+# differenza va detta invece che nascosta dietro una tabella dall'aria uniforme:
+# una frase neutra non e' una scena, quindi questi numeri sono un ordine di
+# grandezza giusto e non una taratura. Chi doppia sul serio in una di queste
+# lingue rimisuri la sua sul materiale vero.
+#
+# Il verso in cui sbagliano conta: una previsione **corta** si paga piu' cara di
+# una lunga, perche' porta la catena a comprimere invece che a lasciare respiro.
+#
+# Le tre lingue in fondo alla tabella (ja 6,3, ko 7,3, hi 8,4, ar 8,8) non sono
+# motori lenti: sono **scritture dense**, dove un carattere vale una sillaba
+# intera. Il numero e' basso perche' l'unita' e' il carattere, e va confrontato
+# con le altre lingue della stessa scrittura, mai con l'italiano.
+PASSO_PER_UNITA = 13.6
+PASSO_LINGUA: dict[str, float] = {
+    "ar": 8.8,
+    "bg": 12.8,
+    "cs": 13.8,
+    "da": 16.3,
+    "de": 16.9,
+    "el": 14.5,
+    "en": 16.5,
+    "es": 14.2,
+    "et": 13.8,
+    "fi": 15.0,
+    "fr": 16.6,
+    "hi": 8.4,
+    "hr": 12.3,
+    "hu": 15.1,
+    "id": 15.3,
+    "it": 13.6,
+    "ja": 6.3,
+    "ko": 7.3,
+    "lt": 11.4,
+    "lv": 13.1,
+    "nl": 14.9,
+    "pl": 15.8,
+    "pt": 14.9,
+    "ro": 14.1,
+    "ru": 14.0,
+    "sk": 15.0,
+    "sl": 13.5,
+    "sv": 12.7,
+    "tr": 14.8,
+    "uk": 13.1,
+    "vi": 13.9,
+}
+
 
 def velocita_effettiva(base: float, rate: float, carattere: float) -> float:
     """La velocita' da chiedere al modello, dentro cio' che sa fare **intero**.
@@ -133,11 +219,18 @@ class SupertonicTts:
         steps: int = 4,
         speed: float = DEFAULT_SPEED,
         download: bool = True,
+        lingua: str = "it",
     ) -> None:
         self.samplerate = samplerate
         self.steps = max(1, int(steps))
         self.speed = float(speed)
         self.download = download
+        # La lingua **del testo che verra' detto**: se si traduce, quella di
+        # arrivo. Fuori dalle trentuno si ripiega sull'italiano invece che sul
+        # `na` del pacchetto, perche' `speak.pool.ha_voce` ha gia' detto di no e
+        # chi e' arrivato fin qui l'ha scavalcato di proposito.
+        base = (lingua or "it").replace("_", "-").split("-")[0].lower()
+        self.lingua = base if base in LINGUE else "it"
         self._tts = None
         self._styles: dict[str, object] = {}
 
@@ -159,8 +252,14 @@ class SupertonicTts:
         che e' il genere di accoppiamento che si dimentica sempre. A 1,05 fa 14,3
         contro i 14,8 di Piper — **il ritmo e' pari**, e senza chiedere a nessuno
         dei due di correre.
+
+        **E cambia con la lingua**, per la stessa ragione gia' pagata quattro
+        volte in questo progetto: il 13,6 e' misurato sull'italiano, e usarlo su
+        una lingua piu' densa fa credere ogni battuta piu' lunga di quanto sia,
+        cioe' comprimere al tetto una scena che aveva tutto il tempo. Le altre
+        vengono da `tools/censisci_voci.py --misura`, stesso metodo.
         """
-        return 13.6 * self.speed
+        return PASSO_LINGUA.get(self.lingua, PASSO_PER_UNITA) * self.speed
 
     # -- caricamento -------------------------------------------------------
 
@@ -210,7 +309,7 @@ class SupertonicTts:
 
         t0 = time.perf_counter()
         wav, _ = self._engine().synthesize(
-            text, style, total_steps=self.steps, speed=effective, lang="it"
+            text, style, total_steps=self.steps, speed=effective, lang=self.lingua
         )
         total_ms = (time.perf_counter() - t0) * 1000.0
 

@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "f — ženský hlas",
   "fermo": "zastavil",
+  "finestra-gdi": "gdi-okno",
   "gli stili di voce": "hlasové styly",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ odeslat titulky do Googlu",
   "il gioco lo scrive di questo colore": "hra to píše touto barvou",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "hlas stojí na tomto počítači {0} ms za každou vyslovenou větu",
   "le due voci italiane": "dva italské hlasy",
   "lettura del testo: {0}": "čtení textu: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm — na vašem PC, malý model",
-  "locale — sul tuo PC (va installato)": "místní — na vašem PC (musí být nainstalováno)",
   "m — voce maschile": "m — mužský hlas",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "chybí místní překladatelský program. Vložte do prostředí PowerShell ve složce programu: {0}",
   "mostra l'essenziale": "ukazuje to podstatné",
   "mostra le principali": "ukazuje ty hlavní",
   "mostra tutto": "ukázat vše",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — ten Windows, přesněji",
   "parla con la voce": "mluvit svým hlasem",
   "passo {0} di {1}": "krok {0} z {1}",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "k překladu potřebujete ke stažení {0} MB (pochodeň, kterou překlad nikdy nepoužívá, ale bez které se nespustí). Chcete-li vložit do prostředí PowerShell, ve složce programu: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "pro «{0}» ještě neexistuje katalog: italština zůstává",
   "piper — svelto, gira ovunque (consigliato)": "dudák – rychlý, jde všude (doporučeno)",
   "ppocr — gira ovunque": "ppocr — běží všude",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{0} z {1}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} zvukových karet k poslechu, {1} k hraní",
   "{0}: non riuscito — {1}": "{0}: neúspěšné – {1}",
-  "«come Windows» qui vuol dire: {0}": "„jako Windows“ zde znamená: {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "„argos“ je blokován systémem Windows Smart App Control a na tomto počítači se nenačte: „místní“ překlad se nezdaří. znovu spusťte nástroje\\install_translation.ps1 nebo použijte «google» ([WinError 4551] Zásady řízení aplikace zablokovaly soubor. Chyba při načítání \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" nebo jednu z jeho závislostí.)",
+  "«come Windows» qui vuol dire: {0}": "„jako Windows“ zde znamená: {0}",
+  "⚠ llm": "⚠ llm",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — na vašem PC, malý model",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ místní — na vašem PC (musí být nainstalováno)",
+  "⚠ wgc": "⚠ wgc"
  }
 }

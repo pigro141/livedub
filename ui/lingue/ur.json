@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "f - خواتین کی آواز",
   "fermo": "روک دیا",
+  "finestra-gdi": "gdi-ونڈو",
   "gli stili di voce": "آواز کے انداز",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ گوگل کو سب ٹائٹلز بھیجیں۔",
   "il gioco lo scrive di questo colore": "کھیل اسے اس رنگ میں لکھتا ہے۔",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "اس PC پر بولے جانے والے ہر جملے کے لیے آواز کی قیمت {0} ms ہے۔",
   "le due voci italiane": "دو اطالوی آوازیں",
   "lettura del testo: {0}": "متن پڑھنا: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm — آپ کے کمپیوٹر پر، چھوٹے ماڈل",
-  "locale — sul tuo PC (va installato)": "مقامی - آپ کے کمپیوٹر پر (انسٹال ہونا ضروری ہے)",
   "m — voce maschile": "m - مردانہ آواز",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "مقامی ترجمہ پروگرام غائب ہے۔ پاور شیل میں پیسٹ کریں، پروگرام فولڈر میں: {0}",
   "mostra l'essenziale": "ضروری چیزیں دکھاتا ہے۔",
   "mostra le principali": "اہم دکھاتا ہے",
   "mostra tutto": "سب دکھائیں",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr - ونڈوز ون، زیادہ درست",
   "parla con la voce": "اپنی آواز سے بات کرو",
   "passo {0} di {1}": "مرحلہ {0} از {1}",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "ترجمہ کرنے کے لیے آپ کو ڈاؤن لوڈ کرنے کے لیے {0} ایم بی کی ضرورت ہے (ٹارچ، جسے ترجمہ کبھی استعمال نہیں کرتا لیکن جس کے بغیر یہ شروع نہیں ہوتا)۔ پاور شیل میں پیسٹ کرنے کے لیے، پروگرام فولڈر میں: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "«{0}» کے لیے ابھی تک کوئی کیٹلاگ نہیں ہے: اطالوی باقی ہے۔",
   "piper — svelto, gira ovunque (consigliato)": "پائپر - جلدی، ہر جگہ جاتا ہے (تجویز کردہ)",
   "ppocr — gira ovunque": "ppocr - ہر جگہ چلتا ہے۔",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{0} از {1}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} ساؤنڈ کارڈز سننے کے لیے، {1} چلانے کے لیے",
   "{0}: non riuscito — {1}": "{0}: ناکام — {1}",
-  "«come Windows» qui vuol dire: {0}": "«ونڈوز کی طرح» کا یہاں مطلب ہے: {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "«argos» کو ونڈوز اسمارٹ ایپ کنٹرول نے بلاک کر دیا ہے اور اس مشین پر لوڈ نہیں ہوتا ہے: «مقامی» ترجمہ ناکام ہو جاتا ہے۔ ٹولز\\install_translation.ps1 کو دوبارہ لانچ کریں، یا «google» کا استعمال کریں ([WinError 4551] ایک ایپلیکیشن کنٹرول پالیسی نے فائل کو بلاک کر دیا ہے۔ \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\m\\dllen\" لوڈ کرنے میں خرابی۔",
+  "«come Windows» qui vuol dire: {0}": "«ونڈوز کی طرح» کا یہاں مطلب ہے: {0}",
+  "⚠ llm": "⚠ ایل ایل ایم",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — آپ کے کمپیوٹر پر، چھوٹے ماڈل",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ مقامی — آپ کے کمپیوٹر پر (انسٹال ہونا ضروری ہے)",
+  "⚠ wgc": "⚠ ڈبلیو جی سی"
  }
 }

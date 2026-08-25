@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "f — 女性の声",
   "fermo": "止まった",
+  "finestra-gdi": "gdiウィンドウ",
   "gli stili di voce": "音声スタイル",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ 字幕を Google に送信します",
   "il gioco lo scrive di questo colore": "ゲームはこの色でそれを書き込みます",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "この PC では、音声は発話ごとに {0} ミリ秒かかります",
   "le due voci italiane": "二人のイタリア人の声",
   "lettura del testo: {0}": "テキストを読んでいます: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm — PC 上の小型モデル",
-  "locale — sul tuo PC (va installato)": "ローカル — PC 上 (インストールする必要があります)",
   "m — voce maschile": "m — 男性の声",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "ローカル翻訳プログラムがありません。 PowerShell のプログラム フォルダーに貼り付けます: {0}",
   "mostra l'essenziale": "要点を示します",
   "mostra le principali": "主なものを示します",
   "mostra tutto": "すべて表示",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — Windows のもの、より正確には",
   "parla con la voce": "あなたの声で話してください",
   "passo {0} di {1}": "ステップ {0}/{1}",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "翻訳するには、ダウンロードに {0} MB が必要です (トーチ。翻訳では使用されませんが、翻訳がないと開始されません)。 PowerShell に貼り付けるには、プログラム フォルダー: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "«{0}» にはまだカタログがありません: イタリアの遺跡",
   "piper — svelto, gira ovunque (consigliato)": "パイパー — 素早く、どこにでも行きます (推奨)",
   "ppocr — gira ovunque": "ppocr — どこでも実行可能",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{0}/{1}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} 個のサウンド カードを聞いて、{1} で再生します",
   "{0}: non riuscito — {1}": "{0}: 失敗しました — {1}",
-  "«come Windows» qui vuol dire: {0}": "ここでの「Windows のような」とは: {0} を意味します。"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "«argos» は Windows Smart App Control によってブロックされており、このマシンにロードされません。«local» 変換は失敗します。 tools\\install_translation.ps1 を再起動するか、«google» を使用してください ([WinError 4551] アプリケーション コントロール ポリシーによってファイルがブロックされました。「C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll」またはその依存関係の 1 つの読み込み中にエラーが発生しました。)",
+  "«come Windows» qui vuol dire: {0}": "ここでの「Windows のような」とは: {0} を意味します。",
+  "⚠ llm": "⚠llm",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — PC 上の小型モデル",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ ローカル — PC 上 (インストールする必要があります)",
+  "⚠ wgc": "⚠WGC"
  }
 }

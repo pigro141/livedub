@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "f – kadın sesi",
   "fermo": "durduruldu",
+  "finestra-gdi": "gdi penceresi",
   "gli stili di voce": "ses stilleri",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ Google'a altyazı gönder",
   "il gioco lo scrive di questo colore": "oyun bu renkte yazıyor",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "bu bilgisayarda sesin ücreti konuşulan her cümle için {0} ms'dir",
   "le due voci italiane": "iki İtalyan sesi",
   "lettura del testo: {0}": "metni okuma: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm — PC'nizde küçük model",
-  "locale — sul tuo PC (va installato)": "yerel — bilgisayarınızda (yüklü olmalıdır)",
   "m — voce maschile": "m — erkek sesi",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "yerel çeviri programı eksik. Program klasöründeki PowerShell'e yapıştırın: {0}",
   "mostra l'essenziale": "esasları gösterir",
   "mostra le principali": "ana olanları gösterir",
   "mostra tutto": "hepsini göster",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — Windows olanı, daha kesin",
   "parla con la voce": "sesinle konuş",
   "passo {0} di {1}": "{1} adımının {0}. adımı",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "tercüme etmek için indirmeniz için {0} MB'a ihtiyacınız var (çevirinin asla kullanmadığı ancak onsuz başlamadığı meşale). PowerShell'e yapıştırmak için program klasöründe: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "«{0}» için henüz bir katalog yok: İtalyan kalıntıları",
   "piper — svelto, gira ovunque (consigliato)": "piper — hızlı, her yere gider (önerilir)",
   "ppocr — gira ovunque": "ppocr — her yerde çalışır",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{0} / {1}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "Dinlenecek {0} ses kartı, çalınacak {1} ses kartı",
   "{0}: non riuscito — {1}": "{0}: başarısız oldu — {1}",
-  "«come Windows» qui vuol dire: {0}": "«Windows gibi» burada şu anlama gelir: {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "«argos», Windows Smart Uygulama Denetimi tarafından engellendi ve bu makineye yüklenmiyor: «yerel» çeviri başarısız oluyor. Tools\\install_translation.ps1'i yeniden başlatın veya «google» kullanın ([WinError 4551] Bir uygulama kontrol politikası dosyayı engelledi. \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" veya bağımlılıklarından biri yüklenirken hata oluştu.)",
+  "«come Windows» qui vuol dire: {0}": "«Windows gibi» burada şu anlama gelir: {0}",
+  "⚠ llm": "⚠ llm",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — PC'nizde, küçük model",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ yerel — PC'nizde (yüklü olmalıdır)",
+  "⚠ wgc": "⚠wgc"
  }
 }

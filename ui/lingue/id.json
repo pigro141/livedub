@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "f — suara wanita",
   "fermo": "berhenti",
+  "finestra-gdi": "jendela gdi",
   "gli stili di voce": "gaya suara",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ kirim subtitle ke Google",
   "il gioco lo scrive di questo colore": "permainan menulisnya dengan warna ini",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "biaya suaranya {0} ms untuk setiap kalimat yang diucapkan, di PC ini",
   "le due voci italiane": "dua suara Italia",
   "lettura del testo: {0}": "teks bacaan: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm — di PC Anda, model kecil",
-  "locale — sul tuo PC (va installato)": "lokal — di PC Anda (harus diinstal)",
   "m — voce maschile": "m — suara laki-laki",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "program terjemahan lokal tidak ada. Tempelkan ke PowerShell, di folder program: {0}",
   "mostra l'essenziale": "menunjukkan hal-hal penting",
   "mostra le principali": "menunjukkan yang utama",
   "mostra tutto": "tunjukkan semuanya",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — yang Windows, lebih tepatnya",
   "parla con la voce": "berbicaralah dengan suaramu",
   "passo {0} di {1}": "langkah {0} dari {1}",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "untuk menerjemahkan, Anda memerlukan {0} MB untuk mengunduh (obor, yang terjemahannya tidak pernah digunakan tetapi tanpanya terjemahan tidak akan dimulai). Untuk menempelkannya ke PowerShell, dalam folder program: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "untuk «{0}» belum ada katalog: bahasa Italianya tetap ada",
   "piper — svelto, gira ovunque (consigliato)": "piper — cepat, bisa dibawa ke mana saja (disarankan)",
   "ppocr — gira ovunque": "ppokr — berjalan di mana-mana",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{0} dari {1}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} kartu suara untuk didengarkan, {1} untuk dimainkan",
   "{0}: non riuscito — {1}": "{0}: gagal — {1}",
-  "«come Windows» qui vuol dire: {0}": "«seperti Windows» di sini berarti: {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "«argos» diblokir oleh Windows Smart App Control dan tidak dimuat di mesin ini: terjemahan «lokal» gagal. luncurkan kembali tools\\install_translation.ps1, atau gunakan «google» ([WinError 4551] Kebijakan kontrol aplikasi telah memblokir file. Kesalahan saat memuat \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" atau salah satu dependensinya.)",
+  "«come Windows» qui vuol dire: {0}": "«seperti Windows» di sini berarti: {0}",
+  "⚠ llm": "⚠ llm",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — di PC Anda, model kecil",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ lokal — di PC Anda (harus diinstal)",
+  "⚠ wgc": "⚠ wgc"
  }
 }

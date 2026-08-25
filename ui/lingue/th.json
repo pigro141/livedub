@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "ฉ - เสียงผู้หญิง",
   "fermo": "หยุดแล้ว",
+  "finestra-gdi": "gdi-หน้าต่าง",
   "gli stili di voce": "สไตล์เสียง",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ ส่งคำบรรยายไปที่ Google",
   "il gioco lo scrive di questo colore": "เกมเขียนเป็นสีนี้",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "เสียงมีค่าใช้จ่าย {0} มิลลิวินาทีสำหรับแต่ละประโยคที่พูดบนพีซีเครื่องนี้",
   "le due voci italiane": "เสียงภาษาอิตาลีทั้งสอง",
   "lettura del testo: {0}": "อ่านข้อความ: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm — บนพีซีของคุณ รุ่นเล็ก",
-  "locale — sul tuo PC (va installato)": "ท้องถิ่น — บนพีซีของคุณ (ต้องติดตั้ง)",
   "m — voce maschile": "ม. - เสียงผู้ชาย",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "โปรแกรมแปลท้องถิ่นหายไป วางลงใน PowerShell ในโฟลเดอร์โปรแกรม: {0}",
   "mostra l'essenziale": "แสดงให้เห็นถึงสิ่งจำเป็น",
   "mostra le principali": "แสดงให้เห็นสิ่งสำคัญ",
   "mostra tutto": "แสดงทั้งหมด",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — Windows one แม่นยำยิ่งขึ้น",
   "parla con la voce": "พูดด้วยเสียงของคุณ",
   "passo {0} di {1}": "ขั้นตอนที่ {0} จาก {1}",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "ในการแปล คุณต้องดาวน์โหลด {0} MB (คบเพลิงซึ่งการแปลไม่เคยใช้ แต่ถ้าไม่มีการแปลก็ไม่สามารถเริ่มได้) หากต้องการวางลงใน PowerShell ในโฟลเดอร์โปรแกรม: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "สำหรับ «{0}» ยังไม่มีแคตตาล็อก: ซากภาษาอิตาลี",
   "piper — svelto, gira ovunque (consigliato)": "ไพเพอร์ - รวดเร็วไปทุกที่ (แนะนำ)",
   "ppocr — gira ovunque": "ppocr - ทำงานได้ทุกที่",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{0} จาก {1}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "การ์ดเสียง {0} รายการเพื่อฟัง {1} เพื่อเล่น",
   "{0}: non riuscito — {1}": "{0}: ล้มเหลว — {1}",
-  "«come Windows» qui vuol dire: {0}": "«like Windows» ในที่นี้หมายถึง: {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "«argos» ถูกบล็อกโดย Windows Smart App Control และไม่โหลดบนเครื่องนี้: การแปล «local» ล้มเหลว เปิด tools\\install_translation.ps1 อีกครั้ง หรือใช้ «google» ([WinError 4551] นโยบายการควบคุมแอปพลิเคชันได้บล็อกไฟล์ เกิดข้อผิดพลาดในการโหลด \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" หรือการอ้างอิงอย่างใดอย่างหนึ่ง)",
+  "«come Windows» qui vuol dire: {0}": "«like Windows» ในที่นี้หมายถึง: {0}",
+  "⚠ llm": "⚠เลิ่กลั่ก",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — บนพีซีของคุณ รุ่นเล็ก",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ ในเครื่อง — บนพีซีของคุณ (ต้องติดตั้ง)",
+  "⚠ wgc": "⚠ wgc"
  }
 }

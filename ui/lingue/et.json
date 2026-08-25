@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "f — naishääl",
   "fermo": "peatunud",
+  "finestra-gdi": "gdi-aken",
   "gli stili di voce": "häälestiilid",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ Google'ile subtiitrite saatmine",
   "il gioco lo scrive di questo colore": "mäng kirjutab selle selle värviga",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "hääl maksab selles arvutis {0} ms iga öeldud lause eest",
   "le due voci italiane": "kaks itaalia häält",
   "lettura del testo: {0}": "teksti lugemine: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm – teie arvutis, väike mudel",
-  "locale — sul tuo PC (va installato)": "kohalik – teie arvutis (peab olema installitud)",
   "m — voce maschile": "m - meeshääl",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "kohalik tõlkeprogramm puudub. Kleepige PowerShelli programmi kausta: {0}",
   "mostra l'essenziale": "näitab põhilist",
   "mostra le principali": "näitab peamisi",
   "mostra tutto": "näita kõik",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr – Windowsi oma, täpsem",
   "parla con la voce": "räägi oma häälega",
   "passo {0} di {1}": "samm {0}/{1}",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "tõlkimiseks vajate allalaadimiseks {0} MB (tõrvik, mida tõlge kunagi ei kasuta, kuid ilma milleta see ei käivitu). PowerShelli kleepimiseks programmi kausta: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "\"{0}\" jaoks pole veel kataloogi: itaalia keel jääb alles",
   "piper — svelto, gira ovunque (consigliato)": "torupill – kiire, sobib kõikjale (soovitatav)",
   "ppocr — gira ovunque": "ppocr — jookseb igal pool",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{0}/{1}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} helikaarti kuulamiseks, {1} mängimiseks",
   "{0}: non riuscito — {1}": "{0}: ebaõnnestus – {1}",
-  "«come Windows» qui vuol dire: {0}": "«nagu Windows» tähendab siin järgmist: {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "Windows Smart App Control blokeerib \"argose\" ja seda masinat ei laadita: \"kohalik\" tõlge ebaõnnestub. taaskäivitage tools\\install_translation.ps1 või kasutage «google» ([WinError 4551] Rakenduse juhtimise reegel on faili blokeerinud. Viga \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" või one of its.dll\"es) laadimisel.",
+  "«come Windows» qui vuol dire: {0}": "«nagu Windows» tähendab siin järgmist: {0}",
+  "⚠ llm": "⚠ llm",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — teie arvutis, väike mudel",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ kohalik — teie arvutis (peab olema installitud)",
+  "⚠ wgc": "⚠ wgc"
  }
 }

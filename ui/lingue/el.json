@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "στ — γυναικεία φωνή",
   "fermo": "σταμάτησε",
+  "finestra-gdi": "gdi-παράθυρο",
   "gli stili di voce": "στυλ φωνής",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ στείλτε υπότιτλους στην Google",
   "il gioco lo scrive di questo colore": "το παιχνίδι το γράφει με αυτό το χρώμα",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "η φωνή κοστίζει {0} ms για κάθε πρόταση που εκφωνείται, σε αυτόν τον υπολογιστή",
   "le due voci italiane": "οι δύο ιταλικές φωνές",
   "lettura del testo: {0}": "ανάγνωση κειμένου: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm — στον υπολογιστή σας, μικρό μοντέλο",
-  "locale — sul tuo PC (va installato)": "τοπικό — στον υπολογιστή σας (πρέπει να εγκατασταθεί)",
   "m — voce maschile": "m — ανδρική φωνή",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "λείπει το τοπικό μεταφραστικό πρόγραμμα. Επικόλληση στο PowerShell, στο φάκελο του προγράμματος: {0}",
   "mostra l'essenziale": "δείχνει τα απαραίτητα",
   "mostra le principali": "δείχνει τα κυριότερα",
   "mostra tutto": "δείξε όλα",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — το Windows, πιο ακριβές",
   "parla con la voce": "μίλα με τη φωνή σου",
   "passo {0} di {1}": "βήμα {0} από {1}",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "για να μεταφράσετε χρειάζεστε {0} MB για λήψη (φακός, τον οποίο η μετάφραση δεν χρησιμοποιεί ποτέ, αλλά χωρίς τον οποίο δεν θα ξεκινήσει). Για επικόλληση στο PowerShell, στο φάκελο του προγράμματος: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "για το «{0}» δεν υπάρχει ακόμη κατάλογος: ο Ιταλός παραμένει",
   "piper — svelto, gira ovunque (consigliato)": "piper — γρήγορο, πηγαίνει παντού (συνιστάται)",
   "ppocr — gira ovunque": "ppocr — τρέχει παντού",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{0} από {1}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} κάρτες ήχου για ακρόαση, {1} για αναπαραγωγή",
   "{0}: non riuscito — {1}": "{0}: απέτυχε — {1}",
-  "«come Windows» qui vuol dire: {0}": "\"όπως τα Windows\" εδώ σημαίνει: {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "Το «argos» είναι αποκλεισμένο από τον Έλεγχο εφαρμογών Smart των Windows και δεν φορτώνεται σε αυτό το μηχάνημα: η μετάφραση «τοπική» αποτυγχάνει. επανεκκινήστε το tools\\install_translation.ps1 ή χρησιμοποιήστε το «google» ([WinError 4551] Μια πολιτική ελέγχου εφαρμογής έχει μπλοκάρει το αρχείο. Σφάλμα κατά τη φόρτωση \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.d\"",
+  "«come Windows» qui vuol dire: {0}": "\"όπως τα Windows\" εδώ σημαίνει: {0}",
+  "⚠ llm": "⚠ llm",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — στον υπολογιστή σας, μικρό μοντέλο",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ τοπικό — στον υπολογιστή σας (πρέπει να εγκατασταθεί)",
+  "⚠ wgc": "⚠ wgc"
  }
 }

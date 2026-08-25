@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "f — kvindestemme",
   "fermo": "stoppet",
+  "finestra-gdi": "gdi-vindue",
   "gli stili di voce": "stemmestile",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ send undertekster til Google",
   "il gioco lo scrive di questo colore": "spillet skriver det i denne farve",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "stemmen koster {0} ms for hver sætning, der bliver sagt, på denne pc",
   "le due voci italiane": "de to italienske stemmer",
   "lettura del testo: {0}": "læse tekst: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm — på din pc, lille model",
-  "locale — sul tuo PC (va installato)": "lokal — på din pc (skal være installeret)",
   "m — voce maschile": "m — mandlig stemme",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "det lokale oversættelsesprogram mangler. Indsæt i PowerShell i programmappen: {0}",
   "mostra l'essenziale": "viser det væsentlige",
   "mostra le principali": "viser de vigtigste",
   "mostra tutto": "vise alle",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr - Windows-en, mere præcist",
   "parla con la voce": "tale med din stemme",
   "passo {0} di {1}": "trin {0} af {1}",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "for at oversætte skal du bruge {0} MB til at downloade (lygte, som oversættelsen aldrig bruger, men uden hvilken den ikke starter). For at indsætte i PowerShell, i programmappen: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "for «{0}» er der endnu ikke et katalog: Italieneren er tilbage",
   "piper — svelto, gira ovunque (consigliato)": "piper - hurtig, går overalt (anbefales)",
   "ppocr — gira ovunque": "ppocr — kører overalt",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{0} af {1}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} lydkort at lytte til, {1} at spille på",
   "{0}: non riuscito — {1}": "{0}: mislykkedes — {1}",
-  "«come Windows» qui vuol dire: {0}": "«som Windows» betyder her: {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "«argos» er blokeret af Windows Smart App Control og indlæses ikke på denne maskine: den «lokale» oversættelse mislykkes. genstart værktøjer\\install_translation.ps1, eller brug «google» ([WinError 4551] En programkontrolpolitik har blokeret filen. Fejl ved indlæsning af \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" eller en af dens afhængigheder.)",
+  "«come Windows» qui vuol dire: {0}": "«som Windows» betyder her: {0}",
+  "⚠ llm": "⚠ llm",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — på din pc, lille model",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ lokal — på din pc (skal være installeret)",
+  "⚠ wgc": "⚠ wgc"
  }
 }

@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "f - קול נשי",
   "fermo": "נעצר",
+  "finestra-gdi": "gdi-window",
   "gli stili di voce": "סגנונות קול",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ שלח כתוביות לגוגל",
   "il gioco lo scrive di questo colore": "המשחק כותב את זה בצבע הזה",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "הקול עולה {0} אלפיות השנייה עבור כל משפט שנאמר, במחשב זה",
   "le due voci italiane": "שני הקולות האיטלקיים",
   "lettura del testo: {0}": "קריאת טקסט: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm - במחשב האישי שלך, דגם קטן",
-  "locale — sul tuo PC (va installato)": "מקומי - במחשב האישי שלך (חייב להיות מותקן)",
   "m — voce maschile": "m - קול גברי",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "תוכנית התרגום המקומית חסרה. הדבק לתוך PowerShell, בתיקיית התוכנית: {0}",
   "mostra l'essenziale": "מראה את הדברים העיקריים",
   "mostra le principali": "מציג את העיקריים שבהם",
   "mostra tutto": "להראות הכל",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr - Windows אחד, יותר מדויק",
   "parla con la voce": "לדבר עם הקול שלך",
   "passo {0} di {1}": "שלב {0} מתוך {1}",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "כדי לתרגם אתה צריך {0} MB להורדה (לפיד, שהתרגום אף פעם לא משתמש בו אבל בלעדיו הוא לא יתחיל). כדי להדביק ב-PowerShell, בתיקיית התוכנית: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "עבור «{0}» אין עדיין קטלוג: האיטלקי נשאר",
   "piper — svelto, gira ovunque (consigliato)": "piper - מהיר, הולך לכל מקום (מומלץ)",
   "ppocr — gira ovunque": "ppocr - פועל לכל מקום",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{0} מתוך {1}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} כרטיסי קול להאזנה, {1} להפעלה",
   "{0}: non riuscito — {1}": "{0}: נכשל - {1}",
-  "«come Windows» qui vuol dire: {0}": "\"כמו Windows\" כאן פירושו: {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "«argos» נחסם על ידי Windows Smart App Control ואינו נטען במכונה זו: התרגום \"מקומי\" נכשל. הפעל מחדש את tools\\install_translation.ps1, או השתמש ב-«google» ([WinError 4551] מדיניות בקרת יישום חסמה את הקובץ. שגיאה בטעינת \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" או אחת מהתלות שלו.)",
+  "«come Windows» qui vuol dire: {0}": "\"כמו Windows\" כאן פירושו: {0}",
+  "⚠ llm": "⚠ llm",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — במחשב האישי שלך, דגם קטן",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ מקומי - במחשב האישי שלך (חייב להיות מותקן)",
+  "⚠ wgc": "⚠ wgc"
  }
 }

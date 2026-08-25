@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "f - பெண் குரல்",
   "fermo": "நிறுத்தப்பட்டது",
+  "finestra-gdi": "gdi-சாளரம்",
   "gli stili di voce": "குரல் பாணிகள்",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ Google க்கு வசனங்களை அனுப்பவும்",
   "il gioco lo scrive di questo colore": "விளையாட்டு அதை இந்த நிறத்தில் எழுதுகிறது",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "இந்த கணினியில் பேசப்படும் ஒவ்வொரு வாக்கியத்திற்கும் குரலின் விலை {0} ms",
   "le due voci italiane": "இரண்டு இத்தாலிய குரல்கள்",
   "lettura del testo: {0}": "உரையைப் படிப்பது: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm - உங்கள் கணினியில், சிறிய மாதிரி",
-  "locale — sul tuo PC (va installato)": "உள்ளூர் - உங்கள் கணினியில் (நிறுவப்பட்டிருக்க வேண்டும்)",
   "m — voce maschile": "மீ - ஆண் குரல்",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "உள்ளூர் மொழிபெயர்ப்பு நிரல் இல்லை. நிரல் கோப்புறையில் PowerShell இல் ஒட்டவும்: {0}",
   "mostra l'essenziale": "அத்தியாவசியங்களைக் காட்டுகிறது",
   "mostra le principali": "முக்கியவற்றைக் காட்டுகிறது",
   "mostra tutto": "அனைத்தையும் காட்டு",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr - விண்டோஸ் ஒன்று, மிகவும் துல்லியமானது",
   "parla con la voce": "உங்கள் குரலில் பேசுங்கள்",
   "passo {0} di {1}": "படி {0} / {1}",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "மொழிபெயர்க்க, பதிவிறக்கம் செய்ய உங்களுக்கு {0} மெ.பை. தேவை (டார்ச், இது மொழிபெயர்ப்பு ஒருபோதும் பயன்படுத்தாது ஆனால் அது இல்லாமல் அது தொடங்காது). பவர்ஷெல்லில் ஒட்டுவதற்கு, நிரல் கோப்புறையில்: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "«{0}» க்கான பட்டியல் இன்னும் இல்லை: இத்தாலியன் எஞ்சியுள்ளது",
   "piper — svelto, gira ovunque (consigliato)": "பைபர் - விரைவாக, எல்லா இடங்களிலும் செல்கிறது (பரிந்துரைக்கப்படுகிறது)",
   "ppocr — gira ovunque": "ppocr - எல்லா இடங்களிலும் ஓடுகிறது",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{0} / {1}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "கேட்பதற்கு {0} ஒலி அட்டைகள், விளையாடுவதற்கு {1}",
   "{0}: non riuscito — {1}": "{0}: தோல்வி - {1}",
-  "«come Windows» qui vuol dire: {0}": "இங்கே \"விண்டோஸ் போன்றது\" என்றால்: {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "\"argos\" ஆனது Windows Smart App Control மூலம் தடுக்கப்பட்டது மற்றும் இந்த கணினியில் ஏற்றப்படாது: \"உள்ளூர்\" மொழிபெயர்ப்பு தோல்வியடைகிறது. கருவிகளை மீண்டும் துவக்கவும்\\install_translation.ps1, அல்லது «google» ([WinError 4551] பயன்பாட்டுக் கட்டுப்பாட்டுக் கொள்கையானது கோப்பைத் தடுத்துள்ளது. \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\Livedub\\.venv\\Lib\\site-packages\\dorch",
+  "«come Windows» qui vuol dire: {0}": "இங்கே \"விண்டோஸ் போன்றது\" என்றால்: {0}",
+  "⚠ llm": "⚠ எல்.எல்.எம்",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — உங்கள் கணினியில், சிறிய மாடலில்",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ உள்ளூர் — உங்கள் கணினியில் (நிறுவப்பட்டிருக்க வேண்டும்)",
+  "⚠ wgc": "⚠ wgc"
  }
 }

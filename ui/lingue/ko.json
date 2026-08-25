@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "f - 여성 목소리",
   "fermo": "중지됨",
+  "finestra-gdi": "gdi 창",
   "gli stili di voce": "음성 스타일",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ Google에 자막 보내기",
   "il gioco lo scrive di questo colore": "게임에서는 이 색상으로 씁니다.",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "이 PC에서 말하는 각 문장에 대해 음성 비용은 {0}ms입니다.",
   "le due voci italiane": "두 명의 이탈리아인 목소리",
   "lettura del testo: {0}": "텍스트 읽기: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm — PC의 소형 모델",
-  "locale — sul tuo PC (va installato)": "로컬 — PC에(설치해야 함)",
   "m — voce maschile": "m — 남성 목소리",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "현지 번역 프로그램이 없습니다. PowerShell의 프로그램 폴더에 붙여넣습니다: {0}",
   "mostra l'essenziale": "핵심을 보여줍니다",
   "mostra le principali": "주요 내용을 보여줍니다",
   "mostra tutto": "모두 표시",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — Windows용, 더 정확함",
   "parla con la voce": "당신의 목소리로 말하세요",
   "passo {0} di {1}": "{1}단계 중 {0}단계",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "번역하려면 다운로드하려면 {0}MB가 필요합니다(번역이 사용되지 않지만 번역이 없으면 시작되지 않는 토치). PowerShell에 붙여넣으려면 프로그램 폴더에: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "«{0}»에 대한 카탈로그는 아직 없습니다. 이탈리아인은 남아 있습니다.",
   "piper — svelto, gira ovunque (consigliato)": "파이퍼 — 빠르며 어디든 갑니다(권장)",
   "ppocr — gira ovunque": "ppocr — 어디에서나 실행됩니다.",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{1}개 중 {0}개: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "들을 수 있는 사운드 카드 {0}개, 재생할 사운드 카드 {1}개",
   "{0}: non riuscito — {1}": "{0}: 실패 — {1}",
-  "«come Windows» qui vuol dire: {0}": "여기서 «Windows와 유사»는 다음을 의미합니다. {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "«argos»는 Windows Smart App Control에 의해 차단되어 이 컴퓨터에 로드되지 않습니다. «local» 번역이 실패합니다. tools\\install_translation.ps1을 다시 시작하거나 «google»을 사용하세요. ([WinError 4551] 응용 프로그램 제어 정책이 파일을 차단했습니다. \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" 또는 해당 종속성 중 하나를 로드하는 동안 오류가 발생했습니다.)",
+  "«come Windows» qui vuol dire: {0}": "여기서 «Windows와 유사»는 다음을 의미합니다. {0}",
+  "⚠ llm": "⚠ lm",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — PC에서 소형 모델",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ 로컬 — PC에(설치해야 함)",
+  "⚠ wgc": "⚠ wgc"
  }
 }

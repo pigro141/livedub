@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "एफ - महिला आवाज",
   "fermo": "रुक गया",
+  "finestra-gdi": "जीडीआई-विंडो",
   "gli stili di voce": "आवाज शैलियाँ",
   "google — ⚠ manda i sottotitoli a Google": "गूगल - ⚠ Google को उपशीर्षक भेजें",
   "il gioco lo scrive di questo colore": "गेम इसे इस रंग में लिखता है",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "इस पीसी पर बोले गए प्रत्येक वाक्य के लिए आवाज की लागत {0} एमएस होती है",
   "le due voci italiane": "दो इतालवी आवाजें",
   "lettura del testo: {0}": "पाठ पढ़ना: {0}",
-  "llm — sul tuo PC, modello piccolo": "एलएलएम - आपके पीसी पर, छोटा मॉडल",
-  "locale — sul tuo PC (va installato)": "स्थानीय - आपके पीसी पर (इंस्टॉल होना चाहिए)",
   "m — voce maschile": "एम - पुरुष आवाज",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "स्थानीय अनुवाद कार्यक्रम अनुपलब्ध है. प्रोग्राम फ़ोल्डर में PowerShell में चिपकाएँ: {0}",
   "mostra l'essenziale": "आवश्यक चीजें दिखाता है",
   "mostra le principali": "मुख्य दिखाता है",
   "mostra tutto": "सब दिखाओ",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr - विंडोज़ वाला, अधिक सटीक",
   "parla con la voce": "अपनी आवाज़ से बोलो",
   "passo {0} di {1}": "{1} का चरण {0}",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "अनुवाद करने के लिए आपको डाउनलोड करने के लिए {0} एमबी की आवश्यकता है (टॉर्च, जिसका अनुवाद कभी उपयोग नहीं करता है लेकिन जिसके बिना यह शुरू नहीं होगा)। प्रोग्राम फ़ोल्डर में PowerShell में पेस्ट करने के लिए: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "«{0}» के लिए अभी तक कोई कैटलॉग नहीं है: इटालियन अवशेष",
   "piper — svelto, gira ovunque (consigliato)": "पाइपर - त्वरित, हर जगह जाता है (अनुशंसित)",
   "ppocr — gira ovunque": "पीपीओसीआर - हर जगह चलता है",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{1} में से {0}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "सुनने के लिए {0} साउंड कार्ड, बजाने के लिए {1}",
   "{0}: non riuscito — {1}": "{0}: विफल — {1}",
-  "«come Windows» qui vuol dire: {0}": "यहां \"विंडोज़ की तरह\" का अर्थ है: {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "\"आर्गोस\" विंडोज स्मार्ट ऐप कंट्रोल द्वारा अवरुद्ध है और इस मशीन पर लोड नहीं होता है: \"स्थानीय\" अनुवाद विफल हो जाता है। टूल्स\\install_translation.ps1 को पुनः लॉन्च करें, या «google» का उपयोग करें ([WinError 4551] एक एप्लिकेशन नियंत्रण नीति ने फ़ाइल को अवरुद्ध कर दिया है। \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" या इसकी निर्भरता में से एक को लोड करने में त्रुटि।)",
+  "«come Windows» qui vuol dire: {0}": "यहां \"विंडोज़ की तरह\" का अर्थ है: {0}",
+  "⚠ llm": "⚠ एलएलएम",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ एलएलएम - आपके पीसी पर, छोटा मॉडल",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ स्थानीय - आपके पीसी पर (इंस्टॉल होना चाहिए)",
+  "⚠ wgc": "⚠डब्ल्यूजीसी"
  }
 }

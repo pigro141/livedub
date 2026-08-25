@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "و - صدای زن",
   "fermo": "متوقف شد",
+  "finestra-gdi": "پنجره gdi",
   "gli stili di voce": "سبک های صوتی",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ زیرنویس را به Google ارسال کنید",
   "il gioco lo scrive di questo colore": "بازی آن را به این رنگ می نویسد",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "هزینه صدا برای هر جمله بیان شده در این رایانه شخصی {0} میلی ثانیه است",
   "le due voci italiane": "دو صدای ایتالیایی",
   "lettura del testo: {0}": "خواندن متن: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm - در رایانه شخصی شما، مدل کوچک",
-  "locale — sul tuo PC (va installato)": "محلی - روی رایانه شخصی شما (باید نصب شود)",
   "m — voce maschile": "m - صدای مرد",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "برنامه ترجمه محلی وجود ندارد. در PowerShell، در پوشه برنامه جای‌گذاری کنید: {0}",
   "mostra l'essenziale": "موارد ضروری را نشان می دهد",
   "mostra le principali": "اصلی را نشان می دهد",
   "mostra tutto": "نشان دادن همه",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr - ویندوز یکی، دقیق تر",
   "parla con la voce": "با صدایت صحبت کن",
   "passo {0} di {1}": "مرحله {0} از {1}",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "برای ترجمه به {0} مگابایت برای دانلود نیاز دارید (مشعل، که ترجمه هرگز از آن استفاده نمی کند اما بدون آن شروع نمی شود). برای چسباندن در PowerShell، در پوشه برنامه: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "برای «{0}» هنوز فهرستی وجود ندارد: ایتالیایی باقی مانده است",
   "piper — svelto, gira ovunque (consigliato)": "پایپر - سریع، همه جا می رود (توصیه می شود)",
   "ppocr — gira ovunque": "ppocr - همه جا اجرا می شود",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{0} از {1}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} کارت صدا برای گوش دادن، {1} برای پخش",
   "{0}: non riuscito — {1}": "{0}: ناموفق - {1}",
-  "«come Windows» qui vuol dire: {0}": "«مانند ویندوز» در اینجا به این معنی است: {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "«argos» توسط Windows Smart App Control مسدود شده است و در این دستگاه بارگیری نمی‌شود: ترجمه «محلی» ناموفق است. tools\\install_translation.ps1 را مجدد راه اندازی کنید، یا از «google» استفاده کنید ([WinError 4551] یک خط مشی کنترل برنامه فایل را مسدود کرده است. خطا در بارگیری \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.d\" یا depend itsllll",
+  "«come Windows» qui vuol dire: {0}": "«مانند ویندوز» در اینجا به این معنی است: {0}",
+  "⚠ llm": "⚠ llm",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — در رایانه شخصی شما، مدل کوچک",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ محلی — روی کامپیوتر شما (باید نصب شود)",
+  "⚠ wgc": "⚠ wgc"
  }
 }

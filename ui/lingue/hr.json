@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "f — ženski glas",
   "fermo": "zaustavljeno",
+  "finestra-gdi": "gdi-prozor",
   "gli stili di voce": "glasovni stilovi",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ pošaljite titlove Googleu",
   "il gioco lo scrive di questo colore": "igra to piše ovom bojom",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "glas košta {0} ms za svaku izgovorenu rečenicu, na ovom računalu",
   "le due voci italiane": "dva talijanska glasa",
   "lettura del testo: {0}": "čitanje teksta: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm — na vašem računalu, mali model",
-  "locale — sul tuo PC (va installato)": "lokalni — na vašem računalu (mora biti instaliran)",
   "m — voce maschile": "m — muški glas",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "nedostaje lokalni prevoditeljski program. Zalijepite u PowerShell, u programsku mapu: {0}",
   "mostra l'essenziale": "pokazuje ono bitno",
   "mostra le principali": "prikazuje one glavne",
   "mostra tutto": "pokazati sve",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — onaj Windows, točnije",
   "parla con la voce": "govori svojim glasom",
   "passo {0} di {1}": "korak {0} od {1}",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "za prijevod vam je potrebno {0} MB za preuzimanje (baklja, koju prijevod nikad ne koristi, ali bez koje neće započeti). Za lijepljenje u PowerShell, u programskoj mapi: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "za «{0}» još nema kataloga: ostaje talijanski",
   "piper — svelto, gira ovunque (consigliato)": "piper — brz, ide posvuda (preporučeno)",
   "ppocr — gira ovunque": "ppocr — trči posvuda",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{0} od {1}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} zvučnih kartica za slušanje, {1} za reprodukciju",
   "{0}: non riuscito — {1}": "{0}: nije uspjelo — {1}",
-  "«come Windows» qui vuol dire: {0}": "«kao Windows» ovdje znači: {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "«argos» blokira Windows Smart App Control i ne učitava se na ovom stroju: «lokalni» prijevod ne uspijeva. ponovno pokrenite tools\\install_translation.ps1 ili upotrijebite «google» ([WinError 4551] Politika kontrole aplikacije blokirala je datoteku. Pogreška pri učitavanju \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" ili jedne od njegovih ovisnosti.)",
+  "«come Windows» qui vuol dire: {0}": "«kao Windows» ovdje znači: {0}",
+  "⚠ llm": "⚠ llm",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — na vašem računalu, mali model",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ lokalno — na vašem računalu (mora biti instaliran)",
+  "⚠ wgc": "⚠ wgc"
  }
 }

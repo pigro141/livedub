@@ -188,6 +188,7 @@
   "ecapa-onnx": "ecapa-onnx",
   "f — voce femminile": "f - giọng nữ",
   "fermo": "dừng lại",
+  "finestra-gdi": "cửa sổ gdi",
   "gli stili di voce": "phong cách giọng nói",
   "google — ⚠ manda i sottotitoli a Google": "google — ⚠ gửi phụ đề tới Google",
   "il gioco lo scrive di questo colore": "trò chơi viết nó bằng màu này",
@@ -210,10 +211,7 @@
   "la voce costa {0} ms per ogni frase detta, su questo PC": "giọng nói tốn {0} mili giây cho mỗi câu được nói trên PC này",
   "le due voci italiane": "hai giọng nói Ý",
   "lettura del testo: {0}": "đọc văn bản: {0}",
-  "llm — sul tuo PC, modello piccolo": "llm — trên PC của bạn, model nhỏ",
-  "locale — sul tuo PC (va installato)": "local — trên PC của bạn (phải được cài đặt)",
   "m — voce maschile": "m - giọng nam",
-  "manca il programma della traduzione locale. Da incollare in PowerShell, nella cartella del programma: {0}": "chương trình dịch địa phương bị thiếu. Dán vào PowerShell, trong thư mục chương trình: {0}",
   "mostra l'essenziale": "cho thấy những điều cần thiết",
   "mostra le principali": "cho thấy những cái chính",
   "mostra tutto": "hiển thị tất cả",
@@ -233,6 +231,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr - phiên bản Windows, chính xác hơn",
   "parla con la voce": "nói bằng giọng nói của bạn",
   "passo {0} di {1}": "bước {0} của {1}",
+  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "để dịch bạn cần có {0} MB để tải xuống (ngọn đuốc, bản dịch không bao giờ sử dụng nhưng nếu không có nó thì nó sẽ không bắt đầu). Để dán vào PowerShell, trong thư mục chương trình: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "đối với «{0}» vẫn chưa có danh mục: phần còn lại của Ý",
   "piper — svelto, gira ovunque (consigliato)": "piper - nhanh chóng, đi khắp mọi nơi (được khuyến nghị)",
   "ppocr — gira ovunque": "ppocr - chạy khắp nơi",
@@ -255,6 +254,11 @@
   "{0} di {1}: {2}": "{0} trên {1}: {2}",
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} card âm thanh để nghe, {1} để phát",
   "{0}: non riuscito — {1}": "{0}: thất bại — {1}",
-  "«come Windows» qui vuol dire: {0}": "«giống như Windows» ở đây có nghĩa là: {0}"
+  "«argos» e' bloccato da Smart App Control di Windows e non carica su questa macchina: cade la traduzione «locale». rilancia tools\\installa_traduzione.ps1, oppure usa «google» ([WinError 4551] Un criterio di controllo dell'applicazione ha bloccato il file. Error loading \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\livedub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" or one of its dependencies.)": "«argos» bị Windows Smart App Control chặn và không tải trên máy này: bản dịch «cục bộ» không thành công. khởi chạy lại tools\\install_translation.ps1 hoặc sử dụng «google» ([WinError 4551] Chính sách kiểm soát ứng dụng đã chặn tệp. Lỗi tải \"C:\\Users\\filde\\Documents\\!code\\CLAUDE\\liveub\\.venv\\Lib\\site-packages\\torch\\lib\\shm.dll\" hoặc một trong các phần phụ thuộc của nó.)",
+  "«come Windows» qui vuol dire: {0}": "«giống như Windows» ở đây có nghĩa là: {0}",
+  "⚠ llm": "⚠ ừm",
+  "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — trên PC của bạn, kiểu máy nhỏ",
+  "⚠ locale — sul tuo PC (va installato)": "⚠ cục bộ — trên PC của bạn (phải được cài đặt)",
+  "⚠ wgc": "⚠ wgc"
  }
 }

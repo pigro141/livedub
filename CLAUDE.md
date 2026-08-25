@@ -697,6 +697,143 @@ un widget non si vede guardando**: si vede quando la finestra si rifiuta di
 stringersi, ed e' per questo che la verifica ora chiede
 `pagina.minimumSizeHint().width() <= MIN_LARGO` per ogni scheda.
 
+## Cinquantatre lingue parlate, e come si sono trovate
+
+Il programma traduceva verso **133 lingue** e ne sapeva parlare **due** —
+italiano con tutti i motori, inglese solo con Kokoro. Non era un limite dei
+motori: era l'unica cosa che il codice **dichiarava**. Si traduceva in spagnolo e
+poi lo leggeva una voce italiana, **senza nessun errore**: un modello
+fonemizzato con le regole sbagliate, l'audio che esce, i contatori verdi.
+
+| motore | lingue | voci | dove gira | come sono fatte |
+|---|---|---|---|---|
+| **piper** (default) | **50** | 175 modelli nell'indice ufficiale | CPU | un modello per voce, un download ciascuno (28-114 MB) |
+| **supertonic** | **31** | 10 stili, validi in **tutte** le lingue | CPU | un modello multilingue: la lingua sceglie il fonemizzatore |
+| **kokoro** | **8** | 54, lingua e sesso scritti nel nome | CUDA | un modello, un file di stile da 510 KB per voce |
+| **unione** | **53** | | | |
+
+Due lingue le parla un motore solo (`hr`, `lt`, SuperTonic); ventuno solo Piper;
+sei tutti e tre.
+
+**I tre cataloghi hanno tre forme diverse, ed e' il punto.** Piper e' un modello
+per lingua, quindi aggiungere una lingua costa un download; SuperTonic e' **un
+modello per tutte e trentuno**, quindi le stesse dieci voci parlano tutto e non
+c'e' niente da scaricare in piu'; Kokoro ha le lingue **nella prima lettera del
+nome di ogni voce** (`a` American, `b` British, `e` Spanish, `f` French, `h`
+Hindi, `i` Italian, `j` Japanese, `p` Portoghese, `z` Mandarino) e il sesso nella
+seconda. Un elenco solo per tutti e tre sarebbe stato sbagliato per tutti e tre.
+
+**Il percorso HF di una voce Piper non e' una tabella, e' una regola**
+(`speak/backends/piper_voci.py`): la chiave `<codice>-<nome>-<qualita>` da'
+`<famiglia>/<codice>/<nome>/<qualita>/<chiave>.onnx`, verificato su tutte e 175
+senza eccezioni. Quindi non c'e' nessuna seconda tabella da tenere allineata —
+la forma «scritta due volte e la seconda non l'aggiorna nessuno» che qui e' gia'
+costata sette volte. L'elenco delle chiavi invece **sta nel repo**, come le 133
+lingue di Google: un elenco che dipende dalla rete si svuota quando la rete non
+c'e', e un menu vuoto non da' errore.
+
+### Cosa si dichiara, e cosa e' stato davvero provato
+
+**Si dichiara che una voce esiste e che e' di quella lingua**, e lo si verifica
+leggendo il catalogo del motore. **Non si dichiara che la pronuncia sia buona**:
+nessuno ha ascoltato cinquantatre lingue, e dirlo sarebbe una promessa che
+nessuna misura regge.
+
+Il controllo meccanico che costa poco e prende i casi rotti senza orecchio:
+`tools/censisci_voci.py --misura` sintetizza **una frase nella scrittura di
+quella lingua** e guarda il **passo** che ne esce. Una fonemizzazione sbagliata
+non solleva — il modello risponde, l'audio esce — e un passo fuori scala e'
+l'unica traccia che lascia. E' lo stesso metodo che aveva gia' smascherato il
+ramo che non ricampionava: 30 car/s, che non e' la velocita' di parlato di
+nessuno.
+
+| motore | lingue misurate | esito |
+|---|---|---|
+| **supertonic** | **31 su 31** | tutte plausibili, 6,6-17,8 car/s |
+| **piper** | **1 su 50** (ebraico, 9,14 car/s) | le altre non sono misurabili **qui**: SAC blocca `espeakbridge.pyd`, e ci passano tutte |
+| **kokoro** | **0 su 8** | `kokoro_onnx` non si importa affatto su questa macchina: SAC blocca il nativo di `rpds` |
+
+I due motori muti sono una proprieta' di **questa macchina** e non del codice —
+si veda `PROSSIMA_SESSIONE.md`. Le loro lingue sono dichiarate dal catalogo e
+**marcate come non misurate**, non spacciate per provate.
+
+**E il controllo ha tolto una lingua.** L'indice Piper ne ha 51 e questo
+programma ne offre 50: il giapponese usa `phoneme_type: japanese`, e il
+`piper-tts` installato conosce solo `espeak`, `text`, `pinyin` e `hebrew`. Il
+modello si scarica benissimo e la **prima sintesi** solleva. Dichiarare 51
+sarebbe stato vero sull'indice e falso in questo programma. (Il giapponese si
+parla lo stesso: Kokoro ne ha cinque voci, SuperTonic lo fa su CPU.) Le due voci
+cinesi `pinyin` restano fuori dal pool per la stessa ragione: vogliono `g2pw`,
+che non e' nei requisiti, e una voce che muore a meta' scena e' peggio di una
+voce in meno.
+
+**Il passo cambia con la lingua, ed e' la quinta volta di questa forma.** Dopo
+`chars_per_second` contato in due unita', `merge_similarity` misurata su una
+distribuzione e applicata a un'altra, il passo di un motore applicato a un altro
+e i 12,9 dell'italiano applicati all'inglese: `PASSO_LINGUA` c'e' ora in tutti e
+tre i backend. Il numero italiano viene da dodici battute di scena; gli altri da
+**una frase sola**, e la differenza sta scritta accanto alla tabella invece che
+nascosta dietro un elenco dall'aria uniforme. Le lingue in fondo (ja 6,3, ko 7,3,
+hi 8,4, ar 8,8) non sono motori lenti: sono **scritture dense**, dove un
+carattere vale una sillaba.
+
+**Il sesso della voce, Piper non lo dice.** Non c'e' il campo nell'indice, e
+dedurlo dal nome proprio vorrebbe dire un elenco di nomi in cinquanta lingue.
+Quindi fuori dall'italiano le voci Piper hanno genere `?` e il pool ripiega
+sull'ordine invece di alternare maschile e femminile — che e' il motivo per cui
+due personaggi consecutivi si distinguono. E' un peggioramento **dichiarato**.
+Kokoro e SuperTonic il sesso ce l'hanno nel nome, e l'alternanza la tengono.
+
+**I modelli a piu' parlanti valgono 2562 voci** e costano **un** download: uno
+solo ne contiene 904. Si scrivono `chiave#indice` e il `voice_id` se lo porta
+dietro, se no due voci diverse avrebbero lo stesso nome e il pool crederebbe di
+averne data una sola. Sono anche l'unica strada per sei lingue dove Piper non ha
+nessun modello a un parlante.
+
+**L'italiano e l'inglese non si sono mossi.** Sono le combinazioni su cui e'
+stata fatta **ogni misura** di questo file, e un pool diverso renderebbe quei
+numeri riferiti a un'altra cosa: il pool italiano di Piper e' ancora
+`riccardo, paola, riccardo-2_5, paola+2, riccardo+2_5, paola-2_5`, e le sei
+inglesi di Kokoro sono ancora quelle scelte. Dove c'e' una famiglia dichiarata
+vince quella; il catalogo entra solo dove non c'era niente.
+
+### Il motore segue la lingua, e l'avviso solo quando serve
+
+`core.motore.motore_per_lingua(lingua, motore_attuale, sonda) -> SceltaMotore`.
+Scelta la lingua d'arrivo, il motore si sposta **da solo** su uno che la parla.
+
+**L'avviso compare solo quando la scelta dell'utente e' stata scavalcata**, non a
+ogni cambio: un avviso che scatta sempre e' quello che si spegne da solo nella
+testa di chi lo legge — la stessa cosa gia' scritta qui per la ROI sotto 0,12.
+
+**E non si passa a un motore che questa macchina non regge.** Kokoro su CPU costa
+725 ms a battuta contro 207 su CUDA, e non e' vivibile: seguire una lingua non
+puo' costare il doppio della latenza. Il giudizio **non e' riscritto qui** — lo
+da' `core.banco.scegli`, che guarda in fila il provider dichiarato da ORT, quello
+davvero ottenuto e i millisecondi misurati. Due posti che decidono la stessa cosa
+si separano al primo cambiamento.
+
+Se **nessun** motore utilizzabile parla quella lingua non si sceglie in silenzio:
+si tiene quello che c'e' e lo si dichiara, come `core.banco.AVVISI` con le
+rinunce. Il giapponese fa vedere tutto il meccanismo in una riga: Piper ha la
+voce e non la sa dire, Kokoro ne ha cinque ma vuole la CUDA, SuperTonic lo parla
+su CPU — quindi con la GPU va a Kokoro e senza a SuperTonic.
+
+**La regola sta fuori da Qt**, con le sue verifiche nel gruppo `lingue_voci` (48
+verifiche, senza rete, senza modelli e senza aprire una finestra). E' la lezione
+piu' cara del repo: quattro dei cinque difetti trovati rileggendo a freddo
+stavano dentro Qt, l'unica parte del programma senza nessuna verifica.
+
+**E l'archivio delle voci di Kokoro adesso si allarga invece di essere
+riscritto.** Il difetto era gia' scritto in questo file — l'archivio si
+controllava che *esistesse* e non *cosa contenesse*, e la prima voce inglese
+mori' con un `KeyError` dentro la libreria. Con cinquantaquattro voci in nove
+lingue quel caso non e' piu' di frontiera: **cambiare lingua cambia le voci che
+servono a ogni sessione**. Quindi `voices_path(lingua)` verifica che ci siano
+quelle di **questa** lingua, e se mancano scarica **solo quelle** tenendo le
+altre: chi ha gia' le due italiane e passa allo spagnolo paga tre file, non
+cinquantaquattro.
+
 ## Le lingue, che sono **due cose diverse** e vanno tenute lontane
 
 `translate.source`/`translate.target` decidono in che lingua il programma
@@ -721,11 +858,13 @@ che non funzionano, con l'aria di sapere. L'unica cosa certa e universale e'
 `auto`, che **solo Google** capisce: per gli altri diventa `en` dentro
 `locale.coppia()`, ed e' marcato.
 
-**E il menu dichiara quando manca la voce** (`speak.pool.ha_voce`). Piper e
-SuperTonic hanno solo voci italiane, Kokoro italiano e inglese: tradurre verso il
-giapponese senza una voce giapponese non da' errore — esce una voce italiana che
-pronuncia il giapponese, cioe' un modello fonemizzato con le regole sbagliate,
-con l'audio che esce e la suite verde.
+**E il menu dichiara quando manca la voce** (`speak.pool.ha_voce`). Tradurre
+verso una lingua che il motore montato non parla non da' errore — esce una voce
+che ne pronuncia un'altra, cioe' un modello fonemizzato con le regole sbagliate,
+con l'audio che esce e la suite verde. Da quando i cataloghi sono veri (50/31/8,
+si veda la sezione qui sopra) quel caso e' molto piu' raro, e il motore ci si
+sposta da solo: la frase resta per l'unico caso che non si puo' risolvere,
+**nessun motore parla questa lingua**.
 
 **Lo stesso elenco entra nel prompt.** `translate/ollama.py` aveva tredici nomi
 scritti a mano e `LINGUE.get(a, a)` ripiegava sul codice: con `target=ja` il

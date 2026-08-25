@@ -49,6 +49,82 @@ come la 2.0.1.
 
 ---
 
+## Cosa è successo il 25 agosto: **53 lingue parlate invece di 2**
+
+Il programma traduceva verso 133 lingue e ne sapeva parlare **due**. Non era un
+limite dei motori — era l'unica cosa che il codice dichiarava (`pool.LINGUE_VOCE`
+diceva `piper: ("it",)` e `supertonic: ("it",)`, tutte e due **false**). Si
+traduceva in spagnolo e poi lo leggeva una voce italiana, **senza errore**.
+
+| motore | prima | adesso | voci |
+|---|---|---|---|
+| piper | 1 (it) | **50** | 175 modelli, catalogo ufficiale nel repo |
+| supertonic | 1 (it) | **31** | 10 stili, **gli stessi in tutte** le lingue |
+| kokoro | 2 (it, en) | **8** | 54, lingua e sesso scritti nel nome |
+| **unione** | **2** | **53** | |
+
+Il dettaglio sta in `CLAUDE.md`, sezione «Cinquantatre lingue parlate». Qui le
+tre cose da sapere prima di rimetterci le mani.
+
+**SuperTonic era il difetto peggiore dei tre.** `supertonic-3` è multilingue da
+sempre: il backend passava `lang="it"` **fisso**, quindi ogni lingua diversa
+dall'italiano usciva fonemizzata con le regole italiane. Audio che esce,
+contatori verdi, nessun contatore che lo mostri.
+
+**Il controllo meccanico ha tolto una lingua a Piper.** `tools/censisci_voci.py
+--misura` sintetizza una frase per lingua e guarda il passo in caratteri al
+secondo. Il giapponese di Piper usa `phoneme_type: japanese` e il `piper-tts`
+installato conosce solo espeak/text/pinyin/hebrew: il modello si scarica e la
+**prima sintesi solleva**. 51 nell'indice, **50** dichiarate. (Il giapponese lo
+parlano Kokoro e SuperTonic.) Le due voci cinesi `pinyin` restano fuori dal pool:
+vogliono `g2pw`, che non è nei requisiti.
+
+**E le misure che non si sono potute fare sono dichiarate tali**: su questa
+macchina SAC blocca `espeakbridge.pyd` (tutte le lingue Piper tranne l'ebraico) e
+il nativo di `rpds` (**Kokoro non si importa affatto**). Misurate davvero: 31 su
+31 per SuperTonic, 1 su 50 per Piper (ebraico, 9,14 car/s), **0 su 8** per
+Kokoro. Le lingue di Kokoro sono dichiarate dal catalogo e non provate.
+
+### Il motore segue la lingua
+
+`core.motore.motore_per_lingua(lingua, motore_attuale, sonda) -> SceltaMotore`,
+**fuori da Qt**, gruppo `lingue_voci` nella suite. Scelta la lingua d'arrivo il
+motore si sposta da solo; l'avviso compare **solo** se la scelta dell'utente è
+stata scavalcata, o se nessun motore utilizzabile parla quella lingua. Non si
+passa a Kokoro su una macchina senza CUDA, e quel giudizio è quello di
+`core.banco.scegli` — non riscritto.
+
+### Quello che resta aperto su questo pezzo
+
+- **Nessuna delle 51 lingue nuove è stata ascoltata**, e non doveva esserlo
+  («non le proviamo ma le dichiariamo funzionanti»). Quello che è provato è che
+  la voce esiste, che è di quella lingua e — dove misurabile — che il passo è
+  plausibile. La pronuncia no.
+- **`core.banco.PASSO_MINIMO = 10` car/s è misurato sull'italiano** e la sonda lo
+  applica al motore scelto. Con `translate.target=ja` (6,3 car/s su SuperTonic)
+  quel cancello direbbe «passo corto» su un motore sanissimo: è la stessa forma
+  «soglia misurata su una distribuzione, applicata a un'altra» già pagata cinque
+  volte. Non toccato, perché il banco misura sempre in italiano — ma il giorno
+  che misurerà nella lingua d'arrivo va rivisto.
+- **Il genere delle voci Piper è `?` fuori dall'italiano**: l'indice non ha il
+  campo. Il pool ripiega sull'ordine e perde l'alternanza maschile/femminile.
+  Si potrebbe misurare la f0 di una frase sintetizzata, ma costerebbe di
+  scaricare 175 modelli.
+- **La prima sessione in una lingua Piper nuova scarica fino a sei modelli.**
+  `preload` scalda tutte le voci del pool, e in Piper una voce è un modello da
+  28-114 MB: l'italiano ne ha sempre scaricati due (91 MB), il tedesco ne
+  scaricherebbe **sei**. Non è un difetto nuovo — è la stessa riga di sempre con
+  un catalogo più grande — ma adesso morde, e il posto giusto per curarlo esiste
+  già: il **passo 6 della guida** (`core/banco.py`) scarica i modelli **con la
+  barra** e dichiara il peso. Oggi guarda solo il motore, non la lingua
+  d'arrivo. Finché non lo fa, un Avvia in tedesco può restare fermo qualche
+  minuto senza dire perché.
+- **I 2562 parlanti dei 26 modelli multipli sono raggiungibili** (`chiave#indice`,
+  `speaker_id`), e non ne è stato ascoltato nessuno. `en_US-libritts-high` da solo
+  ne ha 904.
+
+---
+
 ## Cosa è successo il 19-24 agosto
 
 ### Il bug delle «battute in ritardo» erano **tre bug**

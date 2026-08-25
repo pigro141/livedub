@@ -297,6 +297,16 @@ def make_correttore(cfg, traduzione=None):
         # gli errori peggiori possibili — `oulldozer -> bulldozers`,
         # `ciassico -> biascico`, `uice -> ice` dove doveva astenersi. Chi vuole
         # correggere usi `ollama`.
+        # E si guarda **adesso** se quella libreria si carica: `CorrettoreLlm`
+        # la apre pigramente, quindi senza questa riga la rinuncia uscirebbe
+        # sulla prima parola da correggere invece che all'Avvia.
+        from core import bloccati
+
+        esito = bloccati.pezzo("llm")
+        if not esito.ok:
+            raise bloccati.Rinuncia(
+                esito, "il correttore dell'OCR",
+                "usa «ollama», che su otto casi veri ne prende cinque contro uno")
         from translate.llm import CorrettoreLlm
         from vision.lexicon import carica
 

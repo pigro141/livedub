@@ -202,6 +202,20 @@ def make_traduttore(cfg, dillo=None):
             tr.scalda()
         return tr
     if nome == "llm":
+        # **Si guarda adesso se quel pezzo si carica, per la stessa ragione per
+        # cui il modello locale si prende qui sopra**: costruire e' il momento in
+        # cui l'utente ha appena premuto Avvia e sta guardando il registro, la
+        # prima battuta e' il momento in cui sta giocando. `TraduttoreLlm` apre
+        # la libreria **pigramente**, quindi senza questa riga la rinuncia
+        # arriverebbe a meta' scena — che e' il posto peggiore per una notizia
+        # che si sapeva gia'.
+        from core import bloccati
+
+        esito = bloccati.pezzo("llm")
+        if not esito.ok:
+            raise bloccati.Rinuncia(
+                esito, "la traduzione «llm»",
+                "usa «locale» (Argos) o «ollama», che non hanno questo vincolo")
         from translate.llm import TraduttoreLlm
 
         return TraduttoreLlm(modello=cfg.llm_model, contesto=cfg.context_lines)

@@ -100,17 +100,32 @@ class MotoreLlm:
     def _motore(self):
         if self._llm is not None:
             return self._llm
-        try:
-            from llama_cpp import Llama
-        except ImportError as e:  # pragma: no cover - dipende dall'ambiente
-            raise RuntimeError(
-                "llama-cpp-python non installato:\n"
+        # **Non basta un `except ImportError`, ed e' il difetto che stava qui.**
+        # `llama_cpp` importa il suo modulo Python e apre `llama.dll` con
+        # `ctypes`: quando Windows la blocca, quello che esce e' un
+        # **`RuntimeError`**, non un `ImportError`. La guardia scritta apposta
+        # per questo caso non poteva quindi scattare proprio nel caso per cui
+        # esisteva, e l'utente si prendeva
+        # `RuntimeError: Failed to load shared library ... [WinError 4551]`,
+        # cioe' una riga che non dice ne' cosa cade ne' cosa fare.
+        #
+        # Adesso la domanda «questo pezzo si carica qui?» la fa `core.bloccati`,
+        # che distingue «non installato» da «bloccato dal criterio di Windows» —
+        # due situazioni che chiedono all'utente due cose diverse.
+        from core import bloccati
+
+        esito = bloccati.pezzo("llm")
+        if not esito.ok:
+            rimedio = (
+                "usa «locale» (Argos) o «ollama», che non hanno questo vincolo"
+                if esito.stato == bloccati.CRITERIO else
                 "  .\\.venv\\Scripts\\python.exe -m pip install llama-cpp-python "
                 "--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu "
-                "--only-binary :all:\n"
-                "(la ruota gia' compilata: da sorgente il build sbatte sul limite "
-                "di lunghezza dei percorsi di Windows)"
-            ) from e
+                "--only-binary :all:"
+            )
+            raise bloccati.Rinuncia(
+                esito, "la traduzione «llm» e il correttore dell'OCR", rimedio)
+        from llama_cpp import Llama
 
         if not self.percorso.exists():
             print(f"llm: scarico {REPO_DEFAULT[1]}...", file=sys.stderr)

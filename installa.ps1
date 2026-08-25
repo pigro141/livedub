@@ -91,7 +91,7 @@ Esito "dipendenze" $ok $(if ($ok) { "da requirements.txt" } else { "pip ha falli
 
 # -- 4. OneOCR ---------------------------------------------------------------
 # Non ridistribuibile: si copia dalla macchina, dove l'utente ce l'ha gia' con la
-# sua licenza Windows. Si veda LICENZE.md.
+# sua licenza Windows. Si veda docs/LICENZE.md.
 if (Test-Path "models\oneocr\oneocr.onemodel") {
     Esito "OneOCR" $true "gia' presente"
 } else {

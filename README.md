@@ -489,7 +489,7 @@ Non sblocca funzioni e non toglie limiti — non ce ne sono.
 
 **GPL-3.0-or-later**, e non per gusto: il sintetizzatore di default (Piper) e il
 g2p di Kokoro (eSpeak NG) sono GPL-3, quindi qualunque cosa venga distribuita lo
-è. Il conto completo, libreria per libreria, sta in [`LICENZE.md`](LICENZE.md) —
+è. Il conto completo, libreria per libreria, sta in [`docs/LICENZE.md`](docs/LICENZE.md) —
 compreso il perché OneOCR e i pesi dei modelli **non** vengono ridistribuiti.
 
 ---

@@ -1459,6 +1459,6 @@ sentito, non un'altra impressione.
 
 ## Dove sta il lavoro
 
-`PROSSIMA_SESSIONE.md` e' il passaggio di consegne: stato, cosa e' aperto e con
+`docs/lavoro/PROSSIMA_SESSIONE.md` e' il passaggio di consegne: stato, cosa e' aperto e con
 quale misura si scioglie. Va aggiornato a fine sessione, e vale piu' di questo
 file per sapere *cosa* fare adesso.

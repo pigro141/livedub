@@ -32,3 +32,7 @@ graphify-out/
 build/
 dist/
 *.spec.bak
+
+# Immagini di lavoro dell'utente lasciate in radice: sono sue, non del
+# progetto. Restano sul disco e fuori dal repo.
+/ChatGPT Image *.png

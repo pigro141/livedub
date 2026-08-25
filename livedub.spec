@@ -132,7 +132,7 @@ a = Analysis(
     # regge tutto questo file.
     datas=PROFILI + [("core/config.py", "core"),
                      ("assets/logo", "assets/logo"), ("ui/lingue", "ui/lingue"),
-                     ("LICENSE", "."), ("LICENZE.md", ".")]
+                     ("LICENSE", "."), ("docs/LICENZE.md", ".")]
     + DATI_LIBRERIE,
     # **Gli import che PyInstaller non puo' vedere**, perche' qui i backend si
     # costruiscono per nome (`make_tts`, `make_ocr`) e non con un `import` in

@@ -88,6 +88,39 @@ if ($SenzaGpu) {
 }
 $ok = $LASTEXITCODE -eq 0
 Esito "dipendenze" $ok $(if ($ok) { "da requirements.txt" } else { "pip ha fallito" })
+if (-not $ok) {
+    # **Non si va avanti misurando un ambiente a meta'.** Tutto quello che viene
+    # dopo — la CUDA, i modelli, la suite — risponderebbe su un venv incompleto, e
+    # le sue risposte sembrerebbero difetti del programma.
+    Write-Host "`nle dipendenze non sono entrate: le righe di pip qui sopra dicono perche'.`n" -ForegroundColor Red
+    exit 1
+}
+
+# -- 3b. i quattro che vanno senza dipendenze --------------------------------
+# `rapidocr-onnxruntime`, `piper-tts`, `supertonic` e `kokoro-onnx` chiedono tutti
+# `onnxruntime` — la ruota CPU — che accanto a `onnxruntime-gpu` **spegne la CUDA
+# in silenzio**: 725 ms a battuta invece di 207, con i log verdi. Il perche' per
+# esteso, con la misura, sta in `requirements-nodeps.txt`.
+& $pyexe -m pip install -r requirements-nodeps.txt --no-deps --quiet
+$ok = $LASTEXITCODE -eq 0
+Esito "lettore e voci" $ok $(if ($ok) { "da requirements-nodeps.txt, senza dipendenze" } else { "pip ha fallito" })
+if (-not $ok) {
+    Write-Host "`nsenza il lettore e la voce il programma non doppia niente.`n" -ForegroundColor Red
+    exit 1
+}
+
+# -- 3c. e la prova che conta non e' «il comando e' finito» ------------------
+# Se `onnxruntime` (CPU) si e' intrufolato lo stesso — una dipendenza nuova, un
+# `pip install` fatto a mano — **nessun errore lo direbbe**: la sintesi diventa
+# tre volte piu' lenta e basta. La regola sta in un modulo, non qui, cosi' la
+# esegue anche la suite.
+$doppio = & $pyexe -c @"
+import importlib.metadata as md
+nomi = {(d.metadata['Name'] or '').lower() for d in md.distributions() if d.metadata['Name']}
+print('DOPPIO' if 'onnxruntime' in nomi else 'SOLO-GPU')
+"@ 2>&1
+$soloGpu = "$doppio" -match "SOLO-GPU"
+Esito "onnxruntime" $soloGpu $(if ($soloGpu) { "solo il pacchetto GPU, com'e' giusto" } else { "c'e' anche la ruota CPU accanto a onnxruntime-gpu: la CUDA e' spenta. Toglierla con `pip uninstall onnxruntime` e rimettere onnxruntime-gpu[cuda,cudnn]==1.28.0" })
 
 # -- 4. OneOCR ---------------------------------------------------------------
 # Non ridistribuibile: si copia dalla macchina, dove l'utente ce l'ha gia' con la
@@ -156,3 +189,13 @@ if ($mancano.Count -eq 0) {
 }
 Write-Host "  .\.venv\Scripts\python.exe -m tools.ui_qt --profile live" -ForegroundColor White
 Write-Host "  (nella finestra: Scegli finestra -> Seleziona area -> Avvia)`n" -ForegroundColor DarkGray
+
+# **Quello che questo script di proposito non installa.** La traduzione offline
+# (Argos) e' il default di `translate.backend`, ma costa ~3 GB perche' tira
+# `stanza` e con lui `torch` — e su GTA V in italiano non serve: `translate.
+# enabled` e' false di serie. Chi non la installa doppia lo stesso; chi accende la
+# traduzione senza averla installata troverebbe un default che non c'e', ed e'
+# per questo che la riga sta qui invece che in nessun posto.
+Write-Host "Non e' installata la traduzione offline (~3 GB, serve solo se accendi" -ForegroundColor DarkGray
+Write-Host "translate.enabled). Quando ti serve:" -ForegroundColor DarkGray
+Write-Host "  powershell -ExecutionPolicy Bypass -File tools\installa_traduzione.ps1`n" -ForegroundColor DarkGray

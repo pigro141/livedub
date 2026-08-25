@@ -1,0 +1,65 @@
+# I pacchetti che vanno installati **senza le loro dipendenze**, e tutti per lo
+# stesso motivo: ognuno di loro chiede `onnxruntime` — la ruota CPU — che accanto
+# a `onnxruntime-gpu` **spegne la CUDA in silenzio**.
+#
+#   .\.venv\Scripts\python.exe -m pip install -r requirements-nodeps.txt --no-deps
+#
+# Va eseguito **dopo** `requirements.txt`, che porta `onnxruntime-gpu` e le vere
+# dipendenze di questi quattro. Da solo lascerebbe quattro pacchetti senza niente
+# sotto, e il guasto uscirebbe alla prima battuta invece che qui.
+#
+# ## La misura, e la cosa che non si sarebbe indovinata
+#
+# `requirements.txt` avvertiva del solo Piper. I pacchetti che tirano dentro
+# `onnxruntime` sono **quattro**, e il quarto e' quello che nessun commento
+# nominava:
+#
+# | pacchetto | cosa chiede | cos'e' in questo programma |
+# |---|---|---|
+# | `piper-tts` | `onnxruntime<2,>=1` | `tts.backend` **di serie** |
+# | `supertonic` | `onnxruntime>=1.19.0` | dieci voci native, CPU |
+# | `kokoro-onnx` | `onnxruntime>=1.20.1` | il motore su GPU |
+# | `rapidocr-onnxruntime` | `onnxruntime>=1.7.0` | `vision.ocr_backend` **di serie** |
+#
+# Cioe' anche togliendo tutti e tre i motori di sintesi, il **lettore** di serie
+# da solo bastava a rimettere dentro la ruota CPU. Misurato il 25 agosto
+# risolvendo `requirements.txt` con `pip install --dry-run --ignore-installed
+# --report`: prima comparivano `onnxruntime-1.29.0` e `onnxruntime-gpu-1.28.0`
+# insieme; togliendo i tre motori compariva **ancora**, e il report diceva chi
+# l'aveva chiesta (`requested=False`, per `rapidocr-onnxruntime==1.4.4`).
+#
+# E' esattamente la forma gia' pagata in questo progetto: la guardia esisteva,
+# diceva a parole la cosa giusta — «installare con `--no-deps`» — e copriva **un
+# quarto** dei casi per cui esisteva.
+#
+# ## Perche' un file a se' e non una riga in piu'
+#
+# `--no-deps` e' un'opzione **globale** di pip: messa in `requirements.txt`
+# spegnerebbe le dipendenze di tutto il resto. E' la stessa ragione per cui
+# argostranslate sta in `tools\installa_traduzione.ps1` e non in un file di
+# requisiti — un `requirements.txt` non sa dire «questo pacchetto senza le sue
+# dipendenze».
+#
+# ## E la prova non e' che il comando finisca
+#
+# `installa.ps1` chiama `tools\controlla_traduzione.py` subito dopo: guarda se il
+# pacchetto CPU si e' intrufolato lo stesso e se ORT vede ancora la CUDA, e si
+# ferma se la risposta e' no. Senza quella riga, l'unico sintomo sarebbe una
+# sintesi tre volte piu' lenta con tutti i log verdi.
+
+# Il lettore di serie di `vision.ocr_backend`.
+rapidocr-onnxruntime==1.4.4
+
+# tier A, default, CPU. La 1.6.0 e' bloccata da Smart App Control:
+# `espeakbridge.pyd` non carica, e non si vede all'installazione perche' quel
+# `.pyd` si apre **pigramente alla prima sintesi** — cioe' a sessione accesa,
+# sulla prima battuta, che e' il momento peggiore.
+piper-tts==1.3.0
+
+# dieci voci native, CPU
+supertonic==1.3.1
+
+# richiede la GPU. Il g2p italiano passa da espeakng-loader + phonemizer-fork,
+# che stanno in `requirements.txt`: verificato su Windows che i binari espeak-ng
+# arrivino col wheel, senza niente da installare a mano.
+kokoro-onnx==0.5.0

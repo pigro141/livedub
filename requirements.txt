@@ -3,6 +3,16 @@
 # invisibili a chi leggeva il repo.
 #
 #   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+#   .\.venv\Scripts\python.exe -m pip install -r requirements-nodeps.txt --no-deps
+#
+# **Sono due comandi e non uno, e il secondo non e' un optional**: senza, il
+# lettore e la voce non ci sono affatto. I quattro pacchetti che stanno di la'
+# dipendono da `onnxruntime` (CPU), che accanto a `onnxruntime-gpu` spegne la CUDA
+# in silenzio; `--no-deps` e' l'unico modo di tenerlo fuori, ed e' un'opzione
+# **globale** — messa qui spegnerebbe le dipendenze di tutto il resto. E' la
+# stessa ragione per cui argostranslate sta in uno script e non qui: un
+# `requirements.txt` non sa dire «questo pacchetto senza le sue dipendenze».
+# `installa.ps1` fa la sequenza giusta e poi **verifica di averla ottenuta**.
 #
 # Le versioni sono quelle verificate sulla macchina di sviluppo (Windows 11,
 # Python 3.11.9, i9-11900K + RTX 4060), non minimi teorici.
@@ -33,11 +43,16 @@ onnxruntime-gpu[cuda,cudnn]==1.28.0
 # non si vede all'installazione, perche' quel `.pyd` si apre **pigramente alla
 # prima sintesi**. Cioe' il difetto compare a sessione accesa, sulla prima
 # battuta, che e' il momento peggiore.
-piper-tts==1.3.0            # tier A, default, CPU. INSTALLARE CON --no-deps
-supertonic==1.3.1           # dieci voci native, CPU
-kokoro-onnx==0.5.0          # richiede la GPU; tira espeakng-loader + phonemizer-fork
-                            # per il g2p italiano (verificato su Windows: i binari
-                            # espeak-ng arrivano col wheel, niente da installare a mano)
+# **I tre motori stanno in `requirements-nodeps.txt`**, e il perche' e' misurato.
+# L'avviso qui sopra riguardava il solo Piper, e i pacchetti che tirano dentro
+# `onnxruntime` (CPU) sono **quattro** — i tre motori piu' il lettore di serie,
+# `rapidocr-onnxruntime`, che nessun commento nominava. La tabella e la misura
+# stanno in quel file.
+#
+# Le loro dipendenze vere — quelle che non sono `onnxruntime` — sono elencate a
+# mano qui sotto, perche' con `--no-deps` non le porta piu' nessuno.
+espeakng-loader==0.2.4      # kokoro: i binari espeak-ng per il g2p
+phonemizer-fork==3.3.2      # kokoro: il g2p italiano
 # `tokenizers` stava qui per il backend Qwen, che e' stato tolto: adesso non lo
 # importa piu' nessuno (`llama-cpp-python` porta il suo). Tolto anche da qui —
 # una dipendenza dichiarata e non usata fa reinstallare a ogni clone qualcosa che
@@ -49,11 +64,28 @@ kokoro-onnx==0.5.0          # richiede la GPU; tira espeakng-loader + phonemizer
 # di proposito: la GPU serve alla sintesi, e la prova hardware di Qwen ha
 # misurato quanto poco margine ci sia.
 #
-# **La ruota va presa gia' compilata.** Da sorgente il build sbatte sul limite di
-# lunghezza dei percorsi di Windows (fallisce dentro `vendor/llama.cpp/tools/ui`),
-# quindi:
+# **Non e' piu' una riga di questo file, e questa e' la cura di un difetto che
+# fermava tutta l'installazione.** `llama-cpp-python==0.3.34` era un requisito
+# normale, e su Windows **non esiste in nessuno dei due posti da cui questo stesso
+# file dice di prenderlo**. Misurato il 25 agosto:
 #
-#   .\.venv\Scripts\python.exe -m pip install llama-cpp-python `
+#  - su PyPI la 0.3.34 ha **un solo file, l'sdist**: niente ruota, quindi pip
+#    compila. Riprodotto con `pip wheel --no-deps --no-cache-dir`: `CMake Error:
+#    CMAKE_C_COMPILER not set`. Su una macchina senza MSVC — cioe' su una macchina
+#    normale — muore li';
+#  - sull'indice CPU di abetlen indicato qui sotto, l'ultima ruota `cp311-
+#    win_amd64` e' la **0.3.19**: la 0.3.34 non c'e' nemmeno li'.
+#
+# E siccome era la **prima riga che pip incontra dopo la risoluzione**, il comando
+# in testata a questo file non installava *niente*: chi clonava il repo restava a
+# mani vuote. E' la forma peggiore fra quelle gia' viste, perche' il file
+# contraddiceva se stesso — la riga installabile diceva una cosa e il commento
+# sopra ne diceva un'altra.
+#
+# Resta qui come **facoltativo**, ed e' onesto che lo sia: `translate.backend`
+# vale `locale` di serie, non `llm`. Chi lo vuole, con la ruota che esiste:
+#
+#   .\.venv\Scripts\python.exe -m pip install llama-cpp-python==0.3.19 `
 #       --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu `
 #       --only-binary :all:
 #
@@ -70,14 +102,20 @@ kokoro-onnx==0.5.0          # richiede la GPU; tira espeakng-loader + phonemizer
 # Non e' un `ImportError`, e la guardia scritta per prenderlo non scattava: quel
 # che esce e' `RuntimeError: Failed to load shared library ... [WinError 4551]`.
 # Adesso passa da `core/bloccati.py`, che lo dichiara e manda su «locale» o
-# «ollama» invece di consegnare quella riga.
-llama-cpp-python==0.3.34
+# «ollama» invece di consegnare quella riga — ed e' lo stesso modulo che dice
+# «assente» quando non lo si e' installato affatto, che e' il caso di serie.
 
 # --- la traduzione offline, e le sue due trappole ----------------------------
-# **Adesso e' installata di serie**: e' il default di `translate.backend`, e un
-# default che non funziona senza un `pip install` fatto a mano non e' un default.
-# Chi apre l'eseguibile deve trovarsela pronta; la **coppia di lingue** invece e'
-# un modello e si scarica al primo uso, come gia' fanno silero ed ECAPA.
+# **E' il default di `translate.backend`, e la installa `installa.ps1`** — non
+# questo file, per la ragione scritta piu' sotto. La **coppia di lingue** invece
+# e' un modello e si scarica al primo uso, come gia' fanno silero ed ECAPA.
+#
+# ⚠️ Chi installa a mano con i due comandi in testata **non ce l'ha**: la
+# traduzione e' spenta di serie (`translate.enabled=false`, e su GTA V in italiano
+# non serve), quindi il programma parte e doppia lo stesso. Ma accendendola
+# troverebbe un default che non c'e'. Il comando e':
+#
+#   powershell -ExecutionPolicy Bypass -File tools\installa_traduzione.ps1
 #
 # Le righe qui sotto sembrano barocche e non lo sono. `pip install argostranslate`
 # e basta fa **due** danni, misurati con `--dry-run` prima di installare:
@@ -131,7 +169,14 @@ llama-cpp-python==0.3.34
 # risposta alla domanda «cosa succede a chi installa adesso», e ogni verde letto
 # li' e' falso. E' la stessa forma gia' costata cinque volte in questo progetto:
 # una misura che non puo' dare la risposta che le si chiede.
-rapidocr-onnxruntime==1.4.4
+# `rapidocr-onnxruntime` sta in `requirements-nodeps.txt`: chiede
+# `onnxruntime>=1.7.0`, cioe' il lettore **di serie** da solo rimetteva dentro la
+# ruota CPU. Le sue dipendenze vere sono queste — le quattro qui sotto sono nuove
+# in questo file solo perche' prima arrivavano da lui.
+six==1.17.0                 # rapidocr
+shapely==2.1.2              # rapidocr
+PyYAML==6.0.3               # rapidocr
+tqdm==4.70.0                # rapidocr, e la barra di huggingface_hub
 opencv-python==4.13.0.92    # 5.0.0.93 e 4.14 bloccate; provate morphologyEx,
                             # find_bands e inchiostro(), non solo l'import
 pillow==11.3.0              # era 12.3.0 (codec opzionali bloccati)

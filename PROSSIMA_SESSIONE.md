@@ -8,13 +8,21 @@ doppiaggio italiano dal vivo dei sottotitoli dei videogiochi.
 
 **Il difetto aperto più grave**: Smart App Control di Windows 11 — acceso di
 serie sulle installazioni pulite — blocca alcune DLL. **L'eseguibile non parte
-affatto**, e due funzioni restano rotte con un errore grezzo invece di una
-rinuncia dichiarata. Vedi «Cosa è rotto adesso».
+affatto**; la cattura per finestra e il modello locale non hanno più un errore
+grezzo ma una **rinuncia dichiarata**, e la cattura per finestra ha di nuovo una
+strada che funziona. Vedi «Cosa è rotto adesso» e «Il ramo
+`sac-rinunce-dichiarate`».
 
-**La suite su questa macchina dà 12 fallite su 1753** (invece di 1936 verdi), ed
-è quel blocco, **non una regressione del codice**: misurato su HEAD da solo, con
-l'albero pulito. Quindi finché SAC morde, il criterio è **«non aggiungere fallite
+**La suite su questa macchina dà 12 fallite**, ed è quel blocco, **non una
+regressione del codice**: misurato su `main` da solo, con l'albero pulito (12 su
+1753) e poi sul ramo (12 su **1795**, cioè quarantadue verifiche in più e **le
+stesse dodici**). Finché SAC morde il criterio è **«non aggiungere fallite
 rispetto a HEAD»**, non «tutto verde».
+
+Le dodici, per non ricercarle: `argostranslate` non si importa (torch/`shm.dll`
+bloccata) e con lei cadono `traduzione`, `etichetta`, `velocita`, `memoria`,
+`coerenza`, `audio_source`; `cv2` bloccata e con lei `ocr`, `overlay`, `gioco2`,
+`lines` (due) e `diff`.
 
 ---
 
@@ -129,36 +137,225 @@ Corollario che morde: **tutti gli exe-guscio generati da pip sono bloccati**,
 `python.exe -m pip`, e che `vision/ocr.py` lanci il figlio con
 `sys.executable -m vision.oneocr_worker`.
 
-**Firmarlo forse basta, forse no**: SAC valuta anche la reputazione del
-certificato, e uno nuovo può restare sconosciuto per un po'. È l'unica cosa non
-verificata di tutta questa indagine, ed è dichiarata come ipotesi apposta.
+**«Firmarlo forse basta» adesso ha una risposta, e sono tre**, tutte da
+documentazione Microsoft e non da intuizione:
+
+1. **Il self-signed non serve a niente.** La tabella di
+   [SmartScreen reputation][ss] mette *Self-signed Certificate* e *No signature*
+   sulla stessa riga, e la pagina [Sign your app for Smart App Control][sac] dice
+   che «Code can be signed with any certificate, but Smart App Control **only
+   considers certificates issued by trusted providers**». Chiuso: non è una
+   strada.
+2. **Un certificato vero (OV o EV) non sblocca subito**, e l'EV non compra più
+   niente: «EV certificates no longer bypass SmartScreen». Quello che compra la
+   firma è **un'altra cosa e più importante**: «Signing files using a trusted
+   certificate can allow certificate reputation to build… Unsigned files must
+   build reputation anew with **every** update». Cioè la firma è l'unica cosa
+   che rompe il giro «ogni build è un file nuovo, quindi reputazione zero per
+   costruzione».
+3. **La sottomissione a WDSI non è una strada, ed è scritto.** «There is no need
+   (or mechanism) to manually submit a file for SmartScreen reputation review
+   **for consumer endpoints**. Reputation builds organically through download
+   volume.» È riservata agli amministratori d'impresa.
+
+**La strada che costa zero e che non era stata cercata: il Microsoft Store.**
+«Apps published through the Microsoft Store are re-signed by Microsoft and carry
+**full reputation**», e dal 2026 la registrazione dello sviluppatore
+**individuale è gratuita** in circa 200 mercati (Italia compresa) — bastano
+documento e selfie, e il negozio accetta app Win32 impacchettate in MSIX «without
+modifying existing code». È l'unica opzione che non chiede né una partita IVA né
+un abbonamento.
+
+**Azure Artifact Signing (ex Trusted Signing) non è disponibile a un privato
+italiano.** La pagina ufficiale, aggiornata l'11 agosto 2026: «Public Trust
+certificates are available to organizations in the United States, Canada, the
+European Union… **Individual developers must be located in the United States or
+Canada**». Da un'impresa UE sì: 9,99 $/mese, validazione d'identità da **1 a 20
+giorni lavorativi**. I tre anni di storia non servono più.
+
+**SignPath Foundation** firma gratis i progetti open source (licenza approvata
+OSI, nessun componente proprietario, progetto mantenuto e già rilasciato, build
+verificabile dal sorgente, doppia autenticazione e una *code signing policy*
+pubblicata sul sito del progetto). Il certificato però è **intestato a SignPath
+Foundation**, non all'utente. Nessun requisito dichiarato di popolarità o età.
+
+[ss]: https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation
+[sac]: https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/code-signing-for-smart-app-control
 
 **Per ora il README pubblicato indica `installa.ps1` e non l'exe**, quindi chi
 scarica ha una strada che funziona. Non promettere l'exe finché non parte.
 
-### 2. `windows_capture` non ha nessuna versione che passi
+### 2. `windows_capture` non ha nessuna versione che passi — **e non serve più**
 
-Provate 2.0.1 / 2.0.0 / 1.5.0 / 1.4.4: tutte bloccate. Cade la cattura di **una
-finestra sola**, che in `CLAUDE.md` è «la scelta che viene prima di tutte le
-altre». Il ripiego su `MssSource` funziona (provato) ma **si riporta dietro tutto
-ciò che quella scelta aveva risolto**: il programma può rileggere il proprio
-overlay (torna necessario `WDA_EXCLUDEFROMCAPTURE`, al prezzo che chi registra non
-vede più l'overlay), la ROI non segue più il gioco se si sposta, il costo di
-cattura risale.
+Provate 2.0.1 / 2.0.0 / 1.5.0 / 1.4.4: tutte bloccate. Provato anche **l'unico
+altro pacchetto che espone la stessa API**, `winrt-Windows.Graphics.Capture` di
+pywinrt, in tutte e cinque le versioni pubblicate (3.2.1 / 3.1.0 / 3.0.0 / 2.3.0
+/ 2.0.1): bloccato pure lui, e con lui `winrt-runtime`. Non è quella libreria: è
+**ogni file nuovo**.
 
-**Oggi il ripiego non è pulito**: chiedendo `backend='finestra'` l'utente si
-prende un `ImportError: DLL load failed` grezzo. **Va trasformato in una rinuncia
-dichiarata**, sulla falsariga di `core.banco.AVVISI`.
+**La strada che funziona non ha nessun file da far accettare**: `PrintWindow`
+con `PW_RENDERFULLCONTENT`, che sta in `user32.dll`. Cattura **la stessa
+finestra**, quindi tornano tutte e tre le cose che quella scelta aveva risolto —
+l'overlay non rientra nella cattura, la ROI segue il gioco, non c'è niente da
+ritagliare. Sta in `capture/printwindow.py`, e `capture.screen.apri_finestra`
+prova WGC e ci ripiega **dicendolo**.
 
-### 3. `llama-cpp-python` idem
+Costo misurato, dieci passate per riga, finestra 1278x1391: **17,6 ms** intera,
+**6,2 ms** la sola fascia che si legge (la fascia si prende spostando l'origine
+del DC, ed è la stessa idea di `capture.solo_roi` applicata a una finestra).
+Verificato sull'immagine che il contenuto sia vero e non la sola cornice: la
+pagina di Chrome — contenuto composto in GPU — arriva intera.
 
-Provate 0.3.35 / 0.3.34 / 0.3.2: tutte bloccate. Muoiono il backend di traduzione
-`llm` e il `Revisore` di `vision/correct.py`. Sono **spenti di serie** entrambi,
-quindi il danno è contenuto — ma il pannello li offre, e sceglierli darà errore.
+**Il difetto che resta è dichiarato, non nascosto.** Su un gioco Direct3D con
+una catena di scambio *flip model* non c'è una superficie di redirezione, e
+`PrintWindow` **riesce e restituisce nero** — che non è un errore: la sessione
+resta accesa, i contatori restano verdi e sembra rotto l'OCR.
+`PrintWindowSource.nero` guarda i primi otto fotogrammi e lo dice, e il ciclo
+video scrive nel registro cosa fare.
 
-**Il minimo da fare per 2 e 3 è la stessa cosa**: una rinuncia dichiarata invece
-di un errore grezzo. È la regola più costosa di questo repo — *un ripiego che non
-si dichiara è peggio di un errore*.
+⚠️ **Quello che nessuno ha ancora potuto provare è proprio GTA V.** Il nero o
+non-nero su un gioco vero si vede in trenta secondi accendendolo: è la prima
+cosa da fare la prossima sessione, e la risposta decide se serve riscrivere WGC
+in `ctypes` (mezza giornata, si veda «Le decisioni che restano»).
+
+### 3. `llama-cpp-python` idem, e il pezzo non era nemmeno un `.pyd`
+
+Provate 0.3.35 / 0.3.34 / 0.3.2 da PyPI **più la ruota dell'indice CPU di
+abetlen**, che è un file diverso e meritava una prova a sé: bloccata pure quella.
+Qui il pezzo nativo è `llama_cpp/lib/llama.dll`, aperta con `ctypes` — cioè il
+criterio non guarda **come** si carica una libreria, guarda **quale**.
+
+**E la guardia scritta apposta non poteva scattare.** `translate/llm.py`
+prendeva `ImportError`; quello che esce è un **`RuntimeError`**, perché a
+sollevare è `ctypes` dentro il modulo. Ottava volta della forma «una verifica che
+non può fallire proprio nel caso per cui esiste». Adesso passa da
+`core/bloccati.py`.
+
+### E c'è un quarto blocco che il passaggio di consegne non aveva
+
+**Su questa macchina, oggi, sono bloccati anche `cv2` e `torch/shm.dll`** — e
+quest'ultimo porta giù `argostranslate`, cioè **il default** di
+`translate.backend`. Il banco della guida prometteva `locale` lo stesso, perché
+la sonda usava `find_spec`: il file c'è sul disco, quindi trovato; poi Windows
+si rifiuta di caricare quello che ci sta dentro. Adesso `sonda_veloce` **carica**
+invece di cercare, e dice `traduzione_manca`.
+
+E `cv2` bloccato non è innocuo: sfocatura e cancellatura lo importano **dentro la
+funzione che dipinge**, cioè dentro il ciclo video, quindi il difetto sarebbe
+uscito come un `ImportError` su un fotogramma qualunque — dove nessuno lo collega
+alla riga che l'ha acceso. Adesso lo si guarda quando si costruisce l'overlay e
+si dice cosa non si potrà fare; il tradotto si disegna lo stesso, con
+`translate.background_mode=riquadro`, che quel pezzo non lo usa (e per
+costruzione non ha nemmeno il ritardo).
+
+---
+
+## Il ramo `sac-rinunce-dichiarate`, e cosa ci sta dentro
+
+Locale, parte da `main`, non spinto. Quattro pezzi, e tutti e quattro rispondono
+alla stessa domanda: **come si dice che qualcosa non si può fare qui.**
+
+**`core/bloccati.py`** — l'unico posto che sa rispondere a «questo pezzo si
+carica su questa macchina?», e risponde con un codice più una frase invece che
+con un'eccezione. Quattro stati (`ok`, `criterio`, `assente`, `guasto`) e non
+due, perché «non l'hai installato» e «c'è e Windows non lo carica» chiedono
+all'utente due cose diverse: la prima si cura con un `pip install`, la seconda
+no. `RINUNCE` è la stessa distinzione di `core.banco.AVVISI`.
+
+Due cose che non si vedono leggendo il codice in fretta:
+
+- **la frase del blocco non è scritta a mano.** È tradotta — «Un criterio di
+  controllo dell'applicazione ha bloccato il file» qui, «An Application Control
+  policy has blocked this file» su una macchina inglese — e cercarne una scritta
+  a mano avrebbe riconosciuto il blocco **solo in italiano**, cioè avrebbe
+  ricreato l'errore incomprensibile in quaranta lingue. La si chiede a Windows
+  con `FormatMessageW(4551)` e la si confronta. Il numero si legge quando c'è
+  (`OSError.winerror`, cioè un `ctypes.CDLL` fallito); da un `import` fallito
+  **non c'è**, e quello è l'unico motivo per cui il confronto sulla frase serve;
+- **`prova()` accetta un `usa`**, perché importare non è usare: `piper` importa
+  e muore alla prima sintesi, `llama_cpp` apre la sua DLL con `ctypes`. È la
+  stessa lezione già pagata con `.venv` che diceva «piper OK».
+
+**`capture/printwindow.py`** — la cattura di una finestra sola senza niente da
+installare. Si veda il punto 2 qui sopra.
+
+**Il pannello non offre più una scelta che darà un errore.**
+`core.bloccati.SCELTE` mappa i campi ai pezzi (`translate.backend=llm` → `llm`,
+`translate.backend=locale` → `argos`, `correct.backend=llm`, `capture.backend=wgc`)
+e `SceltaFra` marca quelle voci con un `⚠`. Il perché sta **sulla casella
+chiusa** e non solo sulla voce in elenco, che è il dettaglio che rende l'avviso
+utile: il valore che non funziona è quasi sempre quello **già scritto in
+configurazione**, e quello lo si vede senza aprire niente — un segno senza
+spiegazione è metà dell'avviso, e la metà che serve è l'altra.
+
+**Si marca, non si toglie**: togliere una voce nasconderebbe che il programma la
+sa fare e che il difetto è di questa macchina. La regola sta in `core/` e non in
+Qt, per la ragione già scritta in `CLAUDE.md`.
+
+**Il banco carica invece di cercare.** `sonda_veloce` usava `find_spec`, che
+trova il file sul disco e non sa che Windows si rifiuterà di caricarlo: il passo
+6 concludeva «traduzione: llm», scriveva `translate.backend = llm` e consegnava
+una sessione che muore alla prima battuta. È esattamente ciò che `applica()`
+esiste per non fare — *scrive quello che ha verificato, non quello che ha
+scelto* — e per verificarlo bisogna caricarlo.
+
+**E la sonda del pannello ha un tetto** (`ENTRO_MS`, 400 ms), che non è
+prudenza: **una prova che riesce può costare più di una che fallisce.** Qui un
+pacchetto bloccato risponde in 49-157 ms — la DLL non si apre e basta — ma
+`argostranslate` che *funziona* tira dentro stanza e torch, cioè secondi.
+Pagarli mentre si disegna una scheda vorrebbe dire una finestra lenta per
+scrivere un avviso che quasi sempre non serve. Sforato il tetto **non si marca**:
+non marcare non promette niente, marcare a torto sarebbe un avviso che nessuno
+può soddisfare. La prova intanto continua e finisce in cache. Chi invece *deve*
+sapere prima di partire — `make_traduttore`, `make_correttore`, il banco — chiama
+`pezzo()` e aspetta.
+
+**Due gruppi nuovi nella suite**: `bloccati` e `finestra-gdi`, 85 verifiche, più
+quattro nel gruppo `manopole`. Girano senza rete.
+
+**E una riga in `livedub.spec`.** `capture.printwindow` si importa **dentro una
+funzione**, quindi l'analisi statica di PyInstaller non lo vede: senza
+`hiddenimports`, il pacchetto verrebbe su lo stesso e morirebbe all'Avvia
+proprio sulla macchina che ne ha bisogno.
+
+---
+
+## Le decisioni che restano all'utente
+
+**Prima di tutto, una misura che costa trenta secondi**: accendere GTA V e
+guardare se la cattura per finestra dà nero. Il registro lo dice da solo
+(«questo gioco non si lascia catturare per finestra»). Da quella riga dipende
+tutto il resto di questo elenco.
+
+1. **Se PrintWindow su GTA V non dà nero**: non c'è altro da fare per il punto 2.
+2. **Se dà nero**: l'unica strada che resta senza file nuovi è **riscrivere WGC
+   in `ctypes`** — `RoGetActivationFactory` di `combase.dll`,
+   `IGraphicsCaptureItemInterop::CreateForWindow`, `Direct3D11CaptureFramePool`,
+   e i pixel via `IDirect3DDxgiInterfaceAccess` + una texture di staging. Sono
+   tutte DLL di Windows, quindi fuori dal criterio per costruzione. **Cercata:
+   non esiste già fatta** — le implementazioni Python che si trovano
+   (`py-windows-graphics-capture`, `wincam`, D3DShot) usano tutte o `winsdk`
+   (bloccato) o una DLL C++ propria (un file nuovo). È mezza giornata di lavoro
+   e va autorizzata.
+3. **Per l'eseguibile**, in ordine di costo:
+   - **Microsoft Store**, 0 €: registrazione individuale gratuita dal 2026 in
+     ~200 mercati, documento e selfie, accetta Win32 in MSIX senza cambiare
+     codice, e Microsoft **rifirma il pacchetto** dandogli reputazione piena.
+     È anche l'unica strada che potrebbe sistemare i punti 2 e 3 insieme, perché
+     riguarda il pacchetto intero e non il solo `.exe`;
+   - **SignPath Foundation**, 0 €: certificato intestato a SignPath, condizioni
+     nel punto 1 qui sopra;
+   - **Azure Artifact Signing**, 9,99 $/mese: **serve un'impresa** — a un privato
+     italiano è chiuso, e questo è documentato, non dedotto.
+
+   E le due cose da sapere prima di scegliere. **Firmare non sblocca subito**,
+   ma è l'unica cosa che fa accumulare reputazione **al certificato** invece che
+   al singolo file: senza firma ogni build riparte da zero, per sempre. E un
+   certificato **non serve solo all'`.exe`** — un `.pyd` è un PE come gli altri,
+   quindi la costruzione potrebbe rifirmare anche le librerie bloccate che
+   impacchetta (sono tutte MIT). Non è una cosa provata, è una cosa da provare
+   il giorno che un certificato ci sarà; ma è il motivo per cui il punto 3 non
+   riguarda solo il punto 1.
 
 ---
 
@@ -215,6 +412,12 @@ utili (1.11.0 in `sbd.py`, 1.9.6 in `translate.py`). Si fissa a **2.8.0** e bast
   l'area la si disegna sempre più grande di quanto il programma vorrebbe: in
   entrambi i casi è **un avviso che nessuno può soddisfare**, e quelli si
   spengono da soli nella testa di chi li legge.
+- **Il grafo non è stato aggiornato, e il motivo è il difetto stesso**:
+  `graphify.exe` è uno degli exe-guscio di pip, e Smart App Control lo blocca —
+  `Permission denied`, come `pip.exe`. Non è raggiungibile nemmeno come modulo
+  Python da qui. Due moduli nuovi (`core/bloccati.py`, `capture/printwindow.py`)
+  aspettano quindi un `/graphify . --update` fatto da un ambiente che lo possa
+  lanciare.
 - **`backup-pre-pulizia` va cancellato prima o poi**, ma **non è mai stato
   spinto** (verificato: sul remoto c'è solo `main`).
 
@@ -236,7 +439,8 @@ utili (1.11.0 in `sbd.py`, 1.9.6 in `translate.py`). Si fissa a **2.8.0** e bast
 ## Come si prova quello che scrivi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest       # oggi: 12 fallite su 1753, per SAC
+.\.venv\Scripts\python.exe -m tools.selftest       # oggi: 12 fallite su 1795, per SAC
+.\.venv\Scripts\python.exe -m tools.selftest bloccati finestra-gdi   # le rinunce dichiarate
 .\.venv\Scripts\python.exe -m tools.ui_qt --profile live --loopback voicemeeter `
     --set vision.ocr_backend=oneocr --set tts.backend=kokoro --set tts.device=cuda `
     --set timing.rate_max=1.25 --set translate.enabled=true --set translate.backend=locale
@@ -263,7 +467,28 @@ latenza p50 **1290 ms**, `mix.underrun` 0, compressione 1,00, OCR 15,9 letture/s
 
 ## Le regole di metodo
 
-`CLAUDE.md` le ha per esteso. Le tre che hanno morso di più in questa sessione:
+`CLAUDE.md` le ha per esteso. Tre nuove, dalla sessione sulle rinunce:
+
+**«Non c'è una versione che passi» non è «non si può fare».** La domanda su cui
+ci si era fermati era *quale versione di `windows_capture` carica*, e la risposta
+è «nessuna», per tutte e due le librerie che esistono. Ma la domanda giusta era
+un'altra: **cosa mi dà quella dipendenza che Windows non mi dia già**. La cattura
+di una finestra sola sta in `user32.dll` da vent'anni. È la stessa forma già
+scritta in `CLAUDE.md` — *prima di dire che una cosa non si può fare, guardare
+cosa si ha già in mano* — e stavolta è costata una funzione dichiarata morta.
+
+**Una guardia scritta per un caso può non poterlo prendere.** `translate/llm.py`
+aveva un `except ImportError` con dentro il messaggio giusto, e il blocco esce
+come `RuntimeError` perché a sollevare è `ctypes`. Ottava volta: la verifica c'è,
+dice a parole la cosa giusta, e **non può fallire proprio nel caso per cui
+esiste**.
+
+**`find_spec` risponde «c'è il file», non «si carica».** Il banco lo usava per
+decidere quale traduttore promettere all'utente. Su una macchina con SAC acceso
+sono due cose diverse, e la seconda è l'unica che conta: *si scrive quello che si
+è verificato, non quello che si è scelto*.
+
+E le tre della sessione precedente, che valgono ancora:
 
 **Controllare che la misura possa esprimere la risposta.** `.venv` diceva «piper
 OK» perché quel `.pyd` si apre solo alla prima sintesi, e «ctranslate2 OK» per una

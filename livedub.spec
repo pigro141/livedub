@@ -150,6 +150,11 @@ a = Analysis(
         # nessuno rilegge, la forma gia' vista di `tools/say.py` con il
         # `choices` rimasto indietro.
         "vision.oneocr_worker",
+        # **La cattura di ripiego si importa dentro una funzione**, quindi
+        # l'analisi statica non la vede: senza questa riga il pacchetto viene su
+        # lo stesso e la finestra muore all'Avvia sulla macchina che ne ha
+        # bisogno — cioe' esattamente quella per cui esiste.
+        "capture.printwindow",
         "translate.locale",
         "translate.llm",
         "translate.ollama",

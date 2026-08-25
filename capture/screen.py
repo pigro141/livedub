@@ -427,6 +427,29 @@ def regione_da_roi(rois, dimensione, margine: float = 0.08) -> tuple[int, int, i
     return (left, top, max(left + 1, right), max(top + 1, bottom))
 
 
+def fascia_da_roi(rois, margine: float = 0.08) -> tuple[float, float] | None:
+    """Fra che due frazioni dell'altezza sta cio' che si legge, col margine.
+
+    Frazioni e non pixel perche' chi la usa cattura una **finestra**, e una
+    finestra cambia misura: si veda `PrintWindowSource.fascia`. Torna `None` se
+    la fascia sarebbe quasi tutta l'altezza — sotto quel punto ritagliare non
+    fa risparmiare niente e aggiunge un modo di sbagliare.
+
+    Il margine e' lo stesso di `regione_da_roi` e per la stessa ragione:
+    l'overlay sfoca i pixel attorno alla riga e **cresce verso l'alto** quando
+    il tradotto occupa piu' righe dell'originale.
+    """
+    rois = [r for r in rois if r and len(r) == 4 and r[3] > 0]
+    if not rois:
+        return None
+    m = max(0.0, float(margine))
+    su = max(0.0, min(r[1] for r in rois) - m)
+    giu = min(1.0, max(r[1] + r[3] for r in rois) + m)
+    if giu - su >= 0.9:
+        return None
+    return (su, giu)
+
+
 def apri_cattura(
     backend: str = "auto",
     monitor: int = 1,
@@ -447,12 +470,25 @@ def apri_cattura(
     dichiara e' indistinguibile da un OCR che ha smesso di leggere.
     """
     if hwnd:
-        # Con la finestra la fascia non si ritaglia: WGC consegna gia' il solo
-        # contenuto della finestra, e la ROI e' relativa a quella. Ridurre
-        # ancora vorrebbe dire due sistemi di coordinate nello stesso frame.
-        if rois and dillo is not None:
-            dillo("cattura: finestra intera (la fascia sola vale solo sullo schermo)")
-        return make_screen(backend, monitor=monitor, hwnd=hwnd)
+        # **Con WGC la fascia non si ritaglia**: la cattura arriva da sola, in
+        # GPU, e il costo non dipende da quanto se ne guarda. Con PrintWindow
+        # si', perche' li' il fotogramma si va a **prendere** e la copia dei
+        # pixel e' tutto il costo: misurato su una finestra 1278x1391, 17,6 ms
+        # per l'intera contro **6,2** per la fascia. E' la stessa idea di
+        # `SoloRoi` e lo stesso guadagno, sulla finestra invece che sullo
+        # schermo. La fascia sta **dentro** la sorgente e in frazioni, cosi' un
+        # gioco che cambia misura non finisce a leggere il punto sbagliato.
+        sorgente = make_screen(backend, monitor=monitor, hwnd=hwnd, dillo=dillo)
+        fascia = fascia_da_roi(rois, margine)
+        if rois and fascia and hasattr(sorgente, "fascia"):
+            sorgente.fascia = fascia
+            if dillo is not None:
+                dillo(f"cattura: della finestra si legge la fascia fra il "
+                      f"{fascia[0]:.0%} e il {fascia[1]:.0%} dell'altezza "
+                      f"(margine {margine:g})")
+        elif rois and dillo is not None:
+            dillo("cattura: finestra intera (la cattura non costa per riga)")
+        return sorgente
     if not rois:
         return make_screen(backend, monitor=monitor)
     dimensione = dimensione_monitor(monitor)
@@ -468,7 +504,55 @@ def apri_cattura(
     return fuori
 
 
-def make_screen(backend: str = "auto", monitor: int = 1, region=None, hwnd: int | None = None) -> ScreenSource:
+def apri_finestra(hwnd: int, backend: str = "finestra", dillo=None) -> ScreenSource:
+    """La cattura di **una finestra sola**, col ripiego **dichiarato**.
+
+    Ci sono due modi di prendere una finestra, e su questa macchina il migliore
+    non si puo' usare:
+
+    - **WGC** (`windows_capture`) e' quello giusto — asincrono, in GPU, regge il
+      fullscreen esclusivo — e porta una libreria nativa che Smart App Control
+      blocca in tutte le versioni pubblicate. Con lei e' bloccato anche l'altro
+      pacchetto che espone la stessa API (`winrt-Windows.Graphics.Capture`), e
+      con quello il suo `winrt-runtime`: non e' quella libreria, e' **ogni file
+      nuovo**;
+    - **PrintWindow** (`capture/printwindow.py`) sta in `user32.dll`, cioe' in
+      Windows: niente da installare, niente reputazione da maturare. Costa di
+      piu' ed e' sincrono, e su un gioco Direct3D puo' restituire nero.
+
+    **Il ripiego si dichiara.** Un `ImportError: DLL load failed` non dice ne'
+    cosa cadra' ne' cosa fare, e ripiegare in silenzio sarebbe peggio: si
+    catturerebbe la stessa finestra con un'altra cosa, con un altro costo e con
+    un modo di fallire diverso, e nel rapporto ci sarebbe scritto lo stesso
+    nome. `dillo` riceve una riga per il registro; senza `dillo`, la riga va su
+    `stderr`, perche' una rinuncia taciuta e' il difetto che tutto questo
+    modulo esiste per togliere.
+
+    `backend` vale `finestra`/`wgc` (prova WGC e ripiega) oppure `finestra-gdi`
+    (PrintWindow e basta, per provarlo senza disinstallare niente).
+    """
+    from core import bloccati
+
+    def _di(riga: str) -> None:
+        if dillo is not None:
+            dillo(riga)
+        else:
+            print(riga, file=sys.stderr)
+
+    scelta = (backend or "finestra").lower()
+    if scelta not in ("finestra-gdi", "printwindow", "gdi"):
+        esito = bloccati.pezzo("wgc")
+        if esito.ok:
+            return FinestraSource(hwnd)
+        _di("cattura: " + bloccati.spiega("wgc"))
+
+    from capture.printwindow import PrintWindowSource
+
+    return PrintWindowSource(hwnd)
+
+
+def make_screen(backend: str = "auto", monitor: int = 1, region=None,
+                hwnd: int | None = None, dillo=None) -> ScreenSource:
     """Costruisce la sorgente chiesta.
 
     `auto` prova dxcam e ripiega su mss **dicendolo al chiamante** tramite
@@ -483,10 +567,10 @@ def make_screen(backend: str = "auto", monitor: int = 1, region=None, hwnd: int 
     scelta = (backend or "auto").lower()
     # **Se c'e' una finestra scelta, quella vince su tutto**, anche su `auto`:
     # averla scelta e' gia' la risposta alla domanda «cosa catturo».
-    if hwnd or scelta in ("finestra", "wgc"):
+    if hwnd or scelta in ("finestra", "wgc", "finestra-gdi"):
         if not hwnd:
             raise ValueError("il backend 'finestra' vuole l'hwnd della finestra da catturare")
-        return FinestraSource(hwnd)
+        return apri_finestra(hwnd, scelta, dillo=dillo)
     if scelta in ("auto", "dxcam"):
         try:
             return DxcamSource(monitor=max(0, monitor - 1), region=region)

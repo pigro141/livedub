@@ -26,7 +26,29 @@ from typing import Any
 class CaptureConfig:
     """Cattura dello schermo."""
 
-    backend: str = "auto"  # auto | wgc | dxcam | mss
+    # `auto` | `wgc` | `finestra-gdi` | `dxcam` | `mss`. I primi due catturano
+    # **una finestra sola** (e valgono solo se una finestra e' stata scelta), gli
+    # altri lo schermo.
+    #
+    # **`wgc` e `finestra-gdi` fanno la stessa cosa in due modi diversi**, e la
+    # differenza e' cosa serve installare. Windows Graphics Capture e' il modo
+    # buono — asincrono, in GPU, regge il fullscreen esclusivo — e arriva da una
+    # libreria che Smart App Control blocca in **tutte** le versioni pubblicate
+    # (`windows-capture` 2.0.1/2.0.0/1.5.0/1.4.4, `winrt-Windows.Graphics.Capture`
+    # 3.2.1/3.1.0/3.0.0/2.3.0/2.0.1 e con lei `winrt-runtime`). `finestra-gdi` usa
+    # `PrintWindow` di `user32.dll`, cioe' Windows: niente da installare e niente
+    # reputazione da maturare.
+    #
+    # Il prezzo e' misurato ed e' di due tipi. Il costo: 17,6 ms per una finestra
+    # 1278x1391 intera contro 6,2 per la fascia che si legge (WGC non lo paga:
+    # consegna da sola). E il difetto vero: su un gioco Direct3D senza superficie
+    # di redirezione `PrintWindow` **riesce e restituisce nero**, che non e' un
+    # errore — la sessione resta accesa e sembra rotto l'OCR. Per questo la
+    # sorgente guarda i primi fotogrammi e lo **dichiara** (`PrintWindowSource.nero`).
+    #
+    # `wgc` non e' un vicolo cieco: se la libreria non c'e', si ripiega su
+    # `finestra-gdi` **dicendolo** (`capture.screen.apri_finestra`).
+    backend: str = "auto"  # auto | wgc | finestra-gdi | dxcam | mss
     monitor: int = 1
     fps: float = 30.0  # ritmo del diff sulla ROI, non dell'OCR
     # **Prendere dallo schermo solo la fascia che si legge.** Di un fotogramma

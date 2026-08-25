@@ -1227,19 +1227,52 @@ class SceltaFra(Manopola):
     nei rapporti e nei comandi.
     """
 
-    def __init__(self, valori: tuple[str, ...], etichette: dict[str, str] | None = None) -> None:
+    def __init__(self, valori: tuple[str, ...], etichette: dict[str, str] | None = None,
+                 indisponibili: dict[str, str] | None = None) -> None:
         super().__init__()
         L = QHBoxLayout(self)
         L.setContentsMargins(0, 0, 0, 0)
         self.valori = list(valori)
         self._noti = len(self.valori)   # quante voci sono davvero disponibili
         self.combo = QComboBox()
+        # **Una scelta che qui non funziona si marca, non si toglie**, ed e' la
+        # stessa forma di `SceltaLingua`: togliere una voce nasconderebbe che il
+        # programma la sa fare e che il difetto e' di questa macchina, e
+        # lascerebbe l'utente a chiedersi dove sia finita. Il `⚠` piu' la
+        # ragione nel suggerimento dicono le due cose insieme — c'e', e qui non
+        # va — invece di lasciargliela scegliere per poi dargli un errore che
+        # non parla di lei.
+        indisponibili = indisponibili or {}
         for v in self.valori:
             testo = (etichette or {}).get(v)
-            self.combo.addItem(f"{v} — {testo}" if testo else v)
-        self.combo.currentIndexChanged.connect(lambda _i: self.cambiato.emit())
+            voce = f"{v} — {testo}" if testo else v
+            if v in indisponibili:
+                voce = f"⚠ {voce}"
+            self.combo.addItem(voce)
+            if v in indisponibili:
+                self.combo.setItemData(self.combo.count() - 1,
+                                       indisponibili[v], Qt.ToolTipRole)
+        self._indisponibili = dict(indisponibili)
+        self.combo.currentIndexChanged.connect(self._scelto)
         allarga_tendina(self.combo)
         L.addWidget(self.combo, 1)
+        self._perche()
+
+    def _scelto(self, _i: int) -> None:
+        self._perche()
+        self.cambiato.emit()
+
+    def _perche(self) -> None:
+        """La ragione sulla casella **chiusa**, e non solo sulla voce in elenco.
+
+        Il suggerimento messo sulla voce si vede aprendo la tendina, cioe' solo
+        se si e' gia' sospettato qualcosa. Ma la scelta che non funziona e' quasi
+        sempre **quella gia' scritta in configurazione**, e quella la si vede a
+        tendina chiusa: senza questa riga il `⚠` resterebbe un segno senza
+        spiegazione, che e' meta' dell'avviso — e la meta' che serve e' l'altra.
+        """
+        motivo = self._indisponibili.get(str(self.valore()), "")
+        self.combo.setToolTip(motivo)
 
     def valore(self) -> Any:
         i = self.combo.currentIndex()
@@ -1266,6 +1299,10 @@ class SceltaFra(Manopola):
                 self.combo.removeItem(self.combo.count() - 1)
             if testo in self.valori:
                 self.combo.setCurrentIndex(self.valori.index(testo))
+                # I segnali sono zittiti apposta, quindi `_scelto` non passa di
+                # qui: la ragione del `⚠` va rimessa a mano, se no resta quella
+                # del valore di prima.
+                self._perche()
                 return
             self.valori.append(testo)
             self.combo.addItem(f"⚠ {testo} — non e' fra quelli disponibili")
@@ -1612,7 +1649,8 @@ def per_campo(campo, *, limiti, cfg=None) -> QWidget:
     if a_mano is not None:
         return blocca_rotella(SceltaFra(*a_mano))
     if campo.scelte:
-        return blocca_rotella(SceltaFra(campo.scelte, ETICHETTE.get(percorso)))
+        return blocca_rotella(SceltaFra(campo.scelte, ETICHETTE.get(percorso),
+                                        indisponibili=_indisponibili(percorso)))
     coppia = limiti(percorso)
     if coppia is not None and campo.tipo in ("int", "float"):
         return blocca_rotella(Cursore(
@@ -1621,6 +1659,23 @@ def per_campo(campo, *, limiti, cfg=None) -> QWidget:
         ))
     w = QLineEdit(_testo(campo.valore))
     return w
+
+
+def _indisponibili(percorso: str) -> dict[str, str]:
+    """Quali scelte di questo campo non funzionano su questa macchina, e perche'.
+
+    La regola sta in `core.bloccati.scelte_indisponibili`, fuori da Qt; qui
+    resta solo la protezione contro il caso in cui **chiedere** sia il problema:
+    il pannello si costruisce anche mentre si scattano le schermate, e una
+    finestra che non si apre per colpa di una prova d'ambiente sarebbe un difetto
+    peggiore di quello che questa riga dichiara.
+    """
+    try:
+        from core.bloccati import scelte_indisponibili
+
+        return scelte_indisponibili(percorso)
+    except Exception:  # pragma: no cover - non deve poter fermare la finestra
+        return {}
 
 
 def _testo(valore: Any) -> str:

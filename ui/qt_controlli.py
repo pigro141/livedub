@@ -992,11 +992,13 @@ class SceltaLingua(Manopola):
     menu che offre centotrentatre lingue a un traduttore che ne fa due consegna
     una battuta muta o non tradotta senza dire perche'.
 
-    **E dichiara quando quella lingua non ha una voce.** Piper e SuperTonic
-    parlano solo italiano, Kokoro italiano e inglese: tradurre verso il
-    giapponese senza una voce giapponese non da' errore — esce una voce italiana
-    che pronuncia il giapponese, cioe' un modello fonemizzato con le regole
-    sbagliate. La regola sta in `speak.pool.ha_voce`, fuori da Qt.
+    **E dichiara quando quella lingua non ha una voce.** I tre motori hanno
+    cataloghi diversi — Piper 50 lingue, SuperTonic 31, Kokoro 8 — e tradurre
+    verso una che quello montato non parla non da' errore: esce una voce che ne
+    pronuncia un'altra, cioe' un modello fonemizzato con le regole sbagliate.
+    La regola sta in `speak.pool.ha_voce`, fuori da Qt; e da quando il motore
+    **segue la lingua** (`core.motore.motore_per_lingua`) questa frase compare
+    solo nel caso che resta: nessun motore la parla.
 
     Le due frasi stanno in un'etichetta **elidibile** sotto la casella: i nomi
     lunghi («Cinese semplificato», «Creolo haitiano») e una spiegazione da
@@ -1182,7 +1184,7 @@ class SceltaLingua(Manopola):
         invece di restare quella del backend di ieri.
         """
         from speak.pool import ha_voce, lingue_con_voce
-        from translate.lingue import AUTO, copertura, nome_it
+        from translate.lingue import AUTO, copertura
 
         cfg = self._cfg
         tr = getattr(cfg, "translate", None) if cfg is not None else None
@@ -1207,10 +1209,15 @@ class SceltaLingua(Manopola):
         if not self._con_auto and codice != AUTO:
             motore = getattr(getattr(cfg, "tts", None), "backend", "") if cfg else ""
             if motore and not ha_voce(motore, codice):
-                note = ", ".join(nome_it(x) for x in lingue_con_voce(motore))
+                # **Non si elencano piu' le lingue che il motore parla.** Con due
+                # erano un'informazione («solo italiano e inglese»); con
+                # cinquanta sono una riga che nessuno legge, e che sfora la
+                # scheda. Si dice quante sono e si lascia il come all'utente.
+                quante = len(lingue_con_voce(motore))
                 pezzi.append(
-                    f"⚠ «{motore}» non ha voci in questa lingua (solo {note}): la "
-                    f"battuta uscirebbe con una voce che pronuncia un'altra lingua.")
+                    f"⚠ «{motore}» non ha voci in questa lingua (ne parla "
+                    f"{quante}): la battuta uscirebbe con una voce che ne "
+                    f"pronuncia un'altra.")
 
         testo = " ".join(p.replace("**", "").replace("`", "") for p in pezzi)
         self.nota.setToolTip(testo)

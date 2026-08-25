@@ -334,6 +334,124 @@ def fase_catena(d: dict) -> Misura:
     return Misura("", "sta leggendo")
 
 
+# ====================================================== la lingua e il motore ==
+
+# **In che ordine si prova un motore che parli quella lingua.** Non e' una
+# classifica di qualita': e' l'ordine in cui costano poco a chi ascolta.
+#
+# Piper per primo perche' e' il default storico — 45 ms di sintesi, su CPU,
+# **non compete con il gioco per la GPU** — e perche' ha il catalogo piu' largo
+# (51 lingue). Kokoro dopo, perche' articola meglio ma vuole la CUDA e prende
+# 1128 MB di VRAM alla scheda che deve far girare il gioco. SuperTonic per
+# ultimo perche' sta **incollato al tetto di compressione** in quattordici
+# sessioni dal vivo su sedici, ed e' l'unico dei tre di cui si sappia.
+ORDINE_MOTORI: tuple[str, ...] = ("piper", "kokoro", "supertonic")
+
+# I codici che `motore_per_lingua` puo' restituire. Sono codici e non frasi
+# perche' la verifica deve poterli confrontare senza dipendere da come e'
+# scritta la riga di registro — che e' italiano e cambia.
+INVARIATO = "invariato"     # il motore che c'era gia' parla quella lingua
+CAMBIATO = "cambiato"       # scavalcata la scelta dell'utente, e va detto
+MUTA = "muta"               # nessun motore utilizzabile qui parla quella lingua
+
+
+@dataclass(frozen=True, slots=True)
+class SceltaMotore:
+    """Con che motore si parlera' quella lingua, e cosa c'e' da dire.
+
+    `avviso` e' vuoto quando non c'e' niente da dichiarare — che e' il caso
+    normale e deve restarlo: un avviso a ogni cambio di lingua e' un avviso che
+    si spegne da solo nella testa di chi lo legge, come la ROI sotto 0,12 che
+    compariva in tutte le sessioni.
+    """
+
+    motore: str
+    codice: str = INVARIATO
+    avviso: str = ""
+
+    @property
+    def cambiato(self) -> bool:
+        return self.codice == CAMBIATO
+
+
+def motori_possibili(sonda=None) -> tuple[str, ...]:
+    """Quali motori questa macchina regge, in ordine di preferenza.
+
+    **Il giudizio non si riscrive qui.** Chi sa rispondere a «questa macchina
+    regge Kokoro?» e' `core.banco.scegli`, che guarda in fila il provider
+    dichiarato da ORT, quello davvero ottenuto dalla sessione e i millisecondi
+    misurati — tre cose che possono smentirsi a vicenda. Due posti che decidono
+    la stessa cosa si separano al primo cambiamento, e in questo progetto e'
+    gia' successo.
+
+    Senza sonda si risponde con tutti: «non lo so» non e' «no», e togliere una
+    scelta perche' non si e' misurato niente sarebbe l'avviso che nessuno puo'
+    soddisfare.
+    """
+    if sonda is None:
+        return ORDINE_MOTORI
+    from core.banco import scegli
+
+    regge_gpu = scegli(sonda).tts == "kokoro"
+    return tuple(m for m in ORDINE_MOTORI if m != "kokoro" or regge_gpu)
+
+
+def motore_per_lingua(lingua: str, motore_attuale: str, sonda=None) -> SceltaMotore:
+    """Scelta la lingua di destinazione, con che motore la si parla.
+
+    **Il motore segue la lingua da solo**, perche' il difetto che questa
+    funzione chiude non da' nessun errore: si traduce in spagnolo, il motore
+    montato ha solo voci italiane, e la battuta esce con un modello fonemizzato
+    con le regole sbagliate — audio che esce, contatori verdi, e una voce che
+    pronuncia un'altra lingua.
+
+    **L'avviso compare solo quando la scelta dell'utente e' stata scavalcata.**
+    Cambiare motore a ogni cambio di lingua e dirlo ogni volta sarebbe rumore:
+    se quello che c'era gia' parla la lingua nuova non succede niente, e non si
+    scrive niente.
+
+    **E non si passa a un motore che questa macchina non regge**: Kokoro su CPU
+    costa 725 ms a battuta contro i 207 su CUDA, e non e' vivibile. Il giudizio
+    lo da' `core.banco.scegli` attraverso `motori_possibili`, non questa
+    funzione.
+
+    Se **nessun** motore utilizzabile parla quella lingua non si sceglie in
+    silenzio: si tiene quello che c'era e lo si dichiara, come fa
+    `core.banco.AVVISI` con le rinunce. Nascondere il fatto significherebbe
+    consegnare una scena intera detta con i fonemi di un'altra lingua.
+    """
+    from speak.pool import SENZA_LINGUA, ha_voce, lingue_con_voce
+
+    attuale = (motore_attuale or "").strip().lower()
+    if attuale in SENZA_LINGUA:
+        # Un bip e il silenzio non hanno lingua: cambiarli sarebbe scavalcare
+        # una scelta che l'utente ha fatto proprio per non sentire una voce.
+        return SceltaMotore(attuale)
+    if ha_voce(attuale, lingua):
+        return SceltaMotore(attuale)
+
+    for candidato in motori_possibili(sonda):
+        if candidato == attuale or not ha_voce(candidato, lingua):
+            continue
+        quante = len(lingue_con_voce(candidato))
+        return SceltaMotore(
+            candidato, CAMBIATO,
+            f"«{attuale}» non ha voci in questa lingua: si passa a "
+            f"«{candidato}», che ne parla {quante}.",
+        )
+
+    # Nessuno. Si tiene quello che c'era — cambiarlo non servirebbe a niente —
+    # e si dice cosa succedera' davvero, che e' l'unica cosa utile qui.
+    possibili = motori_possibili(sonda)
+    scartati = [m for m in ORDINE_MOTORI if m not in possibili]
+    coda = (f" (e «{'», «'.join(scartati)}» qui non gira)") if scartati else ""
+    return SceltaMotore(
+        attuale, MUTA,
+        f"nessun motore ha voci in questa lingua{coda}: la battuta uscirebbe "
+        f"con una voce che ne pronuncia un'altra.",
+    )
+
+
 def righe_guasto_audio(dettaglio: str) -> list[str]:
     """Cosa si scrive quando il ciclo audio muore.
 

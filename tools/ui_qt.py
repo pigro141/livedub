@@ -2174,6 +2174,8 @@ class Finestra(QMainWindow):
             self.aggiorna_pronto()
         elif campo.percorso == "ui.lingua":
             self.cambia_lingua()
+        elif campo.percorso == "translate.target":
+            self._motore_segue_lingua(valore)
         elif campo.percorso in self.STILE and self.overlay is not None:
             self.overlay.ristila(**self._stile())
             self.scrivi("  (l'aspetto cambia dalla prossima battuta: quella a "
@@ -2184,6 +2186,48 @@ class Finestra(QMainWindow):
             self.scrivi(f"{campo.percorso} = {valore}   (si legge solo all'avvio)")
             if self.in_sessione:
                 self._segna_in_attesa(campo.percorso)
+
+    def _sonda(self):
+        """Cosa c'e' su questa macchina, chiesta **una volta sola**.
+
+        `sonda_veloce` costa circa un secondo — carica le DLL di ORT e prova a
+        importare i pacchetti della traduzione — e la risposta non cambia mentre
+        la finestra e' aperta. Pagarla a ogni cambio di lingua vorrebbe dire una
+        tendina che si inchioda per un secondo a ogni voce che si scorre, che e'
+        la stessa forma gia' evitata con `bloccati.ENTRO_MS`.
+        """
+        if getattr(self, "_sonda_fatta", None) is None:
+            from core.banco import sonda_veloce
+
+            self._sonda_fatta = sonda_veloce(self.cfg)
+        return self._sonda_fatta
+
+    def _motore_segue_lingua(self, lingua: str) -> None:
+        """Scelta la lingua d'arrivo, il motore si sposta su uno che la parla.
+
+        La regola sta in `core.motore.motore_per_lingua`, fuori da Qt: qui c'e'
+        solo il collegamento fra la scelta e la config, e le righe di registro.
+        E' la lezione piu' cara del repo — quattro dei cinque difetti trovati
+        rileggendo a freddo stavano dentro Qt, l'unica parte senza verifiche.
+
+        **Non si dice niente quando non e' successo niente.** L'avviso compare
+        solo se la scelta dell'utente e' stata scavalcata, o se nessun motore
+        parla quella lingua; a ogni altro cambio il registro tace.
+        """
+        from core.motore import motore_per_lingua
+
+        scelta = motore_per_lingua(lingua, self.cfg.tts.backend, self._sonda())
+        if scelta.codice == "muta":
+            self.scrivi(f"! {scelta.avviso}")
+            return
+        if not scelta.cambiato:
+            return
+        self.cfg.tts.backend = scelta.motore
+        self.scrivi(f"! {scelta.avviso}")
+        self.scrivi(f"tts.backend = {scelta.motore}   (si legge solo all'avvio)")
+        if self.in_sessione:
+            self._segna_in_attesa("tts.backend")
+        self._riallinea()
 
     # -- cosa si cattura ----------------------------------------------------
 

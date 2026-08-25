@@ -504,10 +504,12 @@ def test_tts_fake(c) -> None:
     from speak.backends.piper import PiperTts as _Piper
     from speak.backends.supertonic import SupertonicTts as _Super
 
-    for motore, atteso in ((_Piper, 14.8), (_Tone, 14.0)):
+    # Piper lo dichiara **per lingua** da quando le lingue sono cinquantuno: e'
+    # una proprieta' dell'istanza e non della classe, quindi si costruisce.
+    for motore, atteso in ((_Piper(), 14.8), (_Tone, 14.0)):
         c.ok(
             10.0 <= motore.chars_per_second <= 20.0,
-            f"{motore.name if hasattr(motore,'name') else motore.__name__}: "
+            f"{getattr(motore, 'name', type(motore).__name__)}: "
             f"passo dichiarato plausibile ({motore.chars_per_second})",
         )
         c.close(motore.chars_per_second, atteso, f"e vale la misura ({atteso})", tol=0.1)
@@ -525,7 +527,7 @@ def test_tts_fake(c) -> None:
 
     c.close(_Config().tts.speed, DEFAULT_SPEED,
             "config e backend dichiarano la stessa velocita' di SuperTonic", tol=1e-9)
-    c.ok(abs(_Super().chars_per_second - _Piper.chars_per_second) < 1.0,
+    c.ok(abs(_Super().chars_per_second - _Piper().chars_per_second) < 1.0,
          "che e' il passo di Piper: al netto del silenzio i due vanno uguale")
     c.ok(
         _Super(speed=1.75).chars_per_second > _Super(speed=1.05).chars_per_second,

@@ -3862,15 +3862,27 @@ def test_lingue(c: Check) -> None:
          "e i due backend rispondono diverso sulla stessa domanda")
 
     # -- e la voce, che e' l'altra meta' -------------------------------------
-    # Tradurre verso il giapponese con Piper non da' errore: esce una voce
-    # italiana che pronuncia il giapponese.
+    # Tradurre verso una lingua per cui il motore montato non ha voci non da'
+    # errore: esce una voce che ne pronuncia un'altra.
+    #
+    # **Queste tre righe dicevano il falso, e non era un limite dei motori.**
+    # «piper non ha voci giapponesi» e «le dieci di supertonic sono tutte
+    # italiane» erano scritte in `pool.LINGUE_VOCE` e basta: Piper ha 175 voci in
+    # 51 lingue e SuperTonic-3 e' multilingue in 31. La verifica confermava il
+    # difetto invece di prenderlo, che e' la forma peggiore di verde.
     c.ok(ha_voce("piper", "it"), "piper ha voci italiane")
-    c.ok(not ha_voce("piper", "ja"), "e non ne ha giapponesi, e va detto")
-    c.ok(not ha_voce("supertonic", "en"),
-         "le dieci di supertonic sono tutte italiane")
+    c.ok(ha_voce("piper", "de"), "e anche tedesche: l'indice ne dichiara 51 lingue")
+    c.ok(not ha_voce("piper", "am"), "ma non amariche, e quello va detto")
+    c.ok(not ha_voce("piper", "ja"),
+         "e nemmeno giapponesi: la voce c'e', ma piper-tts non sa fonemizzarla")
+    c.ok(ha_voce("supertonic", "en"),
+         "le dieci voci di supertonic parlano tutte e trentuno le sue lingue")
+    c.ok(not ha_voce("supertonic", "sw"),
+         "e lo swahili non e' fra quelle")
     c.ok(ha_voce("kokoro", "en") and ha_voce("kokoro", "it"),
-         "kokoro e' l'unico con due lingue")
-    c.ok(not ha_voce("kokoro", "de"), "ma non tutte")
+         "kokoro ha italiano e inglese")
+    c.ok(ha_voce("kokoro", "zh") and not ha_voce("kokoro", "de"),
+         "e altre sei, ma non il tedesco")
     c.ok(ha_voce("kokoro", "en-GB"),
          "e una variante e' la sua lingua: `en-GB` e' inglese")
     # Un bip non ha lingua: avvisare che «non c'e' una voce giapponese» per un
@@ -4950,6 +4962,164 @@ def test_registro(c: Check) -> None:
          "cosi' uno strumento nuovo non puo' tornare a sporcare in silenzio")
 
 
+
+def test_lingue_voci(c: Check) -> None:
+    """I cataloghi delle voci, e la regola che sposta il motore sulla lingua.
+
+    Gira **senza rete, senza modelli e senza Qt**: i cataloghi sono tabelle nel
+    repo e `motore_per_lingua` e' aritmetica su di esse. E' il punto — la regola
+    sta in `core/motore.py` proprio per poterla provare qui invece che dentro la
+    finestra, che e' l'unica parte del programma dove i difetti si trovano solo
+    rileggendola a freddo.
+    """
+    from core.banco import Sonda
+    from core.motore import (
+        CAMBIATO, INVARIATO, MUTA, ORDINE_MOTORI, motore_per_lingua,
+        motori_possibili,
+    )
+    from speak.backends import kokoro as K
+    from speak.backends import piper_voci as PV
+    from speak.backends import supertonic as ST
+    from speak.pool import basi_per, build_pool, lingue_con_voce, voce_neutra
+
+    # -- i cataloghi ---------------------------------------------------------
+    c.eq(len(PV.VOCI), 51, "l'indice ufficiale di piper ha 51 lingue")
+    c.eq(sum(len(v) for v in PV.VOCI.values()), 175, "e 175 voci")
+    # **Cinquanta e non cinquantuno, e la differenza e' il punto.** La voce
+    # giapponese usa `phoneme_type: japanese`, che `piper-tts` non conosce: il
+    # modello si scarica e la prima sintesi solleva. Dichiarare 51 sarebbe vero
+    # sull'indice e falso in questo programma.
+    c.eq(len(PV.LINGUE), 50, "ma quelle che questo programma sa dire sono 50")
+    c.ok("ja" in PV.VOCI and "ja" not in PV.LINGUE,
+         "il giapponese c'e' nell'indice e non fra le nostre: e' dichiarato")
+    c.eq(PV.voci_per("ja", 4), (),
+         "e non se ne offre nessuna, invece di offrirne una che muore alla sintesi")
+    c.eq(len(ST.LINGUE), 31, "supertonic-3 ne parla 31 con le stesse dieci voci")
+    c.eq(len(K.PER_LINGUA), 8, "kokoro ne ha 8, scritte nel nome delle voci")
+    c.eq(len(K.VOICES), 54, "e 54 voci in tutto")
+
+    # **Il percorso si ricava dalla chiave, e su tutte e 175.** E' l'unica cosa
+    # che tiene questo catalogo senza una seconda tabella da aggiornare: se la
+    # regola valesse su 174 su 175, l'unica che sfugge darebbe un 404 al primo
+    # download di quella lingua e nient'altro.
+    male = [k for lista in PV.VOCI.values() for k in lista
+            if len(k.split("-")) != 3
+            or not PV.sottopercorso(k).endswith(k.split("-")[2])]
+    c.eq(male, [], "il percorso HF si ricava dalla chiave per tutte le voci")
+
+    # **La tabella scritta due volte, presa mentre si scrive.** L'elenco delle
+    # lingue di SuperTonic sta nel repo perche' un elenco che dipende da un
+    # import si svuota quando quell'import non c'e'; che le due copie non
+    # divergano lo dice questa riga, e solo qui, dove il pacchetto c'e' davvero.
+    try:
+        import supertonic as _st
+
+        c.eq(sorted(ST.LINGUE), sorted(_st.SUPPORTED_LANGUAGES),
+             "e l'elenco scritto nel repo e' quello del pacchetto")
+    except ImportError:  # pragma: no cover - dipende dall'ambiente
+        c.ok(True, "(supertonic non installato: elenco non confrontabile)")
+
+    # **Ogni lingua di Kokoro ha le sue regole di fonemizzazione.** Il difetto da
+    # cui viene questa riga: `FONEMI_LINGUA` elencava gia' es/fr/de/pt e le voci
+    # no — la fonemizzazione era pronta per lingue che il pool non sapeva
+    # parlare, e le voci di sette lingue restavano invisibili.
+    c.eq(sorted(K.FONEMI_LINGUA), sorted(K.PER_LINGUA),
+         "le lingue di kokoro e le loro regole di fonemizzazione coincidono")
+
+    # -- il pool, lingua per lingua ------------------------------------------
+    # **Nessun `voice_id` doppio, in nessuna lingua di nessun motore.** Due voci
+    # con lo stesso nome vorrebbero dire due personaggi che il pool crede uno:
+    # `assegnata()` risponderebbe di un altro, e nessun contatore lo direbbe. Il
+    # caso che l'ha fatto capitare: `de_DE-thorsten-medium` e
+    # `de_DE-thorsten-high` sono **la stessa persona** a due qualita'.
+    doppi, vuoti = [], []
+    for backend in ("piper", "supertonic", "kokoro"):
+        for lingua in lingue_con_voce(backend):
+            if not basi_per(backend, lingua):
+                vuoti.append((backend, lingua))
+                continue
+            ids = [v.voice_id
+                   for v in build_pool(None, 6, backend=backend, lingua=lingua)]
+            if len(set(ids)) != len(ids):
+                doppi.append((backend, lingua, ids))
+    c.eq(doppi, [], "nessuna lingua costruisce due voci con lo stesso nome")
+    c.eq(vuoti, [], "e ogni lingua dichiarata ha almeno una voce da cui partire")
+
+    # L'italiano e l'inglese non si muovono: sono le combinazioni su cui e' stata
+    # fatta ogni misura scritta in CLAUDE.md, e un pool diverso renderebbe quei
+    # numeri riferiti a un'altra cosa.
+    c.eq([v.voice_id for v in build_pool(None, 6, backend="piper", lingua="it")],
+         ["riccardo", "paola", "riccardo-2_5", "paola+2", "riccardo+2_5",
+          "paola-2_5"],
+         "il pool italiano di piper e' quello di sempre")
+    c.eq([v.voice_id for v in build_pool(None, 6, backend="kokoro", lingua="en")],
+         ["michael", "heart", "fenrir", "bella", "george", "emma"],
+         "e le sei inglesi di kokoro restano le sei scelte")
+    c.eq([v.voice_id for v in build_pool(None, 2, backend="kokoro", lingua="it")],
+         ["nicola", "sara"],
+         "l'italiano di kokoro non prende le inglesi della sua famiglia")
+
+    # La voce d'attesa segue la lingua: presa dalla famiglia italiana mentre la
+    # scena e' in spagnolo sarebbe **la prima battuta di ogni personaggio nuovo**
+    # detta con i fonemi sbagliati.
+    es = build_pool(None, 6, backend="kokoro", lingua="es")
+    c.ok(voce_neutra(es, "kokoro", "es").base_voice in K.PER_LINGUA["es"],
+         "la voce neutra e' della lingua che si parla, non dell'italiano")
+
+    # Una voce che nessun catalogo conosce resta un errore all'avvio: un pool
+    # costruito su un refuso e' una sessione che muore alla prima battuta con la
+    # configurazione stampata verde.
+    c.raises(ValueError, lambda: build_pool(("inesistente",)),
+             "una voce fuori da tutti i cataloghi e' un errore, non un ripiego")
+    c.raises(ValueError, lambda: PV.parlante("en_US-libritts-high#5000"),
+             "e un parlante fuori scala pure: piper non lo rifiuta, cambia voce")
+
+    # -- la regola che sceglie il motore -------------------------------------
+    gpu = Sonda(cuda=True, provider="CUDAExecutionProvider", sintesi_ms=210.0)
+    cpu = Sonda(cuda=False)
+
+    c.eq(motore_per_lingua("it", "piper", gpu).codice, INVARIATO,
+         "se il motore che c'e' parla la lingua non succede niente")
+    c.eq(motore_per_lingua("it", "piper", gpu).avviso, "",
+         "e non si scrive niente: un avviso a ogni cambio e' rumore")
+    c.eq(motore_per_lingua("de", "piper", gpu).codice, INVARIATO,
+         "piper parla tedesco, quindi non si cambia motore per il tedesco")
+    # Il giapponese e' il caso che fa vedere tutto il meccanismo: Piper ha la
+    # voce e non la sa dire, Kokoro ne ha cinque ma vuole la CUDA, SuperTonic la
+    # parla su CPU. La risposta cambia con la macchina, ed e' giusto cosi'.
+    c.eq(motore_per_lingua("ja", "piper", gpu).motore, "kokoro",
+         "il giapponese con la CUDA va a kokoro")
+    c.eq(motore_per_lingua("ja", "piper", cpu).motore, "supertonic",
+         "e senza, a supertonic: non si passa a kokoro su una macchina senza GPU")
+
+    croato = motore_per_lingua("hr", "piper", gpu)
+    c.eq((croato.motore, croato.codice), ("supertonic", CAMBIATO),
+         "il croato lo parla solo supertonic, e il motore ci si sposta da solo")
+    c.ok(croato.avviso,
+         "e questa volta lo si dice, perche' e' stata scavalcata una scelta")
+
+    muta = motore_per_lingua("am", "piper", gpu)
+    c.eq((muta.motore, muta.codice), ("piper", MUTA),
+         "l'amarico non lo parla nessuno: si tiene quello che c'e' e si dichiara")
+
+    c.eq(motore_per_lingua("ja", "tone", gpu).codice, INVARIATO,
+         "un bip non ha lingua: non gli si cambia motore sotto i piedi")
+
+    # **La clausola sulla macchina, che e' meta' della decisione.** Kokoro su CPU
+    # costa 725 ms a battuta contro i 207 su CUDA: passarci sopra
+    # automaticamente vorrebbe dire consegnare una latenza doppia per aver
+    # seguito una lingua. Il giudizio e' quello di `core.banco.scegli`, non un
+    # secondo giudizio scritto qui.
+    c.ok("kokoro" in motori_possibili(gpu), "con la CUDA kokoro e' fra i candidati")
+    c.ok("kokoro" not in motori_possibili(cpu),
+         "senza, no — e lo dice il banco, non questa regola")
+    c.eq(motori_possibili(None), ORDINE_MOTORI,
+         "e senza sonda non si toglie niente: «non lo so» non e' «no»")
+
+    lenta = Sonda(cuda=True, provider="CUDAExecutionProvider", sintesi_ms=900.0)
+    c.ok("kokoro" not in motori_possibili(lenta),
+         "una CUDA che va come una CPU retrocede, ed e' la stessa riga del banco")
+
 GROUPS = {
     "clock": test_clock,
     "session": test_session,
@@ -5055,6 +5225,7 @@ GROUPS = {
     # Le lingue: quelle del doppiaggio (la tabella, chi le sa fare, chi ha una
     # voce) e quella della finestra (i cataloghi, e cosa resta in italiano).
     "lingue": test_lingue,
+    "lingue_voci": test_lingue_voci,
     "ui_lingua": test_ui_lingua,
     # La guida iniziale: quando si apre, che saltarla la chiude per sempre, e
     # che quello che dice sta nei cataloghi — un dialogo che non esiste finche'

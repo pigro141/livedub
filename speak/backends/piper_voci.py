@@ -406,6 +406,15 @@ def voci_per(lingua: str, quante: int = 6) -> tuple[str, ...]:
 
     Vuoto vuol dire «Piper non parla questa lingua», ed e' una risposta: chi la
     riceve deve cambiare motore, non ripiegare sull'italiano.
+
+    **E il costo va detto**: `speak.base.make_tts` precarica tutte le voci del
+    pool, quindi chiedere sei voci a una lingua nuova vuol dire sei download
+    all'Avvia. L'italiano ne ha sempre scaricati due (91 MB) perche' le sue voci
+    dichiarate sono due; il tedesco ne ha sei di persone diverse, e sono sei
+    file. Il posto giusto dove pagarli e' il passo 6 della guida
+    (`core/banco.py`), che scarica **con la barra** e dichiara il peso — oggi
+    guarda il motore e non la lingua d'arrivo, ed e' scritto in
+    `PROSSIMA_SESSIONE.md`.
     """
     disponibili = VOCI.get(normale(lingua), ())
     # **Un parlante solo per persona.** `de_DE-thorsten-medium` e

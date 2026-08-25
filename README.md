@@ -4,291 +4,225 @@
 
 # livedub
 
-**Doppiaggio italiano dal vivo dei sottotitoli di un videogioco.**
-Legge il testo a schermo mentre giochi, capisce dall'audio chi sta parlando,
-sintetizza la battuta con la voce di quel personaggio e la mixa sopra il gioco.
-Tutto in locale.
+**Live dubbing for a video game's subtitles.**
+It reads the text on screen while you play, works out who is speaking from the
+game's audio, synthesises the line in that character's voice and mixes it over
+the game. All on your own machine.
 
-![licenza](https://img.shields.io/badge/licenza-GPL--3.0--or--later-2b8a6b)
-![windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b)
-![python](https://img.shields.io/badge/Python-3.11-2b8a6b)
-![offline](https://img.shields.io/badge/rete-non%20serve-2b8a6b)
-![verifiche](https://img.shields.io/badge/verifiche-1813-2b8a6b)
-![lingue](https://img.shields.io/badge/lingue%20della%20finestra-42-2b8a6b)
-![gpu](https://img.shields.io/badge/GPU%20NVIDIA-facoltativa-6b7280)
-![stato](https://img.shields.io/badge/versione-0.9.0-b8860b)
+{{BADGES}}
 
-<img src="assets/menta-anteprima.png" alt="la finestra di livedub durante una partita" width="760">
+<img src="assets/menta-anteprima.png" alt="the livedub window during a game" width="760">
+
+**English** ·
+[Italiano](docs/readme/README.it.md) ·
+[Deutsch](docs/readme/README.de.md) ·
+[Español](docs/readme/README.es.md) ·
+[Français](docs/readme/README.fr.md) ·
+[日本語](docs/readme/README.ja.md) ·
+[中文](docs/readme/README.zh.md)
+
+**[See it and hear it — the videos, with sound](https://pigro141.github.io/livedub/)**
 
 </div>
 
-> **In questa catena non c'è nessuna traduzione obbligatoria.** I sottotitoli di
-> GTA V sono già in italiano: il programma li legge e li *dice*. Tradurre è una
-> funzione a parte, **spenta di serie**, che si accende se il gioco è in una
-> lingua che non è la tua.
+> **There is no mandatory translation in this chain.** If the game's subtitles
+> are already in your language, the program reads them and *says* them.
+> Translating is a separate feature, **off by default**, for a game written in a
+> language that is not yours.
 
 ---
 
-## Guarda com'è
+## See it
 
-Qui sotto tre spezzoni **muti**, perché un README non suona: GitHub anima una GIF
-ma non le dà audio, e questo programma **parla** — sentirlo è metà di quello che
-c'è da vedere. Ogni spezzone è cliccabile e porta al video intero, con la voce:
-**[la vetrina](https://pigro141.github.io/livedub/#video)**.
+Three silent clips below, because a README cannot play sound: GitHub animates a
+GIF but gives it no audio, and this program **speaks** — hearing it is half of
+what there is to see. Each clip links to the full video, with the voice:
+**[the showcase](https://pigro141.github.io/livedub/#watch)**.
 
-### Il doppiaggio, su GTA V
+### The dubbing, on GTA V
 
-La banda nera in alto è il testo **letto dall'OCR** con la voce che gli è stata
-assegnata. Serve a distinguere «ha sbagliato a leggere» da «ha sbagliato a dire»,
-ed è il motivo per cui ogni prova d'ascolto di questo progetto si consegna così.
-Qui si vede il cambio di voce fra due personaggi: `[nicola]` e `[nicola-2_5]`.
+The black band on top is the text **as the OCR read it**, with the voice that
+was assigned to it. It is there to tell *misread* apart from *mispronounced*,
+and it is why every listening test in this project is delivered that way. You
+can hear the voice change between two characters: `[nicola]` and `[nicola-2_5]`
+are the same voice at two pitches.
 
-[![doppiaggio su GTA V](assets/vetrina/doppiaggio-gtav.gif)](https://pigro141.github.io/livedub/#video)
+[![dubbing on GTA V](assets/vetrina/doppiaggio-gtav.gif)](https://pigro141.github.io/livedub/#watch)
 
-*Cliccalo per sentirlo: senza audio si vede che legge, non che dice.*
+*Play it with sound: silent, you can see that it reads, not that it says.*
 
-### La traduzione, disegnata sopra il gioco
+### Translation, drawn over the game
 
-Il sottotitolo italiano viene **cancellato ricostruendo lo sfondo** — non coperto
-da un rettangolo — e al suo posto viene disegnato il tradotto, con il carattere e
-il colore copiati dal gioco.
+The original subtitle is **erased by rebuilding the background** behind it — not
+covered with a rectangle — and the translated line takes its place, with the
+size and colour copied from the game.
 
-[![overlay tradotto](assets/vetrina/traduzione-overlay.gif)](https://pigro141.github.io/livedub/#video)
+[![translated overlay](assets/vetrina/traduzione-overlay.gif)](https://pigro141.github.io/livedub/#watch)
 
-### La finestra, mentre lavora
+### The window, while it works
 
-Un colore per personaggio nel registro, e in fondo la barra della misura:
-letture al secondo, battute, latenza, compressione, underrun, area.
+One colour per character in the log, and the measurement bar along the bottom:
+reads per second, lines, latency, compression, underruns, reading area.
 
-[![la finestra Menta](assets/vetrina/finestra-menta.gif)](https://pigro141.github.io/livedub/#video)
+[![the livedub window](assets/vetrina/finestra-menta.gif)](https://pigro141.github.io/livedub/#watch)
 
 ---
 
-## Cosa fa, in breve
+## What it does, in short
 
 | | |
 |---|---|
-| **Legge** i sottotitoli | OCR sulla sola finestra del gioco, non sullo schermo |
-| **Capisce chi parla** | impronta vocale sull'audio del gioco, senza etichette |
-| **Dà una voce a ciascuno** | e se la ricorda fra una sessione e l'altra |
-| **Sta nei tempi** | accelera la battuta quanto basta per stare dentro la scena |
-| **Mixa** | abbassa **il solo canale centrale** del gioco, dove sta il parlato: musica ed effetti restano dove sono |
-| **Traduce** *(spento di serie)* | quattro motori, tre dei quali senza rete |
-| **Riscrive il sottotitolo a schermo** *(spento di serie)* | cancella l'originale e disegna il tradotto |
-| **Parla 42 lingue** *(la finestra)* | segue la lingua di Windows, e cambia senza riavviare |
+| **Reads** the subtitles | OCR on the game's window alone, not on the screen |
+| **Works out who is speaking** | a voice fingerprint on the game's own audio, with no labels |
+| **Gives each character a voice** | and remembers it from one session to the next |
+| **Keeps up with the scene** | it speeds a line up just enough to fit the time it has |
+| **Mixes** | it ducks **only the centre channel** of the game, where the dialogue sits: music and effects stay where they are |
+| **Translates** *(off by default)* | several backends, most of them with no network at all |
+| **Rewrites the subtitle on screen** *(off by default)* | erases the original and draws the translated line |
+| **Speaks {{UI_LANGUAGES_COUNT}}** *(the interface)* | follows your Windows language, and changes without a restart |
 
 ---
 
-## Come si usa, nell'ordine in cui lo incontri
+## How you use it, in the order you meet it
 
-Non c'è niente da configurare prima: si apre e si segue.
+There is nothing to configure first: you open it and follow along.
 
-**1. Si apre.** La finestra è già nella lingua in cui usi Windows — 41 cataloghi
-più l'italiano del sorgente. Arabo, ebraico, persiano e urdu ribaltano anche il
-verso della finestra.
+**1. You open it.** The window is already in the language you use Windows in —
+{{UI_LANGUAGES_COUNT}}. Arabic, Hebrew, Persian and Urdu also flip the window
+the other way round.
 
-**2. La guida ti prende per mano**, sette passi, e si riapre col `?`. Dove può,
-**controlla invece di raccontare**: conta le schede audio che ci sono, chiede a
-ONNX Runtime se la CUDA c'è davvero invece di dedurlo, misura l'altezza dell'area
-con la regola vera.
+**2. A guide takes you through it**, {{TUTORIAL_STEPS}} steps, and it comes back
+with `?`. Wherever it can it **checks instead of telling**: it counts the audio
+devices you actually have, it asks ONNX Runtime whether CUDA is really there
+instead of assuming, and it measures the height of your reading area with the
+real rule.
 
-<img src="assets/guida-1.png" alt="il primo passo della guida" width="440"> <img src="assets/guida-4.png" alt="il passo dell'area" width="440">
+<img src="assets/guida-1.png" alt="the first step of the guide" width="440"> <img src="assets/guida-4.png" alt="the reading-area step" width="440">
 
-**3. Il banco misura questo PC e sceglie i motori.** È il sesto passo, e non è
-una comodità: **un modello che manca non dà errore**. I programmi si installano
-una volta, i modelli no — si scaricano alla prima richiesta, e se non arrivano la
-catena *ripiega su qualcosa di più leggero e va avanti*. Senza questo passo
-staresti ascoltando il ripiego senza saperlo. Il banco misura, sceglie, scarica
-quello che manca, e **non installa nessun programma**: se ne manca uno ti dà la
-riga esatta da incollare.
+**3. A bench measures this PC and picks the engines.** It is not a convenience:
+**a model that is missing does not raise an error**. Programs are installed
+once, models are not — they are fetched on first use, and if they do not arrive
+the chain *falls back to something lighter and carries on*. Without this step
+you would be listening to the fallback without knowing. The bench measures,
+picks, downloads what is missing, and **installs no programs**: if one is
+missing it hands you the exact line to paste.
 
-<img src="assets/guida-banco.png" alt="il banco che misura il PC" width="560">
+<img src="assets/guida-banco.png" alt="the bench measuring the PC" width="560">
 
-**4. Scegli la finestra del gioco.** Si cattura **una finestra sola**, non lo
-schermo: così nel fotogramma che va all'OCR non entra nient'altro — nemmeno le
-nostre finestre. Il gioco deve stare in finestra o *senza bordi*, non a schermo
-intero esclusivo.
+**4. You pick the game's window.** It captures **one window**, not the screen,
+so nothing else can end up in the frame that goes to the OCR — not even our own
+windows. The game has to run windowed or *borderless*, not in exclusive
+fullscreen.
 
-**5. Tira l'area attorno alla riga dei sottotitoli.** Due secondi col mouse.
-L'area è **relativa alla finestra**: se sposti il gioco, l'area lo segue.
+**5. You drag a box around the subtitle line.** Two seconds with the mouse. The
+area is **relative to the window**: move the game and the area follows it.
 
-**6. Avvia.** Da lì il programma legge, capisce chi parla, sintetizza e mixa.
+**6. Start.** From there it reads, works out who is speaking, synthesises and
+mixes.
 
-La voce arriva sempre un po' dopo il sottotitolo, ed è voluto: mezzo secondo
-serve a capire chi sta parlando prima di scegliere la voce.
+The voice always arrives a little after the subtitle, and that is deliberate:
+{{SPEAKER_DECIDE_MS}} of game audio is what it takes to know who is talking
+before choosing a voice.
 
 ---
 
-## Cosa succede dentro
-
-### La catena, dal pixel alle cuffie
+## What happens inside
 
 ```mermaid
 flowchart TD
-    subgraph W["l'attesa · 500 ms · speaker.decide_after_ms"]
+    subgraph W["the wait · {{SPEAKER_DECIDE_MS}} · speaker.decide_after_ms"]
       direction LR
-      W1["si accumula l'audio<br/>del gioco per l'impronta"]
-      W2["si <b>traduce</b> la riga<br/><i>(opzionale)</i>"]
+      W1["game audio piles up<br/>for the fingerprint"]
+      W2["the line is <b>translated</b><br/><i>(optional)</i>"]
       W1 ~~~ W2
     end
 
-    A["cattura della<br/><b>finestra del gioco</b><br/>30 Hz"] --> B["la fascia che si legge:<br/>righe trovate<br/>e classificate per colore"]
-    B --> C["OCR<br/>una riga per volta"]
-    C --> D["stabilizzatore:<br/>due letture d'accordo<br/>= una battuta"]
+    A["capture of the<br/><b>game window</b>"] --> B["the band that gets read:<br/>lines found<br/>and sorted by colour"]
+    B --> C["OCR<br/>one line at a time"]
+    C --> D["stabiliser:<br/>two reads that agree<br/>= one line"]
     D --> W
-    W --> E["<b>chi parla</b>:<br/>impronta della voce<br/>confrontata coi centroidi"]
-    E --> F["<b>quale voce</b>:<br/>una del pool,<br/>la stessa di ieri"]
-    F --> G["<b>sintesi</b><br/>Piper · SuperTonic · Kokoro"]
-    G --> H["<b>fretta</b>: prima al motore,<br/>il residuo a WSOLA"]
-    H --> I["<b>mixer</b>: abbassa il canale<br/>centrale del gioco,<br/>versa la battuta"]
-    I --> J(["cuffie"])
-    D -.->|"i rettangoli e la tinta<br/>delle righe lette"| K["overlay: cancella l'originale,<br/>disegna il tradotto"]
-    K -.-> L(["schermo"])
+    W --> E["<b>who is speaking</b>:<br/>the voice fingerprint<br/>against the centroids"]
+    E --> F["<b>which voice</b>:<br/>one from the pool,<br/>the same as yesterday"]
+    F --> G["<b>synthesis</b>"]
+    G --> H["<b>hurry</b>: the engine first,<br/>the remainder to WSOLA"]
+    H --> I["<b>mixer</b>: ducks the game's<br/>centre channel,<br/>pours the line in"]
+    I --> J(["headphones"])
+    D -.->|"the boxes and the ink<br/>of the lines that were read"| K["overlay: erases the original,<br/>draws the translation"]
+    K -.-> L(["screen"])
 
     style W fill:#123a33,stroke:#43f1c1,color:#e6fff8
     style J fill:#123a33,stroke:#43f1c1,color:#e6fff8
     style L fill:#123a33,stroke:#43f1c1,color:#e6fff8
 ```
 
-### Due domini, due thread, un solo punto d'incontro
+**Two domains, two threads, one meeting point.** The video domain decides
+**what** will be said and **when**; the audio domain pours in what was
+scheduled. **The mixer never calls the synthesiser**: if it did, the sample
+stream would stop at every line — and a hole in the stream is not a slowdown, it
+is a line you do not hear.
 
-Non è un dettaglio di implementazione: è **la** scelta di architettura, e sta
-tutta in `core/pipeline.py`.
+**Translation happens *inside* the wait, not after it.** They are two
+independent waits: one needs the *text*, which is there as soon as the subtitle
+is confirmed; the other needs *audio*, which has to pile up. In a row they cost
+`wait + translation`; overlapped they cost `max(wait, translation)`.
 
-```mermaid
-flowchart LR
-    subgraph V["dominio <b>VIDEO</b> · thread 1 · 30 Hz · on_frame"]
-      direction LR
-      V2["legge"] --> V3["decide"] --> V4["sintetizza"] --> V5["<b>programma</b>"]
-    end
-
-    subgraph A["dominio <b>AUDIO</b> · thread 2 · blocchi da 10 ms · on_audio"]
-      direction LR
-      A2["versa cio' che<br/>e' stato programmato"] --> A3["mixa e abbassa<br/>il gioco"]
-    end
-
-    V5 ==>|"la battuta,<br/>con l'istante in cui va versata"| A2
-    A3 -.->|"l'anello circolare<br/>dell'audio catturato"| V3
-
-    style V fill:#132030,stroke:#43f1c1,color:#e6fff8
-    style A fill:#132030,stroke:#43f1c1,color:#e6fff8
-```
-
-Il video decide **cosa** si dirà e **quando**; l'audio versa quello che è stato
-programmato. **Il mixer non chiama mai il sintetizzatore**: se lo facesse, il
-flusso di campioni si interromperebbe a ogni battuta — e un buco nel flusso non
-è un rallentamento, è una battuta che non si sente.
-
-### La traduzione sta **dentro** l'attesa, non dopo
-
-È il pezzo di architettura più recente, ed è quello che ha tolto un secondo di
-ritardo. Prima erano due attese in fila; sono due attese **indipendenti** — una
-vuole il *testo*, che c'è subito, l'altra vuole l'*audio*, che va accumulato.
-
-```mermaid
-flowchart LR
-    subgraph P["prima · due attese in fila"]
-      direction LR
-      P1["500 ms<br/>chi parla"] --> P2["traduzione"] --> P3["sintesi"]
-    end
-    subgraph D["adesso · core/anticipa.py"]
-      direction LR
-      D1["500 ms · chi parla<br/><i>e dentro, la traduzione</i>"] --> D3["sintesi"]
-    end
-    P ~~~ D
-    style D fill:#123a33,stroke:#43f1c1,color:#e6fff8
-    style P fill:#2b2119,stroke:#f5b544,color:#ffeccc
-```
-
-Misurato dal vivo (`runs/2026-08-19_16-08-44`): tradurre una riga costa **44,5 ms
-al p50**, e l'attesa che la catena ci mette sopra è **0,01 ms** — cioè zero.
-Quando serve, è già pronta. Ciò che sta sotto i 500 ms è gratis; ciò che li
-supera si paga intero, ed è per questo che il numero che sceglie il traduttore è
-il **p95** e non il p50.
-
-Il resto è in [`docs/architettura.md`](docs/architettura.md).
+The rest is in [`docs/architettura.md`](docs/architettura.md) *(in Italian, like
+the code)*.
 
 ---
 
-## I numeri, e da quale sessione vengono
+## The numbers, and which session they come from
 
-**Solo sessioni dal vivo, col gioco acceso.** C'è anche un banco che fa girare la
-stessa identica catena su una registrazione — è vero codice, non una simulazione
-— ma **il banco regala il tempo**: con l'orologio virtuale la sintesi costa zero e
-nessun fotogramma viene saltato. Da lì non esce nessuna latenza, e in questa
-tabella non ce n'è nessuna che venga da lì.
+**Live sessions only, with the game running.** There is also a bench that runs
+the very same chain over a recording — real code, not a simulation — but **the
+bench gives time away**: on a virtual clock synthesis costs nothing and no frame
+is ever dropped. No latency comes from there, and none in this table does.
 
-| | Piper (CPU) | Kokoro (CUDA) |
-|---|---|---|
-| sessione | `runs/2026-08-11_18-31-55` | `runs/2026-08-20_00-01-56` |
-| battute doppiate | 44 | **146** |
-| **latenza p50**, dal sottotitolo alla voce | **665 ms** | **1290 ms** |
-| costo della sintesi, p50 *(già dentro la latenza qui sopra, non in aggiunta)* | 57 ms | 580 ms |
-| compressione del parlato, p50 | 1,00 *(nessuna)* | 1,00 *(nessuna)* |
-| `mix.underrun` — battute non sentite | **0** | **0** |
+{{LIVE_NUMBERS_TABLE}}
 
-Dalla stessa sessione da 146 battute: l'OCR gira a **15,9 letture al secondo**
-(10 724 letture in 675 s di partita), e il ritaglio che l'overlay porta a schermo
-è vecchio di **9,7 ms al p50**, 19,2 nel caso peggiore.
+**How many cores an engine needs.** This one comes from the bench and is not a
+latency: it is the **cost of synthesising one line** with everything else held
+equal, timed on the wall clock while the process is restricted to fewer cores.
+It is a **lower bound** on how much an older PC would slow down — it simulates
+fewer cores, not slower ones.
 
-Piper è più veloce e Kokoro articola meglio: sono due scelte, non una scala di
-qualità, ed è il banco del passo 6 a dire quale delle due regge su una macchina.
-
-**Su quanti core serve un motore, e cosa succede sotto.** Questa riga viene dal
-banco (`tools/bench_cpu`) e non è una latenza: è il **costo della sintesi per
-battuta** a parità di tutto il resto, cronometrato al muro restringendo
-l'affinità del processo. È un **limite inferiore** al rallentamento di un PC
-vecchio — simula meno core, non core più lenti.
-
-| core fisici | Piper | SuperTonic |
-|---|---|---|
-| 8 | ~48 ms | 493–573 ms |
-| 6 | 109 ms | 946 ms |
-| 4 | **261 ms** | **1315 ms — non usabile** |
-| 2 | 491 ms | 3627 ms |
-
-Cioè: **sotto i 6 core fisici, Piper.**
+{{CPU_CORES_TABLE}}
 
 ---
 
-## Privacy: gira tutto sulla tua macchina
+## Privacy: it all runs on your machine
 
-Non è uno slogan, è la lista di cosa esce dal computer.
+That is not a slogan, it is the list of what leaves the computer.
 
-| | esce qualcosa? |
+| | does anything leave? |
 |---|---|
-| lettura dei sottotitoli (OCR) | **no** — OneOCR o PP-OCR, in locale |
-| chi parla (impronta vocale) | **no** — ECAPA, in locale |
-| sintesi della voce | **no** — Piper, SuperTonic o Kokoro, in locale |
-| traduzione con `locale`, `llm`, `ollama` | **no** |
-| traduzione con `google` | **sì**, e il programma lo scrive ogni volta |
-| scaricamento dei modelli | **una volta sola**, al primo uso |
+| reading the subtitles (OCR) | **no** — on your machine |
+| who is speaking (voice fingerprint) | **no** — on your machine |
+| synthesising the voice | **no** — on your machine |
+| translating with the offline backends | **no** |
+| translating with the online backend | **yes**, and the program says so every time |
+| downloading the models | **once**, on first use |
 
-L'unico modo di far uscire del testo è scegliere esplicitamente il traduttore
-`google`. Nessuna telemetria, nessun account, nessuna connessione a un server
-nostro — non esiste un server nostro.
-
----
-
-## Requisiti
-
-**Funziona bene con**: Windows 10 o 11, Python 3.11, 4 core, 8 GB di RAM,
-nessuna scheda video particolare, motore di voce **Piper**.
-
-**Meglio con**: Windows 11, 8 core, 16 GB di RAM e una **GPU NVIDIA** con almeno
-4 GB liberi — motore **Kokoro** su CUDA (1128 MB di VRAM occupati su una RTX 4060
-da 8 GB, mentre GTA V girava) e OCR **OneOCR**, il riconoscitore dello Strumento
-di cattura di Windows 11, che sul testo bordato dei giochi legge molto meglio di
-PP-OCR.
-
-**Serve anche** un modo di sentire l'audio del gioco senza risentire il proprio
-doppiaggio in circolo: basta il loopback WASAPI di Windows, già incluso.
-[Voicemeeter](https://vb-audio.com/Voicemeeter/) **non è obbligatorio** — serve
-solo se vuoi tutto in un paio di cuffie sole.
+The only way to send text out is to pick the online translator on purpose. No
+telemetry, no account, no connection to a server of ours — there is no server of
+ours.
 
 ---
 
-## Installazione
+## Requirements
+
+{{HARDWARE_TABLE}}
+
+**You also need** a way to hear the game's audio without your own dubbing
+looping back into it: the WASAPI loopback that ships with Windows is enough.
+[Voicemeeter](https://vb-audio.com/Voicemeeter/) is **optional** — it only helps
+if you want everything in a single pair of headphones.
+
+## Download
+
+{{DOWNLOADS}}
+
+## Install from source
 
 ```powershell
 git clone https://github.com/pigro141/livedub.git
@@ -296,233 +230,178 @@ cd livedub
 powershell -ExecutionPolicy Bypass -File installa.ps1
 ```
 
-Lo script **verifica di aver ottenuto quello che ha chiesto** invece di dire
-«fatto»: Python, venv, dipendenze, OneOCR, il provider CUDA vero, i modelli, e
-chiude eseguendo la suite di verifica. Quello che manca lo elenca con il perché e
-cosa comporta.
+The script **checks that it got what it asked for** instead of reporting
+success: Python, the virtual environment, the dependencies, the OCR, the real
+CUDA provider, the models — and it finishes by running the test suite. Whatever
+is missing is listed with the reason and what it costs you.
 
-Senza GPU NVIDIA:
+Without an NVIDIA GPU:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File installa.ps1 -SenzaGpu
 ```
 
-### Partire
+### Run it
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.ui_qt --profile live
 ```
 
-Nella finestra: **Scegli finestra** → **Seleziona area** → **Avvia**.
+In the window: **Pick window** → **Select area** → **Start**. On Windows you can
+also just double-click `livedub.bat`.
+
+> **If your Windows has Smart App Control switched on.** It ships in
+> *evaluation* mode and Windows switches it off by itself as soon as it sees
+> developer tools being run — and once off it cannot be switched back on without
+> reinstalling Windows. So this is a minority of machines, not the normal case.
+> On one where it is still on, {{SAC_BLOCKED_LIST}}
 
 ---
 
-## La finestra
+## The window
 
-Sei schede. **Nessuna va toccata per sentire la prima battuta**: si aprono quando
-servono.
+{{TABS_COUNT}} tabs. **None of them has to be touched to hear the first line**:
+they open when you need them.
 
-| scheda | a cosa serve |
+| tab | what it is for |
 |---|---|
-| **Preparazione** | i quattro passi in ordine — è l'unica che serve prima di Avvia |
-| **Sessione** | chi parla, adesso, un colore per personaggio |
-| **Voce** | quale motore, quante voci nel pool, quanto aspettare prima di decidere chi parla |
-| **Volumi** | quanto si abbassa il gioco e quanto si alza la nostra voce, **mentre ascolti** |
-| **Traduzione** | solo per giocare in una lingua diversa da quella dei sottotitoli |
-| **Tutte le impostazioni** | i 170 parametri, con la ricerca |
+| **Setup** | the steps in order — the only tab you need before Start |
+| **Session** | who is speaking, right now, one colour per character |
+| **Voice** | which engine, how many voices in the pool, how long to wait before deciding who is speaking |
+| **Levels** | how far the game ducks and how far our voice comes up, **while you listen** |
+| **Translation** | only for playing a game whose subtitles are not in your language |
+| **All settings** | the {{PARAMS_TOTAL}} parameters, with a search box |
 
-<img src="assets/menta-preparazione.png" alt="la scheda Preparazione" width="440"> <img src="assets/menta-volumi.png" alt="la scheda Volumi" width="440">
+<img src="assets/menta-preparazione.png" alt="the Setup tab" width="440"> <img src="assets/menta-volumi.png" alt="the Levels tab" width="440">
 
-**La scheda Sessione non è un log.** In cima la battuta di adesso con la sua voce
-e la sua fretta, poi chi ha parlato con una tessera per personaggio, il registro
-sotto. La domanda che ti fai guardandola non è «cosa ha detto» ma **«è sempre lo
-stesso a parlare?»**, e a quella l'occhio risponde da un colore molto prima che da
-una sigla.
+**The Session tab is not a log.** At the top, the line being spoken right now
+with its voice and its hurry; then who has spoken, one card per character; the
+log underneath. The question you ask yourself watching it is not *what did it
+say* but **is it still the same person talking?** — and a colour answers that
+long before a label does.
 
-**La barra in fondo** dice a 2 Hz letture al secondo, battute, latenza p50,
-compressione, underrun e area. L'unico rosso è `underrun`, e non è un numero
-fuori norma: è una battuta che non si è sentita.
+**The parameters.** {{PARAMS_TOTAL}} in total; **{{PARAMS_HOT}} apply straight
+away**, and the {{PARAMS_COLD}} that are only read at startup **say so** instead
+of pretending. {{PARAMS_WITH_HELP}} carry a `?` that explains what they do, what
+was measured and what you risk by changing them — and it is the same text that
+sits beside the parameter inside [`core/config.py`](core/config.py), not a
+second copy nobody updates.
 
-**I parametri.** 170 in tutto; **131 si applicano subito**, i 39 che si leggono
-solo all'avvio **lo dicono** invece di fingere. Centoventisette hanno un `?` che
-spiega cosa fanno, quanto è stato misurato e cosa si rischia a cambiarli — ed è
-lo stesso testo che sta accanto al parametro dentro
-[`core/config.py`](core/config.py), non una seconda copia che nessuno aggiorna.
-
-**Le due lingue sono due cose diverse, e stanno a due schede di distanza
-apposta.** `ui.lingua`, nella Preparazione, decide cosa c'è **scritto sui
-bottoni**; `translate.source` e `translate.target`, nella Traduzione, decidono
-cosa viene **detto**. Confonderle costa una sessione: si mette `en` nel posto
-sbagliato credendo di aver acceso la traduzione, e la catena continua a doppiare
-in italiano.
+**The two languages are two different things, and they sit two tabs apart on
+purpose.** `ui.lingua`, in Setup, decides what is **written on the buttons**;
+`translate.source` and `translate.target`, in Translation, decide what is
+**said**. Mixing them up costs you a session.
 
 ---
 
-## Funziona con il mio gioco?
+## Will it work with my game?
 
-Provato su due: **GTA V** e **Mafia: The Old Country**, tutti e due in italiano.
-Onestamente, questo è quello che si sa.
+Tested on {{GAMES_TESTED}}. Honestly, that is what is known.
 
-**Serve sempre**, per ogni gioco: tirare l'area attorno ai sottotitoli, e togliere
-la spunta «Ignora i sottotitoli colorati» se il gioco colora il nome di chi parla.
+**Always needed**, for any game: dragging the area around the subtitles, and
+clearing the *ignore coloured subtitles* box if the game colours the speaker's
+name.
 
-**Non dipende dal gioco**, misurato: il filtro del colore è cieco alla tinta —
-giallo, rosso, ciano, verde, viola e arancio si comportano identici.
+**Good odds of working straight away** if the game writes **light text on a dark
+background**, on a line near the bottom.
 
-**Ha buone probabilità di funzionare subito** se il gioco scrive testo **chiaro su
-fondo scuro**, in una riga in basso.
+**Worth a try** if it writes dark text on a light background: on purpose-built
+frames it reads, but it smudges. No one has ever tried it on a real game like
+that.
 
-**È da provare** se scrive testo scuro su fondo chiaro: su fotogrammi costruiti
-apposta legge ma sporca (`Andiamo via di qui.` → `Andamo via di quL`). Su un gioco
-vero non l'ha mai provato nessuno.
+**Not planned**: subtitles inside speech bubbles that follow the character, or
+positions that move from one line to the next.
 
-**Non è previsto**: sottotitoli dentro fumetti che seguono il personaggio, o
-posizioni che cambiano da una battuta all'altra.
+**And it does not translate the whole screen: it reads one subtitle line at a
+time**, inside the box you drag around it. That is a choice, not a gap — the
+whole chain is built on that shape.
 
-**E non traduce tutto lo schermo: legge una riga di sottotitolo alla volta**,
-nell'area che gli tiri attorno. È una scelta, non una mancanza — tutta la catena è
-costruita su quella forma. *(Una versione precedente prometteva più aree di
-lettura insieme: è stata tolta, perché l'overlay disegna una scritta per volta e
-la promessa non era mantenibile dal vivo.)*
-
-**Sull'area, la cosa che si sente dire al contrario.** Se la tiri larga il
-programma **legge lo stesso**: un'area grande è meno precisa, non muta. Quello che
-peggiora davvero è la grafica — il tradotto viene disegnato ricostruendo lo sfondo
-attorno alla riga, e più l'area è alta più quella ricostruzione prende roba che
-non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il
-rettangolo e quando avvii.
-
-### E GTA VI
-
-Rockstar ha annunciato sottotitoli e doppiaggio in poche lingue. livedub è
-costruito su **quello che c'è a schermo**, non su file del gioco: se GTA VI
-scriverà i sottotitoli in una striscia, come ha sempre fatto la serie, qui
-servirà tirare un rettangolo. Niente da estrarre, niente da aggiornare, nessun
-anti-cheat da toccare — il programma guarda lo schermo e suona nelle cuffie,
-esattamente come un giocatore.
+**About the area, the thing people get backwards.** Drag it wide and the program
+**still reads**: a large area is less precise, not mute. What actually gets
+worse is the drawing — the translated line is drawn by rebuilding the background
+around it, and the taller the area, the more unrelated scenery that rebuild
+picks up. Past a certain height the program tells you so, while you are dragging
+the rectangle and again when you start.
 
 ---
 
-## Lingue
+## Languages
 
-**Lettura**: quello che il riconoscitore sa leggere. Misurato sull'italiano; le
-altre scritture non le ha provate nessuno su un gioco vero.
+**Reading**: whatever the recogniser can read.
 
-**Voce**, con le voci che oggi sono montate — ed è poco, e va detto:
+**Speaking**, with the voices that are wired up today:
 
-| motore | voci | dove gira |
-|---|---|---|
-| **Piper** *(default)* | 2, italiane | CPU |
-| **SuperTonic** | 10, italiane | CPU |
-| **Kokoro** | 2 italiane + 6 inglesi | CUDA |
+{{VOICE_LANGUAGES_TABLE}}
 
-Oltre il numero di voci native i personaggi si distinguono spostando i semitoni,
-che è quello che si vede nella GIF: `nicola` e `nicola-2_5` sono la stessa voce a
-due altezze. **E il menu lo dichiara quando la voce manca**: tradurre verso il
-giapponese senza una voce giapponese non darebbe errore — uscirebbe una voce
-italiana che pronuncia il giapponese, cioè un modello fonemizzato con le regole
-sbagliate, con l'audio che esce e i log verdi.
+Beyond the number of native voices, characters are told apart by shifting the
+pitch — that is what you hear in the first GIF. **And the menu says so when a
+voice is missing**: translating into a language you have no voice for would not
+raise an error — you would get a voice from another language pronouncing it,
+which is a model phonemised by the wrong rules, with audio coming out and the
+logs all green.
 
-**Traduzione** *(spenta di serie)*, quattro strade:
+**Translation** *(off by default)*:
 
-| backend | dove | nota |
-|---|---|---|
-| `locale` *(default)* | offline, leggero | Argos/CTranslate2 — p95 67 ms |
-| `llm` | offline, CPU | Gemma 3 1B in processo |
-| `ollama` | offline, fuori dal venv | TranslateGemma 4b/12b |
-| `google` | **rete** | 133 lingue, il più fedele, e lo dichiara |
+{{TRANSLATION_BACKENDS_TABLE}}
 
-> **Una cosa che nessun contatore mostra.** Su materiale volgare i modelli locali
-> **riscrivono in silenzio**. Misurato su sei battute: Google 6/6 tiene il
-> registro, TranslateGemma **0/6** col suo template. «Get the fuck out of my car,
-> asshole» diventa «Esci immediatamente dalla mia macchina, idiota». La traduzione
-> riesce benissimo: dice un'altra cosa.
+> **Something no counter shows.** On coarse language, local models **rewrite it
+> in silence**. The translation succeeds beautifully: it says something else.
+> Before asking whether a translator is good, ask whether it says what is
+> written.
 
-**La lingua della finestra** è un'altra cosa ancora: 41 cataloghi più l'italiano
-del sorgente, generati una volta e scritti nel repo — non chiesti alla rete
-mentre la finestra si apre, perché una finestra che chiede la traduzione alla
-rete è una finestra in bianco quando la rete non c'è, *e in bianco senza errore*.
-Nessuna lingua fa sforare le schede: la più larga è il tamil, a 872 px sul minimo
-di 960.
+**The interface language** is a third thing again: {{UI_LANGUAGES_COUNT}},
+generated once and committed into the repo — not asked from the network while
+the window opens, because a window that asks the network for its own text is a
+blank window when the network is not there, *and blank without an error*.
 
 ---
 
-## Come è fatto, e perché ci si può fidare dei numeri
+## How it is built, and why the numbers can be trusted
 
-Non c'è pytest: la suite è un modulo eseguibile, **1813 verifiche** in 73 gruppi.
+There is no pytest: the suite is a runnable module, **{{SELFTEST_CHECKS}}
+checks** in {{SELFTEST_GROUPS}} groups.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest
 ```
 
-E c'è il banco, che fa girare **la stessa identica catena** su una registrazione,
-senza il gioco: stesso codice, OCR vero, audio vero, impronta vera, sintesi vera,
-e la causalità rispettata — la catena non vede mai il futuro.
+And there is the bench, which runs **the very same chain** over a recording,
+without the game: same code, real OCR, real audio, real fingerprint, real
+synthesis, and causality respected — the chain never sees the future.
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.dub registrazione.mp4 --profile gtav --mp4
+.\.venv\Scripts\python.exe -m tools.dub recording.mp4 --profile gtav --mp4
 ```
 
-**Ma il banco non basta, per costruzione**, e in questo progetto è una regola
-scritta col sangue: con l'orologio virtuale la sintesi costa zero e nessun
-fotogramma viene saltato, quindi da lì si può mostrare *tutto* tranne quanto è
-veloce. Ogni difetto serio è uscito accendendo la catena davvero.
+**But the bench is not enough, by construction**, and here that is a rule
+written in blood: on a virtual clock synthesis costs nothing and no frame is
+ever dropped, so from there you can show *everything* except how fast it is.
+Every serious defect in this project came out by running the chain for real.
 
-Le misure che hanno cambiato una decisione stanno scritte **accanto al parametro
-che hanno deciso**, dentro [`core/config.py`](core/config.py) — ed è lo stesso
-testo che la finestra mostra quando premi `?`.
+The measurements that changed a decision are written **next to the parameter
+they decided**, inside [`core/config.py`](core/config.py) — the same text the
+window shows when you press `?`.
+
+*The code, its comments and the documents under `docs/` are in Italian. This
+README and the [showcase](https://pigro141.github.io/livedub/) are in English.*
 
 ---
 
-## Sostieni il progetto
+## Support the project
 
-livedub è gratuito, gira tutto sulla tua macchina e non ha né account né server:
-non c'è niente da vendere e nessun dato da raccogliere. Se ti è utile:
+livedub is free, runs entirely on your own machine and has neither accounts nor
+servers: there is nothing to sell and no data to collect. If you find it useful:
 
 **[☕ Buy me a token!](https://ko-fi.com/filippodebenedittis)**
 
-Non sblocca funzioni e non toglie limiti — non ce ne sono.
+It unlocks no features and lifts no limits — there are none.
 
 ---
 
-## Licenza
+## Licence
 
-**GPL-3.0-or-later**, e non per gusto: il sintetizzatore di default (Piper) e il
-g2p di Kokoro (eSpeak NG) sono GPL-3, quindi qualunque cosa venga distribuita lo
-è. Il conto completo, libreria per libreria, sta in [`docs/LICENZE.md`](docs/LICENZE.md) —
-compreso il perché OneOCR e i pesi dei modelli **non** vengono ridistribuiti.
-
----
-
-<details>
-<summary><b>In English</b> — what this is, in ten lines</summary>
-
-<br>
-
-**livedub** dubs a video game's on-screen subtitles out loud, live and entirely
-on your own machine. It captures the game **window** (not the screen), reads the
-subtitle line with OCR, works out **who is speaking** from the game's audio using
-a voice fingerprint, synthesises the line with a voice assigned to that character,
-and mixes it in while ducking the game's **centre channel** — so music and effects
-stay where they are.
-
-It was built to play **GTA V** in Italian by listening to the dialogue instead of
-reading it. There is **no mandatory translation** in the chain: GTA V's subtitles
-are already in Italian, so the program reads them and says them. Translating is a
-separate feature, **off by default**, for games written in another language; when
-it is on, the translated line is also drawn over the game, replacing the original.
-
-The interface speaks **42 languages** and follows your Windows locale. A seven-step
-guide opens the first time and, wherever it can, **checks instead of telling** —
-it counts your audio devices, asks ONNX Runtime whether CUDA is really there, and
-a built-in bench measures this PC, picks the engines it can actually run, and
-downloads what is missing.
-
-Measured live, with the game running: **665 ms** from subtitle to voice with Piper
-on CPU (`runs/2026-08-11_18-31-55`), **1290 ms** with Kokoro on CUDA over 146 lines
-(`runs/2026-08-20_00-01-56`), zero underruns and no speech compression in either.
-
-Windows 10/11, Python 3.11, GPL-3.0-or-later. Nothing leaves the machine unless you
-explicitly pick the Google translator.
-
-</details>
+**GPL-3.0-or-later**, and not out of taste: the default speech synthesiser and
+the grapheme-to-phoneme engine behind one of the others are GPL-3, so anything
+distributed here is too. The full accounting, library by library, is in
+[`docs/LICENZE.md`](docs/LICENZE.md) — including why the OCR and the model
+weights are **not** redistributed.

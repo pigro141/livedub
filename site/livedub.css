@@ -1,0 +1,335 @@
+/* ===========================================================================
+   livedub — il foglio di stile della vetrina.
+
+   La tavolozza NON e' scelta a occhio: e' copiata da `ui/qt_tema.py`, dove sta
+   quella della finestra. Il sito e' la vetrina del programma, e due menta
+   diverse a due clic di distanza si notano. Un colore nuovo entra li' o non
+   entra: qui si copia e basta.
+
+   Due temi, come la finestra. E la menta e' un **riempimento**, non un testo:
+   `#43f1c1` fa 12,9:1 sul fondo scuro e 1,44:1 sul bianco — chi la prova solo
+   sullo scuro conclude che funziona. Sul tema chiaro il testo e i contorni
+   usano la menta scurita `#07785d` (5,4:1), e la menta piena resta il solo
+   riempimento: cosi' il bottone Avvia e' lo stesso colore nei due temi.
+   =========================================================================== */
+
+/* --- tema chiaro: e' il default, e vive su `:root` nudo ------------------- */
+:root{
+  --fondo:#f2f4f8; --superficie:#ffffff; --superficie-alta:#e9edf4;
+  --bordo:#d3dae6; --bordo-forte:#b9c3d4;
+  --testo:#141922; --tenue:#5a6579; --fioco:#7e8aa2;
+  --accento:#07785d; --accento-chiaro:#43f1c1; --accento-scuro:#05614c;
+  --menta:#43f1c1;                 /* il riempimento, uguale nei due temi */
+  --su-menta:#06231c;
+  --ambra:#a16207; --rosso:#cc372c;
+  --ombra:0 1px 2px rgba(20,25,34,.06), 0 8px 24px rgba(20,25,34,.06);
+  --ombra-alta:0 2px 4px rgba(20,25,34,.08), 0 18px 44px rgba(20,25,34,.10);
+  --velo:rgba(255,255,255,.82);
+  --largo:1080px;
+  --raggio:12px;                   /* R(h) di `ui/qt_tema.py`, sui riquadri */
+}
+
+/* --- tema scuro: sistema, quando non e' stato scelto il chiaro ----------- */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --fondo:#0f131b; --superficie:#181e29; --superficie-alta:#212836;
+    --bordo:#2c3444; --bordo-forte:#3b4557;
+    --testo:#e4e9f2; --tenue:#808ba5; --fioco:#545e71;
+    --accento:#43f1c1; --accento-chiaro:#95ffdf; --accento-scuro:#1fb894;
+    --ambra:#f5b544; --rosso:#ff6b5e;
+    --ombra:0 1px 2px rgba(0,0,0,.30), 0 8px 24px rgba(0,0,0,.28);
+    --ombra-alta:0 2px 4px rgba(0,0,0,.34), 0 18px 44px rgba(0,0,0,.40);
+    --velo:rgba(15,19,27,.82);
+  }
+}
+/* --- tema scuro scelto a mano: deve vincere anche su un sistema chiaro --- */
+:root[data-theme="dark"]{
+  --fondo:#0f131b; --superficie:#181e29; --superficie-alta:#212836;
+  --bordo:#2c3444; --bordo-forte:#3b4557;
+  --testo:#e4e9f2; --tenue:#808ba5; --fioco:#545e71;
+  --accento:#43f1c1; --accento-chiaro:#95ffdf; --accento-scuro:#1fb894;
+  --ambra:#f5b544; --rosso:#ff6b5e;
+  --ombra:0 1px 2px rgba(0,0,0,.30), 0 8px 24px rgba(0,0,0,.28);
+  --ombra-alta:0 2px 4px rgba(0,0,0,.34), 0 18px 44px rgba(0,0,0,.40);
+  --velo:rgba(15,19,27,.82);
+}
+
+/* =========================================================================
+   Le basi
+   ========================================================================= */
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:84px}
+@media (prefers-reduced-motion:reduce){ html{scroll-behavior:auto} }
+
+body{
+  margin:0; background:var(--fondo); color:var(--testo);
+  font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI Variable Text",
+       "Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  overflow-wrap:break-word;
+}
+
+/* Il carattere segue la lingua, e non e' una rifinitura: con uno stack solo,
+   il giapponese e il cinese semplificato si prendono gli stessi glifi Han —
+   l'unificazione Han disegna il kanji nella forma sbagliata, e a chi legge
+   quella lingua si vede subito. Nessun carattere dalla rete: qui si sceglie
+   fra quelli che il sistema ha gia'. */
+html[lang="ja"] body{
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN",
+    "Yu Gothic UI","Yu Gothic","Meiryo","Noto Sans JP","Segoe UI",sans-serif;
+  line-height:1.85;
+}
+html[lang="zh"] body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei UI",
+    "Microsoft YaHei","Noto Sans SC","Source Han Sans SC","Segoe UI",sans-serif;
+  line-height:1.85;
+}
+/* Il tedesco fa parole lunghe: senza questo, una parola sola allarga la
+   colonna e la pagina scorre di lato. */
+html[lang="de"] body{ hyphens:auto; -webkit-hyphens:auto }
+
+.avvolge{max-width:var(--largo); margin:0 auto; padding:0 24px}
+a{color:var(--accento); text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accento); outline-offset:3px; border-radius:6px}
+
+h1,h2,h3{line-height:1.22; letter-spacing:-.015em; margin:0}
+h1{font-size:clamp(2.2rem,5.2vw,3.2rem); font-weight:700}
+h2{font-size:clamp(1.55rem,3.2vw,2.05rem); font-weight:700; margin-bottom:.35em}
+h3{font-size:1.12rem; font-weight:650; margin:2.2em 0 .5em}
+p{margin:0 0 1.05em}
+p:last-child{margin-bottom:0}
+b,strong{font-weight:650}
+
+code{
+  font-family:"Cascadia Mono",Consolas,"SF Mono",ui-monospace,monospace;
+  font-size:.88em; background:var(--superficie-alta);
+  border:1px solid var(--bordo); border-radius:6px; padding:.12em .38em;
+}
+pre{
+  background:var(--superficie); border:1px solid var(--bordo);
+  border-radius:var(--raggio); padding:16px 18px; overflow-x:auto;
+  font-size:.88rem; line-height:1.7; box-shadow:var(--ombra);
+  font-family:"Cascadia Mono",Consolas,"SF Mono",ui-monospace,monospace;
+}
+pre code{background:none; border:0; padding:0; font-size:1em}
+
+/* =========================================================================
+   La barra in alto: logo, sezioni, lingua, tema
+   ========================================================================= */
+.barra{
+  position:sticky; top:0; z-index:50;
+  background:var(--velo); backdrop-filter:saturate(1.4) blur(12px);
+  -webkit-backdrop-filter:saturate(1.4) blur(12px);
+  border-bottom:1px solid var(--bordo);
+}
+.barra .avvolge{
+  display:flex; align-items:center; gap:18px; height:64px;
+  max-width:1240px;
+}
+.marchio{display:flex; align-items:center; gap:10px; color:var(--testo); font-weight:700;
+  letter-spacing:-.02em; font-size:1.05rem; flex:0 0 auto}
+.marchio:hover{text-decoration:none}
+.marchio img{width:28px; height:28px; display:block}
+
+.sezioni{display:flex; gap:4px; flex:1 1 auto; min-width:0; overflow:hidden}
+.sezioni a{
+  color:var(--tenue); font-size:.9rem; padding:7px 11px; border-radius:8px;
+  white-space:nowrap;
+}
+.sezioni a:hover{color:var(--testo); background:var(--superficie-alta); text-decoration:none}
+
+.attrezzi{display:flex; align-items:center; gap:8px; flex:0 0 auto; margin-left:auto}
+
+.lingua-scelta{position:relative; display:flex; align-items:center}
+.lingua-scelta svg{position:absolute; left:9px; width:15px; height:15px;
+  color:var(--tenue); pointer-events:none}
+select.lingua{
+  appearance:none; -webkit-appearance:none;
+  font:inherit; font-size:.88rem; color:var(--testo);
+  background:var(--superficie); border:1px solid var(--bordo);
+  border-radius:9px; padding:7px 26px 7px 30px; cursor:pointer;
+  max-width:190px;
+}
+select.lingua:hover{border-color:var(--bordo-forte)}
+.lingua-scelta::after{
+  content:""; position:absolute; right:11px; width:7px; height:7px;
+  border-right:1.6px solid var(--tenue); border-bottom:1.6px solid var(--tenue);
+  transform:translateY(-2px) rotate(45deg); pointer-events:none;
+}
+.tasto-tema{
+  display:grid; place-items:center; width:36px; height:36px; cursor:pointer;
+  background:var(--superficie); border:1px solid var(--bordo);
+  border-radius:9px; color:var(--tenue); padding:0;
+}
+.tasto-tema:hover{border-color:var(--bordo-forte); color:var(--testo)}
+.tasto-tema svg{width:17px; height:17px}
+.tasto-tema .sole{display:none}
+:root[data-theme="dark"] .tasto-tema .sole{display:block}
+:root[data-theme="dark"] .tasto-tema .luna{display:none}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .tasto-tema .sole{display:block}
+  :root:not([data-theme="light"]) .tasto-tema .luna{display:none}
+}
+
+@media (max-width:900px){ .sezioni{display:none} }
+@media (max-width:420px){ .marchio span{display:none} }
+
+/* La riga che dichiara una lingua non ancora tradotta. E' la stessa scelta di
+   `ui.lingua.perche_italiano`: si dice **perche'** si sta leggendo l'inglese,
+   invece di far finta di niente o di gridare un errore che non c'e'. */
+.avviso-lingua{
+  background:var(--superficie-alta); border-bottom:1px solid var(--bordo);
+  color:var(--tenue); font-size:.87rem;
+}
+.avviso-lingua .avvolge{padding-top:9px; padding-bottom:9px; max-width:1240px}
+.avviso-lingua b{color:var(--testo)}
+
+/* =========================================================================
+   Testata
+   ========================================================================= */
+.testata{padding:76px 0 8px; text-align:center}
+.testata img.logo{width:96px; height:96px}
+.testata h1{margin:.3em 0 .25em}
+.occhiello{font-size:clamp(1.05rem,2.2vw,1.28rem); max-width:660px; margin:0 auto 1em;
+  color:var(--testo)}
+.occhiello b{color:var(--accento)}
+.sotto{color:var(--tenue); max-width:640px; margin:0 auto; font-size:.98rem}
+
+.marche{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:1.8em 0 0}
+.marca{font-size:.78rem; color:var(--tenue); background:var(--superficie);
+  border:1px solid var(--bordo); border-radius:999px; padding:5px 13px;
+  white-space:nowrap}
+.marca b{color:var(--testo); font-weight:650}
+
+.bottoni{display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:1.9em}
+.btn{
+  display:inline-flex; align-items:center; gap:8px; padding:11px 20px;
+  border-radius:10px; font-weight:650; font-size:.94rem;
+  border:1px solid var(--bordo-forte); color:var(--testo);
+  background:var(--superficie); box-shadow:var(--ombra);
+}
+.btn:hover{text-decoration:none; border-color:var(--accento); color:var(--accento)}
+.btn.pieno{background:var(--menta); color:var(--su-menta); border-color:var(--menta)}
+.btn.pieno:hover{filter:brightness(1.06); color:var(--su-menta); border-color:var(--menta)}
+
+.vetrina-testata{margin:56px 0 0}
+.vetrina-testata img{width:100%; display:block; border-radius:var(--raggio);
+  border:1px solid var(--bordo); box-shadow:var(--ombra-alta)}
+/* La classe deve battere `.vetrina-testata img`, che vale 0,1,1: una classe
+   sola (0,1,0) perde, e a schermo si vedono **tutte e due** le immagini una
+   sotto l'altra. Non da' nessun errore: e' solo la pagina lunga il doppio. */
+img.solo-chiaro{display:block}
+img.solo-scuro{display:none}
+:root[data-theme="dark"] img.solo-chiaro{display:none}
+:root[data-theme="dark"] img.solo-scuro{display:block}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) img.solo-chiaro{display:none}
+  :root:not([data-theme="light"]) img.solo-scuro{display:block}
+}
+
+/* =========================================================================
+   Sezioni
+   ========================================================================= */
+section{padding:64px 0; border-top:1px solid var(--bordo)}
+.etichetta{font-size:.74rem; text-transform:uppercase; letter-spacing:.14em;
+  color:var(--accento); font-weight:700; margin-bottom:.8em}
+/* La misura di lettura. Il contenuto e' largo 1080 perche' i video e le
+   tabelle se lo prendono tutto; una riga di testo lunga altrettanto e' faticosa
+   da leggere, e si vede subito che nessuno l'ha guardata. Le immagini, i video,
+   le tabelle e i riquadri restano larghi. */
+section > .avvolge > p, section > .avvolge > h3 + p{max-width:74ch}
+ol.passi li p, ol.passi li b{max-width:70ch}
+figcaption{max-width:74ch}
+.lede{color:var(--tenue); max-width:680px; font-size:1.02rem; margin-bottom:2em}
+
+figure{margin:0 0 44px}
+figure video, figure img.piena{width:100%; display:block;
+  border-radius:var(--raggio); border:1px solid var(--bordo); background:#000;
+  box-shadow:var(--ombra-alta)}
+figcaption{color:var(--tenue); font-size:.93rem; margin-top:.9em; max-width:760px}
+figcaption b{color:var(--testo)}
+.muto{color:var(--fioco); font-size:.85rem; font-style:italic}
+
+ol.passi{list-style:none; counter-reset:p; padding:0; margin:0}
+ol.passi li{counter-increment:p; position:relative; padding:0 0 28px 54px;
+  border-left:1px solid var(--bordo); margin-left:16px}
+ol.passi li:last-child{border-left-color:transparent; padding-bottom:0}
+ol.passi li::before{content:counter(p); position:absolute; left:-16px; top:-3px;
+  width:32px; height:32px; border-radius:9px; background:var(--menta);
+  color:var(--su-menta); font-weight:700; font-size:.95rem;
+  display:grid; place-items:center}
+ol.passi li b{display:block; margin-bottom:.3em; font-size:1.05rem}
+ol.passi li p{color:var(--tenue); margin:0}
+
+/* Due colonne e non «quante ci stanno»: le griglie qui hanno quattro
+   schermate, e `auto-fit` a questa larghezza ne mette tre piu' una orfana
+   sulla riga sotto. Con due, quattro fanno un quadrato. */
+.griglia{display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:18px; margin:2em 0 0}
+@media (max-width:640px){ .griglia{grid-template-columns:1fr} }
+.griglia img{width:100%; display:block; border-radius:10px;
+  border:1px solid var(--bordo); box-shadow:var(--ombra)}
+.griglia figure{margin:0}
+.griglia figcaption{font-size:.86rem; margin-top:.6em}
+
+.tab-scorre{overflow-x:auto; -webkit-overflow-scrolling:touch; margin:1.4em 0}
+table{width:100%; border-collapse:collapse; font-size:.94rem; min-width:420px}
+th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--bordo);
+  vertical-align:top}
+th{color:var(--tenue); font-weight:650; font-size:.76rem; text-transform:uppercase;
+  letter-spacing:.07em}
+tbody tr:last-child td{border-bottom:0}
+td b{color:var(--testo)}
+
+.nota{
+  background:var(--superficie); border:1px solid var(--bordo);
+  border-left:3px solid var(--accento); border-radius:0 var(--raggio) var(--raggio) 0;
+  padding:18px 22px; margin:1.8em 0; color:var(--tenue); box-shadow:var(--ombra);
+}
+.nota b{color:var(--testo)}
+.nota.ambra{border-left-color:var(--ambra)}
+.nota :last-child{margin-bottom:0}
+
+.sostegno{text-align:center; background:var(--superficie); border:1px solid var(--bordo);
+  border-radius:16px; padding:44px 26px; box-shadow:var(--ombra-alta)}
+.sostegno h2{margin-bottom:.45em}
+.sostegno p{color:var(--tenue); max-width:540px; margin:0 auto 1.5em}
+.sostegno .btn{margin:0 auto}
+.sostegno .postilla{font-size:.88rem; margin:1.5em auto 0}
+
+footer{padding:52px 0 68px; border-top:1px solid var(--bordo); color:var(--fioco);
+  font-size:.89rem; text-align:center}
+footer a{color:var(--tenue)}
+footer p{max-width:680px; margin:0 auto 1em}
+.piede-righe a{margin:0 6px}
+.piede-nota{margin-top:1.6em; color:var(--fioco)}
+
+/* =========================================================================
+   I segnaposto: cio' che non e' ancora stato misurato
+
+   Si vedono, e devono vedersi. Un segnaposto invisibile e' un numero
+   inventato che aspetta di essere letto come una misura — in questo repo un
+   errno scritto a mano e' gia' finito nelle schermate, e qualcuno lo ha
+   ripreso per una misura.
+   ========================================================================= */
+.posto{
+  display:inline-block; font-family:"Cascadia Mono",Consolas,ui-monospace,monospace;
+  font-size:.82em; color:var(--ambra); background:transparent;
+  border:1px dashed var(--ambra); border-radius:6px; padding:.05em .45em;
+  white-space:nowrap;
+}
+.posto-blocco{
+  display:grid; place-items:center; gap:6px; text-align:center;
+  border:1px dashed var(--ambra); border-radius:var(--raggio);
+  padding:34px 20px; margin:1.4em 0; color:var(--ambra);
+  font-family:"Cascadia Mono",Consolas,ui-monospace,monospace; font-size:.88rem;
+}
+.posto-blocco small{color:var(--tenue); font-family:inherit; font-size:.8rem;
+  font-family:-apple-system,"Segoe UI",sans-serif}
+
+@media (max-width:640px){
+  .testata{padding:52px 0 4px}
+  section{padding:48px 0}
+  .avvolge{padding:0 18px}
+}

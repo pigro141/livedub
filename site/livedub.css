@@ -216,17 +216,8 @@ select.lingua:hover{border-color:var(--bordo-forte)}
 .vetrina-testata{margin:56px 0 0}
 .vetrina-testata img{width:100%; display:block; border-radius:var(--raggio);
   border:1px solid var(--bordo); box-shadow:var(--ombra-alta)}
-/* La classe deve battere `.vetrina-testata img`, che vale 0,1,1: una classe
-   sola (0,1,0) perde, e a schermo si vedono **tutte e due** le immagini una
-   sotto l'altra. Non da' nessun errore: e' solo la pagina lunga il doppio. */
-img.solo-chiaro{display:block}
-img.solo-scuro{display:none}
-:root[data-theme="dark"] img.solo-chiaro{display:none}
-:root[data-theme="dark"] img.solo-scuro{display:block}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]) img.solo-chiaro{display:none}
-  :root:not([data-theme="light"]) img.solo-scuro{display:block}
-}
+/* Le regole che scelgono l'immagine secondo il tema stanno **in fondo al
+   foglio**: si veda li' il perche'. */
 
 /* =========================================================================
    Sezioni
@@ -336,4 +327,35 @@ footer p{max-width:680px; margin:0 auto 1em}
   .testata{padding:52px 0 4px}
   section{padding:48px 0}
   .avvolge{padding:0 18px}
+}
+
+/* =========================================================================
+   Le immagini che cambiano col tema — e la specificita', che qui e' gia'
+   costata una passata
+
+   Ogni schermata della finestra sta in due copie, `X.png` e `X-chiaro.png`, e
+   se ne vede **una sola**. Chi legge col tema chiaro non deve trovarsi una
+   pagina che alterna.
+
+   La regola sbagliata era `.solo-scuro` da sola: vale (0,1,0) e perde contro
+   `.vetrina-testata img` e `.griglia img`, che valgono (0,1,1) e stanno piu'
+   sotto nel foglio. Il `display:block` di quelle rimetteva a schermo anche
+   l'immagine che doveva sparire, quindi **si vedevano tutte e due**, una sotto
+   l'altra: nessun errore, nessuna riga in console, solo la pagina lunga il
+   doppio. Il prefisso `:root` le porta a (0,2,1) e non c'e' regola discendente
+   su `img` scritta con una classe sola che possa batterle; stare in fondo al
+   foglio toglie anche l'altra meta' del problema, cioe' una regola nuova che
+   vinca per ordine a parita' di peso.
+
+   Si verifica **guardando**: `?theme=light` e `?theme=dark`, una schermata a
+   piena pagina per ognuno. La regola scritta bene e l'immagine giusta a
+   schermo sono due cose diverse, e qui a mentire e' stata la prima.
+   ========================================================================= */
+:root img.solo-chiaro{display:block}
+:root img.solo-scuro{display:none}
+:root[data-theme="dark"] img.solo-chiaro{display:none}
+:root[data-theme="dark"] img.solo-scuro{display:block}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) img.solo-chiaro{display:none}
+  :root:not([data-theme="light"]) img.solo-scuro{display:block}
 }

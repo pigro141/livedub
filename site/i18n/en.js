@@ -46,7 +46,7 @@
         "Python <b>3.11</b>",
         "the network is <b>not needed</b>",
         "the interface speaks <b>42 languages</b>",
-        "it speaks out loud in <b>Italian and English</b>",
+        "it speaks out loud in <b>53 languages</b>",
         "NVIDIA GPU <b>optional</b>"
       ],
       bottoni: [
@@ -111,7 +111,7 @@
             voci: [
               {
                 b: "You open it.",
-                p: "The window is already in the language you use Windows in — 42 languages in total, and every one of the 41 catalogs is complete: 254 strings out of 254, none of them half-done. Arabic, Hebrew, Persian and Urdu also flip the window the other way round."
+                p: "The window is already in the language you use Windows in — 42 languages in total, and every one of the 41 catalogs is complete: 258 strings out of 258, none of them half-done. Arabic, Hebrew, Persian and Urdu also flip the window the other way round."
               },
               {
                 b: "A guide takes you through it, in 7 steps.",
@@ -292,8 +292,8 @@
               ["disk", "<b>1.6 GB</b> — the environment without the CUDA libraries, plus 225 MB of models", "<b>3.5 GB</b> — with the CUDA libraries and 543 MB of models. Offline translation adds <b>3.2 GB</b> on top of either"],
               ["Windows", "<b>10</b> — capture goes through <code>PrintWindow</code>, which lives in <code>user32.dll</code> and needs nothing installed", "<b>11</b> — OneOCR only exists there, and it reads the outlined text of a game far better"],
               ["Python", "3.11", "3.11"],
-              ["<b>what you get</b>", "<b>Piper on CPU.</b> 665 ms from subtitle to voice, no underruns, no speeding the speech up. The recogniser is PP-OCR.", "<b>Kokoro on CUDA</b>: better articulation, and the only non-Italian voices in the product. 1290 ms."],
-              ["<b>what the step buys</b>", "below 6 cores Piper's synthesis goes from 88 ms to <b>302 ms</b> — see the table above", "the graphics card buys <b>3.5× on synthesis</b> (741 ms down to 213 ms) and the six English voices"]
+              ["<b>what you get</b>", "<b>Piper on CPU.</b> 665 ms from subtitle to voice, no underruns, no speeding the speech up. The recogniser is PP-OCR, and 50 of the 53 spoken languages are already here.", "<b>Kokoro on CUDA</b>: better articulation, and its 54 voices across 8 languages. 1290 ms."],
+              ["<b>what the step buys</b>", "below 6 cores Piper's synthesis goes from 88 ms to <b>302 ms</b> — see the table above", "the graphics card buys <b>3.5× on synthesis</b> (741 ms down to 213 ms), and it is the only thing that lets a language move the engine onto kokoro: on the CPU that engine costs 741 ms a line, which is not liveable"]
             ]
           },
           {
@@ -313,6 +313,10 @@
             t: "p",
             x: "The script <b>checks that it got what it asked for</b> instead of reporting success: Python, the virtual environment, the dependencies, the OCR, the real CUDA provider, the models — and it finishes by running the test suite. Whatever is missing is listed with the reason and what it costs you. Without an NVIDIA GPU, add <code>-SenzaGpu</code>."
           },
+          {
+            t: "p",
+            x: "<b>The install is deliberately light, and one thing is deliberately left out of it.</b> Offline translation is <b>not installed</b>: it costs <b>3100 MB</b>, almost all of it <code>torch</code> — which the translation never uses, but without which its sentence splitter will not even import. Charging that to everyone who installs the program, for a feature that is <b>off by default</b>, is the opposite of a choice. It arrives <b>when you need it</b>: the bench in the guide looks at what is missing, <b>says how much it weighs before you decide</b>, and hands you the line to paste. It hands it over rather than running it, because those are <i>packages</i>, and a naïve <code>pip install</code> there pulls in the CPU build of ONNX Runtime and switches CUDA off in silence. If it does not arrive, that is a <b>declared refusal</b>, not a mute fallback. The language pair itself is a model, 98 MB, and that one the bench downloads on its own."
+          },
           { t: "h3", x: "Run it" },
           { t: "codice", x: ".\\.venv\\Scripts\\python.exe -m tools.ui_qt --profile live" },
           {
@@ -324,12 +328,13 @@
             ambra: true,
             righe: [
               "<b>If your Windows has Smart App Control switched on.</b> It ships in <i>evaluation</i> mode and Windows switches it off by itself as soon as it sees developer tools being run — and once off it cannot be switched back on without reinstalling Windows. So this is a minority of machines, not the normal case.",
-              "On a machine where it is still on, exactly <b>two packages are blocked and they are one capability</b>: Windows Graphics Capture. Capture then falls back to <code>PrintWindow</code>, which needs nothing installed. <b>Everything else keeps working</b> — reading the subtitles, working out who is speaking, all three synthesis engines, the mixer, the overlay, offline translation and the window itself. Any PyInstaller executable is blocked too, this project's included: every build is a new file, and a new file has no reputation by construction."
+              "On a machine where it is still on, and installing the pinned versions in this repo, exactly <b>two packages are blocked and they are one capability</b>: Windows Graphics Capture. Capture then falls back to <code>PrintWindow</code>, which needs nothing installed. <b>Everything else keeps working</b> — reading the subtitles, working out who is speaking, all three synthesis engines, the mixer, the overlay, offline translation and the window itself. Any PyInstaller executable is blocked too, this project's included: every build is a new file, and a new file has no reputation by construction.",
+              "<b>And where it does bite, the program says what fell and what to use instead.</b> A blocked library is not handed to you as a stack trace: there is one place that answers <i>can this piece load on this machine?</i>, it tells <i>you never installed it</i> apart from <i>it is here and Windows will not load it</i> — because the first is fixed with one <code>pip install</code> and the second is not — and the menus mark the choices that would fail, on the closed box and not only in the list, since the value that does not work is usually the one already in your configuration. The choice is <b>marked, not removed</b>: removing it would hide that the program can do it and that the defect belongs to this machine."
             ]
           },
           {
             t: "p",
-            x: "<b>Why you can trust the numbers.</b> There is a test suite of <b>1932 checks</b> in 75 groups that runs without a game, without a GPU and without any model, and a bench that runs <b>the same chain</b> over a recording. The measurements that changed a decision are written <b>next to the parameter they decided</b>, inside <code>core/config.py</code> — which is the same text the window shows when you press <code>?</code>."
+            x: "<b>Why you can trust the numbers.</b> There is a test suite of <b>1833 checks</b> in 76 groups that runs without a game, without a GPU and without any model, and a bench that runs <b>the same chain</b> over a recording. The measurements that changed a decision are written <b>next to the parameter they decided</b>, inside <code>core/config.py</code> — which is the same text the window shows when you press <code>?</code>."
           }
         ]
       },
@@ -378,33 +383,82 @@
             righe: [
               ["what the <b>buttons</b> are written in", "<b>42</b>", "<code>ui.lingua</code>, in the Setup tab"],
               ["what it can <b>translate a subtitle into</b>", "<b>133</b> with the online backend — the offline ones have no closed list", "<code>translate.target</code>, in the Translation tab"],
-              ["what it can <b>say out loud</b>", "<b>2</b> — Italian, and English on one engine", "it follows the engine you pick"]
+              ["what it can <b>say out loud</b>", "<b>53</b> — but not with every engine: 50 with piper, 31 with supertonic, 8 with kokoro", "you pick the language, and the engine follows it"]
             ]
           },
           {
             t: "nota",
             ambra: true,
-            x: "<b>The interface speaks 42 languages, the translator reaches 133, and the mouth speaks 2.</b> That last number is the one to read twice, because it is the one that decides whether this program is useful to you: <b>Italian with any engine, English only with Kokoro</b> — which needs an NVIDIA card. There is no third language, and nothing on the way."
+            x: "<b>Three lists, three questions, and merging them is how a program ends up promising what it does not have.</b> The interface speaks 42 languages, the translator reaches 133, and the mouth speaks 53. That last number is not one number: <b>the three engines have different catalogues</b>, and picking a language is really picking an engine. Before the change that made it 53, the mouth spoke <b>two</b> — and that was never a limit of the engines, it was the only thing the code declared: translating into Spanish and then reading it out with an Italian voice produced <b>no error at all</b>."
           },
           { t: "h3", x: "What it can say" },
           {
             t: "tabella",
-            testa: ["engine", "languages with a real voice", "how many voices", "runs on"],
+            testa: ["engine", "languages", "voices", "runs on", "how the voices work"],
             righe: [
-              ["<b>piper</b> <i>— default</i>", "<b>Italian only</b>", "2 native (<code>paola</code>, <code>riccardo</code>), taken to 8 in the pool by shifting the pitch", "CPU"],
-              ["<b>supertonic</b>", "<b>Italian only</b>", "10 native (M1–M5, F1–F5) — no shifting needed", "CPU"],
-              ["<b>kokoro</b>", "<b>Italian and English</b>", "Italian 2, shifted to 8; English <b>6 native</b>", "CUDA"],
-              ["<code>tone</code>, <code>silent</code>", "none — a beep has no language", "—", "—"]
+              ["<b>piper</b> <i>— default</i>", "<b>50</b>", "175 models in the official index", "CPU", "one model per voice, one download each (28–114 MB)"],
+              ["<b>supertonic</b>", "<b>31</b>", "10 speaker styles, valid in <i>every</i> language", "CPU", "one multilingual model; the language selects the phonemiser"],
+              ["<b>kokoro</b>", "<b>8</b>", "54, language and gender encoded in the name", "CUDA", "one model, one 510 KB style file per voice"],
+              ["<code>tone</code>, <code>silent</code>", "—", "a beep has no language", "—", "—"],
+              ["<b>union</b>", "<b>53</b>", "", "", ""]
             ]
           },
           {
             t: "p",
-            x: "A character beyond the number of native voices is told apart by shifting the pitch, which is what you hear in the first clip: <code>[nicola]</code> and <code>[nicola-2_5]</code> are one voice at two pitches."
+            x: "Only two languages are exclusive to a single engine — Croatian and Lithuanian, both on supertonic; six are covered by all three; twenty-one are piper-only. A character beyond the number of native voices is told apart by shifting the pitch, which is what you hear in the first clip: <code>[nicola]</code> and <code>[nicola-2_5]</code> are one voice at two pitches."
+          },
+          { t: "h3", x: "What is claimed, and what was actually tested" },
+          {
+            t: "p",
+            x: "This matters more than the numbers. <b>Claimed, and verifiable from the catalogue</b>: that a voice <i>exists</i> and that it <i>belongs to that language</i>. Each engine publishes it — piper in <code>rhasspy/piper-voices/voices.json</code>, kokoro in the first letter of every voice name, supertonic in its list of supported languages. Nothing there is guessed."
           },
           {
             t: "nota",
             ambra: true,
-            x: "<b>Asking for a language with no voice does not raise an error, and this is the trap worth stating plainly.</b> Measured: ask Kokoro for Japanese and you get eight voices back — the six English ones and the two Italian ones — reading Japanese text. What comes out is a model phonemised by the wrong rules: the audio plays, the counters stay green, the test suite stays green. What exists is a <b>declaration, not a block</b>: the menu marks the choice as having no voice, and then lets you make it."
+            x: "<b>Not claimed: that the pronunciation is good.</b> Nobody has listened to 53 languages, and saying otherwise would be a promise no measurement backs."
+          },
+          {
+            t: "p",
+            x: "<b>Checked mechanically instead</b>: for a sample of languages one sentence is synthesised <i>in that language's own script</i> and the result is checked for a plausible <b>speaking rate</b> — characters of speech per second. A wrong phonemisation does not raise: the model answers, audio comes out, every counter stays green, and an out-of-scale rate is the only trace it leaves."
+          },
+          {
+            t: "tabella",
+            testa: ["engine", "languages measured", "outcome"],
+            righe: [
+              ["<b>supertonic</b>", "<b>31 of 31</b>", "all plausible: 6.6–17.8 characters per second, the low end being Japanese, Korean, Chinese and Hindi, as their scripts lead you to expect"],
+              ["<b>piper</b>", "<b>1 of 50</b>", "Hebrew, 9.14 char/s. The rest could not be measured <i>on this machine</i>: Smart App Control blocks <code>espeakbridge.pyd</code>, and every other piper language phonemises through espeak"],
+              ["<b>kokoro</b>", "<b>0 of 8</b>", "<code>kokoro-onnx</code> does not import here at all — Smart App Control blocks the native module of one of its dependencies"]
+            ]
+          },
+          {
+            t: "p",
+            x: "The two engines that could not be measured are blocked by a <b>property of this machine</b>, not of the code. Their language lists are declared from the catalogue and <b>marked as unmeasured</b>, rather than presented as tested."
+          },
+          {
+            t: "nota",
+            x: "<b>One claim the check took away.</b> The piper index lists <b>51</b> languages and this program offers <b>50</b>. Japanese is the difference: that voice needs a phonemiser the installed <code>piper-tts</code> does not have, so the model downloads happily and the <i>first synthesis</i> raises. Declaring 51 would have been true of the index and false of this program. Japanese is still spoken — by kokoro, or by supertonic."
+          },
+          { t: "h3", x: "Pick a language, and the engine follows it" },
+          {
+            t: "p",
+            x: "There are exactly three outcomes, and the difference between them is the whole design."
+          },
+          {
+            t: "tabella",
+            testa: ["", "what happens", "what it says"],
+            righe: [
+              ["<b>the engine you picked already speaks it</b>", "nothing changes", "<b>nothing</b> — and it has to stay silent: a notice that fires on every language change is one that stops being read"],
+              ["<b>it does not, but another engine does</b>", "the engine is switched", "it says so, because your own choice has just been overridden — <i>«piper» has no voices in this language: switching to «supertonic», which speaks 31</i>"],
+              ["<b>no usable engine speaks it</b>", "nothing is switched, because switching would not help", "the fact is stated instead of being resolved silently — <i>no engine has voices in this language (and «kokoro» will not run here): the line would come out in a voice that pronounces a different one</i>"]
+            ]
+          },
+          {
+            t: "p",
+            x: "The parenthesis in the last one is the point: <b>the answer depends on the machine</b>, and the message says which engines were ruled out. The replacement has to be one this machine can actually run — kokoro costs 741 ms a line on the CPU against 213 on CUDA, so a machine without CUDA is never switched onto it: following a language must not cost double the latency. Japanese shows the whole mechanism in one line: piper has the voice and cannot pronounce it, kokoro has five and wants CUDA, supertonic does it on the CPU — so a CUDA machine goes to kokoro and a CPU machine to supertonic, and neither is a guess."
+          },
+          {
+            t: "p",
+            x: "<b>Two structural facts worth knowing.</b> Supertonic's ten voices are <i>speakers, not languages</i>: the same ten styles speak all 31, and the language only selects the phonemiser — which is why it is the cheapest way to add one. Piper is the opposite, one model and one download per voice — and its index has <b>no field for gender</b>, so outside Italian the pool marks piper voices <code>?</code> and falls back to plain ordering instead of alternating male and female. A declared regression, not a hidden one."
           },
           { t: "h3", x: "What it can translate (off by default)" },
           {
@@ -429,7 +483,7 @@
           { t: "h3", x: "What the buttons are written in" },
           {
             t: "p",
-            x: "<b>42 languages</b>: 41 catalogs plus Italian, which is the language the source is written in. All 41 are <b>complete — 254 strings out of 254</b>, with none half-translated. Four of them run right to left and turn the whole window round: Arabic, Hebrew, Persian and Urdu."
+            x: "<b>42 languages</b>: 41 catalogs plus Italian, which is the language the source is written in. All 41 are <b>complete — 258 strings out of 258</b>, with none half-translated. Four of them run right to left and turn the whole window round: Arabic, Hebrew, Persian and Urdu."
           },
           {
             t: "p",
@@ -453,7 +507,9 @@
             t: "tabella",
             testa: ["", ""],
             righe: [
-              ["<b>It speaks two languages</b>", "Italian with any engine, English only with Kokoro on an NVIDIA card. A third language does not raise an error — you get an Italian or English voice pronouncing it with the wrong rules."],
+              ["<b>Nobody has listened to the 53 languages</b>", "what is verified is that a voice exists, that it belongs to that language and — where it could be measured — that its speaking rate is plausible. The pronunciation is not verified, and Italian is the language this program was built in and listened to in."],
+              ["<b>A language your engine does not speak is a switch, not an error</b>", "the engine moves to one that speaks it and says so. If none of the engines this machine can run speaks it, that is stated too — instead of handing you a voice that pronounces a different language."],
+              ["<b>The first session in a new piper language downloads its voices</b>", "one model per voice, 28–114 MB each, up to six of them, and the guide's bench does not yet declare that weight in advance the way it declares the others. Start can sit there for a few minutes without saying why."],
               ["<b>One subtitle line at a time</b>", "inside the box you drag: not the whole screen, not several areas at once. An earlier version promised several reading areas and it was removed, because the overlay draws one line at a time and the promise could not be kept live."],
               ["<b>The game must be windowed or borderless</b>", "exclusive fullscreen is not captured."],
               ["<b>Windows only</b>", "and the recogniser that reads a game's outlined text best, OneOCR, exists only on Windows 11. On Windows 10 you get PP-OCR."],

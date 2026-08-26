@@ -13,9 +13,10 @@ the game. All on your own machine.
 ![windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b)
 ![python](https://img.shields.io/badge/Python-3.11-2b8a6b)
 ![network](https://img.shields.io/badge/network-not%20needed-2b8a6b)
-![checks](https://img.shields.io/badge/checks-1932-2b8a6b)
+![checks](https://img.shields.io/badge/checks-1833-2b8a6b)
 ![interface languages](https://img.shields.io/badge/interface%20languages-42-2b8a6b)
-![spoken languages](https://img.shields.io/badge/spoken%20languages-2-b8860b)
+![spoken languages](https://img.shields.io/badge/spoken%20languages-53-2b8a6b)
+![translation languages](https://img.shields.io/badge/translation%20languages-133-2b8a6b)
 ![gpu](https://img.shields.io/badge/NVIDIA%20GPU-optional-6b7280)
 ![version](https://img.shields.io/badge/version-0.9.0-b8860b)
 
@@ -87,6 +88,7 @@ reads per second, lines, latency, compression, underruns, reading area.
 | **Mixes** | it ducks **only the centre channel** of the game, where the dialogue sits: music and effects stay where they are |
 | **Translates** *(off by default)* | several backends, most of them with no network at all |
 | **Rewrites the subtitle on screen** *(off by default)* | erases the original and draws the translated line |
+| **Says the line in 53 languages** | 50 with piper, 31 with supertonic, 8 with kokoro; pick the language and the engine follows it |
 | **Speaks 42 languages** *(the interface)* | follows your Windows language, and changes without a restart |
 
 ---
@@ -96,8 +98,8 @@ reads per second, lines, latency, compression, underruns, reading area.
 There is nothing to configure first: you open it and follow along.
 
 **1. You open it.** The window is already in the language you use Windows in —
-42 languages. Arabic, Hebrew, Persian and Urdu also flip the window
-the other way round.
+42 languages, and every one of the 41 catalogs is complete: 258 strings out of
+258. Arabic, Hebrew, Persian and Urdu also flip the window the other way round.
 
 **2. A guide takes you through it**, 7 steps, and it comes back
 with `?`. Wherever it can it **checks instead of telling**: it counts the audio
@@ -257,8 +259,8 @@ ours.
 | disk | **1.6 GB** — the environment without the CUDA libraries, plus 225 MB of models | **3.5 GB** — with the CUDA libraries and 543 MB of models. Offline translation adds **3.2 GB** on top of either |
 | Windows | **10** — capture goes through `PrintWindow`, which lives in `user32.dll` and needs nothing installed | **11** — OneOCR only exists there, and it reads the outlined text of a game far better |
 | Python | 3.11 | 3.11 |
-| **what you get** | **Piper on CPU.** 665 ms from subtitle to voice, no underruns, no speeding the speech up. The recogniser is PP-OCR. | **Kokoro on CUDA**: better articulation, and the only non-Italian voices in the product. 1290 ms. |
-| **what the step buys** | below 6 cores Piper's synthesis goes from 88 ms to **302 ms** — see the table above | the graphics card buys **3.5× on synthesis** (741 ms down to 213 ms) and the six English voices |
+| **what you get** | **Piper on CPU.** 665 ms from subtitle to voice, no underruns, no speeding the speech up. The recogniser is PP-OCR, and 50 of the 53 spoken languages are already here. | **Kokoro on CUDA**: better articulation, and its 54 voices across 8 languages. 1290 ms. |
+| **what the step buys** | below 6 cores Piper's synthesis goes from 88 ms to **302 ms** — see the table above | the graphics card buys **3.5× on synthesis** (741 ms down to 213 ms), and it is the only thing that lets a language move the engine onto Kokoro: on the CPU that engine costs 741 ms a line, which is not liveable |
 
 **A requirement cannot be read without the machine it was measured on**, so here
 it is: an Intel Core i9-11900K (8 physical cores), an **RTX 4060 with 8 GB** —
@@ -295,6 +297,29 @@ Without an NVIDIA GPU:
 powershell -ExecutionPolicy Bypass -File installa.ps1 -SenzaGpu
 ```
 
+What the script runs is two pip commands and not one, and the second is not
+optional — the four packages in it depend on the CPU build of ONNX Runtime,
+which next to `onnxruntime-gpu` switches CUDA off in silence, and `--no-deps` is
+a global option that cannot live in the same file as the rest:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-nodeps.txt --no-deps
+```
+
+**The install is deliberately light, and one thing is deliberately left out of
+it.** Offline translation is **not installed**: it costs **3100 MB**, almost all
+of it `torch` — which the translation never uses, but without which its sentence
+splitter will not even import. Charging that to everyone who installs the
+program, for a feature that is **off by default**, is the opposite of a choice.
+It arrives **when you need it**: the bench in the guide looks at what is missing,
+**says how much it weighs before you decide**, and hands you the line to paste.
+It hands it over rather than running it, because those are *packages* and a
+naïve `pip install` there is exactly what pulls the CPU wheel back in. If it
+does not arrive, that is a **declared refusal**, not a mute fallback. The
+language pair itself is a model, 98 MB, and that one the bench downloads on its
+own.
+
 ### Run it
 
 ```powershell
@@ -308,13 +333,24 @@ also just double-click `livedub.bat`.
 > *evaluation* mode and Windows switches it off by itself as soon as it sees
 > developer tools being run — and once off it cannot be switched back on without
 > reinstalling Windows. So this is a minority of machines, not the normal case.
-> On one where it is still on, it blocks exactly **two packages, and they
-> are one capability**: Windows Graphics Capture. Capture then falls back to
-> `PrintWindow`, which needs nothing installed. **Everything else keeps
-> working** — reading the subtitles, working out who is speaking, all three
-> synthesis engines, the mixer, the overlay, offline translation and the window
-> itself. Any PyInstaller executable is blocked too, this project's included:
-> every build is a new file, and a new file has no reputation by construction.
+> On one where it is still on, and installing the pinned versions in this repo,
+> it blocks exactly **two packages, and they are one capability**: Windows
+> Graphics Capture. Capture then falls back to `PrintWindow`, which needs
+> nothing installed. **Everything else keeps working** — reading the subtitles,
+> working out who is speaking, all three synthesis engines, the mixer, the
+> overlay, offline translation and the window itself. Any PyInstaller executable
+> is blocked too, this project's included: every build is a new file, and a new
+> file has no reputation by construction.
+>
+> **And where it does bite, the program says what fell and what to use instead.**
+> A blocked library is not handed to you as a stack trace: one place answers
+> *can this piece load on this machine?*, and it tells *you never installed it*
+> apart from *it is here and Windows will not load it* — because the first is
+> fixed with one `pip install` and the second is not. The menus mark the choices
+> that would fail, on the closed box and not only in the list, since the value
+> that does not work is usually the one already in your configuration. The
+> choice is **marked, not removed**: removing it would hide that the program can
+> do it and that the defect belongs to this machine.
 
 ---
 
@@ -395,36 +431,95 @@ does not have.
 |---|---|---|
 | what the **buttons** are written in | **42** | `ui.lingua`, in the Setup tab |
 | what it can **translate a subtitle into** | **133** with the online backend — the offline ones have no closed list | `translate.target`, in the Translation tab |
-| what it can **say out loud** | **2** — Italian, and English on one engine | it follows the engine you pick |
+| what it can **say out loud** | **53** — but not with every engine: 50 with piper, 31 with supertonic, 8 with kokoro | you pick the language, and the engine follows it |
 
-> **The interface speaks 42 languages, the translator reaches 133, and the mouth
-> speaks 2.** That last number is the one to read twice, because it is the one
-> that decides whether this program is useful to you: **Italian with any engine,
-> English only with Kokoro** — which needs an NVIDIA card. There is no third
-> language, and nothing on the way.
+> **Three lists, three questions.** The interface speaks 42 languages, the
+> translator reaches 133, and the mouth speaks 53. That last number is not one
+> number: **the three engines have different catalogues**, and picking a language
+> is really picking an engine. Before the change that made it 53, the mouth spoke **two** — and
+> that was never a limit of the engines, it was the only thing the code declared:
+> translating into Spanish and then reading it out with an Italian voice produced
+> **no error at all**.
 
 **Reading**: whatever the recogniser can read.
 
-**Speaking**, with the voices that are wired up today:
+**Speaking**:
 
-| engine | languages with a real voice | how many voices | runs on |
-|---|---|---|---|
-| **piper** *(default)* | **Italian only** | 2 native (`paola`, `riccardo`), taken to 8 in the pool by shifting the pitch | CPU |
-| **supertonic** | **Italian only** | 10 native (M1–M5, F1–F5) — no shifting needed | CPU |
-| **kokoro** | **Italian and English** | Italian 2, shifted to 8; English **6 native** | CUDA |
-| `tone`, `silent` | none — a beep has no language | — | — |
+| engine | languages | voices | runs on | how the voices work |
+|---|---|---|---|---|
+| **piper** *(default)* | **50** | 175 models in the official index | CPU | one model per voice, one download each (28–114 MB) |
+| **supertonic** | **31** | 10 speaker styles, valid in *every* language | CPU | one multilingual model; the language selects the phonemiser |
+| **kokoro** | **8** | 54, language and gender encoded in the name | CUDA | one model, one 510 KB style file per voice |
+| `tone`, `silent` | — | a beep has no language | — | — |
+| **union** | **53** | | | |
 
-> **Asking for a language with no voice does not raise an error**, and this is
-> the trap worth stating plainly. Measured: ask Kokoro for Japanese and you get
-> eight voices back — the six English ones and the two Italian ones — reading
-> Japanese text. What comes out is a model phonemised by the wrong rules: the
-> audio plays, the counters stay green, the test suite stays green. What exists
-> is a **declaration, not a block**: the menu marks the choice as having no
-> voice, and then lets you make it.
-
+Only two languages are exclusive to a single engine — Croatian and Lithuanian,
+both on supertonic; six are covered by all three; twenty-one are piper-only.
 Beyond the number of native voices, characters are told apart by shifting the
 pitch — that is what you hear in the first GIF: `[nicola]` and `[nicola-2_5]`
 are one voice at two pitches.
+
+### What is claimed, and what was actually tested
+
+This matters more than the numbers.
+
+**Claimed, and verifiable from the catalogue**: that a voice *exists* and that it
+*belongs to that language*. Each engine publishes it — piper in
+`rhasspy/piper-voices/voices.json`, kokoro in the first letter of every voice
+name, supertonic in its list of supported languages. Nothing there is guessed.
+
+> **Not claimed: that the pronunciation is good.** Nobody has listened to 53
+> languages, and saying otherwise would be a promise no measurement backs.
+
+**Checked mechanically instead**: for a sample of languages, one sentence is
+synthesised *in that language's own script* and the result is checked for a
+plausible **speaking rate** — characters of speech per second. A wrong
+phonemisation does not raise: the model answers, audio comes out, every counter
+stays green, and an out-of-scale rate is the only trace it leaves.
+
+| engine | languages measured | outcome |
+|---|---|---|
+| **supertonic** | **31 of 31** | all plausible: 6.6–17.8 characters per second, the low end being Japanese, Korean, Chinese and Hindi, as their scripts lead you to expect |
+| **piper** | **1 of 50** | Hebrew, 9.14 char/s. The rest could not be measured *on this machine*: Smart App Control blocks `espeakbridge.pyd`, and every other piper language phonemises through espeak |
+| **kokoro** | **0 of 8** | `kokoro-onnx` does not import here at all — Smart App Control blocks the native module of one of its dependencies |
+
+The two engines that could not be measured are blocked by a **property of this
+machine**, not of the code. Their language lists are declared from the catalogue
+and **marked as unmeasured**, rather than presented as tested.
+
+> **One claim the check took away.** The piper index lists **51** languages and
+> this program offers **50**. Japanese is the difference: that voice needs a
+> phonemiser the installed `piper-tts` does not have, so the model downloads
+> happily and the *first synthesis* raises. Declaring 51 would have been true of
+> the index and false of this program. Japanese is still spoken — by kokoro, or
+> by supertonic.
+
+### Pick a language, and the engine follows it
+
+There are exactly three outcomes, and the difference between them is the whole
+design.
+
+| | what happens | what it says |
+|---|---|---|
+| **the engine you picked already speaks it** | nothing changes | **nothing** — and it has to stay silent: a notice that fires on every language change is one that stops being read |
+| **it does not, but another engine does** | the engine is switched | it says so, because your own choice has just been overridden — *«piper» has no voices in this language: switching to «supertonic», which speaks 31* |
+| **no usable engine speaks it** | nothing is switched, because switching would not help | the fact is stated instead of being resolved silently — *no engine has voices in this language (and «kokoro» will not run here): the line would come out in a voice that pronounces a different one* |
+
+The parenthesis in the last one is the point: **the answer depends on the
+machine**, and the message says which engines were ruled out. The replacement has
+to be one this machine can actually run — kokoro costs 741 ms a line on the CPU
+against 213 on CUDA, so a machine without CUDA is never switched onto it:
+following a language must not cost double the latency. Japanese shows the whole
+mechanism in one line: piper has the voice and cannot pronounce it, kokoro has
+five and wants CUDA, supertonic does it on the CPU.
+
+**Two structural facts worth knowing.** Supertonic's ten voices are *speakers,
+not languages*: the same ten styles speak all 31, and the language only selects
+the phonemiser — which is why it is the cheapest way to add one. Piper is the
+opposite, one model and one download per voice — and its index has **no field
+for gender**, so outside Italian the pool marks piper voices `?` and falls back
+to plain ordering instead of alternating male and female. A declared regression,
+not a hidden one.
 
 **Translation** *(off by default)*:
 
@@ -446,7 +541,7 @@ choices that do not, with the air of knowing.
 
 **The interface language** is a third thing again: **42** — 41 catalogs plus
 Italian, which is the language the source is written in. All 41 are **complete,
-254 strings out of 254**, with none half-translated; four of them run right to
+258 strings out of 258**, with none half-translated; four of them run right to
 left and turn the whole window round (Arabic, Hebrew, Persian, Urdu). They are
 generated once and committed into the repo — not asked from the network while
 the window opens, because a window that asks the network for its own text is a
@@ -468,7 +563,9 @@ using it. So here it is before you install.
 
 | | |
 |---|---|
-| **It speaks two languages** | Italian with any engine, English only with Kokoro on an NVIDIA card. A third language does not raise an error — you get an Italian or English voice pronouncing it with the wrong rules. |
+| **Nobody has listened to the 53 languages** | what is verified is that a voice exists, that it belongs to that language and — where it could be measured — that its speaking rate is plausible. The pronunciation is not verified, and Italian is the language this program was built in and listened to in. |
+| **A language your engine does not speak is a switch, not an error** | the engine moves to one that speaks it and says so. If none of the engines this machine can run speaks it, that is stated too — instead of handing you a voice that pronounces a different language. |
+| **The first session in a new piper language downloads its voices** | one model per voice, 28–114 MB each, up to six of them, and the guide's bench does not yet declare that weight in advance the way it declares the others. Start can sit there for a few minutes without saying why. |
 | **One subtitle line at a time** | inside the box you drag: not the whole screen, not several areas at once. An earlier version promised several reading areas and it was removed, because the overlay draws one line at a time and the promise could not be kept live. |
 | **The game must be windowed or borderless** | exclusive fullscreen is not captured. |
 | **Windows only** | and the recogniser that reads a game's outlined text best, OneOCR, exists only on Windows 11. On Windows 10 you get PP-OCR. |
@@ -493,8 +590,8 @@ black. **Nobody has yet tried that fallback on GTA V itself.**
 
 ## How it is built, and why the numbers can be trusted
 
-There is no pytest: the suite is a runnable module, **1932
-checks** in 75 groups.
+There is no pytest: the suite is a runnable module, **1833
+checks** in 76 groups.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

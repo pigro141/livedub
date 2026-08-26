@@ -130,6 +130,39 @@
   }
 
   /* ---------------------------------------------------------------------
+     Le schermate della finestra stanno in due copie, e se ne vede una sola
+
+     La finestra ha due temi, e le schermate di questa pagina sono la finestra:
+     servite tutte scure, chi legge col tema chiaro trova una pagina che
+     alterna. La copia chiara si chiama come la scura piu' `-chiaro`
+     (`assets/guida-1.png` -> `assets/guida-1-chiaro.png`), che e' la stessa
+     convenzione con cui la testata dichiara le sue due immagini a mano: qui la
+     regola sta in un posto solo, cosi' il catalogo — che e' il file di chi
+     traduce — resta un elenco di immagini e non deve sapere niente dei temi.
+
+     Le due `<img>` escono tutte e due nel documento e il tema ne nasconde una
+     (`img.solo-*` in fondo al foglio di stile): `display:none` la toglie anche
+     dall'albero di accessibilita', quindi lo stesso `alt` su tutte e due non
+     viene letto due volte.
+
+     **Il prezzo, dichiarato**: ogni immagine di una griglia deve avere il suo
+     gemello `-chiaro` sul disco. Se manca, col tema chiaro si vede il buco —
+     ed e' voluto che si veda, perche' e' l'unico modo in cui una schermata
+     aggiunta a meta' si fa notare.
+     --------------------------------------------------------------------- */
+  function coppiaTema(src, alt) {
+    var chiaro = String(src).replace(/(\.[a-z0-9]+)$/i, "-chiaro$1");
+    return ["scuro", "chiaro"].map(function (t) {
+      var im = document.createElement("img");
+      im.className = "solo-" + t;
+      im.src = t === "chiaro" ? chiaro : src;
+      im.alt = alt || "";
+      im.loading = "lazy";
+      return im;
+    });
+  }
+
+  /* ---------------------------------------------------------------------
      I blocchi
      --------------------------------------------------------------------- */
   function disegnaBlocco(b) {
@@ -195,9 +228,9 @@
         var g = el("div", "griglia");
         (b.voci || []).forEach(function (v) {
           var fi = el("figure");
-          var im = document.createElement("img");
-          im.src = v.img; im.alt = T(v.alt || ""); im.loading = "lazy";
-          fi.appendChild(im);
+          coppiaTema(v.img, T(v.alt || "")).forEach(function (im) {
+            fi.appendChild(im);
+          });
           if (v.x) fi.appendChild(el("figcaption", null, ricco(v.x)));
           g.appendChild(fi);
         });

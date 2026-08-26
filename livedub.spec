@@ -160,6 +160,12 @@ a = Analysis(
         # nessuno rilegge, la forma gia' vista di `tools/say.py` con il
         # `choices` rimasto indietro.
         "vision.oneocr_worker",
+        # **La prova del pacchetto viaggia dentro il pacchetto.** `livedub.exe
+        # --autoprova rapporto.json` legge una riga disegnata, sintetizza una
+        # battuta e costruisce la finestra: sono le tre cose che il pacchetto del
+        # 20 agosto non sapeva fare pur essendo verde. `tools/ui_qt.py` lo
+        # importa dentro il ramo, quindi l'analisi statica non lo vede.
+        "tools.autoprova",
         # **La cattura di ripiego si importa dentro una funzione**, quindi
         # l'analisi statica non la vede: senza questa riga il pacchetto viene su
         # lo stesso e la finestra muore all'Avvia sulla macchina che ne ha

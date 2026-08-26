@@ -4137,6 +4137,73 @@ def test_ui_lingua(c: Check) -> None:
     radice.deleteLater()
 
 
+def test_percorsi(c: Check) -> None:
+    """Dove il programma tiene i modelli, e la prova che il pacchetto porta.
+
+    Due regole che si possono verificare **senza costruire un eseguibile**, che
+    e' il punto: costruirlo costa dieci minuti e si fa altrove, ma la regola che
+    decide dove finisce mezzo giga di modelli e' aritmetica e sta qui.
+    """
+    import ast
+
+    from core import percorsi
+    from tools import autoprova
+
+    c.group("percorsi")
+
+    radice = percorsi.radice()
+    c.ok((radice / "core" / "percorsi.py").exists(),
+         f"da sorgente la radice e' il repo ({radice})")
+    c.eq(percorsi.modelli("piper"), radice / "models" / "piper",
+         "`models/<cosa>` sta sotto la radice")
+    c.ok("_internal" not in percorsi.modelli().parts,
+         "e non dentro `_internal`, dove nel pacchetto stanno i .py")
+
+    # Un percorso assoluto lo ha scritto qualcuno apposta: non si sposta.
+    fuori = Path(tempfile.gettempdir()).resolve() / "lessico-mio"
+    c.eq(percorsi.dato(fuori), fuori, "un percorso assoluto resta dov'e'")
+    c.eq(percorsi.dato("models/lexicon"), radice / "models" / "lexicon",
+         "uno relativo si risolve contro la radice, non contro la cartella di lancio")
+
+    # **I quattro posti che cercavano `models/` per conto loro.** Erano quattro
+    # formule uguali scritte in quattro file, e nel pacchetto ne bastava una
+    # rimasta indietro per far riscaricare mezzo giga a ogni avvio.
+    from listen.embed import ECAPA_DIR
+    from speak.backends.kokoro import MODELS_DIR as KOKORO
+    from speak.backends.piper import MODELS_DIR as PIPER
+    from ui.qt_tema import _DISEGNI
+    from vision.oneocr_worker import RUNTIME_DIR
+
+    for nome, p in (("piper", PIPER), ("kokoro", KOKORO), ("ecapa", ECAPA_DIR),
+                    ("oneocr", RUNTIME_DIR), ("ui", _DISEGNI)):
+        c.ok(percorsi.modelli() in p.parents, f"{nome} cerca sotto models/ ({p.name})")
+
+    # **L'elenco dei moduli nascosti si confronta col sorgente dello spec**, non
+    # con la memoria di chi lo ha scritto: e' la stessa forma gia' usata per
+    # `registro.banco()` e per le stringhe composte della finestra. Un
+    # `hiddenimports` potato per sbaglio non da' errore alla costruzione — da' un
+    # eseguibile che muore all'Avvia.
+    sorgente = (Path(__file__).resolve().parent.parent / "livedub.spec").read_text(
+        encoding="utf-8")
+    dichiarati: set[str] = set()
+    for nodo in ast.walk(ast.parse(sorgente)):
+        if isinstance(nodo, ast.keyword) and nodo.arg == "hiddenimports":
+            dichiarati = {v.value for v in nodo.value.elts if isinstance(v, ast.Constant)}
+    c.ok(len(dichiarati) > 5, f"lo spec dichiara {len(dichiarati)} moduli nascosti")
+    mancanti = [n for n in autoprova.NASCOSTI if n not in dichiarati]
+    c.ok(not mancanti, f"e l'autoprova non ne cerca nessuno che lo spec non porti ({mancanti})")
+    c.ok("tools.autoprova" in dichiarati,
+         "l'autoprova stessa e' fra i nascosti, se no non c'e' niente da lanciare")
+
+    # Ogni prova ha un nome solo, e ognuna dichiara cosa le serve: una prova che
+    # chiedesse una cosa che il runner non ha e non lo dicesse verrebbe contata
+    # come rotta invece che come saltata.
+    nomi = [n for n, _, _ in autoprova.PROVE]
+    c.eq(len(set(nomi)), len(nomi), "i nomi delle prove non si ripetono")
+    c.ok(all(r in ("sempre", "rete", "qt") for _, _, r in autoprova.PROVE),
+         "e ognuna dichiara se le serve la rete o Qt")
+
+
 def test_tutorial(c: Check) -> None:
     """La guida iniziale: quando si apre, cosa scrive, e cosa dichiara di dire.
 
@@ -5230,6 +5297,11 @@ GROUPS = {
     # La guida iniziale: quando si apre, che saltarla la chiude per sempre, e
     # che quello che dice sta nei cataloghi — un dialogo che non esiste finche'
     # non lo si apre nessuna passeggiata lo trova.
+    # **Dove finisce mezzo giga di modelli**, che e' una regola e non un
+    # dettaglio dell'eseguibile: da sorgente le due formule sbagliate coincidono,
+    # nel pacchetto no. Qui c'e' anche il confronto fra cio' che l'autoprova
+    # cerca e cio' che `livedub.spec` dichiara.
+    "percorsi": test_percorsi,
     "tutorial": test_tutorial,
 }
 

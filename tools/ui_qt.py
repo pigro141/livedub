@@ -2667,7 +2667,26 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--overlay-catturabile", action="store_true",
                     help="l'overlay entra negli screenshot: serve solo a fotografarlo")
     ap.add_argument("--set", action="append", dest="overrides", metavar="CHIAVE=VALORE")
+    # **La prova del pacchetto, da dentro il pacchetto.** Un eseguibile sbagliato
+    # non da' errore: si apre, mostra la finestra giusta e non sa ne' leggere ne'
+    # parlare. Da fuori non si vede — il file c'e' e pesa ottocento MB — quindi
+    # la prova entra qui, sull'eseguibile **vero** e non su un secondo binario
+    # costruito apposta, che sarebbe un'altra strada e proverebbe un'altra cosa.
+    # Il rapporto e' un file perche' con `console=False` non c'e' nessuno schermo
+    # dove stampare. Il perche' per esteso sta in `tools/autoprova.py`.
+    ap.add_argument("--autoprova", metavar="RAPPORTO.JSON", default=None,
+                    help="prova il pacchetto e scrive il rapporto, senza aprire niente")
+    ap.add_argument("--senza-rete", action="store_true",
+                    help="con --autoprova: salta le prove che scaricano un modello")
     args = ap.parse_args(argv)
+
+    if args.autoprova:
+        from tools.autoprova import main as autoprova
+
+        righe = [args.autoprova]
+        if args.senza_rete:
+            righe.append("--senza-rete")
+        return autoprova(righe)
 
     cfg, da_dove = preferenze.riprendi(args.profile, args.overrides)
     if args.tts:

@@ -465,6 +465,12 @@ def test_finestra_menta(c) -> None:
         overlay_catturabile = False; overrides = None
 
     cfg, _ = preferenze.riprendi(None, None)
+    # **La lingua si fissa, se no questo gruppo misura una finestra diversa su
+    # ogni macchina.** `ui.lingua` sta su `auto`: su una Windows inglese la
+    # finestra nasce in inglese e sette verifiche di qui sotto — che confrontano
+    # stringhe italiane — cadono senza che niente sia rotto. E' successo su un
+    # runner. Le lingue si provano tutte poco piu' avanti, apposta.
+    cfg.ui.lingua = "it"
     f = U.Finestra(cfg, FintiArgs())
     # **Mostrata davvero**, se no `resizeEvent` non arriva mai e i punti di
     # rottura si proverebbero contro una finestra che non e' mai stata
@@ -624,24 +630,49 @@ def test_finestra_menta(c) -> None:
         c.ok(f.minimumSizeHint().width() <= tema.MIN_LARGO,
              f"e cosi' la finestra intera ({f.minimumSizeHint().width()})")
 
-        # -- **e non sfora in nessuna lingua**, con la misura giusta ---------
-        # «Alle Einstellungen» e' piu' lungo di «Tutte le impostazioni», e una
-        # riga che sfora non si vede guardando: si vede quando la finestra si
-        # rifiuta di stringersi. Applicare i quarantadue cataloghi e rifare
-        # questa stessa misura era la strada ovvia, ed **e' sbagliata qui**: la
-        # piattaforma offscreen non ha caratteri installati e il suo carattere
-        # di ripiego e' molto piu' largo di quello vero. Provato: trentuno
-        # lingue su quarantadue «sforavano» — tedesco 1353 px, tamil 1470 —
-        # mentre con il carattere vero (`tools/traduci_ui.py --misura`) la piu'
-        # larga e' il tamil a **934** su 960 e nessuna sfora. Una misura che
-        # dichiara rotto cio' che funziona non e' prudente, e' inservibile: si
-        # smette di guardarla.
+        # -- **e non sfora in nessuna delle quarantadue lingue** ------------
+        # Questa misura per un po' non e' stata fatta qui, e il motivo era buono:
+        # la piattaforma offscreen non ha caratteri installati e il suo ripiego e'
+        # molto piu' largo di quello vero, quindi dichiarava rotte trentuno lingue
+        # su quarantadue (tedesco 1353, tamil 1470) mentre col carattere vero la
+        # piu' larga stava a 872. Una misura che dichiara rotto cio' che funziona
+        # non e' prudente, e' inservibile.
         #
-        # Quindi il pixel lo misura lo strumento, con la finestra vera e il
-        # carattere vero, e va rilanciato quando si aggiunge una lingua. Qui
-        # resta la parte che **questa** misura puo' esprimere: quanto cresce il
-        # testo, in caratteri, che non dipende da nessun carattere tipografico.
-        # Si veda `test_ui_lingua`.
+        # **Adesso ci sta anche con quel carattere**, perche' la riga dei
+        # conteggi e il bottone dei default hanno smesso di imporre la larghezza
+        # del loro testo intero: il peggiore passa da 1366 a 728. Quindi il
+        # ripiego largo torna utile — e' un limite piu' stretto del vero, e
+        # passarlo con quaranta lingue e' una notizia migliore che passarlo con
+        # una. Il pixel esatto lo dice comunque `tools/traduci_ui.py --misura`,
+        # che costruisce la finestra col carattere vero.
+        #
+        # E l'inglese e' la lingua che questo gruppo **non poteva** misurare:
+        # `ui.lingua` sta su `auto`, quindi si vede solo su una Windows inglese —
+        # cioe' quasi solo su chi scarica il programma, e mai qui.
+        from ui import lingua as L
+
+        peggiore = ("it", 0)
+        for codice in L.disponibili():
+            L.applica(f, codice)
+            app.processEvents()
+            for i in range(f.schede.count()):
+                f.schede.setCurrentIndex(i)
+                app.processEvents()
+                largo = f.schede.widget(i).minimumSizeHint().width()
+                if largo > peggiore[1]:
+                    peggiore = (codice, largo)
+                if largo > tema.MIN_LARGO:
+                    c.ok(False,
+                         f"la scheda «{f.schede.tabText(i)}» in «{codice}» non "
+                         f"sta nel minimo della finestra ({largo} > "
+                         f"{tema.MIN_LARGO})")
+        c.ok(peggiore[1] <= tema.MIN_LARGO,
+             f"nessuna delle {len(L.disponibili())} lingue sfora il minimo della "
+             f"finestra: la piu' larga e' «{peggiore[0]}» a {peggiore[1]} px su "
+             f"{tema.MIN_LARGO}")
+        c.ok(len(L.disponibili()) > 40,
+             f"e sono {len(L.disponibili())}, non solo quella di questa macchina")
+
         from ui import lingua as L
 
         L.applica(f, "it")

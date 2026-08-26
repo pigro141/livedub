@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -148,8 +149,15 @@ class Pannello(QWidget):
             # sbagliata: `solo is None` non e' mai vero (il default e' `()`),
             # quindi il pannello che mostra *tutti* i campi si offriva di
             # riportare ai default «questa scheda». Adesso il caso pieno lo dice.
+            # **E il bottone si accorcia con la barra.** Un `QPushButton` chiede
+            # anch'esso la larghezza del suo testo intero: «Return everything to
+            # defaults» sono quattrocento pixel su una riga che ne ha novecento
+            # in tutto. Il testo per esteso resta nel suggerimento, che qui c'era
+            # gia'.
             azzera = QPushButton(
                 "Riporta tutto ai default" if not solo else "Default di questa scheda")
+            azzera.setMinimumWidth(0)
+            azzera.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
             azzera.setToolTip(
                 "Rimette i valori di fabbrica dei campi mostrati qui, non di tutta "
                 "la configurazione.")
@@ -157,7 +165,13 @@ class Pannello(QWidget):
             barra.addWidget(azzera)
             fuori.addLayout(barra)
 
-        self.stato = QLabel("")
+        # **`Elidibile` e non `QLabel`**: un'etichetta normale impone alla scheda
+        # la larghezza del suo testo intero, e nessun ridimensionamento gliela
+        # toglie. Qui il testo cresce con la lingua e con i due conteggi, e con
+        # il catalogo inglese addosso questa riga era la meta' del minimo della
+        # scheda «Tutte le impostazioni». Il minimo di un widget non si vede
+        # guardando: si vede quando la finestra si rifiuta di stringersi.
+        self.stato = Elidibile("")
         self.stato.setObjectName("tenue")
         # Riga viva: «12 parametri mostrati, 154 nascosti», oppure il valore
         # rifiutato con dentro il numero che c'e' in config. Sono f-string, non

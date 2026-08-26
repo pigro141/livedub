@@ -297,7 +297,14 @@ quella libreria — un import non l'avrebbe nemmeno toccata.
 
 ## Cosa è rotto adesso, e aspetta una decisione
 
-### 1. L'eseguibile non parte, e non è colpa del pacchetto
+### 1. L'eseguibile non parte **qui**, e adesso si sa che altrove parte
+
+⚠️ **Aggiornato il 26 agosto.** Il pacchetto è stato costruito e **aperto** su un
+runner `windows-latest`, dove Smart App Control non c'è:
+[esecuzione verde](https://github.com/pigro141/livedub/actions/runs/32968026703).
+Vedi la sezione «L'eseguibile si costruisce e si prova su un runner» più sotto.
+Quindi il difetto non è del pacchetto — è di questa macchina, e lo era già; la
+novità è che ora c'è una prova invece di una deduzione.
 
 **Verificato**: `dist\livedub\livedub.exe` dà `Permission denied`, e il registro
 Code Integrity ha gli eventi **3077 e 3033** all'istante esatto. Compilando un
@@ -421,6 +428,62 @@ si dice cosa non si potrà fare; il tradotto si disegna lo stesso, con
 costruzione non ha nemmeno il ritardo).
 
 ---
+
+## L'eseguibile si costruisce e si prova su un runner (26 agosto)
+
+`.github/workflows/eseguibile.yml`, sul ramo. Cinque minuti, verde alla prima
+passata: <https://github.com/pigro141/livedub/actions/runs/32968026703>.
+
+**Perché.** Qui ogni exe appena compilato è rifiutato da SAC, quindi il pacchetto
+non era eseguibile nemmeno una volta e pubblicarlo avrebbe voluto dire consegnare
+un file che nessuno ha mai aperto. Sui runner quel criterio non c'è.
+
+**E «parte» non è «il file esiste».** `livedub.exe --autoprova rapporto.json`
+(`tools/autoprova.py`, dentro il pacchetto) fa dodici prove scelte per **poter
+fallire**, e il workflow pretende che nessuna sia *saltata*:
+
+| | misurato nel pacchetto |
+|---|---|
+| pacchetto | **673,5 MB** (artefatto zip 420 MB) |
+| legge una riga disegnata | `LAVORIAMO INSIEME`, fiducia **0,93** |
+| parla davvero (Piper) | 2,82 s di audio, **15,6 car/s**, sintesi 4154 ms a freddo |
+| la finestra | costruita, **6 schede** |
+| campi di config con la spiegazione | **127 su 170** (i commenti sono arrivati) |
+| cataloghi della lingua | **42** |
+| `models/` | accanto all'exe, **identico** lanciandolo da due cartelle diverse |
+
+`parla-davvero` conta doppio: `espeakbridge.pyd` si apre **pigramente alla prima
+sintesi**, quindi un import non l'avrebbe nemmeno toccata.
+
+**Tre cose che sono uscite da lì e che non si sapevano.**
+
+**La suite su una macchina senza SAC dà 9 fallite su 1976**, non 12 su 1848. Due
+sono ambientali e dichiarate (argostranslate non installato di serie, OneOCR non
+ridistribuibile). **Le altre sette sono un difetto vero**: il runner ha Windows in
+inglese, `ui.lingua` sta su `auto`, e il gruppo `menta` confronta stringhe
+italiane scritte a mano — quindi non può esprimere la risposta su una macchina
+non italiana. E dentro quelle sette ce n'è una che **non è del test**: con il
+catalogo inglese la scheda «All settings» chiede **1011 px** contro `MIN_LARGO =
+960`, e la finestra intera 1015. `--misura` non l'aveva visto perché misura i
+cataloghi *tradotti* e l'inglese passa da lì solo su una Windows inglese.
+
+**Il pacchetto dichiara la CUDA e non ce l'ha.** Nel registro dell'exe:
+`Failed to load cublasLt64_13.dll ... not found when the application was frozen`,
+mentre `ort.get_available_providers()` risponde `Tensorrt, CUDA, CPU`. È il
+difetto già scritto in fondo a questo file («il banco deve dichiarare la GPU
+*ottenuta*»), adesso visto **dentro il pacchetto**: chi apre l'exe legge «scheda
+video: CUDA» al passo 6 e non ha nessuna CUDA.
+
+**I modelli che la prova scarica non salgono nell'artefatto.** L'autoprova
+sintetizza, quindi Piper si tira giù 26,8 MB in `dist\livedub\models`: senza una
+riga che li tolga, quel file finiva nello zip da scaricare, contro la scelta di
+licenza che regge tutto `livedub.spec`.
+
+**Cosa il runner non può dire, ed è la metà che conta.** Niente scheda audio,
+niente scheda video, nessun gioco aperto: la cattura (WGC o `PrintWindow`), il
+loopback WASAPI, il mixaggio e Kokoro su CUDA restano senza prova. E sui runner
+SAC è spento, quindi «parte qui» **non** vuol dire «parte su una Windows 11
+appena installata». Sta scritto in fondo al workflow.
 
 ## Il ramo `sac-rinunce-dichiarate`, e cosa ci sta dentro
 

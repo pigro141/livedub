@@ -63,3 +63,12 @@ supertonic==1.3.1
 # che stanno in `requirements.txt`: verificato su Windows che i binari espeak-ng
 # arrivino col wheel, senza niente da installare a mano.
 kokoro-onnx==0.5.0
+
+# Il lettore di serie. **Non e' solo le DLL**: `tools/fetch_oneocr.py` copia da
+# Windows `oneocr.dll` e il modello, ma il figlio `vision/oneocr_worker.py` fa
+# `import oneocr`, che e' questo pacchetto. Mancava da qui e da `requirements.txt`,
+# e il difetto non si vedeva finche' l'ambiente non si ricostruiva da zero: chi
+# lo aveva installato a mano una volta non se ne accorgeva piu'.
+# `--no-deps` perche' l'extra `[cv2]` tira `opencv-python`, che accanto alla
+# versione fissata qui e' un doppione con un'altra versione.
+oneocr==1.0.12

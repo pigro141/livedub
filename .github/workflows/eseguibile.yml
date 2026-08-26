@@ -185,6 +185,21 @@ jobs:
           }
           "$($r.prove.Count) prove, tutte fatte e tutte passate"
 
+      # **I modelli scaricati dalla prova non salgono nell'artefatto**, ed e' una
+      # scelta di licenza prima che di dimensione: sta scritta in `LICENZE.md` e
+      # regge tutto `livedub.spec`. I pesi di Piper, Kokoro ed ECAPA hanno ognuno
+      # la propria licenza, e OneOCR e' di Microsoft e **non e' ridistribuibile**.
+      # Un pacchetto che se li portasse dietro si assumerebbe licenze che nessuno
+      # ha letto. Sono serviti a provare che l'eseguibile sa scaricarli e usarli;
+      # finito quello, se ne vanno.
+      - name: I modelli restano qui, non nell'artefatto
+        shell: pwsh
+        run: |
+          if (Test-Path 'dist\livedub\models') {
+            Remove-Item 'dist\livedub\models' -Recurse -Force
+            "tolti: l'eseguibile se li riscarica al primo avvio, com'e' scritto in LICENZE.md"
+          }
+
       - name: Il rapporto e il registro del banco
         if: always()
         uses: actions/upload-artifact@v4

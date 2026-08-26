@@ -192,9 +192,15 @@ pyclipper==1.3.0.post6      # rapidocr tira la 1.4.0, bloccata
 cffi==2.0.0                 # soundfile tira la 2.1.0, bloccata
 rpds-py==0.27.1             # jsonschema (via kokoro) tira la 2026.6.3, bloccata
 mss==10.2.0
-# `oneocr` non e' un pacchetto pip: le DLL si copiano da Windows con
-# `tools/fetch_oneocr.py`, e girano in un processo figlio perche' portano la
-# **propria** onnxruntime.dll e pretendono un'altra versione di API.
+# `oneocr` sono **due cose**, e questo commento per mesi ne ha dichiarata una
+# sola: le DLL si copiano da Windows con `tools/fetch_oneocr.py` e girano in un
+# processo figlio perche' portano la **propria** onnxruntime.dll e pretendono
+# un'altra versione di API — ma il figlio fa anche `import oneocr`, che e' un
+# pacchetto pip, e sta in `requirements-nodeps.txt`.
+# La riga di prima diceva «non e' un pacchetto pip» punto e basta, e ha fatto da
+# lucchetto: chi si e' chiesto se mancasse ha letto qui che non doveva esserci.
+# Un commento che nega l'esistenza di una dipendenza e' piu' pericoloso di una
+# dipendenza dimenticata, perche' chiude la domanda invece di lasciarla aperta.
 
 # --- audio -------------------------------------------------------------------
 soundfile==0.14.0

@@ -8,16 +8,11 @@
 プレイ中に画面の文字を読み、ゲームの音声から誰が話しているかを判断し、その人物の
 声でせりふを合成してゲームに重ねて流します。すべて自分のパソコンの中で。
 
-![ライセンス](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b)
-![windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b)
-![python](https://img.shields.io/badge/Python-3.11-2b8a6b)
-![ネットワーク](https://img.shields.io/badge/network-not%20needed-2b8a6b)
-![検査](https://img.shields.io/badge/checks-1833-2b8a6b)
-![画面表示の言語](https://img.shields.io/badge/interface%20languages-42-2b8a6b)
-![話せる言語](https://img.shields.io/badge/spoken%20languages-53-2b8a6b)
-![翻訳できる言語](https://img.shields.io/badge/translation%20languages-133-2b8a6b)
-![gpu](https://img.shields.io/badge/NVIDIA%20GPU-optional-6b7280)
-![バージョン](https://img.shields.io/badge/version-0.9.0-b8860b)
+[![ビルド](https://img.shields.io/github/actions/workflow/status/pigro141/livedub/eseguibile.yml?branch=main&style=flat-square&label=build)](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)
+[![ライセンス](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b?style=flat-square)](../../LICENSE)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b?style=flat-square)
+![Python](https://img.shields.io/badge/Python-3.11-2b8a6b?style=flat-square)
+![画面表示の言語](https://img.shields.io/badge/interface%20languages-42-2b8a6b?style=flat-square)
 
 <img src="../../assets/menta-anteprima.png" alt="ゲーム中の livedub のウィンドウ" width="760">
 
@@ -575,7 +570,7 @@ supertonic。六つは三つすべてが持ち、二十一は piper だけが持
 
 ## どう作られているか、そしてなぜ数字を信じてよいか
 
-pytest はありません。テスト一式は実行できるモジュールで、76 グループに **1833 個の
+pytest はありません。テスト一式は実行できるモジュールで、78 グループに **2085 個の
 検査**があります。
 
 ```powershell

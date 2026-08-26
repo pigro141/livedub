@@ -9,16 +9,11 @@ Il lit le texte à l'écran pendant que vous jouez, devine à l'audio du jeu qui
 en train de parler, synthétise la réplique avec la voix de ce personnage et la
 mixe par-dessus le jeu. Le tout sur votre propre machine.
 
-![licence](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b)
-![windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b)
-![python](https://img.shields.io/badge/Python-3.11-2b8a6b)
-![réseau](https://img.shields.io/badge/network-not%20needed-2b8a6b)
-![vérifications](https://img.shields.io/badge/checks-1833-2b8a6b)
-![langues de l'interface](https://img.shields.io/badge/interface%20languages-42-2b8a6b)
-![langues parlées](https://img.shields.io/badge/spoken%20languages-53-2b8a6b)
-![langues de traduction](https://img.shields.io/badge/translation%20languages-133-2b8a6b)
-![gpu](https://img.shields.io/badge/NVIDIA%20GPU-optional-6b7280)
-![version](https://img.shields.io/badge/version-0.9.0-b8860b)
+[![build](https://img.shields.io/github/actions/workflow/status/pigro141/livedub/eseguibile.yml?branch=main&style=flat-square&label=build)](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)
+[![licence](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b?style=flat-square)](../../LICENSE)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b?style=flat-square)
+![Python](https://img.shields.io/badge/Python-3.11-2b8a6b?style=flat-square)
+![langues de l'interface](https://img.shields.io/badge/interface%20languages-42-2b8a6b?style=flat-square)
 
 <img src="../../assets/menta-anteprima.png" alt="la fenêtre de livedub pendant une partie" width="760">
 
@@ -621,8 +616,8 @@ en silence. **Ce repli, personne ne l'a encore essayé sur GTA V lui-même.**
 
 ## Comment c'est fait, et pourquoi on peut croire les chiffres
 
-Il n'y a pas de pytest : la série est un module qu'on exécute, **1833
-vérifications** en 76 groupes.
+Il n'y a pas de pytest : la série est un module qu'on exécute, **2085
+vérifications** en 78 groupes.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

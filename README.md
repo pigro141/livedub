@@ -9,16 +9,11 @@ It reads the text on screen while you play, works out who is speaking from the
 game's audio, synthesises the line in that character's voice and mixes it over
 the game. All on your own machine.
 
-![licence](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b)
-![windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b)
-![python](https://img.shields.io/badge/Python-3.11-2b8a6b)
-![network](https://img.shields.io/badge/network-not%20needed-2b8a6b)
-![checks](https://img.shields.io/badge/checks-1833-2b8a6b)
-![interface languages](https://img.shields.io/badge/interface%20languages-42-2b8a6b)
-![spoken languages](https://img.shields.io/badge/spoken%20languages-53-2b8a6b)
-![translation languages](https://img.shields.io/badge/translation%20languages-133-2b8a6b)
-![gpu](https://img.shields.io/badge/NVIDIA%20GPU-optional-6b7280)
-![version](https://img.shields.io/badge/version-0.9.0-b8860b)
+[![build](https://img.shields.io/github/actions/workflow/status/pigro141/livedub/eseguibile.yml?branch=main&style=flat-square&label=build)](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)
+[![licence](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b?style=flat-square)](LICENSE)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b?style=flat-square)
+![Python](https://img.shields.io/badge/Python-3.11-2b8a6b?style=flat-square)
+![interface languages](https://img.shields.io/badge/interface%20languages-42-2b8a6b?style=flat-square)
 
 <img src="assets/menta-anteprima.png" alt="the livedub window during a game" width="760">
 
@@ -608,8 +603,8 @@ black. **Nobody has yet tried that fallback on GTA V itself.**
 
 ## How it is built, and why the numbers can be trusted
 
-There is no pytest: the suite is a runnable module, **1833
-checks** in 76 groups.
+There is no pytest: the suite is a runnable module, **2085
+checks** in 78 groups.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

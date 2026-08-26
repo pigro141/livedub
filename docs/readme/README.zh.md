@@ -8,16 +8,11 @@
 它在你玩的时候读取屏幕上的文字，从游戏的声音判断是谁在说话，用那个角色的嗓音
 合成这句台词，再混到游戏上面。全部在你自己的电脑上。
 
-![许可证](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b)
-![windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b)
-![python](https://img.shields.io/badge/Python-3.11-2b8a6b)
-![联网](https://img.shields.io/badge/network-not%20needed-2b8a6b)
-![检查](https://img.shields.io/badge/checks-1833-2b8a6b)
-![界面语言](https://img.shields.io/badge/interface%20languages-42-2b8a6b)
-![可说语言](https://img.shields.io/badge/spoken%20languages-53-2b8a6b)
-![翻译语言](https://img.shields.io/badge/translation%20languages-133-2b8a6b)
-![gpu](https://img.shields.io/badge/NVIDIA%20GPU-optional-6b7280)
-![版本](https://img.shields.io/badge/version-0.9.0-b8860b)
+[![构建](https://img.shields.io/github/actions/workflow/status/pigro141/livedub/eseguibile.yml?branch=main&style=flat-square&label=build)](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)
+[![许可证](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b?style=flat-square)](../../LICENSE)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b?style=flat-square)
+![Python](https://img.shields.io/badge/Python-3.11-2b8a6b?style=flat-square)
+![界面语言](https://img.shields.io/badge/interface%20languages-42-2b8a6b?style=flat-square)
 
 <img src="../../assets/menta-anteprima.png" alt="游戏进行中的 livedub 窗口" width="760">
 
@@ -529,7 +524,7 @@ CUDA 上是 213 毫秒，所以没有 CUDA 的机器绝不会被换到它上面�
 
 ## 它是怎么造的，以及为什么这些数字可信
 
-没有 pytest：测试套件是一个可以直接运行的模块，76 组里共 **1833 项检查**。
+没有 pytest：测试套件是一个可以直接运行的模块，78 组里共 **2085 项检查**。
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

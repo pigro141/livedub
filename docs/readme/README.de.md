@@ -9,16 +9,11 @@ Es liest den Text auf dem Bildschirm, während du spielst, erkennt am Ton des
 Spiels, wer gerade spricht, synthetisiert die Zeile mit der Stimme dieser Figur
 und mischt sie über das Spiel. Alles auf deinem eigenen Rechner.
 
-![Lizenz](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b)
-![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b)
-![Python](https://img.shields.io/badge/Python-3.11-2b8a6b)
-![Netz](https://img.shields.io/badge/network-not%20needed-2b8a6b)
-![Prüfungen](https://img.shields.io/badge/checks-1833-2b8a6b)
-![Sprachen der Oberfläche](https://img.shields.io/badge/interface%20languages-42-2b8a6b)
-![gesprochene Sprachen](https://img.shields.io/badge/spoken%20languages-53-2b8a6b)
-![Übersetzungssprachen](https://img.shields.io/badge/translation%20languages-133-2b8a6b)
-![GPU](https://img.shields.io/badge/NVIDIA%20GPU-optional-6b7280)
-![Version](https://img.shields.io/badge/version-0.9.0-b8860b)
+[![Build](https://img.shields.io/github/actions/workflow/status/pigro141/livedub/eseguibile.yml?branch=main&style=flat-square&label=build)](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)
+[![Lizenz](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b?style=flat-square)](../../LICENSE)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b?style=flat-square)
+![Python](https://img.shields.io/badge/Python-3.11-2b8a6b?style=flat-square)
+![Sprachen der Oberfläche](https://img.shields.io/badge/interface%20languages-42-2b8a6b?style=flat-square)
 
 <img src="../../assets/menta-anteprima.png" alt="das livedub-Fenster während eines Spiels" width="760">
 
@@ -631,8 +626,8 @@ ausprobiert.**
 
 ## Wie es gebaut ist, und warum man den Zahlen trauen kann
 
-Es gibt kein pytest: die Testreihe ist ein ausführbares Modul, **1833 Prüfungen**
-in 76 Gruppen.
+Es gibt kein pytest: die Testreihe ist ein ausführbares Modul, **2085 Prüfungen**
+in 78 Gruppen.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

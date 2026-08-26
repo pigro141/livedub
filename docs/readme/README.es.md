@@ -9,16 +9,11 @@ Lee el texto en pantalla mientras juegas, deduce del audio del juego quién est�
 hablando, sintetiza la frase con la voz de ese personaje y la mezcla sobre el
 juego. Todo en tu propia máquina.
 
-![licencia](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b)
-![windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b)
-![python](https://img.shields.io/badge/Python-3.11-2b8a6b)
-![red](https://img.shields.io/badge/network-not%20needed-2b8a6b)
-![comprobaciones](https://img.shields.io/badge/checks-1833-2b8a6b)
-![idiomas de la interfaz](https://img.shields.io/badge/interface%20languages-42-2b8a6b)
-![idiomas hablados](https://img.shields.io/badge/spoken%20languages-53-2b8a6b)
-![idiomas de traducción](https://img.shields.io/badge/translation%20languages-133-2b8a6b)
-![gpu](https://img.shields.io/badge/NVIDIA%20GPU-optional-6b7280)
-![versión](https://img.shields.io/badge/version-0.9.0-b8860b)
+[![compilación](https://img.shields.io/github/actions/workflow/status/pigro141/livedub/eseguibile.yml?branch=main&style=flat-square&label=build)](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)
+[![licencia](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b?style=flat-square)](../../LICENSE)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b?style=flat-square)
+![Python](https://img.shields.io/badge/Python-3.11-2b8a6b?style=flat-square)
+![idiomas de la interfaz](https://img.shields.io/badge/interface%20languages-42-2b8a6b?style=flat-square)
 
 <img src="../../assets/menta-anteprima.png" alt="la ventana de livedub durante una partida" width="760">
 
@@ -603,8 +598,8 @@ lo ha probado nadie en el propio GTA V.**
 
 ## Cómo está hecho, y por qué se puede confiar en los números
 
-No hay pytest: la batería es un módulo que se ejecuta, **1833 comprobaciones** en
-76 grupos.
+No hay pytest: la batería es un módulo que se ejecuta, **2085 comprobaciones** en
+78 grupos.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

@@ -196,6 +196,7 @@
   "il modello della voce": "model suara",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "model suara terbaik belum tiba: suara ringan kekal",
   "il riconoscimento di chi parla": "pengiktirafan penceramah",
+  "il traduttore che resta su questo PC": "penterjemah yang kekal pada PC ini",
   "in attesa della prima frase": "menunggu ayat pertama",
   "in ritardo": "lewat",
   "kokoro — il migliore, vuole una GPU": "kokoro — yang terbaik, mahukan GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "kos suara {0} ms untuk setiap ayat yang dituturkan, lebih daripada {1} yang diterima: kami kembali kepada suara ringan",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "suara itu berharga {0} ms untuk setiap ayat yang dituturkan, pada PC ini",
   "le due voci italiane": "dua suara Itali",
+  "le librerie della scheda video": "pustaka kad grafik",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "pustaka kad grafik baru sahaja tiba: ia dimuatkan pada kali seterusnya program dibuka, dan selepas itu suara yang lebih baik tersedia",
   "lettura del testo: {0}": "membaca teks: {0}",
   "m — voce maschile": "m - suara lelaki",
   "mostra l'essenziale": "menunjukkan perkara penting",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — pada PC anda, model kecil",
   "⚠ locale — sul tuo PC (va installato)": "⚠ setempat — pada PC anda (mesti dipasang)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "pustaka kad grafik",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "pustaka kad grafik baru sahaja tiba: ia dimuatkan pada kali seterusnya program dibuka, dan selepas itu suara yang lebih baik tersedia"
+  "⚠ wgc": "⚠ wgc"
  }
 }

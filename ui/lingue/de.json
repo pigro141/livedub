@@ -196,6 +196,7 @@
   "il modello della voce": "das Stimmmodell",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "Das Modell der besten Stimme ist nicht angekommen: Die leichte Stimme bleibt",
   "il riconoscimento di chi parla": "die Erkennung, wer gerade spricht",
+  "il traduttore che resta su questo PC": "der Übersetzer, der auf diesem PC verbleibt",
   "in attesa della prima frase": "warte auf den ersten Satz",
   "in ritardo": "spät",
   "kokoro — il migliore, vuole una GPU": "kokoro – das Beste, will eine GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "Die Stimme kostet {0} ms für jeden gesprochenen Satz, mehr als die {1}, die akzeptiert werden: Wir kehren zur leichten Stimme zurück",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "Die Sprachkosten für jeden gesprochenen Satz betragen auf diesem PC {0} ms",
   "le due voci italiane": "die beiden italienischen Stimmen",
+  "le librerie della scheda video": "die Bibliotheken der Grafikkarte",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "die Bibliotheken der Grafikkarte sind gerade eingetroffen: sie werden beim nächsten Start des Programms geladen, und ab dann ist die bessere Stimme verfügbar",
   "lettura del testo: {0}": "Lesetext: {0}",
   "m — voce maschile": "m – männliche Stimme",
   "mostra l'essenziale": "zeigt das Wesentliche",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm – auf Ihrem PC, kleines Modell",
   "⚠ locale — sul tuo PC (va installato)": "⚠ lokal – auf Ihrem PC (muss installiert sein)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "die Bibliotheken der Grafikkarte",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "die Bibliotheken der Grafikkarte sind gerade eingetroffen: sie werden beim nächsten Start des Programms geladen, und ab dann ist die bessere Stimme verfügbar"
+  "⚠ wgc": "⚠ wgc"
  }
 }

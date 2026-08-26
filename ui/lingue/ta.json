@@ -196,6 +196,7 @@
   "il modello della voce": "குரல் மாதிரி",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "சிறந்த குரல் மாதிரி வரவில்லை: லேசான குரல் உள்ளது",
   "il riconoscimento di chi parla": "பேச்சாளரின் அங்கீகாரம்",
+  "il traduttore che resta su questo PC": "இந்த கணினியில் இருக்கும் மொழிபெயர்ப்பாளர்",
   "in attesa della prima frase": "முதல் வாக்கியத்திற்காக காத்திருக்கிறது",
   "in ritardo": "தாமதமாக",
   "kokoro — il migliore, vuole una GPU": "kokoro — சிறந்தது, GPU வேண்டும்",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "பேசப்படும் ஒவ்வொரு வாக்கியத்திற்கும் குரல் {0} ms ஆகும், ஏற்றுக்கொள்ளப்பட்ட {1} ஐ விட அதிகம்: நாங்கள் லேசான குரலுக்குத் திரும்புகிறோம்",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "இந்த கணினியில் பேசப்படும் ஒவ்வொரு வாக்கியத்திற்கும் குரலின் விலை {0} ms",
   "le due voci italiane": "இரண்டு இத்தாலிய குரல்கள்",
+  "le librerie della scheda video": "கிராஃபிக்ஸ் கார்டின் நூலகங்கள்",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "கிராஃபிக்ஸ் கார்டின் நூலகங்கள் இப்போதுதான் வந்துள்ளன: நிரலை அடுத்த முறை திறக்கும்போது அவை ஏற்றப்படும், அதிலிருந்து சிறந்த குரல் கிடைக்கும்",
   "lettura del testo: {0}": "உரையைப் படிப்பது: {0}",
   "m — voce maschile": "மீ - ஆண் குரல்",
   "mostra l'essenziale": "அத்தியாவசியங்களைக் காட்டுகிறது",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ எல்.எல்.எம்",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — உங்கள் கணினியில், சிறிய மாடலில்",
   "⚠ locale — sul tuo PC (va installato)": "⚠ உள்ளூர் — உங்கள் கணினியில் (நிறுவப்பட்டிருக்க வேண்டும்)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "கிராஃபிக்ஸ் கார்டின் நூலகங்கள்",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "கிராஃபிக்ஸ் கார்டின் நூலகங்கள் இப்போதுதான் வந்துள்ளன: நிரலை அடுத்த முறை திறக்கும்போது அவை ஏற்றப்படும், அதிலிருந்து சிறந்த குரல் கிடைக்கும்"
+  "⚠ wgc": "⚠ wgc"
  }
 }

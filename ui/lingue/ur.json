@@ -196,6 +196,7 @@
   "il modello della voce": "آواز کا ماڈل",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "بہترین آواز کا ماڈل نہیں آیا ہے: ہلکی آواز باقی ہے۔",
   "il riconoscimento di chi parla": "اسپیکر کی پہچان",
+  "il traduttore che resta su questo PC": "مترجم جو اس PC پر رہتا ہے۔",
   "in attesa della prima frase": "پہلے جملے کا انتظار",
   "in ritardo": "دیر سے",
   "kokoro — il migliore, vuole una GPU": "کوکورو - بہترین، جی پی یو چاہتا ہے۔",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "ہر بولے جانے والے جملے کے لیے آواز کی قیمت {0} ms ہے، قبول کیے جانے والے {1} سے زیادہ: ہم ہلکی آواز پر واپس آتے ہیں",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "اس PC پر بولے جانے والے ہر جملے کے لیے آواز کی قیمت {0} ms ہے۔",
   "le due voci italiane": "دو اطالوی آوازیں",
+  "le librerie della scheda video": "گرافکس کارڈ کی لائبریریاں",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "گرافکس کارڈ کی لائبریریاں ابھی آئی ہیں: وہ پروگرام کے اگلی بار کھلنے پر لوڈ ہوں گی، اور اس کے بعد بہتر آواز دستیاب ہوگی",
   "lettura del testo: {0}": "متن پڑھنا: {0}",
   "m — voce maschile": "m - مردانہ آواز",
   "mostra l'essenziale": "ضروری چیزیں دکھاتا ہے۔",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ ایل ایل ایم",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — آپ کے کمپیوٹر پر، چھوٹے ماڈل",
   "⚠ locale — sul tuo PC (va installato)": "⚠ مقامی — آپ کے کمپیوٹر پر (انسٹال ہونا ضروری ہے)",
-  "⚠ wgc": "⚠ ڈبلیو جی سی",
-  "le librerie della scheda video": "گرافکس کارڈ کی لائبریریاں",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "گرافکس کارڈ کی لائبریریاں ابھی آئی ہیں: وہ پروگرام کے اگلی بار کھلنے پر لوڈ ہوں گی، اور اس کے بعد بہتر آواز دستیاب ہوگی"
+  "⚠ wgc": "⚠ ڈبلیو جی سی"
  }
 }

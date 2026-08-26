@@ -196,6 +196,7 @@
   "il modello della voce": "äänimalli",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "parhaan äänen malli ei ole saapunut: kevyt ääni säilyy",
   "il riconoscimento di chi parla": "puhujan tunnustaminen",
+  "il traduttore che resta su questo PC": "kääntäjä, joka jää tälle tietokoneelle",
   "in attesa della prima frase": "ensimmäistä lausetta odotellessa",
   "in ritardo": "myöhässä",
   "kokoro — il migliore, vuole una GPU": "kokoro — paras, haluaa GPU:n",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "ääni maksaa {0} ms jokaisesta lausutusta lauseesta, enemmän kuin hyväksytyt {1}: palaamme kevyeen ääneen",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "ääni maksaa {0} ms jokaisesta lausutusta lauseesta tällä tietokoneella",
   "le due voci italiane": "kaksi italialaista ääntä",
+  "le librerie della scheda video": "näytönohjaimen kirjastot",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "näytönohjaimen kirjastot saapuivat juuri: ne ladataan, kun ohjelma seuraavan kerran avataan, ja siitä lähtien parempi ääni on käytettävissä",
   "lettura del testo: {0}": "tekstin lukeminen: {0}",
   "m — voce maschile": "m - miehen ääni",
   "mostra l'essenziale": "näyttää oleellisen",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — tietokoneellasi, pieni malli",
   "⚠ locale — sul tuo PC (va installato)": "⚠ paikallinen — tietokoneellesi (täytyy asentaa)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "näytönohjaimen kirjastot",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "näytönohjaimen kirjastot saapuivat juuri: ne ladataan, kun ohjelma seuraavan kerran avataan, ja siitä lähtien parempi ääni on käytettävissä"
+  "⚠ wgc": "⚠ wgc"
  }
 }

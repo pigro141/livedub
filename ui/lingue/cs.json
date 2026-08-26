@@ -196,6 +196,7 @@
   "il modello della voce": "hlasový model",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "model nejlepšího hlasu nedorazil: lehký hlas zůstává",
   "il riconoscimento di chi parla": "rozpoznání mluvčího",
+  "il traduttore che resta su questo PC": "překladač, který zůstane na tomto PC",
   "in attesa della prima frase": "čeká na první větu",
   "in ritardo": "pozdě",
   "kokoro — il migliore, vuole una GPU": "kokoro — nejlepší, chce GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "hlas stojí {0} ms za každou vyslovenou větu, což je více než {1}, které jsou přijaty: vracíme se k lehkému hlasu",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "hlas stojí na tomto počítači {0} ms za každou vyslovenou větu",
   "le due voci italiane": "dva italské hlasy",
+  "le librerie della scheda video": "knihovny grafické karty",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "knihovny grafické karty právě dorazily: načtou se při příštím otevření programu a od té chvíle je nejlepší hlas k dispozici",
   "lettura del testo: {0}": "čtení textu: {0}",
   "m — voce maschile": "m — mužský hlas",
   "mostra l'essenziale": "ukazuje to podstatné",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — na vašem PC, malý model",
   "⚠ locale — sul tuo PC (va installato)": "⚠ místní — na vašem PC (musí být nainstalováno)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "knihovny grafické karty",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "knihovny grafické karty právě dorazily: načtou se při příštím otevření programu a od té chvíle je nejlepší hlas k dispozici"
+  "⚠ wgc": "⚠ wgc"
  }
 }

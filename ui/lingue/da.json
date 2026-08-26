@@ -196,6 +196,7 @@
   "il modello della voce": "stemmemodellen",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "modellen af den bedste stemme er ikke kommet: den lette stemme forbliver",
   "il riconoscimento di chi parla": "anerkendelse af taleren",
+  "il traduttore che resta su questo PC": "oversætteren, der er tilbage på denne pc",
   "in attesa della prima frase": "venter på den første sætning",
   "in ritardo": "sent",
   "kokoro — il migliore, vuole una GPU": "kokoro — den bedste, vil have en GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "stemmen koster {0} ms for hver sætning, der bliver sagt, mere end de {1}, der accepteres: vi vender tilbage til den lette stemme",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "stemmen koster {0} ms for hver sætning, der bliver sagt, på denne pc",
   "le due voci italiane": "de to italienske stemmer",
+  "le librerie della scheda video": "grafikkortets biblioteker",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "grafikkortets biblioteker er lige ankommet: de indlæses, næste gang programmet åbnes, og derfra er den bedste stemme tilgængelig",
   "lettura del testo: {0}": "læse tekst: {0}",
   "m — voce maschile": "m — mandlig stemme",
   "mostra l'essenziale": "viser det væsentlige",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — på din pc, lille model",
   "⚠ locale — sul tuo PC (va installato)": "⚠ lokal — på din pc (skal være installeret)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "grafikkortets biblioteker",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "grafikkortets biblioteker er lige ankommet: de indlæses, næste gang programmet åbnes, og derfra er den bedste stemme tilgængelig"
+  "⚠ wgc": "⚠ wgc"
  }
 }

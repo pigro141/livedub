@@ -196,6 +196,7 @@
   "il modello della voce": "النموذج الصوتي",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "نموذج الصوت الأفضل لم يصل: الصوت الخفيف باق",
   "il riconoscimento di chi parla": "التعرف على المتحدث",
+  "il traduttore che resta su questo PC": "المترجم الذي يبقى على هذا الكمبيوتر",
   "in attesa della prima frase": "في انتظار الجملة الأولى",
   "in ritardo": "متأخرا",
   "kokoro — il migliore, vuole una GPU": "kokoro — الأفضل، يريد GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "يكلف الصوت {0} مللي ثانية لكل جملة منطوقة، أكثر من {1} المقبولة: نعود إلى الصوت الخفيف",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "يكلف الصوت {0} مللي ثانية لكل جملة منطوقة على هذا الكمبيوتر",
   "le due voci italiane": "الصوتان الإيطاليان",
+  "le librerie della scheda video": "مكتبات بطاقة الرسوميات",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "لقد وصلت للتو مكتبات بطاقة الرسوميات: يتم تحميلها عند فتح البرنامج في المرة القادمة، ومن ثم يصبح الصوت الأفضل متاحًا",
   "lettura del testo: {0}": "قراءة النص: {0}",
   "m — voce maschile": "م - صوت الذكور",
   "mostra l'essenziale": "يظهر الأساسيات",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ م",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — على جهاز الكمبيوتر الخاص بك، نموذج صغير",
   "⚠ locale — sul tuo PC (va installato)": "⚠ محلي — على جهاز الكمبيوتر الخاص بك (يجب تثبيته)",
-  "⚠ wgc": "⚠ دبليو جي سي",
-  "le librerie della scheda video": "مكتبات بطاقة الرسوميات",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "لقد وصلت للتو مكتبات بطاقة الرسوميات: يتم تحميلها عند فتح البرنامج في المرة القادمة، ومن ثم يصبح الصوت الأفضل متاحًا"
+  "⚠ wgc": "⚠ دبليو جي سي"
  }
 }

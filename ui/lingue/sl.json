@@ -196,6 +196,7 @@
   "il modello della voce": "glasovni model",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "model najboljšega glasu ni prišel: lahki glas ostaja",
   "il riconoscimento di chi parla": "prepoznavnost govorca",
+  "il traduttore che resta su questo PC": "prevajalnik, ki ostane na tem računalniku",
   "in attesa della prima frase": "čaka na prvi stavek",
   "in ritardo": "pozno",
   "kokoro — il migliore, vuole una GPU": "kokoro — najboljši, želi GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "glas stane {0} ms za vsak izgovorjen stavek, več kot {1}, ki so sprejeti: vračamo se k lahkotnemu glasu",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "glas stane {0} ms za vsak izgovorjen stavek v tem računalniku",
   "le due voci italiane": "dva italijanska glasova",
+  "le librerie della scheda video": "knjižnice grafične kartice",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "knjižnice grafične kartice so pravkar prispele: naložijo se ob naslednjem odprtju programa, in od takrat je boljši glas na voljo",
   "lettura del testo: {0}": "branje besedila: {0}",
   "m — voce maschile": "m - moški glas",
   "mostra l'essenziale": "pokaže bistvene",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — na vašem računalniku, majhen model",
   "⚠ locale — sul tuo PC (va installato)": "⚠ lokalno — na vašem računalniku (mora biti nameščen)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "knjižnice grafične kartice",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "knjižnice grafične kartice so pravkar prispele: naložijo se ob naslednjem odprtju programa, in od takrat je boljši glas na voljo"
+  "⚠ wgc": "⚠ wgc"
  }
 }

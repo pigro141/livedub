@@ -196,6 +196,7 @@
   "il modello della voce": "balss modelis",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "labākās balss modelis nav atnācis: gaišā balss paliek",
   "il riconoscimento di chi parla": "runātāja atpazīšana",
+  "il traduttore che resta su questo PC": "tulkotājs, kas paliek šajā datorā",
   "in attesa della prima frase": "gaidu pirmo teikumu",
   "in ritardo": "vēlu",
   "kokoro — il migliore, vuole una GPU": "kokoro — labākais, vēlas GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "balss maksā {0} ms par katru izrunāto teikumu, kas ir vairāk nekā pieņemtie {1}: mēs atgriežamies pie gaišās balss",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "balss maksā {0} ms par katru izrunāto teikumu šajā datorā",
   "le due voci italiane": "divas itāļu balsis",
+  "le librerie della scheda video": "videokartes bibliotēkas",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "videokartes bibliotēkas tikko ir saņemtas: tās tiek ielādētas, nākamreiz atverot programmu, un no tā brīža labākā balss ir pieejama",
   "lettura del testo: {0}": "teksta lasīšana: {0}",
   "m — voce maschile": "m - vīrieša balss",
   "mostra l'essenziale": "parāda būtisko",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — datorā, mazs modelis",
   "⚠ locale — sul tuo PC (va installato)": "⚠ lokāls — datorā (jābūt instalētai)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "videokartes bibliotēkas",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "videokartes bibliotēkas tikko ir saņemtas: tās tiek ielādētas, nākamreiz atverot programmu, un no tā brīža labākā balss ir pieejama"
+  "⚠ wgc": "⚠ wgc"
  }
 }

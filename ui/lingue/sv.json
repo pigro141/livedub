@@ -196,6 +196,7 @@
   "il modello della voce": "röstmodellen",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "modellen för den bästa rösten har inte kommit: den lätta rösten finns kvar",
   "il riconoscimento di chi parla": "erkännande av talaren",
+  "il traduttore che resta su questo PC": "översättaren som finns kvar på den här datorn",
   "in attesa della prima frase": "väntar på första meningen",
   "in ritardo": "sent",
   "kokoro — il migliore, vuole una GPU": "kokoro — den bästa, vill ha en GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "rösten kostar {0} ms för varje uttalad mening, mer än de {1} som accepteras: vi återgår till den lätta rösten",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "the voice costs {0} ms for each sentence spoken, on this PC",
   "le due voci italiane": "de två italienska rösterna",
+  "le librerie della scheda video": "grafikkortets bibliotek",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "grafikkortets bibliotek har just kommit: de laddas nästa gång programmet öppnas, och därifrån är den bättre rösten tillgänglig",
   "lettura del testo: {0}": "läser text: {0}",
   "m — voce maschile": "m — mansröst",
   "mostra l'essenziale": "visar det väsentliga",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — på din PC, liten modell",
   "⚠ locale — sul tuo PC (va installato)": "⚠ lokal — på din PC (måste vara installerad)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "grafikkortets bibliotek",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "grafikkortets bibliotek har just kommit: de laddas nästa gång programmet öppnas, och därifrån är den bättre rösten tillgänglig"
+  "⚠ wgc": "⚠ wgc"
  }
 }

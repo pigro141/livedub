@@ -196,6 +196,7 @@
   "il modello della voce": "o modelo de voz",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "o modelo da melhor voz não chegou: a voz leve permanece",
   "il riconoscimento di chi parla": "o reconhecimento de quem fala",
+  "il traduttore che resta su questo PC": "o tradutor que permanece neste PC",
   "in attesa della prima frase": "esperando a primeira frase",
   "in ritardo": "tarde",
   "kokoro — il migliore, vuole una GPU": "kokoro — o melhor, quer uma GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "a voz custa {0} ms para cada frase falada, mais que os {1} que são aceitos: voltamos à voz leve",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "a voz custa {0} ms para cada frase falada neste PC",
   "le due voci italiane": "as duas vozes italianas",
+  "le librerie della scheda video": "as bibliotecas da placa de vídeo",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "as bibliotecas da placa de vídeo acabaram de chegar: são carregadas na próxima abertura do programa, e a partir daí a melhor voz fica disponível",
   "lettura del testo: {0}": "lendo o texto: {0}",
   "m — voce maschile": "m - voz masculina",
   "mostra l'essenziale": "mostra o essencial",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ sim",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — no seu PC, modelo pequeno",
   "⚠ locale — sul tuo PC (va installato)": "⚠ local — no seu PC (deve ser instalado)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "as bibliotecas da placa de vídeo",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "as bibliotecas da placa de vídeo acabaram de chegar: são carregadas na próxima abertura do programa, e a partir daí a melhor voz fica disponível"
+  "⚠ wgc": "⚠ wgc"
  }
 }

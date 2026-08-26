@@ -196,6 +196,7 @@
   "il modello della voce": "语音模型",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "最佳声音模型尚未到来：轻声依然存在",
   "il riconoscimento di chi parla": "说话人的识别",
+  "il traduttore che resta su questo PC": "保留在这台电脑上的翻译器",
   "in attesa della prima frase": "等待第一句话",
   "in ritardo": "迟到了",
   "kokoro — il migliore, vuole una GPU": "kokoro — 最好的，想要 GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "每说出一个句子，语音花费 {0} 毫秒，比接受的 {1} 毫秒多：我们返回到轻声",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "在这台电脑上，每说出一个句子，语音花费 {0} 毫秒",
   "le due voci italiane": "两个意大利声音",
+  "le librerie della scheda video": "显卡的库文件",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "显卡的库文件刚刚到位：它们会在下次打开程序时加载，从那时起就可以使用更好的语音",
   "lettura del testo: {0}": "正在阅读文本：{0}",
   "m — voce maschile": "m——男声",
   "mostra l'essenziale": "显示要点",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ 勒姆",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — 在您的 PC 上，小型型号",
   "⚠ locale — sul tuo PC (va installato)": "⚠ 本地 — 在您的 PC 上（必须安装）",
-  "⚠ wgc": "⚠ 世锦赛",
-  "le librerie della scheda video": "显卡的库文件",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "显卡的库文件刚刚到位：它们会在下次打开程序时加载，从那时起就可以使用更好的语音"
+  "⚠ wgc": "⚠ 世锦赛"
  }
 }

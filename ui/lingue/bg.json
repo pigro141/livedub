@@ -196,6 +196,7 @@
   "il modello della voce": "гласовият модел",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "моделът на най-добрия глас не е пристигнал: лекият глас остава",
   "il riconoscimento di chi parla": "разпознаване на говорещия",
+  "il traduttore che resta su questo PC": "преводачът, който остава на този компютър",
   "in attesa della prima frase": "в очакване на първото изречение",
   "in ritardo": "късно",
   "kokoro — il migliore, vuole una GPU": "kokoro — най-добрият, иска GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "гласът струва {0} ms за всяко изречено изречение, повече от {1}, които са приети: връщаме се към лекия глас",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "гласът струва {0} ms за всяко изречено изречение на този компютър",
   "le due voci italiane": "двата италиански гласа",
+  "le librerie della scheda video": "библиотеките на видеокартата",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "библиотеките на видеокартата току-що пристигнаха: те се зареждат при следващото отваряне на програмата и оттам най-добрият глас е наличен",
   "lettura del testo: {0}": "четене на текст: {0}",
   "m — voce maschile": "m — мъжки глас",
   "mostra l'essenziale": "показва най-важното",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — на вашия компютър, малък модел",
   "⚠ locale — sul tuo PC (va installato)": "⚠ локален — на вашия компютър (трябва да бъде инсталиран)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "библиотеките на видеокартата",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "библиотеките на видеокартата току-що пристигнаха: те се зареждат при следващото отваряне на програмата и оттам най-добрият глас е наличен"
+  "⚠ wgc": "⚠ wgc"
  }
 }

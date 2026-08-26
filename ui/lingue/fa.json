@@ -196,6 +196,7 @@
   "il modello della voce": "مدل صدا",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "مدل بهترین صدا نرسیده است: صدای سبک باقی می ماند",
   "il riconoscimento di chi parla": "شناخت گوینده",
+  "il traduttore che resta su questo PC": "مترجمی که در این رایانه شخصی باقی می ماند",
   "in attesa della prima frase": "منتظر جمله اول",
   "in ritardo": "دیر",
   "kokoro — il migliore, vuole una GPU": "kokoro - بهترین، یک GPU می خواهد",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "هزینه صدا {0} میلی‌ثانیه برای هر جمله گفته شده، بیشتر از {1} مورد قبول است: به صدای روشن برمی‌گردیم",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "هزینه صدا برای هر جمله بیان شده در این رایانه شخصی {0} میلی ثانیه است",
   "le due voci italiane": "دو صدای ایتالیایی",
+  "le librerie della scheda video": "کتابخانه‌های کارت گرافیک",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "کتابخانه‌های کارت گرافیک تازه رسیده‌اند: در باز شدن بعدی برنامه بارگذاری می‌شوند و از آن پس صدای بهتر در دسترس است",
   "lettura del testo: {0}": "خواندن متن: {0}",
   "m — voce maschile": "m - صدای مرد",
   "mostra l'essenziale": "موارد ضروری را نشان می دهد",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — در رایانه شخصی شما، مدل کوچک",
   "⚠ locale — sul tuo PC (va installato)": "⚠ محلی — روی کامپیوتر شما (باید نصب شود)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "کتابخانه‌های کارت گرافیک",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "کتابخانه‌های کارت گرافیک تازه رسیده‌اند: در باز شدن بعدی برنامه بارگذاری می‌شوند و از آن پس صدای بهتر در دسترس است"
+  "⚠ wgc": "⚠ wgc"
  }
 }

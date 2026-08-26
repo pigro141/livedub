@@ -196,6 +196,7 @@
   "il modello della voce": "the voice model",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "the model of the best voice has not arrived: the light voice remains",
   "il riconoscimento di chi parla": "recognition of the speaker",
+  "il traduttore che resta su questo PC": "the translator that remains on this PC",
   "in attesa della prima frase": "waiting for the first sentence",
   "in ritardo": "late",
   "kokoro — il migliore, vuole una GPU": "kokoro — the best, wants a GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "the voice costs {0} ms for each sentence spoken, more than the {1} that are accepted: we return to the light voice",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "the voice costs {0} ms for each sentence spoken, on this PC",
   "le due voci italiane": "the two Italian voices",
+  "le librerie della scheda video": "the graphics card libraries",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "the graphics card libraries have just arrived: they load the next time the program opens, and from then on the better voice is available",
   "lettura del testo: {0}": "reading text: {0}",
   "m — voce maschile": "m — male voice",
   "mostra l'essenziale": "shows the essentials",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — on your PC, small model",
   "⚠ locale — sul tuo PC (va installato)": "⚠ local — on your PC (must be installed)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "the graphics card libraries",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "the graphics card libraries have just arrived: they load the next time the program opens, and from then on the better voice is available"
+  "⚠ wgc": "⚠ wgc"
  }
 }

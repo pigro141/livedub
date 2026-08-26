@@ -196,6 +196,7 @@
   "il modello della voce": "音声モデル",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "最高の声のモデルが到着していない: 軽い声が残っている",
   "il riconoscimento di chi parla": "話者の認識",
+  "il traduttore che resta su questo PC": "この PC に残っているトランスレータ",
   "in attesa della prima frase": "最初の文を待っています",
   "in ritardo": "遅い",
   "kokoro — il migliore, vuole una GPU": "kokoro — 最高、GPU が欲しい",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "音声は発話される文ごとに {0} ミリ秒かかり、受け入れられる {1} ミリ秒よりも多くなります: 軽い声に戻ります",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "この PC では、音声は発話ごとに {0} ミリ秒かかります",
   "le due voci italiane": "二人のイタリア人の声",
+  "le librerie della scheda video": "グラフィックカードのライブラリ",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "グラフィックカードのライブラリが届いたところです。次にプログラムを開いたときに読み込まれ、それ以降はより良い音声が使えるようになります",
   "lettura del testo: {0}": "テキストを読んでいます: {0}",
   "m — voce maschile": "m — 男性の声",
   "mostra l'essenziale": "要点を示します",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — PC 上の小型モデル",
   "⚠ locale — sul tuo PC (va installato)": "⚠ ローカル — PC 上 (インストールする必要があります)",
-  "⚠ wgc": "⚠WGC",
-  "le librerie della scheda video": "グラフィックカードのライブラリ",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "グラフィックカードのライブラリが届いたところです。次にプログラムを開いたときに読み込まれ、それ以降はより良い音声が使えるようになります"
+  "⚠ wgc": "⚠WGC"
  }
 }

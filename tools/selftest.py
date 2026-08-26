@@ -4934,10 +4934,18 @@ def test_cuda(c: Check) -> None:
     c.ok(CU.MB_DISCO > CU.MB_RETE,
          f"e sul disco pesa di piu' ({CU.MB_DISCO} contro {CU.MB_RETE} MB): le "
          "ruote sono compresse")
-    c.ok(PEZZI["cuda"].mb > max(p.mb for k, p in PEZZI.items() if k != "cuda"),
-         "ed e' il pezzo piu' pesante di tutti, piu' del modello piu' grande: "
-         "e' l'unico che si scarica per una **scelta** e non perche' la catena "
-         "ne abbia bisogno per partire")
+    # **Il modello piu' grande, e non «il pezzo piu' grande»**: da quando il
+    # banco installa anche la traduzione offline, il primato e' di `argos` con
+    # tre giga di torch. Quello che questa riga dice non e' cambiato — le
+    # librerie della scheda video pesano piu' di qualunque **modello**, e sono
+    # l'unico pezzo che si scarica per una *scelta* e non perche' la catena ne
+    # abbia bisogno per partire — ma la confrontava con un elenco che nel
+    # frattempo ha cambiato contenuto.
+    modelli = max(p.mb for k, p in PEZZI.items() if k not in ("cuda", "argos"))
+    c.ok(PEZZI["cuda"].mb > modelli,
+         f"ed e' piu' pesante di qualunque modello ({PEZZI['cuda'].mb} contro "
+         f"{modelli} MB): e' l'unico che si scarica per una **scelta** e non "
+         "perche' la catena ne abbia bisogno per partire")
 
     # -- «c'e'» vuol dire «c'e' tutto» ---------------------------------------
     # Un archivio a meta' e' precisamente il difetto costato un `KeyError` dentro
@@ -5155,6 +5163,58 @@ def test_banco(c: Check) -> None:
          "e non ce ne sono di avanzati")
     c.eq(sorted(set(B.PEZZI) - set(T.PEZZI_NOMI)), [],
          "e ogni pezzo scaricabile ha un nome da mostrare mentre si scarica")
+
+    # -- il pacchetto della traduzione e' un pezzo, quindi si pesa **prima** ---
+    # Erano tre giga dichiarati solo a parole, dentro un motivo che compariva
+    # dopo. Adesso il banco li installa, e il preventivo del passo 6 somma i
+    # pezzi che mancano: il numero sta **sopra il bottone**, che e' l'unico posto
+    # in cui serve a decidere.
+    senza = B.Scelta(tts="piper", traduzione="")
+    c.ok("argos" in B.serve(senza, traduzione=True),
+         "manca il pacchetto: la traduzione locale e' vuota **proprio** perche' "
+         "non c'e', quindi la condizione non puo' essere «== locale»")
+    c.ok("argos" not in B.serve(senza, traduzione=False),
+         "e con la traduzione spenta non si scarica niente: e' il default")
+    c.ok("argos" not in B.serve(B.Scelta(tts="piper", traduzione="llm"),
+                                traduzione=True),
+         "con «llm» la traduzione locale c'e' gia' per un'altra strada: tre giga "
+         "per rifarla sarebbero pagati due volte")
+    c.eq(B.peso_mb(("argos",)), B.TRADUZIONE_MB,
+         "e il preventivo lo pesa con il numero misurato")
+    c.ok("packaging" not in B.PACCHETTI_ARGOS,
+         "disfare non tocca `packaging`: e' di pip, e toglierla vorrebbe dire "
+         "rompere l'ambiente **con il rimedio**")
+    c.ok("argos" in B.PEZZI and "traduzione" in B.PEZZI,
+         "il motore e la coppia di lingue sono due pezzi: il primo e' un pip, "
+         "il secondo un modello, e sbagliano in modi diversi")
+
+    # -- `2>&1` su un eseguibile nativo dichiara fallito cio' che e' riuscito --
+    # Windows PowerShell 5.1 avvolge ogni riga di stderr in un
+    # `NativeCommandError`; con `$ErrorActionPreference = "Stop"` e' terminante,
+    # quindi un avviso stampato da un comando **andato a buon fine** faceva
+    # morire `installa.ps1` con `exit 1` dopo aver scritto tutti i passi in
+    # verde. Riprodotto il 25 agosto: la suite ne stampa uno di serie.
+    #
+    # La cura sta in `Esegui`, che spegne la parte terminante attorno al solo
+    # comando. Qui si controlla che nessuno torni a scriverlo a mano: e' l'unica
+    # regola di questa forma che una suite Python puo' verificare su uno script
+    # PowerShell, e senza di lei il difetto rientra alla prima riga nuova.
+    radice_ps = Path(__file__).resolve().parent.parent
+    a_mano: list[str] = []
+    for script in sorted(radice_ps.rglob("*.ps1")):
+        if script.relative_to(radice_ps).parts[0].startswith((".venv", "dist", "build")):
+            continue
+        for n, riga in enumerate(script.read_text(encoding="utf-8",
+                                                  errors="replace").splitlines(), 1):
+            codice = riga.split("#")[0]
+            # Il corpo di `Esegui` **e'** quella riga: e' l'unico posto in cui
+            # l'unione si scrive, ed e' li' che sta la cura.
+            if "2>&1" in codice and "$comando" not in codice:
+                a_mano.append(f"{script.relative_to(radice_ps)}:{n}")
+    c.eq(a_mano, [],
+         "nessuno script unisce stderr a mano su un comando nativo: si passa da "
+         "`Esegui`, se no un avviso qualunque fa dichiarare fallita "
+         "un'installazione riuscita")
     c.eq(sorted(B.AVVISI - set(B.MOTIVI)), [],
          "gli avvisi sono motivi veri, non nomi rimasti indietro")
     c.ok("cuda_no" not in B.AVVISI,

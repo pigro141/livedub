@@ -196,6 +196,7 @@
   "il modello della voce": "het stemmodel",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "het model van de beste stem is nog niet gearriveerd: de lichte stem blijft bestaan",
   "il riconoscimento di chi parla": "herkenning van de spreker",
+  "il traduttore che resta su questo PC": "de vertaler die op deze pc blijft staan",
   "in attesa della prima frase": "wachten op de eerste zin",
   "in ritardo": "laat",
   "kokoro — il migliore, vuole una GPU": "kokoro — de beste, wil een GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "de stem kost {0} ms voor elke uitgesproken zin, meer dan de {1} die worden geaccepteerd: we keren terug naar de lichte stem",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "de stem kost {0} ms voor elke uitgesproken zin op deze pc",
   "le due voci italiane": "de twee Italiaanse stemmen",
+  "le librerie della scheda video": "de bibliotheken van de videokaart",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "de bibliotheken van de videokaart zijn net binnengekomen: ze worden geladen bij de volgende keer dat het programma opent, en vanaf dan is de betere stem beschikbaar",
   "lettura del testo: {0}": "tekst lezen: {0}",
   "m — voce maschile": "m — mannenstem",
   "mostra l'essenziale": "toont de essentie",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — op uw pc, klein model",
   "⚠ locale — sul tuo PC (va installato)": "⚠ lokaal — op uw pc (moet geïnstalleerd zijn)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "de bibliotheken van de videokaart",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "de bibliotheken van de videokaart zijn net binnengekomen: ze worden geladen bij de volgende keer dat het programma opent, en vanaf dan is de betere stem beschikbaar"
+  "⚠ wgc": "⚠ wgc"
  }
 }

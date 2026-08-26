@@ -196,6 +196,7 @@
   "il modello della voce": "ভয়েস মডেল",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "সেরা ভয়েসের মডেল আসেনি: হালকা ভয়েস রয়ে গেছে",
   "il riconoscimento di chi parla": "স্পিকারের স্বীকৃতি",
+  "il traduttore che resta su questo PC": "এই পিসিতে থাকা অনুবাদক",
   "in attesa della prima frase": "প্রথম বাক্যের জন্য অপেক্ষা করছি",
   "in ritardo": "দেরী",
   "kokoro — il migliore, vuole una GPU": "kokoro — সেরা, একটি GPU চায়",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "কথ্য প্রতিটি বাক্যের জন্য ভয়েসের দাম {0} মিসে, গৃহীত {1} এর চেয়ে বেশি: আমরা হালকা ভয়েস এ ফিরে আসি",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "এই পিসিতে কথিত প্রতিটি বাক্যের জন্য ভয়েসের দাম {0} মি.সে",
   "le due voci italiane": "দুটি ইতালীয় কণ্ঠস্বর",
+  "le librerie della scheda video": "গ্রাফিক্স কার্ডের লাইব্রেরিগুলি",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "গ্রাফিক্স কার্ডের লাইব্রেরিগুলি সবে এসেছে: প্রোগ্রামটি পরের বার খোলার সময় সেগুলি লোড হবে, এবং তখন থেকে সেরা কণ্ঠস্বরটি পাওয়া যাবে",
   "lettura del testo: {0}": "পাঠ্য পড়া: {0}",
   "m — voce maschile": "মি - পুরুষ কন্ঠ",
   "mostra l'essenziale": "প্রয়োজনীয় জিনিস দেখায়",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ এলএলএম",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — আপনার পিসিতে, ছোট মডেল",
   "⚠ locale — sul tuo PC (va installato)": "⚠ স্থানীয় — আপনার পিসিতে (ইন্সটল করতে হবে)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "গ্রাফিক্স কার্ডের লাইব্রেরিগুলি",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "গ্রাফিক্স কার্ডের লাইব্রেরিগুলি সবে এসেছে: প্রোগ্রামটি পরের বার খোলার সময় সেগুলি লোড হবে, এবং তখন থেকে সেরা কণ্ঠস্বরটি পাওয়া যাবে"
+  "⚠ wgc": "⚠ wgc"
  }
 }

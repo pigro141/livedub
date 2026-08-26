@@ -196,6 +196,7 @@
   "il modello della voce": "รูปแบบเสียง",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "ต้นแบบเสียงที่ดีที่สุดยังมาไม่ถึง เสียงเบายังคงอยู่",
   "il riconoscimento di chi parla": "การรับรู้ของผู้พูด",
+  "il traduttore che resta su questo PC": "นักแปลที่ยังคงอยู่ในพีซีเครื่องนี้",
   "in attesa della prima frase": "รอประโยคแรก",
   "in ritardo": "สาย",
   "kokoro — il migliore, vuole una GPU": "kokoro - ดีที่สุดอยากได้ GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "เสียงมีค่าใช้จ่าย {0} มิลลิวินาทีสำหรับแต่ละประโยคที่พูด มากกว่า {1} ที่ยอมรับ: เรากลับไปสู่เสียงที่เบา",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "เสียงมีค่าใช้จ่าย {0} มิลลิวินาทีสำหรับแต่ละประโยคที่พูดบนพีซีเครื่องนี้",
   "le due voci italiane": "เสียงภาษาอิตาลีทั้งสอง",
+  "le librerie della scheda video": "ไลบรารีของการ์ดจอ",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "ไลบรารีของการ์ดจอเพิ่งมาถึง: จะถูกโหลดเมื่อเปิดโปรแกรมครั้งถัดไป และจากนั้นเสียงที่ดีกว่าก็จะใช้งานได้",
   "lettura del testo: {0}": "อ่านข้อความ: {0}",
   "m — voce maschile": "ม. - เสียงผู้ชาย",
   "mostra l'essenziale": "แสดงให้เห็นถึงสิ่งจำเป็น",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠เลิ่กลั่ก",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — บนพีซีของคุณ รุ่นเล็ก",
   "⚠ locale — sul tuo PC (va installato)": "⚠ ในเครื่อง — บนพีซีของคุณ (ต้องติดตั้ง)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "ไลบรารีของการ์ดจอ",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "ไลบรารีของการ์ดจอเพิ่งมาถึง: จะถูกโหลดเมื่อเปิดโปรแกรมครั้งถัดไป และจากนั้นเสียงที่ดีกว่าก็จะใช้งานได้"
+  "⚠ wgc": "⚠ wgc"
  }
 }

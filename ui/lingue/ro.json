@@ -196,6 +196,7 @@
   "il modello della voce": "modelul vocii",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "modelul celei mai bune voci nu a sosit: vocea ușoară rămâne",
   "il riconoscimento di chi parla": "recunoașterea vorbitorului",
+  "il traduttore che resta su questo PC": "traducătorul care rămâne pe acest PC",
   "in attesa della prima frase": "așteptând prima propoziție",
   "in ritardo": "tarziu",
   "kokoro — il migliore, vuole una GPU": "kokoro - cel mai bun, vrea un GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "vocea costa {0} ms pentru fiecare propozitie rostita, mai mult decat cele {1} care sunt acceptate: revenim la vocea usoara",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "vocea costă {0} ms pentru fiecare propoziție rostită, pe acest computer",
   "le due voci italiane": "cele două voci italiene",
+  "le librerie della scheda video": "bibliotecile plăcii video",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "bibliotecile plăcii video tocmai au sosit: se încarcă la următoarea deschidere a programului, și de atunci vocea mai bună este disponibilă",
   "lettura del testo: {0}": "citire text: {0}",
   "m — voce maschile": "m — voce masculină",
   "mostra l'essenziale": "arată elementele esențiale",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — pe computer, model mic",
   "⚠ locale — sul tuo PC (va installato)": "⚠ local — pe computer (trebuie instalat)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "bibliotecile plăcii video",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "bibliotecile plăcii video tocmai au sosit: se încarcă la următoarea deschidere a programului, și de atunci vocea mai bună este disponibilă"
+  "⚠ wgc": "⚠ wgc"
  }
 }

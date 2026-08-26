@@ -196,6 +196,7 @@
   "il modello della voce": "balso modelis",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "geriausio balso modelis neatėjo: lieka lengvas balsas",
   "il riconoscimento di chi parla": "kalbėtojo atpažinimas",
+  "il traduttore che resta su questo PC": "vertėjas, kuris liko šiame kompiuteryje",
   "in attesa della prima frase": "laukia pirmo sakinio",
   "in ritardo": "pavėluotai",
   "kokoro — il migliore, vuole una GPU": "kokoro – geriausias, nori GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "balsas kainuoja {0} ms už kiekvieną ištartą sakinį, daugiau nei priimtina {1}: grįžtame prie lengvo balso",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "balsas kainuoja {0} ms už kiekvieną ištartą sakinį šiame kompiuteryje",
   "le due voci italiane": "du italų balsai",
+  "le librerie della scheda video": "vaizdo plokštės bibliotekos",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "vaizdo plokštės bibliotekos ką tik atkeliavo: jos įkeliamos kitą kartą atidarius programą, ir nuo tada geresnis balsas yra prieinamas",
   "lettura del testo: {0}": "skaityti tekstą: {0}",
   "m — voce maschile": "m - vyriškas balsas",
   "mostra l'essenziale": "parodo esminius dalykus",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm – jūsų kompiuteryje, mažas modelis",
   "⚠ locale — sul tuo PC (va installato)": "⚠ vietinis – jūsų kompiuteryje (turi būti įdiegtas)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "vaizdo plokštės bibliotekos",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "vaizdo plokštės bibliotekos ką tik atkeliavo: jos įkeliamos kitą kartą atidarius programą, ir nuo tada geresnis balsas yra prieinamas"
+  "⚠ wgc": "⚠ wgc"
  }
 }

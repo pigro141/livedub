@@ -196,6 +196,7 @@
   "il modello della voce": "le modèle vocal",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "le modèle de la meilleure voix n'est pas arrivé : la voix légère reste",
   "il riconoscimento di chi parla": "la reconnaissance de qui parle",
+  "il traduttore che resta su questo PC": "le traducteur qui reste sur ce PC",
   "in attesa della prima frase": "en attendant la première phrase",
   "in ritardo": "en retard",
   "kokoro — il migliore, vuole una GPU": "kokoro — le meilleur, veut un GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "la voix coûte {0} ms pour chaque phrase prononcée, soit plus que les {1} acceptés : on revient à la voix légère",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "la voix coûte {0} ms pour chaque phrase prononcée, sur ce PC",
   "le due voci italiane": "les deux voix italiennes",
+  "le librerie della scheda video": "les bibliothèques de la carte graphique",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "les bibliothèques de la carte graphique viennent d'arriver : elles se chargent à la prochaine ouverture du programme, et à partir de là la meilleure voix est disponible",
   "lettura del testo: {0}": "lecture du texte : {0}",
   "m — voce maschile": "m - voix masculine",
   "mostra l'essenziale": "montre l'essentiel",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — sur votre PC, petit modèle",
   "⚠ locale — sul tuo PC (va installato)": "⚠ local — sur votre PC (doit être installé)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "les bibliothèques de la carte graphique",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "les bibliothèques de la carte graphique viennent d'arriver : elles se chargent à la prochaine ouverture du programme, et à partir de là la meilleure voix est disponible"
+  "⚠ wgc": "⚠ wgc"
  }
 }

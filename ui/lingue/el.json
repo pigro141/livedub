@@ -196,6 +196,7 @@
   "il modello della voce": "το φωνητικό μοντέλο",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "το μοντέλο της καλύτερης φωνής δεν έφτασε: η ελαφριά φωνή παραμένει",
   "il riconoscimento di chi parla": "αναγνώριση του ομιλητή",
+  "il traduttore che resta su questo PC": "ο μεταφραστής που παραμένει σε αυτόν τον υπολογιστή",
   "in attesa della prima frase": "περιμένοντας την πρώτη πρόταση",
   "in ritardo": "αργά",
   "kokoro — il migliore, vuole una GPU": "kokoro — το καλύτερο, θέλει GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "η φωνή κοστίζει {0} ms για κάθε εκφωνούμενη πρόταση, περισσότερο από τα {1} που γίνονται αποδεκτά: επιστρέφουμε στην ελαφριά φωνή",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "η φωνή κοστίζει {0} ms για κάθε πρόταση που εκφωνείται, σε αυτόν τον υπολογιστή",
   "le due voci italiane": "οι δύο ιταλικές φωνές",
+  "le librerie della scheda video": "οι βιβλιοθήκες της κάρτας γραφικών",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "οι βιβλιοθήκες της κάρτας γραφικών μόλις έφτασαν: φορτώνονται στο επόμενο άνοιγμα του προγράμματος, και από εκεί η καλύτερη φωνή είναι διαθέσιμη",
   "lettura del testo: {0}": "ανάγνωση κειμένου: {0}",
   "m — voce maschile": "m — ανδρική φωνή",
   "mostra l'essenziale": "δείχνει τα απαραίτητα",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — στον υπολογιστή σας, μικρό μοντέλο",
   "⚠ locale — sul tuo PC (va installato)": "⚠ τοπικό — στον υπολογιστή σας (πρέπει να εγκατασταθεί)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "οι βιβλιοθήκες της κάρτας γραφικών",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "οι βιβλιοθήκες της κάρτας γραφικών μόλις έφτασαν: φορτώνονται στο επόμενο άνοιγμα του προγράμματος, και από εκεί η καλύτερη φωνή είναι διαθέσιμη"
+  "⚠ wgc": "⚠ wgc"
  }
 }

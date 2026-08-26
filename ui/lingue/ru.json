@@ -196,6 +196,7 @@
   "il modello della voce": "голосовая модель",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "образец лучшего голоса не прибыл: легкий голос остался",
   "il riconoscimento di chi parla": "признание говорящего",
+  "il traduttore che resta su questo PC": "переводчик, который остается на этом ПК",
   "in attesa della prima frase": "жду первого предложения",
   "in ritardo": "поздно",
   "kokoro — il migliore, vuole una GPU": "кокоро — лучший, хочет графический процессор",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "голос стоит {0} мс за каждое произнесенное предложение, что больше, чем принятые {1}: возвращаемся к легкому голосу",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "голос стоит {0} мс за каждое произнесенное предложение на этом ПК",
   "le due voci italiane": "два итальянских голоса",
+  "le librerie della scheda video": "библиотеки видеокарты",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "библиотеки видеокарты только что получены: они загрузятся при следующем открытии программы, и с этого момента лучший голос станет доступен",
   "lettura del testo: {0}": "чтение текста: {0}",
   "m — voce maschile": "м — мужской голос",
   "mostra l'essenziale": "показывает самое необходимое",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ лм",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — на вашем ПК, маленькая модель",
   "⚠ locale — sul tuo PC (va installato)": "⚠ локальный — на вашем ПК (должен быть установлен)",
-  "⚠ wgc": "⚠ ВГК",
-  "le librerie della scheda video": "библиотеки видеокарты",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "библиотеки видеокарты только что получены: они загрузятся при следующем открытии программы, и с этого момента лучший голос станет доступен"
+  "⚠ wgc": "⚠ ВГК"
  }
 }

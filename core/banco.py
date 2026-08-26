@@ -30,15 +30,27 @@ suo confine**, l'unica parte del programma che nessuna verifica toccava.
 Sotto la riga c'e' quello che tocca la macchina, e non decide niente: misura e
 consegna dei numeri.
 
-## Il confine che questo file non passa: **niente `pip`**
+## Il `pip` si fa, e si fa **con le opzioni giuste**
 
-Si scaricano **modelli e coppie di lingue**. Non si installano pacchetti, e non
-e' prudenza generica: `requirements.txt` monta `onnxruntime-gpu` e **non**
-`onnxruntime`, i due non convivono, e un `pip install argostranslate` ingenuo
-tira dentro il secondo — spegnendo la CUDA di Kokoro **in silenzio**, 725 ms a
-battuta invece di 207, con i log verdi. Un'interfaccia che installa pacchetti puo'
-rompere l'ambiente da dentro. Se un pacchetto manca, qui si **dichiara** e si
-consegna la riga di comando esatta.
+Per un po' questo file dichiarava i pacchetti mancanti e consegnava la riga da
+incollare, invece di installarli. Il motivo era vero e resta vero:
+`requirements.txt` monta `onnxruntime-gpu` e **non** `onnxruntime`, i due non
+convivono, e un `pip install argostranslate` ingenuo tira dentro il secondo —
+spegnendo la CUDA di Kokoro **in silenzio**, 725 ms a battuta invece di 207, con
+i log verdi.
+
+Ma la conclusione era sbagliata: chi apre il programma la prima volta non deve
+incollare niente in PowerShell. La cura non e' rinunciare, e' **non inventare le
+opzioni**: si esegue `tools/installa_traduzione.ps1`, che e' l'unico posto in cui
+sono scritte (`--no-deps` sui due che lo vogliono, le versioni che Smart App
+Control lascia caricare, `torch` chiesto esplicito), e **si verifica dopo** che la
+GPU sia ancora viva — in un processo nuovo, perche' ORT carica le sue DLL una
+volta sola e chiederlo qui direbbe «CUDA» anche dopo averla persa.
+
+Se qualcosa va storto — l'installazione fallisce, o la CUDA e' caduta — si
+**torna allo stato di prima** e si dichiara: un ambiente lasciato a meta' e' la
+forma peggiore di ripiego silenzioso, perche' il difetto esce alla prima battuta
+e sembra della sintesi.
 
 ## Le tre soglie, e nessuna e' nuova
 
@@ -50,6 +62,11 @@ tabella scritta due volte, e la seconda non l'aggiorna nessuno».
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
+
+# La cartella del programma: da qui si lancia lo script di installazione e si
+# fanno partire i processi figli, che se no non troverebbero i moduli.
+_RADICE = Path(__file__).resolve().parent.parent
 
 # =============================================================== le soglie ====
 
@@ -78,8 +95,9 @@ PASSO_MINIMO = 10.0
 # (p50/p95/max), google 491/1188/2496, llm 589/869/1062.
 TRADUZIONE_MAX_MS = 500.0
 
-# La riga da incollare quando manca il **pacchetto** della traduzione offline.
-# Non la si esegue: si veda il confine dichiarato in testata.
+# La riga della traduzione offline. **La esegue il banco** (`_prendi("argos")`), e
+# resta scritta qui perche' e' anche quella da consegnare a chi deve rifarla a
+# mano — quando l'installazione non e' riuscita, o quando si e' dovuta disfare.
 #
 # **Ed e' lo script, non `pip install -r requirements.txt`.** Quella riga stava
 # qui e dal 25 agosto non installa piu' la traduzione affatto: argostranslate non
@@ -97,9 +115,19 @@ RIGA_PIP = "powershell -ExecutionPolicy Bypass -File tools\\installa_traduzione.
 # CTranslate2. Lo tira dentro `stanza`, che `argostranslate/sbd.py` importa in
 # cima al modulo in tutte e due le versioni utili.
 #
-# E' un numero a se' e non un `Pezzo`, perche' i `Pezzi` li scarica il banco e
-# questo no: sono **pacchetti**, e il banco non fa `pip`.
+# E' anche il peso del `Pezzo` «argos» (si veda `PEZZI`): il preventivo del passo
+# 6 somma i pezzi che mancano e lo scrive **sopra il bottone**, cioe' prima che
+# uno prema. Tre giga che compaiono dopo sarebbero un download a sorpresa.
 TRADUZIONE_MB = 3100
+
+# I pacchetti che `tools/installa_traduzione.ps1` mette, e che quindi la disfatta
+# toglie. **Non c'e' `packaging`**, che lo script chiede senza versione perche'
+# gia' c'era: e' una dipendenza di pip stesso, e toglierla per disfare una cosa
+# andata storta vorrebbe dire rompere l'ambiente **con il rimedio**.
+PACCHETTI_ARGOS: tuple[str, ...] = (
+    "argostranslate", "minisbd", "ctranslate2", "sentencepiece", "sacremoses",
+    "stanza", "torch",
+)
 
 
 # =================================================== quello che si e' trovato =
@@ -354,6 +382,11 @@ PEZZI: dict[str, Pezzo] = {
     # installato, e senza di lui la catena legge con PP-OCR — che sul testo
     # bordato dei giochi legge peggio, senza dirlo.
     "oneocr": Pezzo("oneocr", 115, dalla_rete=False),
+    # **Il motore della traduzione offline, ed e' l'unico pezzo che e' un
+    # `pip`.** Sta qui e non fuori come numero a se' perche' il preventivo del
+    # passo 6 somma i `Pezzi` che mancano: fuori di qui, tre giga si sarebbero
+    # visti solo a scaricamento iniziato. Si veda `TRADUZIONE_MB`.
+    "argos": Pezzo("argos", TRADUZIONE_MB),
     # La coppia di lingue di Argos, 98 MB misurati per it->en.
     "traduzione": Pezzo("traduzione", 98),
     # **Le librerie CUDA, e sono il pezzo piu' pesante di tutti.** 1132 MB di
@@ -410,6 +443,14 @@ def serve(scelta: Scelta, *, traduzione: bool = False,
         fuori.append("piper")
     if oneocr:
         fuori.append("oneocr")
+    # **Il motore della traduzione, e la condizione non e' quella che sembra.**
+    # `scelta.traduzione` e' vuota proprio quando il pacchetto **manca**, quindi
+    # chiedere `== "locale"` non lo installerebbe mai. Vuoto vuol dire «non c'e'
+    # ne' Argos ne' llm»: li' i tre giga servono. Con `llm` invece no — la
+    # traduzione locale c'e' gia' per un'altra strada, e scaricare torch per
+    # rifarla sarebbe pagare due volte la stessa funzione.
+    if traduzione and scelta.traduzione in ("", "locale"):
+        fuori.append("argos")
     if traduzione and scelta.traduzione == "locale":
         fuori.append("traduzione")
     return tuple(fuori)
@@ -519,6 +560,18 @@ def presenti(cfg) -> frozenset[str]:
 
             if presente():
                 fuori.add("cuda")
+    except Exception:
+        pass
+
+    # **Il pacchetto si chiede a chi lo prova davvero.** `core.bloccati` non
+    # guarda se il file c'e': lo **importa**, che e' l'unica domanda che
+    # distingue «installato» da «installato e caricabile» su una macchina con
+    # Smart App Control acceso.
+    try:
+        from core import bloccati
+
+        if bloccati.pezzo("argos").ok:
+            fuori.add("argos")
     except Exception:
         pass
 
@@ -769,10 +822,11 @@ def esegui(cfg, *, passo=None, fermati=None) -> Referto:
     # `vuole_cuda()`. Non e' una misura, e' la configurazione.
     con_cuda = vuole_cuda(cfg)
     preso_cuda = False
+    preso_argos = False
 
     def prendi_il_necessario(sc: Scelta) -> tuple[Scelta, frozenset[str]]:
         """Scarica quello che serve a `sc`, e torna la scelta dopo lo scarico."""
-        nonlocal falliti, mb, preso_cuda
+        nonlocal falliti, mb, preso_cuda, preso_argos
         avuti = presenti(cfg)
         manca = da_scaricare(
             serve(sc, traduzione=cfg.translate.enabled, cuda=con_cuda), avuti)
@@ -781,6 +835,7 @@ def esegui(cfg, *, passo=None, fermati=None) -> Referto:
             falliti.update(scarica(manca, cfg, dillo=passo, fermati=fermati))
             avuti = presenti(cfg)
             preso_cuda = preso_cuda or ("cuda" in manca and "cuda" not in falliti)
+            preso_argos = preso_argos or ("argos" in manca and "argos" not in falliti)
         return dopo_lo_scarico(sc, avuti), avuti
 
     scelta, avuti = prendi_il_necessario(scelta)
@@ -790,7 +845,14 @@ def esegui(cfg, *, passo=None, fermati=None) -> Referto:
     # risonda e si riparte da capo. Senza questa riga si scaricherebbe un
     # gigabyte per poi decidere con la risposta di prima — cioe' pagare il peso e
     # tenersi il ripiego.
-    if preso_cuda:
+    #
+    # **E il pacchetto della traduzione fa esattamente lo stesso**, per la stessa
+    # ragione e da un'altra porta: `scegli()` aveva detto «traduzione: manca»
+    # perche' `argostranslate` non c'era, e adesso c'e'. Senza risondare, il passo
+    # 6 installerebbe tre giga e scriverebbe lo stesso che la traduzione non e'
+    # disponibile — e la coppia di lingue, che dipende da quella scelta, non
+    # verrebbe mai presa.
+    if preso_cuda or preso_argos:
         sonda = sonda_veloce(cfg)
         scelta = scegli(sonda)
         scelta, avuti = prendi_il_necessario(scelta)
@@ -872,6 +934,148 @@ def getattr_percorso(cfg, percorso: str):
     return nodo
 
 
+def cuda_in_un_processo_nuovo() -> bool:
+    """La CUDA c'e' ancora? Chiesto a un **processo che parte adesso**.
+
+    Non e' pignoleria: ORT carica le sue DLL una volta per processo, quindi
+    chiedendolo qui dentro si otterrebbe la risposta di prima anche dopo aver
+    infilato nel venv la ruota CPU che la spegne. Sarebbe una misura incapace di
+    esprimere la risposta — la forma di errore che questo progetto paga piu'
+    spesso — e in un punto in cui la risposta serve a decidere se disfare
+    un'installazione da tre giga.
+    """
+    import subprocess
+    import sys
+
+    esito = subprocess.run(
+        [sys.executable, "-c",
+         "from core.onnx import cuda_ottenuta;"
+         "print('SI' if cuda_ottenuta('il banco')[0] else 'NO')"],
+        cwd=str(_RADICE), capture_output=True, text=True,
+    )
+    return "SI" in (esito.stdout or "")
+
+
+def _disfa_argos() -> None:
+    """Toglie quello che l'installazione aveva messo. Non solleva.
+
+    Chiamata quando l'installazione e' fallita a meta' o quando ha spento la
+    CUDA: li' la cosa giusta non e' «quasi installato», e' **com'era prima**. Un
+    venv lasciato a meta' non da' errore — da' una sessione che muore alla prima
+    battuta, o una sintesi tre volte piu' lenta, e in tutti e due i casi il
+    difetto sembra di un'altra parte del programma.
+    """
+    import subprocess
+    import sys
+
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "uninstall", "-y", *PACCHETTI_ARGOS],
+            cwd=str(_RADICE), capture_output=True, text=True,
+        )
+    except Exception:  # pragma: no cover - dipende da pip
+        pass
+    _dimentica_argos()
+
+
+def _dimentica_argos() -> None:
+    """Le risposte tenute da parte su argos adesso sono vecchie.
+
+    Stessa riga di `core.onnx.dimentica()` dopo le DLL CUDA, e per lo stesso
+    motivo: `core.bloccati` risponde una volta per processo, quindi senza questa
+    il resto del giro continuerebbe a dire «non c'e'» con il pacchetto appena
+    installato — e il banco scriverebbe «traduzione: manca» dopo averla messa.
+    """
+    import importlib
+
+    try:
+        from core import bloccati
+
+        bloccati.dimentica("argos")
+    except Exception:  # pragma: no cover
+        pass
+    importlib.invalidate_caches()
+
+
+def installa_argos() -> None:
+    """Installa la traduzione offline. Solleva, con il perche', se non ce l'ha fatta.
+
+    **Le opzioni non si inventano qui**: sono quelle di
+    `tools/installa_traduzione.ps1`, che e' l'unico posto in cui stanno scritte e
+    che gia' verifica il proprio lavoro con `tools/controlla_traduzione.py`. Una
+    seconda copia dei suoi `--no-deps` e delle sue versioni sarebbe la solita
+    tabella scritta due volte, e la seconda non l'aggiornerebbe nessuno — con il
+    guasto che ne uscirebbe: la CUDA spenta in silenzio.
+
+    Le due verifiche dopo, e nessuna delle due e' «il comando e' finito»:
+
+    - la CUDA **di un processo nuovo**, che e' l'unica che puo' vedere una ruota
+      CPU appena entrata (si veda `cuda_in_un_processo_nuovo`);
+    - `argostranslate` che si **importa**, perche' `--no-deps` puo' lasciar fuori
+      una dipendenza e un pacchetto sul disco non e' un pacchetto che carica.
+
+    Se una delle due dice di no, si disfa e si solleva: la rinuncia dichiarata
+    finisce fra i `falliti` del referto e da li' nella riga rossa del passo 6,
+    accanto alla scelta che ne dipende.
+    """
+    import subprocess
+    import sys
+
+    # **Nel pacchetto congelato non c'e' niente in cui installare**: non c'e' un
+    # venv, non c'e' `pip`, e `sys.executable` e' il programma stesso — cioe' i
+    # due processi figli qui sotto riaprirebbero la finestra invece di
+    # rispondere. Dirlo e' l'unica cosa vera; provarci sarebbe un guasto in un
+    # punto in cui nessuno lo collegherebbe alla traduzione.
+    if getattr(sys, "frozen", False):
+        raise RuntimeError(
+            "in questa versione impacchettata la traduzione offline non si "
+            "installa: si usa «google», oppure si esegue il programma da sorgente")
+
+    script = _RADICE / "tools" / "installa_traduzione.ps1"
+    if not script.is_file():
+        raise RuntimeError(f"manca {script.name}: la traduzione non si installa da sola")
+
+    # **Prima**, se no non si sa cosa e' caduto per colpa di questa installazione:
+    # su una macchina senza scheda video la CUDA non c'era gia', e disfare tre
+    # giga per una GPU che non e' mai esistita sarebbe togliere una cosa che
+    # funziona per un difetto che non c'e'.
+    prima = cuda_in_un_processo_nuovo()
+
+    esito = subprocess.run(
+        ["powershell", "-ExecutionPolicy", "Bypass", "-NoProfile", "-File",
+         str(script)],
+        cwd=str(_RADICE), capture_output=True, text=True,
+    )
+    _dimentica_argos()
+
+    if esito.returncode != 0:
+        _disfa_argos()
+        raise RuntimeError(_ultima_riga(esito.stdout, esito.stderr)
+                           or "l'installazione non e' riuscita")
+
+    if prima and not cuda_in_un_processo_nuovo():
+        _disfa_argos()
+        raise RuntimeError(
+            "la scheda video si e' spenta installando la traduzione: rimesso "
+            f"com'era. Da rifare a mano con «{RIGA_PIP}», che dice cosa non va")
+
+    from core import bloccati
+
+    pezzo = bloccati.pezzo("argos")
+    if not pezzo.ok:
+        _disfa_argos()
+        raise RuntimeError(f"installata ma non si carica: {pezzo.dettaglio}"[:200])
+
+
+def _ultima_riga(*testi: str) -> str:
+    """L'ultima riga non vuota, che e' quella in cui uno script dice cosa e' andato storto."""
+    for testo in reversed(testi):
+        righe = [r.strip() for r in (testo or "").splitlines() if r.strip()]
+        if righe:
+            return righe[-1][:200]
+    return ""
+
+
 def _prendi(codice: str, cfg) -> None:
     """Il singolo pezzo. Ogni riga chiama **la strada normale** del suo modulo.
 
@@ -922,6 +1126,9 @@ def _prendi(codice: str, cfg) -> None:
         # il resto del giro continuerebbe a dire «CPU» con 1,6 GB di librerie
         # appena arrivate. Puo' far cambiare idea solo da «no» a «si'».
         dimentica()
+        return
+    if codice == "argos":
+        installa_argos()
         return
     if codice == "traduzione":
         from translate.locale import TraduttoreLocale

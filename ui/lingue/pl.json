@@ -196,6 +196,7 @@
   "il modello della voce": "model głosu",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "model najlepszego głosu nie dotarł: głos lekki pozostaje",
   "il riconoscimento di chi parla": "rozpoznanie mówiącego",
+  "il traduttore che resta su questo PC": "tłumacz, który pozostaje na tym komputerze",
   "in attesa della prima frase": "czekam na pierwsze zdanie",
   "in ritardo": "późno",
   "kokoro — il migliore, vuole una GPU": "kokoro — najlepszy, chce GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "głos kosztuje {0} ms za każde wypowiedziane zdanie, więcej niż zaakceptowane {1}: wracamy do jasnego głosu",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "głos kosztuje {0} ms za każde wypowiedziane zdanie na tym komputerze",
   "le due voci italiane": "dwa włoskie głosy",
+  "le librerie della scheda video": "biblioteki karty graficznej",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "biblioteki karty graficznej właśnie dotarły: wczytają się przy następnym otwarciu programu, i od tego momentu lepszy głos jest dostępny",
   "lettura del testo: {0}": "czytanie tekstu: {0}",
   "m — voce maschile": "m — głos męski",
   "mostra l'essenziale": "pokazuje najważniejsze",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — na komputerze, mały model",
   "⚠ locale — sul tuo PC (va installato)": "⚠ lokalnie — na Twoim komputerze (musi być zainstalowany)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "biblioteki karty graficznej",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "biblioteki karty graficznej właśnie dotarły: wczytają się przy następnym otwarciu programu, i od tego momentu lepszy głos jest dostępny"
+  "⚠ wgc": "⚠ wgc"
  }
 }

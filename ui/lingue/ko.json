@@ -196,6 +196,7 @@
   "il modello della voce": "음성 모델",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "최고의 목소리의 모델은 아직 도착하지 않았다: 가벼운 목소리가 남아있다",
   "il riconoscimento di chi parla": "발표자의 인식",
+  "il traduttore che resta su questo PC": "이 PC에 남아있는 번역기",
   "in attesa della prima frase": "첫 번째 문장을 기다리고 있어요",
   "in ritardo": "늦게",
   "kokoro — il migliore, vuole una GPU": "kokoro — 최고, GPU를 원함",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "말하는 각 문장에 대한 음성 비용은 허용되는 {1}보다 많은 {0}ms입니다. 가벼운 음성으로 돌아갑니다.",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "이 PC에서 말하는 각 문장에 대해 음성 비용은 {0}ms입니다.",
   "le due voci italiane": "두 명의 이탈리아인 목소리",
+  "le librerie della scheda video": "그래픽 카드 라이브러리",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "그래픽 카드 라이브러리가 방금 도착했습니다: 다음에 프로그램을 열 때 로드되며, 그때부터 더 좋은 음성을 사용할 수 있습니다",
   "lettura del testo: {0}": "텍스트 읽기: {0}",
   "m — voce maschile": "m — 남성 목소리",
   "mostra l'essenziale": "핵심을 보여줍니다",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ lm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — PC에서 소형 모델",
   "⚠ locale — sul tuo PC (va installato)": "⚠ 로컬 — PC에(설치해야 함)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "그래픽 카드 라이브러리",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "그래픽 카드 라이브러리가 방금 도착했습니다: 다음에 프로그램을 열 때 로드되며, 그때부터 더 좋은 음성을 사용할 수 있습니다"
+  "⚠ wgc": "⚠ wgc"
  }
 }

@@ -196,6 +196,7 @@
   "il modello della voce": "ses modeli",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "en iyi sesin modeli gelmedi: hafif ses kaldı",
   "il riconoscimento di chi parla": "konuşmacının tanınması",
+  "il traduttore che resta su questo PC": "bu bilgisayarda kalan çevirmen",
   "in attesa della prima frase": "ilk cümleyi bekliyorum",
   "in ritardo": "geç",
   "kokoro — il migliore, vuole una GPU": "kokoro — en iyisi, GPU istiyor",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "ses, konuşulan her cümle için {0} ms'ye mal olur; bu, kabul edilen {1}'den daha fazladır: hafif sese geri döneriz",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "bu bilgisayarda sesin ücreti konuşulan her cümle için {0} ms'dir",
   "le due voci italiane": "iki İtalyan sesi",
+  "le librerie della scheda video": "ekran kartının kitaplıkları",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "ekran kartının kitaplıkları az önce geldi: programın bir sonraki açılışında yüklenir ve o andan itibaren daha iyi ses kullanılabilir",
   "lettura del testo: {0}": "metni okuma: {0}",
   "m — voce maschile": "m — erkek sesi",
   "mostra l'essenziale": "esasları gösterir",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — PC'nizde, küçük model",
   "⚠ locale — sul tuo PC (va installato)": "⚠ yerel — PC'nizde (yüklü olmalıdır)",
-  "⚠ wgc": "⚠wgc",
-  "le librerie della scheda video": "ekran kartının kitaplıkları",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "ekran kartının kitaplıkları az önce geldi: programın bir sonraki açılışında yüklenir ve o andan itibaren daha iyi ses kullanılabilir"
+  "⚠ wgc": "⚠wgc"
  }
 }

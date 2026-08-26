@@ -196,6 +196,7 @@
   "il modello della voce": "a hangmodell",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "a legjobb hang modellje nem érkezett meg: marad a könnyű hang",
   "il riconoscimento di chi parla": "a beszélő felismerése",
+  "il traduttore che resta su questo PC": "a fordító, amely ezen a számítógépen marad",
   "in attesa della prima frase": "várja az első mondatot",
   "in ritardo": "későn",
   "kokoro — il migliore, vuole una GPU": "kokoro – a legjobb, GPU-t szeretne",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "a hang minden kimondott mondatért {0} ms-ba kerül, több, mint az elfogadott {1}: visszatérünk a könnyű hanghoz",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "a hang minden elhangzott mondatért {0} ms-ba kerül ezen a számítógépen",
   "le due voci italiane": "a két olasz hang",
+  "le librerie della scheda video": "a videokártya programkönyvtárai",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "a videokártya programkönyvtárai éppen megérkeztek: a program következő megnyitásakor töltődnek be, és onnantól a jobb hang elérhető",
   "lettura del testo: {0}": "szöveg olvasása: {0}",
   "m — voce maschile": "m — férfihang",
   "mostra l'essenziale": "megmutatja a lényeget",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — számítógépén, kis modell",
   "⚠ locale — sul tuo PC (va installato)": "⚠ helyi — a számítógépén (telepíteni kell)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "a videokártya programkönyvtárai",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "a videokártya programkönyvtárai éppen megérkeztek: a program következő megnyitásakor töltődnek be, és onnantól a jobb hang elérhető"
+  "⚠ wgc": "⚠ wgc"
  }
 }

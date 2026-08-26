@@ -196,6 +196,7 @@
   "il modello della voce": "आवाज मॉडल",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "सर्वोत्तम आवाज का मॉडल नहीं आया है: हल्की आवाज बनी हुई है",
   "il riconoscimento di chi parla": "वक्ता की पहचान",
+  "il traduttore che resta su questo PC": "अनुवादक जो इस पीसी पर रहता है",
   "in attesa della prima frase": "पहले वाक्य की प्रतीक्षा है",
   "in ritardo": "देर से",
   "kokoro — il migliore, vuole una GPU": "कोकोरो - सबसे अच्छा, एक जीपीयू चाहता है",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "बोले गए प्रत्येक वाक्य के लिए आवाज की लागत {0} एमएस है, जो स्वीकृत {1} से अधिक है: हम हल्की आवाज पर लौटते हैं",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "इस पीसी पर बोले गए प्रत्येक वाक्य के लिए आवाज की लागत {0} एमएस होती है",
   "le due voci italiane": "दो इतालवी आवाजें",
+  "le librerie della scheda video": "ग्राफ़िक्स कार्ड की लाइब्रेरी",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "ग्राफ़िक्स कार्ड की लाइब्रेरी अभी आई हैं: वे प्रोग्राम के अगली बार खुलने पर लोड होती हैं, और उसके बाद बेहतर आवाज़ उपलब्ध हो जाती है",
   "lettura del testo: {0}": "पाठ पढ़ना: {0}",
   "m — voce maschile": "एम - पुरुष आवाज",
   "mostra l'essenziale": "आवश्यक चीजें दिखाता है",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ एलएलएम",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ एलएलएम - आपके पीसी पर, छोटा मॉडल",
   "⚠ locale — sul tuo PC (va installato)": "⚠ स्थानीय - आपके पीसी पर (इंस्टॉल होना चाहिए)",
-  "⚠ wgc": "⚠डब्ल्यूजीसी",
-  "le librerie della scheda video": "ग्राफ़िक्स कार्ड की लाइब्रेरी",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "ग्राफ़िक्स कार्ड की लाइब्रेरी अभी आई हैं: वे प्रोग्राम के अगली बार खुलने पर लोड होती हैं, और उसके बाद बेहतर आवाज़ उपलब्ध हो जाती है"
+  "⚠ wgc": "⚠डब्ल्यूजीसी"
  }
 }

@@ -196,6 +196,7 @@
   "il modello della voce": "דגם הקול",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "הדגם של הקול הטוב ביותר לא הגיע: הקול הקל נשאר",
   "il riconoscimento di chi parla": "הכרה של הדובר",
+  "il traduttore che resta su questo PC": "המתרגם שנשאר במחשב זה",
   "in attesa della prima frase": "מחכה למשפט הראשון",
   "in ritardo": "מאוחר",
   "kokoro — il migliore, vuole una GPU": "kokoro - הכי טוב, רוצה GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "הקול עולה {0} אלפיות השנייה לכל משפט שנאמר, יותר מה-{1} שמתקבלים: אנו חוזרים לקול הקל",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "הקול עולה {0} אלפיות השנייה עבור כל משפט שנאמר, במחשב זה",
   "le due voci italiane": "שני הקולות האיטלקיים",
+  "le librerie della scheda video": "הספריות של כרטיס המסך",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "הספריות של כרטיס המסך הגיעו זה עתה: הן נטענות בפתיחה הבאה של התוכנית, ומשם הקול הטוב יותר זמין",
   "lettura del testo: {0}": "קריאת טקסט: {0}",
   "m — voce maschile": "m - קול גברי",
   "mostra l'essenziale": "מראה את הדברים העיקריים",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — במחשב האישי שלך, דגם קטן",
   "⚠ locale — sul tuo PC (va installato)": "⚠ מקומי - במחשב האישי שלך (חייב להיות מותקן)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "הספריות של כרטיס המסך",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "הספריות של כרטיס המסך הגיעו זה עתה: הן נטענות בפתיחה הבאה של התוכנית, ומשם הקול הטוב יותר זמין"
+  "⚠ wgc": "⚠ wgc"
  }
 }

@@ -196,6 +196,7 @@
   "il modello della voce": "el modelo de voz",
   "il modello della voce migliore non e' arrivato: resta la voce leggera": "el modelo de la mejor voz no ha llegado: la voz ligera queda",
   "il riconoscimento di chi parla": "reconocimiento del hablante",
+  "il traduttore che resta su questo PC": "el traductor que queda en esta PC",
   "in attesa della prima frase": "esperando la primera frase",
   "in ritardo": "tarde",
   "kokoro — il migliore, vuole una GPU": "kokoro: el mejor, quiere una GPU",
@@ -210,6 +211,8 @@
   "la voce costa {0} ms per ogni frase detta, piu' dei {1} che si accettano: si torna alla voce leggera": "la voz cuesta {0} ms por cada frase pronunciada, más de los {1} que se aceptan: volvemos a la voz clara",
   "la voce costa {0} ms per ogni frase detta, su questo PC": "la voz cuesta {0} ms por cada frase pronunciada, en esta PC",
   "le due voci italiane": "las dos voces italianas",
+  "le librerie della scheda video": "las bibliotecas de la tarjeta gráfica",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "las bibliotecas de la tarjeta gráfica acaban de llegar: se cargan la próxima vez que se abra el programa, y a partir de ahí la mejor voz está disponible",
   "lettura del testo: {0}": "leyendo texto: {0}",
   "m — voce maschile": "m - voz masculina",
   "mostra l'essenziale": "muestra lo esencial",
@@ -259,8 +262,6 @@
   "⚠ llm": "⚠llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — en tu PC, modelo pequeño",
   "⚠ locale — sul tuo PC (va installato)": "⚠ local: en su PC (debe estar instalado)",
-  "⚠ wgc": "⚠ wgc",
-  "le librerie della scheda video": "las bibliotecas de la tarjeta gráfica",
-  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "las bibliotecas de la tarjeta gráfica acaban de llegar: se cargan la próxima vez que se abra el programa, y a partir de ahí la mejor voz está disponible"
+  "⚠ wgc": "⚠ wgc"
  }
 }

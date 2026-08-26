@@ -350,6 +350,7 @@ PEZZI_NOMI: dict[str, str] = {
     "voci_kokoro": "gli stili di voce",
     "ecapa": "il riconoscimento di chi parla",
     "oneocr": "il lettore di testo di Windows",
+    "argos": "il traduttore che resta su questo PC",
     "traduzione": "la coppia di lingue",
     "cuda": "le librerie della scheda video",
     "misura_sintesi": "sto misurando la voce",

@@ -4,8 +4,7 @@
 > poi realizzato in `ui/qt_tema.py` (i numeri) e `tools/ui_qt.py` (la finestra).
 > Dove i due non vanno d'accordo **vince il codice**, perche' e' stato guardato a
 > schermo e questo no. Le prescrizioni cadute alla prima occhiata sono elencate
-> in `CLAUDE.md`, sezione «Quello che il documento diceva e che a schermo era
-> sbagliato»; le principali, per non riscriverle:
+> qui sotto; le principali:
 >
 > - **i tre punti di rottura sono uno**. Ridurre la barra della misura sotto i
 >   720 px faceva sparire i numeri uno per uno, e i primi ad andarsene erano

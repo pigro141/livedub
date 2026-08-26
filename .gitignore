@@ -36,3 +36,22 @@ dist/
 # Immagini di lavoro dell'utente lasciate in radice: sono sue, non del
 # progetto. Restano sul disco e fuori dal repo.
 /ChatGPT Image *.png
+
+# Il laboratorio, che sta sul disco di chi sviluppa e non nel repo pubblicato.
+# Sono usciti dall'indice con `git rm --cached`, quindi i file ci sono ancora:
+# qui si dichiara che non devono rientrare. Chi scarica il programma vuole la
+# finestra, l'installazione e la suite di verifica; i banchi di misura servono a
+# rispondere a una domanda che lui non si sta facendo, e i documenti di lavoro
+# sono un passaggio di consegne fra sessioni, non documentazione.
+CLAUDE.md
+docs/lavoro/
+tools/bench_*.py
+tools/recluster.py
+tools/retrack.py
+tools/spegni.ps1
+
+# L'eccezione, e non e' un capriccio: `tools/bench_timing.py` lo **importa la
+# suite** (`from tools.bench_timing import fit, letters`). Senza, su un clone
+# pulito il gruppo `timing` non parte — cioe' il difetto arriverebbe a chi
+# scarica e non a chi ha tolto il file.
+!tools/bench_timing.py

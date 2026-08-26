@@ -2,9 +2,8 @@
 
 Chi apre questo programma la prima volta si trova davanti tre motori di sintesi e
 quattro traduttori, e non ha modo di sapere quale regga sulla sua macchina. Le
-misure che decidono stanno gia' scritte in `CLAUDE.md` — sono state fatte qui,
-una volta, su una macchina sola — e questo file le mette al lavoro sulla macchina
-di chi legge.
+misure che decidono sono state fatte qui, una volta, su una macchina sola, e
+questo file le mette al lavoro sulla macchina di chi legge.
 
 **Ma la ragione vera per cui esiste non e' la comodita': e' che un modello
 mancante non da' errore.** I pacchetti stanno in `requirements.txt` e si

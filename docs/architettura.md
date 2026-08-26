@@ -42,7 +42,7 @@ sottotitolo compare, quando l'embedding audio e' ancora incerto.
 ## Comandi
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.selftest              # suite completa (1813 verifiche)
+.\.venv\Scripts\python.exe -m tools.selftest              # suite completa (2085 verifiche)
 .\.venv\Scripts\python.exe -m tools.selftest ring config  # un gruppo solo
 .\.venv\Scripts\python.exe -m tools.demo                  # scena finta completa -> runs\demo_mix.wav
 .\.venv\Scripts\python.exe -m tools.demo --no-duck        # la stessa, per sentire cosa fa il duck
@@ -69,27 +69,24 @@ Sulla registrazione, **in quest'ordine** — il primo comando non e' facoltativo
 .\.venv\Scripts\python.exe -m tools.replay gameplay.mp4 --peek 8      # guardare la ROI
 .\.venv\Scripts\python.exe -m tools.calibrate gameplay.mp4 --write profiles\gtav.json
 .\.venv\Scripts\python.exe -m tools.replay gameplay.mp4 --profile gtav --start 1240 --end 1290
-.\.venv\Scripts\python.exe -m tools.bench_onset gameplay.mp4 --profile gtav --start 1240 --end 1400
-```
-
-`bench_onset` chiede se l'onset del parlato sappia dire dov'e' la battuta, e la
-risposta la da' **sempre accanto al suo caso nullo**: in un gioco d'azione una
-finestra di mezzo secondo intorno a un istante qualunque contiene quasi sempre
-un onset, e senza il confronto la misura direbbe di si' anche su tempi inventati.
-
-Per lavorare sullo **stabilizzatore** senza ri-pagare l'OCR a ogni tentativo, si
-registra una volta il flusso di letture e poi lo si rigioca:
-
-```powershell
 .\.venv\Scripts\python.exe -m tools.replay gameplay.mp4 --profile gtav --start 1240 --end 1290 `
-    --dump-reads runs\reads.jsonl                                    # una volta, ~55 s
-.\.venv\Scripts\python.exe -m tools.retrack runs\reads.jsonl --profile gtav          # ~50 ms
-.\.venv\Scripts\python.exe -m tools.retrack runs\reads.jsonl --profile gtav --raw 1269.5 1270.3
+    --dump-reads runs\reads.jsonl        # il flusso di letture, per studiarlo dopo
 ```
 
-`--raw` elenca **ogni** alimentazione del tracker, comprese quelle che ha
-scartato: giudicare lo stabilizzatore da cio' che ne esce e' chiedere
+`--dump-reads` registra **ogni** alimentazione del tracker, comprese quelle che
+ha scartato: giudicare lo stabilizzatore da cio' che ne esce e' chiedere
 all'imputato di scegliere le prove.
+
+### I banchi di misura non stanno nel repo pubblicato
+
+I commenti di questo progetto citano per nome lo strumento con cui una misura e'
+stata fatta — `tools/bench_onset.py`, `tools/bench_speaker.py`,
+`tools/bench_memoria.py`, `tools/bench_translate.py`, `tools/recluster.py`,
+`tools/retrack.py` e gli altri. Sono **banchi di sviluppo**: restano sulla
+macchina di chi li ha scritti e non vengono pubblicati, perche' chi scarica il
+programma vuole la finestra, l'installazione e la suite di verifica, non il
+laboratorio. La citazione resta lo stesso, perche' dice **da dove viene un
+numero** — che e' l'unica cosa che lo rende leggibile. Il file, no.
 
 ## Cosa e' stato misurato
 
@@ -127,7 +124,7 @@ registrazioni di GTA V (9 e 28 minuti, 1080p) ne ha cambiati alcuni.
 | **La saturazione puniva il dialogo** | 863 righe scartate in 20 minuti perche' un oggetto colorato entrava nella ROI. Erano quasi tutte battute bianche a luminanza 249 |
 
 **Due misure sbagliate prese in flagrante**, che sono il motivo per cui la
-regola sta nel `CLAUDE.md`: ancorare il testo con una maschera che pretende uno
+regola vale per ogni misura di questo progetto: ancorare il testo con una maschera che pretende uno
 stacco di 60 e poi *misurarne* lo stacco da' 60,15 — la misura non poteva
 esprimere altro numero; ancorarlo invece su "bianco e acromatico" da' −2,3,
 perche' nella ROI finiscono muri chiari e carrozzerie bianche. Serve il top-hat
@@ -175,7 +172,7 @@ qui: sintesi p50, compressione applicata, sforamenti.
 Il piano dava per buono che sottotitolo e voce non coincidano — *«il sottotitolo
 compare quando il gioco decide di mostrarlo, la voce comincia quando il
 personaggio apre la bocca»* — e ne faceva il secondo dei tre pilastri di F2.
-`tools/bench_onset.py` misura quello sfasamento sulla registrazione vera, e la
+Il banco dell'onset misura quello sfasamento sulla registrazione vera, e la
 premessa cade:
 
 | | rec1 (160 s) | rec2 (340 s) |
@@ -293,8 +290,8 @@ tutto montato in `core/pipeline.py` e verificabile con `tools.demo`.
 
 Il banco legge ora **anche il video vero**: `tools/replay.py` monta il dominio
 video di F1 per intero su una registrazione, `tools/calibrate.py` ne ricava ROI
-e soglie, e `profiles/gtav.json` le tiene. `tools/retrack.py` rigioca il solo
-stabilizzatore su letture gia' registrate, mille volte al prezzo di zero.
+e soglie, e `profiles/gtav.json` le tiene. Il banco dello stabilizzatore lo
+rigioca su letture gia' registrate, mille volte al prezzo di zero.
 
 Il dominio video produce ora durate credibili — mediana 1,32 s su una fetta dove
 le battute vere sono ventisei — ed e' la condizione che mancava per iniziare F2:

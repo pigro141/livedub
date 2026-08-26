@@ -188,7 +188,7 @@ def find_roi(frames, ev: Evidence, verbose: bool):
     # il bordo basso passano dal **78,8% all'1,8%**, e due battute su
     # quarantatre' smettono di raccogliere caratteri inventati in coda —
     # `'Esteban Jimenez.7'` -> `'Esteban Jimenez.'` e `'Vespucci Beach.!'` ->
-    # `'Vespucci Beach.'`. Il primo e' l'artefatto che `CLAUDE.md` cita per nome
+    # `'Vespucci Beach.'`. Il primo e' l'artefatto gia' citato per nome
     # come causa dello scarto fra le passate archiviate e HEAD.
     #
     # **Non e' un guadagno netto e va detto**: una terza battuta ci guadagna un

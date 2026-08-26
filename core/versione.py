@@ -1,12 +1,12 @@
 """La versione del programma, in un posto solo.
 
 **Perche' serve.** Senza un numero, un rapporto di errore non si puo' leggere:
-«non funziona» non dice quale codice stava girando. E' la domanda 17 di
-`DOMANDE_PRODUZIONE.md`, e costa una riga.
+«non funziona» non dice quale codice stava girando. E' la domanda 17 della
+lista di produzione, e costa una riga.
 
 Il numero e' scritto a mano perche' e' una **dichiarazione**, non un dato
-ricavato: dire "0.9" significa "so cosa manca alla 1.0", e quell'elenco sta in
-`SviluppoProgetto.md`. La revisione di git invece si legge, quando c'e': dice
+ricavato: dire "0.9" significa "so cosa manca alla 1.0", e quell'elenco sta
+nelle note di sviluppo. La revisione di git invece si legge, quando c'e': dice
 esattamente da dove viene un eseguibile.
 """
 

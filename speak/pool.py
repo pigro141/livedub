@@ -221,7 +221,7 @@ def basi_per(backend: str, lingua: str = "it") -> tuple[str, ...]:
     **Dove c'e' una famiglia dichiarata, vince quella.** L'italiano di tutti e
     tre i motori e l'inglese di Kokoro sono le uniche combinazioni che qualcuno
     abbia ascoltato e su cui sono state fatte tutte le misure del progetto: il
-    catalogo non le tocca, se no ogni numero di `CLAUDE.md` si riferirebbe a un
+    catalogo non le tocca, se no ogni numero misurato si riferirebbe a un
     pool diverso da quello che gira.
     """
     nome = (backend or "").strip().lower()
@@ -324,7 +324,7 @@ def varianti_per(basi: tuple[str, ...]) -> list[tuple[str, float, float]]:
     """Le varianti da mettere in pool per queste basi, in ordine di assegnazione.
 
     Dove `VARIANTS` le dichiara si usano quelle — sono le combinazioni tarate a
-    orecchio, e cambiarle cambierebbe ogni misura scritta in `CLAUDE.md`. Per le
+    orecchio, e cambiarle cambierebbe ogni misura del progetto. Per le
     basi che nessuno ha ascoltato si generano con `SCOSTAMENTI`, che e' la stessa
     forma: prima tutte le native, poi la scala.
     """

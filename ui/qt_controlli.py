@@ -1523,7 +1523,7 @@ ETICHETTE: dict[str, dict[str, str]] = {
 # `(nome)` e `NOME:`, che li' non esistono — sceglierne una fa **sollevare** il
 # lettore all'avvio della catena, cioe' una voce del menu che rompe la sessione —
 # e nascondeva le quattro vere aggiunte dopo (`-nome:`, `nome>>`, `NOME`,
-# `nome(nota):`). E' la stessa forma dei difetti gia' scritti in CLAUDE.md: due
+# `nome(nota):`). E' la stessa forma dei difetti gia' visti qui: due
 # posti che dicono la stessa cosa, e il secondo non lo aggiorna nessuno.
 #
 # Adesso l'elenco **e'** `FORME`: aggiungere una forma la' la fa comparire qui, e

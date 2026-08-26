@@ -1,6 +1,6 @@
 @echo off
 rem Doppio clic per aprire livedub, senza riga di comando.
-rem E' la domanda 1 di DOMANDE_PRODUZIONE.md: chi scarica il repo non deve
+rem E' la domanda 1 della lista di produzione: chi scarica il repo non deve
 rem dover sapere cos'e' un venv per vedere la finestra.
 setlocal
 cd /d "%~dp0"

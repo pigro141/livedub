@@ -2,7 +2,7 @@
 
 **Perche' esiste.** Chiudendo la finestra si perdeva ogni regolazione: un'ora di
 lavoro sulle soglie buttata, e la volta dopo si ricominciava dai default. Era il
-difetto piu' grave dell'elenco in `DOMANDE_PRODUZIONE.md`, e non e' un dettaglio
+difetto piu' grave della lista di produzione, e non e' un dettaglio
 di comodita' — un programma che dimentica insegna all'utente a non toccare
 niente.
 

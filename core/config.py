@@ -170,9 +170,9 @@ class VisionConfig:
     # **E si misura in frazione, non in pixel.** Un numero assoluto sarebbe
     # legato alla risoluzione e a quanto largo e' stato disegnato il rettangolo
     # — che l'utente disegna come vuole, ed e' il percorso di produzione
-    # dichiarato in `CLAUDE.md`. Una parola invece occupa sempre la stessa quota
-    # della frase che la contiene: `Vespucci Beach` dentro `Raggiungi Vespucci
-    # Beach.` e' oltre meta' della riga, a qualunque ingrandimento.
+    # previsto. Una parola invece occupa sempre la stessa quota della frase
+    # che la contiene: `Vespucci Beach` dentro `Raggiungi Vespucci Beach.` e'
+    # oltre meta' della riga, a qualunque ingrandimento.
     #
     # **Il valore viene dal vivo, e il banco non poteva trovarlo.**
     #

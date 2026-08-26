@@ -495,7 +495,7 @@ def visibile_a(percorso: str, livello_scelto: str) -> bool:
 # **`Config.set` controlla il tipo, non il senso.** `capture.fps = -5` passa,
 # `speaker.decide_after_ms = 99999` pure: il primo ferma la cattura, il secondo
 # rende il programma muto, e nessuno dei due da' errore. Sono le domande 27 e 28
-# di `DOMANDE_PRODUZIONE.md`.
+# della lista di produzione.
 #
 # Gli intervalli sono **dichiarati** e non dedotti, perche' non c'e' niente nel
 # tipo che dica che una frequenza non puo' essere negativa. Dove il limite e' una

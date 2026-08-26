@@ -2,7 +2,7 @@
 
 **Perche' esiste.** Se qualcosa esplode, l'utente vede una finestra che si chiude
 e basta: con l'eseguibile non c'e' nemmeno una console dove guardare. Sono le
-domande 81-83 di `DOMANDE_PRODUZIONE.md`, e sono tre facce della stessa cosa —
+domande 81-83 della lista di produzione, e sono tre facce della stessa cosa —
 un difetto che non lascia traccia e' un difetto che non si corregge.
 
 **Cosa ci finisce**: la scheda della versione all'apertura (senza, il registro

@@ -5479,7 +5479,7 @@ def test_lingue_voci(c: Check) -> None:
     c.eq(vuoti, [], "e ogni lingua dichiarata ha almeno una voce da cui partire")
 
     # L'italiano e l'inglese non si muovono: sono le combinazioni su cui e' stata
-    # fatta ogni misura scritta in CLAUDE.md, e un pool diverso renderebbe quei
+    # fatta ogni misura del progetto, e un pool diverso renderebbe quei
     # numeri riferiti a un'altra cosa.
     c.eq([v.voice_id for v in build_pool(None, 6, backend="piper", lingua="it")],
          ["riccardo", "paola", "riccardo-2_5", "paola+2", "riccardo+2_5",

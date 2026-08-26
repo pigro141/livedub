@@ -413,8 +413,8 @@ def voci_per(lingua: str, quante: int = 6) -> tuple[str, ...]:
     dichiarate sono due; il tedesco ne ha sei di persone diverse, e sono sei
     file. Il posto giusto dove pagarli e' il passo 6 della guida
     (`core/banco.py`), che scarica **con la barra** e dichiara il peso — oggi
-    guarda il motore e non la lingua d'arrivo, ed e' scritto in
-    `PROSSIMA_SESSIONE.md`.
+    guarda il motore e non la lingua d'arrivo, ed e' segnato fra le cose
+    da fare.
     """
     disponibili = VOCI.get(normale(lingua), ())
     # **Un parlante solo per persona.** `de_DE-thorsten-medium` e

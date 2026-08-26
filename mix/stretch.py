@@ -171,7 +171,7 @@ def time_stretch(
         # Misurato con un tono acuto negli ultimi 200 ms — "l'ultima parola" —
         # a rate 1,20 e 1,35 di quel tono nell'uscita non restava **niente**,
         # mentre durata e ampiezza erano perfette. E' la forma esatta del difetto
-        # contro cui il `CLAUDE.md` mette in guardia: una trasformata sbagliata
+        # contro cui questo progetto mette in guardia: una trasformata sbagliata
         # non da' errore, da' spazzatura plausibile. Dal vivo si sentiva come
         # "taglia l'ultima parola delle frasi lunghe".
         # **Il centro di ricerca viene dalla posizione IDEALE.** Scrivere

@@ -969,7 +969,7 @@ def test_overlay_quando(c) -> None:
     `config.json` salvato, e zero sottotitoli a schermo. Nessun contatore lo
     diceva, perche' per la catena non era successo niente.
 
-    La domanda che lo prende in un secondo e' quella gia' scritta in `CLAUDE.md`
+    La domanda che lo prende in un secondo e' quella gia' scritta
     per le cure a meta': **cosa succede se questo valore cambia dopo?**
     """
     from core.config import Config

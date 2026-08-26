@@ -346,7 +346,7 @@
           },
           {
             t: "p",
-            x: "<b>Why you can trust the numbers.</b> There is a test suite of <b>1833 checks</b> in 76 groups that runs without a game, without a GPU and without any model, and a bench that runs <b>the same chain</b> over a recording. The measurements that changed a decision are written <b>next to the parameter they decided</b>, inside <code>core/config.py</code> — which is the same text the window shows when you press <code>?</code>."
+            x: "<b>Why you can trust the numbers.</b> There is a test suite of <b>2085 checks</b> in 78 groups that runs without a game, without a GPU and without any model, and a bench that runs <b>the same chain</b> over a recording. The measurements that changed a decision are written <b>next to the parameter they decided</b>, inside <code>core/config.py</code> — which is the same text the window shows when you press <code>?</code>."
           }
         ]
       },

@@ -132,7 +132,31 @@ pre code{background:none; border:0; padding:0; font-size:1em}
 .marchio:hover{text-decoration:none}
 .marchio img{width:28px; height:28px; display:block}
 
-.sezioni{display:flex; gap:4px; flex:1 1 auto; min-width:0; overflow:hidden}
+/* Le voci della barra: si scorrono, non spariscono.
+
+   Con `overflow:hidden` la barra **si mangiava le voci in silenzio**, e non a
+   una larghezza da telefono: misurato a 1024 px, l'inglese chiede 852 px e ne
+   ha 662, quindi «Limits» e «Support it» non c'erano; il tedesco chiede 902 e
+   tagliava «Sprachen» **a meta' parola** («Sprache»), perdendo anche «Grenzen»
+   e «Unterstuetzen»; il francese chiede 920 e sfora perfino a 1440, dove la
+   barra e' larga 1240 e alla nav ne restano 909. Nessun errore, nessun
+   puntino: la pagina dichiarava un elenco di sezioni piu' corto del vero,
+   diverso in ogni lingua. Il tetto che nasconde la nav e' a 900 px, quindi la
+   fascia rotta stava fra i 900 e i ~1300 — cioe' su un portatile.
+
+   Con `overflow-x:auto` non si perde niente: quello che non ci sta si
+   raggiunge scorrendo. La sfumatura a destra e' il modo di **dichiararlo**: la
+   nav e' larga quanto lo spazio che avanza e le voci stanno a sinistra, quindi
+   quando ci stanno tutte la sfumatura cade sul vuoto e non si vede — compare
+   da sola, e solo, quando c'e' dell'altro oltre il bordo. */
+.sezioni{
+  display:flex; gap:4px; flex:1 1 auto; min-width:0;
+  overflow-x:auto; overflow-y:hidden;
+  scrollbar-width:none; -ms-overflow-style:none;
+  -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 28px), transparent);
+          mask-image:linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+.sezioni::-webkit-scrollbar{display:none}
 .sezioni a{
   color:var(--tenue); font-size:.9rem; padding:7px 11px; border-radius:8px;
   white-space:nowrap;

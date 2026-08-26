@@ -16,8 +16,9 @@
    mano e' gia' finito in una schermata ed e' stato riletto come una misura —
    un numero finto in una vetrina e' peggio: lo legge chi decide se installare.
 
-   Ne resta **uno solo**, `{{DOWNLOADS}}`: l'eseguibile entra quando la
-   costruzione in CI e' verde, e non un minuto prima.
+   Adesso non ne resta **nessuno**: `{{DOWNLOADS}}` e' stato riempito il giorno
+   in cui la costruzione in CI ha aperto l'eseguibile e lo ha provato da
+   dentro. Un segnaposto nuovo entra qui solo con la stessa regola.
 
    ## Il markup ammesso dentro una stringa
 
@@ -281,7 +282,18 @@
         etichetta: "Requirements and install",
         titolo: "What it takes, and how to get it running",
         blocchi: [
-          { t: "posto", nome: "DOWNLOADS", forma: "the packaged build: what to download and for which Windows. It goes in only once the build on CI is green — until then this page promises no executable, because a download that is announced and not there is worse than one that is not announced" },
+          {
+            t: "p",
+            x: "<b>The recommended way is to install from source</b>, with the PowerShell script below: it is the one that works on every machine, and it has not changed."
+          },
+          {
+            t: "p",
+            x: "<b>There is also an executable, and it has been launched.</b> Every push builds it on GitHub Actions and then <i>runs</i> it: inside the package it reads a drawn subtitle, synthesises a line and builds the window, and the artifact is uploaded only if all of that passes. It is the <code>livedub-windows</code> artifact at the foot of the <a href=\"https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml\">latest green run</a>. Downloading an artifact needs a GitHub account, and each one is kept for 14 days."
+          },
+          {
+            t: "p",
+            x: "<b>Two limits, stated rather than hidden.</b> With <b>Smart App Control</b> on — and it is on by default on a clean Windows 11 install — the executable <b>does not start</b>: every build is a new file, and a new file has no reputation by construction. A signature lifts that; another test does not. And the build machine has no sound card, no graphics card and no game running, so screen capture, the audio loopback, mixing and synthesis on the GPU stay <b>unproven</b> — Smart App Control is off there too, so <i>it starts on the runner</i> does not mean <i>it starts on a freshly installed Windows 11</i>."
+          },
           {
             t: "tabella",
             testa: ["", "runs on", "runs better on"],

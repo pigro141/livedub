@@ -279,7 +279,27 @@ que si vous voulez tout avoir dans un seul casque.
 
 ## Télécharger
 
-**Aucun executable n'est publie pour l'instant.** livedub s'installe depuis les sources, comme decrit ci-dessus. Un executable n'arrive ici que lorsqu'une machine de compilation l'a reellement lance et verifie.
+**Installation depuis les sources avec PowerShell** — le bloc juste en dessous.
+C'est la voie recommandée et celle qui marche sur toutes les machines, et elle
+n'a pas bougé.
+
+**Il y a aussi un exécutable, et il a vraiment été lancé.** Chaque push le
+construit sur GitHub Actions puis l'*exécute* : dans le paquet, il lit un
+sous-titre dessiné, synthétise une réplique et construit la fenêtre, et
+l'artefact n'est publié que si tout cela passe. C'est l'artefact
+`livedub-windows` au bas de la
+[dernière construction au vert](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml).
+Télécharger un artefact demande un compte GitHub, et chacun reste là 14 jours.
+
+**Deux limites, déclarées plutôt que cachées.** Avec **Smart App Control**
+activé — et il l'est par défaut sur une installation propre de Windows 11 —
+l'exécutable **ne démarre pas** : chaque construction est un fichier neuf, et un
+fichier neuf n'a aucune réputation par construction. Cette limite se lève avec
+une signature, pas avec une vérification de plus. Et la machine de construction
+n'a ni carte son, ni carte graphique, ni jeu en cours : la capture d'écran, le
+loopback audio, le mixage et la synthèse sur GPU restent donc **sans preuve** —
+Smart App Control y est éteint lui aussi, donc « ça démarre sur le runner » ne
+veut pas dire « ça démarre sur un Windows 11 fraîchement installé ».
 
 ## Installer depuis les sources
 

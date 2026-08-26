@@ -33,12 +33,13 @@ from pathlib import Path
 
 import numpy as np
 
+from core import percorsi
 from core.types import VoiceSpec
 from mix.stretch import pitch_shift, resample
 from speak.base import Speech, taglia_silenzio
 
 # Dove stanno i modelli e come si chiamano dentro il repo di Rhasspy.
-MODELS_DIR = Path(__file__).resolve().parents[2] / "models" / "piper"
+MODELS_DIR = percorsi.modelli("piper")
 REPO = "rhasspy/piper-voices"
 
 # Il catalogo ufficiale, scritto nel repo, con la regola che ricava il percorso

@@ -62,7 +62,9 @@ import sys
 import time
 from pathlib import Path
 
-MODELLO_DEFAULT = "models/llm/gemma-3-1b-it-Q4_K_M.gguf"
+from core import percorsi
+
+MODELLO_DEFAULT = str(percorsi.modelli("llm", "gemma-3-1b-it-Q4_K_M.gguf"))
 REPO_DEFAULT = ("ggml-org/gemma-3-1b-it-GGUF", "gemma-3-1b-it-Q4_K_M.gguf")
 
 

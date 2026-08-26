@@ -30,7 +30,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-DESTINAZIONE = Path(__file__).resolve().parent.parent / "models" / "oneocr"
+from core import percorsi
+
+DESTINAZIONE = percorsi.modelli("oneocr")
 FILE = ("oneocr.dll", "oneocr.onemodel", "onnxruntime.dll")
 
 

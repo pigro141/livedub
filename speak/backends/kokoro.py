@@ -45,6 +45,7 @@ from pathlib import Path
 
 import numpy as np
 
+from core import percorsi
 from core.types import VoiceSpec
 from mix.stretch import pitch_shift, resample
 from speak.base import Speech, taglia_silenzio
@@ -54,7 +55,7 @@ from speak.base import Speech, taglia_silenzio
 # personaggio parlerebbe come un disco andato a rilento.
 NATIVE_RATE = 24000
 
-MODELS_DIR = Path(__file__).resolve().parents[2] / "models" / "kokoro"
+MODELS_DIR = percorsi.modelli("kokoro")
 REPO = "onnx-community/Kokoro-82M-v1.0-ONNX"
 
 # I set di pesi disponibili nel repo HF. Il default e' `fp32` per misura, non

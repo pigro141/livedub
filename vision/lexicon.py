@@ -44,6 +44,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from core import percorsi
+
 _SEGNI = ".,;:!?'\"()[]-–—…«»‘’“”%€$"
 _PAROLA = re.compile(r"[^\W\d_]+", re.UNICODE)
 
@@ -147,7 +149,11 @@ def carica(cartella: str | Path = "models/lexicon") -> Lexicon:
     if chiave in _CACHE:
         return _CACHE[chiave]
 
-    base = Path(cartella)
+    # **Il default e' relativo, e un percorso relativo non dice dove.** Da
+    # sorgente `models/lexicon` e la cartella di lancio coincidono; nel pacchetto
+    # no, e il lessico risultava vuoto senza un errore — cioe' il filtro spento
+    # in silenzio contro cui il resto di questa funzione e' scritto.
+    base = percorsi.dato(cartella)
     parole: set[str] = set()
     fonti: list[str] = []
     for path in sorted(base.glob("*.txt")) + sorted(base.glob("*.dic")):

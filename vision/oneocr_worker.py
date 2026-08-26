@@ -33,10 +33,12 @@ from pathlib import Path
 
 import numpy as np
 
+from core import percorsi
+
 # Dove stanno `oneocr.dll`, `oneocr.onemodel` e la `onnxruntime.dll` che gli
 # appartiene. Si copiano dallo Strumento di cattura installato: non sono
 # ridistribuibili, quindi non stanno nel repository.
-RUNTIME_DIR = Path(__file__).resolve().parent.parent / "models" / "oneocr"
+RUNTIME_DIR = percorsi.modelli("oneocr")
 
 
 def carica_motore():

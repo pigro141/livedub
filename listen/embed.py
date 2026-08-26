@@ -44,6 +44,7 @@ from typing import Protocol
 
 import numpy as np
 
+from core import percorsi
 from core.config import SpeakerConfig
 from mix.stretch import resample
 
@@ -55,7 +56,7 @@ MODEL_RATE = 16000
 # esportato dallo stesso progetto che ha addestrato i pesi, non una ri-esportazione.
 ECAPA_REPO = "Wespeaker/wespeaker-voxceleb-ecapa-tdnn512"
 ECAPA_FILE = "voxceleb_ECAPA512.onnx"
-ECAPA_DIR = Path(__file__).resolve().parent.parent / "models" / "ecapa"
+ECAPA_DIR = percorsi.modelli("ecapa")
 
 _EPS = 1.1920928955078125e-07  # eps di float32, come nella fbank di riferimento
 

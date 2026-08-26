@@ -48,11 +48,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from core import percorsi
+
 _RADICE = Path(__file__).resolve().parent.parent
 
 # Le immagini generate (spunta e frecce) dipendono dal colore, quindi ce n'e' un
 # giro per tavolozza. Si disegnano una volta e restano.
-_DISEGNI = _RADICE / "models" / "ui"
+_DISEGNI = percorsi.modelli("ui")
 LOGHI = _RADICE / "assets" / "logo"
 
 

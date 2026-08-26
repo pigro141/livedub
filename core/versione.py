@@ -55,12 +55,22 @@ def scheda() -> str:
         # che sta dentro: la scheda diceva «ORT non disponibile (ImportError)» su
         # una macchina dove ORT c'era e funzionava. Una diagnostica che sbaglia e'
         # peggio di una che manca, perche' manda a cercare dalla parte sbagliata.
-        from core.onnx import preload
+        from core.onnx import cuda_ottenuta
 
-        preload()
         import onnxruntime as ort
 
-        righe.append(f"ORT     {ort.__version__}  provider: {', '.join(ort.get_available_providers())}")
+        # **Due numeri e non uno, ed e' il difetto per cui questa riga esiste.**
+        # `get_available_providers()` elenca i provider **compilati dentro**: nel
+        # pacchetto congelato scriveva `Tensorrt, CUDA, CPU` mentre il registro
+        # dello stesso avvio diceva `Failed to load cublasLt64_13.dll`. Chi legge
+        # un rapporto di errore leggeva percio' «c'e' la CUDA» sulla macchina che
+        # non ce l'aveva. `cuda_ottenuta()` apre una sessione e guarda cosa ha
+        # preso: e' l'unica delle due che risponde alla domanda che si sta
+        # facendo.
+        _, ottenuto = cuda_ottenuta("il rapporto")
+        righe.append(
+            f"ORT     {ort.__version__}  compilato: "
+            f"{', '.join(ort.get_available_providers())}  ottenuto: {ottenuto}")
     except Exception as e:
         righe.append(f"ORT     non disponibile ({type(e).__name__})")
     return "\n".join(righe)

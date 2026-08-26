@@ -116,9 +116,16 @@ class Sonda:
     per cui si verifica con numeri finti.
     """
 
-    # Il provider CUDA e' **dichiarato disponibile** da ORT. Dichiarato, non
-    # ottenuto: si veda `provider`.
+    # CUDA **ottenuta**: una sessione da settanta byte e' stata aperta e ha preso
+    # il provider CUDA (`core.onnx.cuda_ottenuta`). Non «ORT dichiara di avere il
+    # provider», che e' un'altra domanda e per un po' ha risposto al posto di
+    # questa — nel pacchetto congelato rispondeva `Tensorrt, CUDA, CPU` con il
+    # registro che diceva `Failed to load cublasLt64_13.dll`.
     cuda: bool = False
+    # Le DLL CUDA sono sul disco ma la sessione **di adesso** non le ha ancora
+    # prese. Succede subito dopo lo scaricamento: le librerie ci sono, il processo
+    # no. Serve a dire «riapri il programma» invece di «niente CUDA».
+    cuda_da_riavviare: bool = False
     # Cosa la sessione ha **davvero** preso, quando una sessione e' stata aperta
     # (`core.onnx.verifica_provider`). Vuoto finche' non si e' provato.
     provider: str = ""
@@ -164,6 +171,7 @@ MOTIVI: tuple[str, ...] = (
     "cuda_si",
     "cuda_no",
     "cuda_persa",
+    "cuda_riavvia",
     "sintesi_ok",
     "sintesi_lenta",
     "passo_corto",
@@ -183,6 +191,7 @@ MOTIVI: tuple[str, ...] = (
 # di questo progetto messo in una figura.
 AVVISI: frozenset[str] = frozenset({
     "cuda_persa",
+    "cuda_riavvia",
     "sintesi_lenta",
     "passo_corto",
     "motore_mancante",
@@ -231,6 +240,14 @@ def scegli(s: Sonda) -> Scelta:
     if s.cuda:
         tts = "kokoro"
         motivi.append(Motivo("cuda_si"))
+    elif s.cuda_da_riavviare:
+        # Le librerie sono appena arrivate e questo processo non le ha prese.
+        # **Non si promette Kokoro**: sceglierlo qui vorrebbe dire scriverlo in
+        # configurazione e farlo aprire sulla CPU alla prima battuta, cioe' 725
+        # ms invece di 207 con l'aria di aver funzionato. Si resta su Piper e si
+        # dice l'unica cosa vera: riaprendo il programma cambia.
+        tts = "piper"
+        motivi.append(Motivo("cuda_riavvia"))
     else:
         tts = "piper"
         motivi.append(Motivo("cuda_no"))
@@ -339,11 +356,38 @@ PEZZI: dict[str, Pezzo] = {
     "oneocr": Pezzo("oneocr", 115, dalla_rete=False),
     # La coppia di lingue di Argos, 98 MB misurati per it->en.
     "traduzione": Pezzo("traduzione", 98),
+    # **Le librerie CUDA, e sono il pezzo piu' pesante di tutti.** 1132 MB di
+    # ruote per 1,6 GB sul disco (`core/cuda.py`), contro i 326 del modello piu'
+    # grande. Non entra mai in `serve()` da solo: lo chiede chi ha **scelto** la
+    # voce sulla scheda video, ed e' l'unico pezzo che si scarica per una scelta e
+    # non perche' la catena ne abbia bisogno per partire.
+    "cuda": Pezzo("cuda", 1132),
 }
 
 
+def vuole_cuda(cfg) -> bool:
+    """L'utente ha **chiesto** la scheda video. **Pura** (legge solo la config).
+
+    E' la riga che decide se 1,1 GB di librerie NVIDIA sono un pezzo da prendere
+    o un peso da non far pagare a nessuno, e la risposta non e' una misura: e' una
+    scelta. Non la puo' dare `scegli()`, che senza CUDA sceglie Piper e quindi non
+    chiederebbe mai le DLL che gliela farebbero avere — il giro si chiuderebbe su
+    se stesso.
+
+    Chiede la GPU chi ha messo `tts.backend = kokoro` (l'unico motore che gira su
+    CUDA) o chi ha scritto `tts.device = cuda` a mano. `auto` **non** conta: vuol
+    dire «vedi tu», e vedere tu non puo' voler dire scaricare un gigabyte.
+    """
+    try:
+        tts = cfg.tts
+    except AttributeError:
+        return False
+    return (getattr(tts, "backend", "") == "kokoro"
+            or str(getattr(tts, "device", "") or "").lower() == "cuda")
+
+
 def serve(scelta: Scelta, *, traduzione: bool = False,
-          oneocr: bool = True) -> tuple[str, ...]:
+          oneocr: bool = True, cuda: bool = False) -> tuple[str, ...]:
     """I pezzi che questa scelta ha bisogno di trovare sul disco. **Pura.**
 
     **Non tutti quelli che esistono**: scaricare Kokoro su una macchina senza
@@ -352,8 +396,14 @@ def serve(scelta: Scelta, *, traduzione: bool = False,
     sarebbero cento megabyte per una funzione che l'utente non ha chiesto, e
     quando la accendera' `make_traduttore` la scarica da solo dichiarandolo, che
     e' gia' il comportamento di adesso.
+
+    **`cuda` non lo decide questa funzione, e non e' una svista.** E' 1,1 GB, e
+    nessuna misura puo' dire se convenga: dipende da cosa uno vuole sentire.
+    Quindi arriva da fuori — da `vuole_cuda()`, cioe' dalla configurazione — e sta
+    per primo, perche' e' quello che cambia la scelta del motore e non quello che
+    la esegue.
     """
-    fuori: list[str] = ["ecapa"]
+    fuori: list[str] = ["cuda", "ecapa"] if cuda else ["ecapa"]
     if scelta.tts == "kokoro":
         fuori += ["kokoro", "voci_kokoro"]
     else:
@@ -453,6 +503,25 @@ def presenti(cfg) -> frozenset[str]:
     except Exception:
         pass
 
+    # **La domanda su CUDA non e' «i file ci sono»: e' «la sessione la prende».**
+    # Chi ha una CUDA di sistema, o gira da sorgente con i pacchetti `nvidia-*`
+    # nel venv, ha gia' tutto e non deve scaricare 1,1 GB per ritrovarsi una
+    # seconda copia delle stesse librerie. La cartella nostra conta solo quando la
+    # sessione non ce l'ha fatta — li' e' l'unica cosa che distingue «manca» da
+    # «manca ancora per un riavvio».
+    try:
+        from core.onnx import cuda_ottenuta
+
+        if cuda_ottenuta("il banco")[0]:
+            fuori.add("cuda")
+        else:
+            from core.cuda import presente
+
+            if presente():
+                fuori.add("cuda")
+    except Exception:
+        pass
+
     try:
         import argostranslate.package as ap
 
@@ -471,23 +540,38 @@ def presenti(cfg) -> frozenset[str]:
 def sonda_veloce(cfg) -> Sonda:
     """Cosa c'e' su questa macchina, **senza aprire un modello**. Circa un secondo.
 
-    Il provider CUDA si chiede a ORT dopo il precaricamento delle DLL, che e' la
-    riga senza la quale ORT ripiega sulla CPU senza dirlo. Ma qui e' ancora una
-    **dichiarazione**: si sapra' se e' vera quando una sessione sara' aperta
-    davvero, ed e' per questo che `Sonda.provider` esiste separato da
-    `Sonda.cuda`.
+    CUDA si chiede aprendo una sessione da settanta byte e guardando cosa ha
+    preso (`core.onnx.cuda_ottenuta`), non chiedendo a ORT con che provider e'
+    stato **compilato**. Sono due domande diverse, e finche' qui rispondeva la
+    seconda il banco scaricava 326 MB di Kokoro su un pacchetto senza le DLL CUDA,
+    li misurava, scopriva la CPU e ripiegava su Piper — mezzo giga di rete per
+    arrivare dove si arriva in mezzo secondo.
+
+    `Sonda.provider` resta separato lo stesso: quella e' la sessione **vera** del
+    motore vero, e puo' ancora smentire tutto.
     """
     from core import bloccati
 
     try:
-        from core.onnx import preload
+        from core.onnx import cuda_ottenuta
 
-        preload()
-        import onnxruntime as rt
-
-        cuda = "CUDAExecutionProvider" in rt.get_available_providers()
+        cuda, com_e_andata = cuda_ottenuta("il banco")
     except Exception:  # onnxruntime assente o rotto: si dira' altrove
-        cuda = False
+        cuda, com_e_andata = False, ""
+
+    # **«C'e' e non si carica» e' il caso che vale un riavvio, e solo se le DLL
+    # sono gia' nostre.** ORT carica le sue DLL una volta per processo: dopo lo
+    # scaricamento la cartella e' completa e la sessione di *questo* processo puo'
+    # essere gia' partita sulla CPU. Dirlo e' l'unica cosa vera; dire «niente
+    # scheda video» sarebbe falso e dire «CUDA» sarebbe peggio.
+    da_riavviare = False
+    if not cuda and "non caricata" in com_e_andata:
+        try:
+            from core.cuda import presente
+
+            da_riavviare = presente()
+        except Exception:
+            da_riavviare = False
 
     # **`find_spec` diceva di si' su un pacchetto che non si carica**, ed e' la
     # forma di verde falso piu' cara di questo progetto. Il file c'e' sul disco,
@@ -502,6 +586,7 @@ def sonda_veloce(cfg) -> Sonda:
     # la cache) e dentro un passo che gia' apre modelli veri.
     return Sonda(
         cuda=cuda,
+        cuda_da_riavviare=da_riavviare,
         argos=bloccati.pezzo("argos").ok,
         llm=bloccati.pezzo("llm").ok,
         traduzione_accesa=cfg.translate.enabled,
@@ -680,19 +765,36 @@ def esegui(cfg, *, passo=None, fermati=None) -> Referto:
     falliti: dict[str, str] = {}
     mb = 0
 
+    # Chi ha **chiesto** la scheda video si prende anche le sue librerie: si veda
+    # `vuole_cuda()`. Non e' una misura, e' la configurazione.
+    con_cuda = vuole_cuda(cfg)
+    preso_cuda = False
+
     def prendi_il_necessario(sc: Scelta) -> tuple[Scelta, frozenset[str]]:
         """Scarica quello che serve a `sc`, e torna la scelta dopo lo scarico."""
-        nonlocal falliti, mb
+        nonlocal falliti, mb, preso_cuda
         avuti = presenti(cfg)
         manca = da_scaricare(
-            serve(sc, traduzione=cfg.translate.enabled), avuti)
+            serve(sc, traduzione=cfg.translate.enabled, cuda=con_cuda), avuti)
         if manca:
             mb += peso_mb(manca)
             falliti.update(scarica(manca, cfg, dillo=passo, fermati=fermati))
             avuti = presenti(cfg)
+            preso_cuda = preso_cuda or ("cuda" in manca and "cuda" not in falliti)
         return dopo_lo_scarico(sc, avuti), avuti
 
     scelta, avuti = prendi_il_necessario(scelta)
+
+    # **Le DLL CUDA cambiano la domanda, non solo la risposta.** Se sono appena
+    # arrivate, la macchina su cui si e' scelto non e' piu' quella di adesso: si
+    # risonda e si riparte da capo. Senza questa riga si scaricherebbe un
+    # gigabyte per poi decidere con la risposta di prima — cioe' pagare il peso e
+    # tenersi il ripiego.
+    if preso_cuda:
+        sonda = sonda_veloce(cfg)
+        scelta = scegli(sonda)
+        scelta, avuti = prendi_il_necessario(scelta)
+
     if scelta.tts != "kokoro":
         # Il ripiego ha bisogno dei suoi pezzi, che il primo giro non ha preso.
         scelta, avuti = prendi_il_necessario(scelta)
@@ -809,6 +911,17 @@ def _prendi(codice: str, cfg) -> None:
             # frase corta da mettere accanto alla riga, non la spiegazione
             # intera.
             raise RuntimeError("lo Strumento di cattura di Windows non c'e'")
+        return
+    if codice == "cuda":
+        from core.cuda import scarica as prendi_cuda
+        from core.onnx import dimentica
+
+        prendi_cuda()
+        # **Le risposte tenute da parte adesso sono vecchie.** `preload()` e
+        # `cuda_ottenuta()` rispondono una volta sola apposta; senza questa riga
+        # il resto del giro continuerebbe a dire «CPU» con 1,6 GB di librerie
+        # appena arrivate. Puo' far cambiare idea solo da «no» a «si'».
+        dimentica()
         return
     if codice == "traduzione":
         from translate.locale import TraduttoreLocale

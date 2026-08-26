@@ -259,6 +259,8 @@
   "⚠ llm": "⚠ এলএলএম",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — আপনার পিসিতে, ছোট মডেল",
   "⚠ locale — sul tuo PC (va installato)": "⚠ স্থানীয় — আপনার পিসিতে (ইন্সটল করতে হবে)",
-  "⚠ wgc": "⚠ wgc"
+  "⚠ wgc": "⚠ wgc",
+  "le librerie della scheda video": "গ্রাফিক্স কার্ডের লাইব্রেরিগুলি",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "গ্রাফিক্স কার্ডের লাইব্রেরিগুলি সবে এসেছে: প্রোগ্রামটি পরের বার খোলার সময় সেগুলি লোড হবে, এবং তখন থেকে সেরা কণ্ঠস্বরটি পাওয়া যাবে"
  }
 }

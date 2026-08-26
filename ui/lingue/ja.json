@@ -259,6 +259,8 @@
   "⚠ llm": "⚠llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — PC 上の小型モデル",
   "⚠ locale — sul tuo PC (va installato)": "⚠ ローカル — PC 上 (インストールする必要があります)",
-  "⚠ wgc": "⚠WGC"
+  "⚠ wgc": "⚠WGC",
+  "le librerie della scheda video": "グラフィックカードのライブラリ",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "グラフィックカードのライブラリが届いたところです。次にプログラムを開いたときに読み込まれ、それ以降はより良い音声が使えるようになります"
  }
 }

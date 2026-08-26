@@ -259,6 +259,8 @@
   "⚠ llm": "⚠ 勒姆",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — 在您的 PC 上，小型型号",
   "⚠ locale — sul tuo PC (va installato)": "⚠ 本地 — 在您的 PC 上（必须安装）",
-  "⚠ wgc": "⚠ 世锦赛"
+  "⚠ wgc": "⚠ 世锦赛",
+  "le librerie della scheda video": "显卡的库文件",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "显卡的库文件刚刚到位：它们会在下次打开程序时加载，从那时起就可以使用更好的语音"
  }
 }

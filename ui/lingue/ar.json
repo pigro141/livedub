@@ -259,6 +259,8 @@
   "⚠ llm": "⚠ م",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — على جهاز الكمبيوتر الخاص بك، نموذج صغير",
   "⚠ locale — sul tuo PC (va installato)": "⚠ محلي — على جهاز الكمبيوتر الخاص بك (يجب تثبيته)",
-  "⚠ wgc": "⚠ دبليو جي سي"
+  "⚠ wgc": "⚠ دبليو جي سي",
+  "le librerie della scheda video": "مكتبات بطاقة الرسوميات",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "لقد وصلت للتو مكتبات بطاقة الرسوميات: يتم تحميلها عند فتح البرنامج في المرة القادمة، ومن ثم يصبح الصوت الأفضل متاحًا"
  }
 }

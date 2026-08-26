@@ -297,6 +297,15 @@ MOTIVI: dict[str, str] = {
     "cuda_persa":
         "la scheda video e' stata chiesta, ma e' arrivato {0}: sarebbero i "
         "tempi del processore",
+    "cuda_riavvia":
+        # **Il caso che sembra un guasto e non lo e'.** Le librerie della scheda
+        # video si caricano una volta per avvio: appena scaricate sono sul disco
+        # ma questo avvio e' gia' partito senza. Dire «niente scheda video»
+        # sarebbe falso e dire «CUDA» sarebbe peggio — l'unica cosa vera e' che
+        # riaprendo il programma cambia.
+        "le librerie della scheda video sono appena arrivate: si caricano alla "
+        "prossima apertura del programma, e da li' la voce migliore e' "
+        "disponibile",
     "sintesi_ok":
         "la voce costa {0} ms per ogni frase detta, su questo PC",
     "sintesi_lenta":
@@ -342,6 +351,7 @@ PEZZI_NOMI: dict[str, str] = {
     "ecapa": "il riconoscimento di chi parla",
     "oneocr": "il lettore di testo di Windows",
     "traduzione": "la coppia di lingue",
+    "cuda": "le librerie della scheda video",
     "misura_sintesi": "sto misurando la voce",
     "misura_traduzione": "sto misurando la traduzione",
 }
@@ -514,16 +524,22 @@ def controllo_macchina(cfg) -> tuple[Esito, ...]:
     fuori.append(Esito(ha_oneocr, _T("lettura del testo: {0}", scelta,
                                      "OneOCR" if ha_oneocr else "PP-OCR")))
 
-    try:
-        from core.onnx import preload
+    # **Ottenuta, non compilata dentro.** Qui c'era
+    # `"CUDAExecutionProvider" in get_available_providers()`, che elenca i
+    # provider con cui onnxruntime e' stato *costruito*: nell'eseguibile — dove le
+    # DLL `nvidia-*` non viaggiano — questa riga diceva «scheda video: CUDA» due
+    # righe sopra il banco che diceva «chiesto CUDA, ottenuto
+    # CPUExecutionProvider», e il registro dello stesso avvio diceva `Failed to
+    # load cublasLt64_13.dll`. Due righe dello stesso pannello che si
+    # contraddicono, e a mentire era quella che si legge **prima** di decidere.
+    # `core.onnx.cuda_ottenuta` apre una sessione vera e guarda cosa ha preso.
+    from core.onnx import cuda_ottenuta
 
-        preload()
-        import onnxruntime as rt
-
-        ha_cuda = "CUDAExecutionProvider" in rt.get_available_providers()
-        gpu = "CUDA" if ha_cuda else "CPU"
-    except Exception as guasto:  # onnxruntime assente o rotto
-        ha_cuda, gpu = False, f"{type(guasto).__name__}"
+    # Il valore non passa dal catalogo — e' un dato, come «OneOCR» qui sopra — e
+    # dice **tre** cose e non due: `CPU (CUDA non caricata)` e' il caso in cui
+    # prendere le librerie cambierebbe qualcosa, e con due soli esiti era
+    # indistinguibile da una macchina senza scheda video.
+    ha_cuda, gpu = cuda_ottenuta("la guida")
     fuori.append(Esito(ha_cuda, _T("scheda video: {0}", scelta, gpu)))
 
     fuori.append(Esito(True, _T("motore della voce: {0}", scelta,

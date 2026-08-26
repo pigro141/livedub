@@ -259,6 +259,8 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — on your PC, small model",
   "⚠ locale — sul tuo PC (va installato)": "⚠ local — on your PC (must be installed)",
-  "⚠ wgc": "⚠ wgc"
+  "⚠ wgc": "⚠ wgc",
+  "le librerie della scheda video": "the graphics card libraries",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "the graphics card libraries have just arrived: they load the next time the program opens, and from then on the better voice is available"
  }
 }

@@ -259,6 +259,8 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — teie arvutis, väike mudel",
   "⚠ locale — sul tuo PC (va installato)": "⚠ kohalik — teie arvutis (peab olema installitud)",
-  "⚠ wgc": "⚠ wgc"
+  "⚠ wgc": "⚠ wgc",
+  "le librerie della scheda video": "graafikakaardi teegid",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "graafikakaardi teegid just saabusid: need laaditakse programmi järgmisel avamisel ja sealt alates on parem hääl saadaval"
  }
 }

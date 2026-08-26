@@ -25,7 +25,8 @@ percorsi relativi a `__file__` — che qui puntano a `models/`, `profiles/` e
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
+from PyInstaller.utils.hooks import (collect_data_files, collect_dynamic_libs,
+                                     copy_metadata)
 
 RADICE = Path(SPECPATH)
 
@@ -140,9 +141,17 @@ a = Analysis(
     # pacchetto non c'era. `LICENZE.md` e' anche il posto dove sta scritto
     # perche' i modelli **non** viaggiano con l'eseguibile, che e' la scelta che
     # regge tutto questo file.
+    # **E la scheda di `onnxruntime-gpu`, che non e' un adempimento nemmeno
+    # lei.** `core/cuda.py` non ha un elenco scritto di librerie NVIDIA apposta:
+    # legge i requisiti del pacchetto (`importlib.metadata.requires`), che e' la
+    # stessa fonte da cui `pip` prenderebbe le sue. In un pacchetto congelato
+    # quella metadata non c'e', e la funzione solleva «onnxruntime-gpu non e'
+    # installato» — cioe' proprio dentro l'eseguibile, che e' l'unico posto dove
+    # quella strada serve, perche' e' l'unico dove le DLL non viaggiano.
     datas=PROFILI + [("core/config.py", "core"),
                      ("assets/logo", "assets/logo"), ("ui/lingue", "ui/lingue"),
                      ("LICENSE", "."), ("docs/LICENZE.md", ".")]
+    + copy_metadata("onnxruntime-gpu")
     + DATI_LIBRERIE,
     # **Gli import che PyInstaller non puo' vedere**, perche' qui i backend si
     # costruiscono per nome (`make_tts`, `make_ocr`) e non con un `import` in
@@ -171,6 +180,16 @@ a = Analysis(
         # lo stesso e la finestra muore all'Avvia sulla macchina che ne ha
         # bisogno — cioe' esattamente quella per cui esiste.
         "capture.printwindow",
+        # **Le librerie CUDA si scaricano su richiesta, e chi le scarica si
+        # importa dentro una funzione.** `core/onnx.py` e `core/banco.py`
+        # importano `core.cuda` cosi' per non pagarlo a ogni avvio: l'analisi
+        # statica non lo vede, e senza questa riga il pacchetto verrebbe su lo
+        # stesso — con la GPU irraggiungibile proprio dove non e' impacchettata.
+        # `packaging` e' la sua unica dipendenza, e la usa allo stesso modo.
+        "core.cuda",
+        "packaging.requirements",
+        "packaging.specifiers",
+        "packaging.version",
         "translate.locale",
         "translate.llm",
         "translate.ollama",

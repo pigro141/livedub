@@ -259,6 +259,8 @@
   "⚠ llm": "⚠เลิ่กลั่ก",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — บนพีซีของคุณ รุ่นเล็ก",
   "⚠ locale — sul tuo PC (va installato)": "⚠ ในเครื่อง — บนพีซีของคุณ (ต้องติดตั้ง)",
-  "⚠ wgc": "⚠ wgc"
+  "⚠ wgc": "⚠ wgc",
+  "le librerie della scheda video": "ไลบรารีของการ์ดจอ",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "ไลบรารีของการ์ดจอเพิ่งมาถึง: จะถูกโหลดเมื่อเปิดโปรแกรมครั้งถัดไป และจากนั้นเสียงที่ดีกว่าก็จะใช้งานได้"
  }
 }

@@ -4697,6 +4697,217 @@ def test_finestra_gdi(c: Check) -> None:
                  "e fuori dalla fascia c'e' nero, non immagine vecchia")
 
 
+def test_cuda(c: Check) -> None:
+    """La CUDA: **dichiarare quella che si e' ottenuta**, e la strada per averla.
+
+    Due meta' dello stesso difetto, visto nel pacchetto costruito in CI: il
+    registro diceva `Failed to load cublasLt64_13.dll` e, tre righe piu' su,
+    `onnxruntime.get_available_providers()` rispondeva `Tensorrt, CUDA, CPU`.
+    Quel secondo elenco sono i provider **compilati dentro** onnxruntime, che e'
+    un'altra domanda — e la guida al passo 6 la usava per scrivere «scheda video:
+    CUDA» all'utente, due righe sopra il banco che scriveva «chiesto CUDA,
+    ottenuto CPUExecutionProvider». Due righe dello stesso pannello che si
+    contraddicono, e a mentire era quella che si legge **prima** di decidere.
+
+    Gira senza rete e senza scheda video: le funzioni di `core/cuda.py` che
+    decidono sono pure — prendono cio' che PyPI *avrebbe* risposto — e sono
+    proprio i casi che su questa macchina non capitano mai (una ruota che manca
+    per Windows, una versione di prova, una dipendenza di secondo livello).
+    """
+    c.group("cuda")
+
+    import ast
+
+    from core import cuda as CU
+    from core import onnx as O
+
+    # -- il modello da settanta byte deve **aprirsi** ------------------------
+    # E' il perno di tutto: `cuda_ottenuta` risponde aprendo una sessione con
+    # questi byte. Se non fossero un ONNX valido la funzione cadrebbe nel suo
+    # `except` e direbbe «CPU» su **qualunque** macchina, GPU comprese — cioe' il
+    # ripiego silenzioso rimesso al posto di quello che si era appena tolto, e
+    # senza un errore da nessuna parte.
+    try:
+        import onnxruntime as rt
+
+        sess = rt.InferenceSession(O._MODELLO_MINIMO,
+                                   providers=["CPUExecutionProvider"])
+        c.eq([e.name for e in sess.get_inputs()], ["x"],
+             "il modello minimo e' un ONNX vero e si apre: se non lo fosse, "
+             "`cuda_ottenuta` direbbe «CPU» su ogni macchina senza dare errore")
+    except ImportError:
+        c.ok(False, "onnxruntime non si importa: la CUDA non e' misurabile qui")
+
+    # -- i tre esiti sono tre, e il terzo e' quello che serve ----------------
+    ottenuta, com_e = O.cuda_ottenuta("la verifica")
+    c.ok(isinstance(ottenuta, bool) and isinstance(com_e, str) and com_e,
+         f"`cuda_ottenuta` risponde con un fatto e una frase: {com_e!r}")
+    c.eq("CUDA" == com_e, ottenuta,
+         "e la frase e il fatto dicono la stessa cosa: «CPU (CUDA non "
+         "caricata)» contiene la parola CUDA e vuol dire il contrario")
+    c.ok(O.cuda_ottenuta("la verifica") is O.cuda_ottenuta("la verifica"),
+         "la risposta si tiene da parte: costa una sessione la prima volta e "
+         "zero le successive")
+
+    # **`dimentica()` puo' far cambiare idea da «no» a «si'», mai il contrario.**
+    # Esiste per un istante solo — quello in cui 1,6 GB di DLL sono appena
+    # arrivati sul disco — e senza di lei il programma continuerebbe a dire «CPU»
+    # con le librerie li' accanto.
+    O.dimentica()
+    c.eq(O._cuda, None, "`dimentica()` butta via la risposta tenuta da parte")
+    c.eq(O._precaricato, False, "e anche il precaricamento, che va rifatto "
+                                "guardando la cartella nuova")
+    c.eq(O.cuda_ottenuta("la verifica")[0], ottenuta,
+         "e rifacendo la domanda si ottiene la stessa risposta di prima")
+
+    # -- nessuno dichiara la CUDA leggendo l'elenco compilato ----------------
+    # **L'elenco si ricava dal sorgente**, come per `registro.banco()`: una riga
+    # nuova che chieda `get_available_providers()` per dire all'utente «c'e' la
+    # scheda video» tornerebbe a mentire in silenzio, e nessuno andrebbe a
+    # cercarla. I due posti che possono usarlo sono dichiarati qui, col perche'.
+    radice = Path(__file__).resolve().parent.parent
+    ammessi = {
+        # e' lui che apre la sessione: prima di provare, guarda se c'e' qualcosa
+        # da provare
+        "core\\onnx.py",
+        # la sua domanda **e'** l'elenco compilato: la ruota CPU installata
+        # accanto a quella GPU lo cambia, ed e' esattamente cio' che va preso
+        "tools\\controlla_traduzione.py",
+        # il rapporto d'errore scrive **tutti e due** i numeri, `compilato:` e
+        # `ottenuto:`, ed e' l'unico posto in cui il primo serve: chi legge una
+        # segnalazione deve poter distinguere «senza scheda video» da «le DLL
+        # non si caricano», che e' proprio la differenza che era sparita
+        "core\\versione.py",
+    }
+    # **Si guarda il codice, non il testo.** Un `grep` conterebbe i commenti che
+    # spiegano il difetto — cioe' dichiarerebbe colpevoli proprio i file che sono
+    # stati curati, ed e' un modo perfetto di far spegnere una verifica.
+    fuori_posto: list[str] = []
+    for sorgente in sorted(radice.rglob("*.py")) + sorted(radice.glob("*.ps1")):
+        parti = sorgente.relative_to(radice).parts
+        if parti[0] in (".venv", "dist", "build", "runs", "models", ".git"):
+            continue
+        testo = sorgente.read_text(encoding="utf-8", errors="replace")
+        if "get_available_providers" not in testo:
+            continue
+        if sorgente.suffix == ".py":
+            chiamato = any(
+                isinstance(n, ast.Attribute) and n.attr == "get_available_providers"
+                for n in ast.walk(ast.parse(testo)))
+        else:
+            # PowerShell: via i commenti, e resta cio' che esegue davvero.
+            chiamato = any("get_available_providers" in r.split("#")[0]
+                           for r in testo.splitlines())
+        nome = str(sorgente.relative_to(radice))
+        if chiamato and nome not in ammessi:
+            fuori_posto.append(nome)
+    c.eq(fuori_posto, [],
+         "solo `core/onnx.py` e `tools/controlla_traduzione.py` guardano "
+         "l'elenco dei provider **compilati**: chiunque altro sta rispondendo "
+         "«c'e' la CUDA» a chi ha chiesto «la sto usando»")
+
+    # -- da dove viene l'elenco delle librerie -------------------------------
+    # **Non e' scritto qui.** Le distribuzioni vengono dagli extra di
+    # `onnxruntime-gpu`, i nomi dei file da `onnxruntime._get_nvidia_dll_paths`,
+    # cioe' dalla funzione che ORT usa per caricarli: una seconda tabella
+    # divergerebbe verso il verde — un nome vecchio darebbe «scaricato» su una
+    # cartella incompleta.
+    finti = [
+        "numpy >=1.21.6",
+        'nvidia-cudnn-cu13 ~=9.0; extra == "cudnn"',
+        'nvidia-cufft ~=12.0; extra == "cuda"',
+        'onnx ; extra == "training"',
+    ]
+    c.eq(sorted(n for n, _ in CU.distribuzioni(finti)),
+         ["nvidia-cudnn-cu13", "nvidia-cufft"],
+         "degli extra si tengono le sole distribuzioni NVIDIA che li attivano")
+    c.eq(CU.distribuzioni(finti, extra=("cudnn",)),
+         (("nvidia-cudnn-cu13", "~=9.0"),),
+         "e ogni extra porta le sue, col vincolo attaccato")
+    c.eq(CU.dipendenze(["nvidia-cublas ~=13.0", "setuptools",
+                        'nvidia-x ; extra == "y"']),
+         (("nvidia-cublas", "~=13.0"),),
+         "e si sale sulle dipendenze **senza marcatore**: `nvidia-cudnn` chiede "
+         "`nvidia-cublas`, che chiede `nvidia-nvjitlink`, e nessuno dei due "
+         "compare nei requisiti di ORT")
+
+    # -- quale versione, e la ruota giusta -----------------------------------
+    # Misurato il 24 agosto: `nvidia-cudnn-cu13` aveva pubblicato la 9.25.0.15
+    # **senza la ruota Windows**, con cinque `.devN` ancora piu' recenti sopra.
+    # Chi si fermasse alla piu' alta direbbe «per questa macchina non c'e' CUDA»
+    # con la 9.24 li' accanto che va benissimo.
+    c.eq(CU.versioni_buone(["9.24.0.1", "9.25.0.15", "9.26.0.dev1", "8.9.0"],
+                           "~=9.0"),
+         ("9.25.0.15", "9.24.0.1"),
+         "le versioni buone tornano **tutte**, dalla piu' recente in giu', e "
+         "senza le build di prova: la ruota giusta fa parte della scelta")
+    c.eq(CU.versioni_buone(["9.1.0"], "~=13.0"), (),
+         "e un vincolo che nessuna soddisfa non ripiega su niente")
+    rilascio = [
+        {"filename": "nvidia_x-1.0-py3-none-manylinux_2_28_x86_64.whl", "url": "l"},
+        {"filename": "nvidia_x-1.0-py3-none-win_amd64.whl", "url": "w", "size": 7},
+    ]
+    c.eq(CU.ruota(rilascio).get("url"), "w",
+         "si prende la ruota Windows a 64 bit e non la prima che capita: una "
+         "manylinux si scarica benissimo e dentro non ha nessuna DLL")
+    c.eq(CU.ruota([{"filename": "nvidia_x-1.0-py3-none-win_amd64.whl",
+                    "url": "w", "yanked": True}]), {},
+         "e una ruota ritirata non e' una ruota")
+    c.eq(CU.ruota(rilascio[:1]), {},
+         "senza ruota per questa macchina si dice «non c'e'», non si ripiega")
+
+    # -- dentro la ruota, e dentro la cartella -------------------------------
+    c.eq(CU.dll_dentro(["nvidia/cu13/bin/x86_64/cublas64_13.dll",
+                        "nvidia/cublas/bin/altro.dll",
+                        "nvidia_x-1.0.dist-info/RECORD"]),
+         ("nvidia/cu13/bin/x86_64/cublas64_13.dll", "nvidia/cublas/bin/altro.dll"),
+         "le DLL si riconoscono dal **nome del file** e non dalla cartella: "
+         "NVIDIA l'ha gia' cambiata una volta passando da CUDA 12 a 13")
+    c.eq(CU.manca(["cuBLAS64_13.dll", "cudnn64_9.dll"], ["cublas64_13.DLL"]),
+         ("cudnn64_9.dll",),
+         "e il confronto e' senza maiuscole, perche' Windows non le distingue e "
+         "le ruote non sono coerenti fra loro (`nvJitLink_130_0.dll`)")
+    c.eq(CU.manca(["a.dll"], ["a.dll", "b.dll"]), (),
+         "una DLL in piu' non fa mancare niente")
+
+    # -- dove finiscono, e quanto pesano -------------------------------------
+    from core.percorsi import radice as radice_programma
+
+    c.eq(CU.cartella(), radice_programma() / "models" / "cuda",
+         "le DLL stanno sotto `models/`, che e' materiale della macchina, e "
+         "ancorate alla radice del programma: chi apre l'exe da un'altra "
+         "cartella non deve ritrovarsi due copie da 1,6 GB")
+    from core.banco import PEZZI
+
+    c.eq(PEZZI["cuda"].mb, CU.MB_RETE,
+         "il peso che il banco dichiara **prima** e' quello che si scarica "
+         "davvero, non quello che occupa poi sul disco")
+    c.ok(CU.MB_DISCO > CU.MB_RETE,
+         f"e sul disco pesa di piu' ({CU.MB_DISCO} contro {CU.MB_RETE} MB): le "
+         "ruote sono compresse")
+    c.ok(PEZZI["cuda"].mb > max(p.mb for k, p in PEZZI.items() if k != "cuda"),
+         "ed e' il pezzo piu' pesante di tutti, piu' del modello piu' grande: "
+         "e' l'unico che si scarica per una **scelta** e non perche' la catena "
+         "ne abbia bisogno per partire")
+
+    # -- «c'e'» vuol dire «c'e' tutto» ---------------------------------------
+    # Un archivio a meta' e' precisamente il difetto costato un `KeyError` dentro
+    # `kokoro_onnx`, lontanissimo da dove stava: chi mette qualcosa in cache
+    # controlli **cosa** c'e' dentro, non che ci sia.
+    chiesti = CU.nomi_dll()
+    if chiesti:
+        c.ok(all(n.lower().endswith(".dll") for n in chiesti),
+             f"i nomi da trovare li elenca chi li carica ({len(chiesti)} DLL), "
+             "non una tabella scritta qui")
+        c.eq(CU.manca(chiesti, chiesti[:-1]), (chiesti[-1],),
+             "e a una cartella a cui ne manca uno **manca**: con una cartella a "
+             "meta' `preload_dlls` carica cio' che trova e tace su cio' che non "
+             "trova, e il provider poi non si apre")
+    else:
+        c.ok(True, "questo onnxruntime non sa elencare le DLL di NVIDIA: la "
+                   "cartella si dichiara incompleta, che e' il ripiego prudente")
+
+
 def test_banco(c: Check) -> None:
     """Il mini banco della guida: **quali motori, dati questi numeri**.
 
@@ -4815,6 +5026,52 @@ def test_banco(c: Check) -> None:
          "accesa si'")
     c.ok("ecapa" in B.serve(B.Scelta(tts="piper"), traduzione=False),
          "l'impronta della voce serve a tutti i motori")
+
+    # -- le librerie della scheda video ---------------------------------------
+    # **1,1 GB non li decide una misura.** Senza CUDA `scegli()` sceglie Piper, e
+    # Piper non chiedera' mai le DLL che gliela farebbero avere: il giro si
+    # chiuderebbe su se stesso. Quindi la domanda «le vuoi?» arriva da fuori — e
+    # fuori vuol dire la configurazione, cioe' chi ha **scelto** il motore che
+    # gira su GPU.
+    c.ok("cuda" not in B.serve(su_gpu, traduzione=False),
+         "le librerie CUDA non entrano da sole: sono il pezzo piu' pesante di "
+         "tutti e nessuna misura puo' dire se convengano")
+    c.ok("cuda" in B.serve(B.Scelta(tts="piper"), cuda=True),
+         "entrano quando le si e' chieste, **anche col motore leggero**: nel "
+         "pacchetto la CUDA non viaggia, quindi il primo giro sceglie Piper e "
+         "solo dopo le DLL la macchina cambia")
+
+    from core.config import Config as _Cfg
+
+    _c = _Cfg()
+    _c.tts.backend, _c.tts.device = "piper", "auto"
+    c.eq(B.vuole_cuda(_c), False,
+         "`auto` non chiede la scheda video: vuol dire «vedi tu», e vedere tu "
+         "non puo' voler dire scaricare un gigabyte")
+    _c.tts.device = "cuda"
+    c.eq(B.vuole_cuda(_c), True, "scritto `cuda` a mano si', ed e' una scelta")
+    _c.tts.backend, _c.tts.device = "kokoro", "auto"
+    c.eq(B.vuole_cuda(_c), True,
+         "e chi sceglie Kokoro ha gia' chiesto la GPU: e' l'unico motore che ci "
+         "gira, e su CPU costa 725 ms a battuta contro 207")
+
+    # **«Le DLL ci sono, questo avvio no.»** Un terzo stato, e non un dettaglio:
+    # ORT carica le sue librerie una volta per processo, quindi appena scaricate
+    # la sessione di adesso e' gia' partita sulla CPU. Dire «niente scheda video»
+    # sarebbe falso, dire «CUDA» sarebbe peggio.
+    riavvia = B.scegli(B.Sonda(cuda=False, cuda_da_riavviare=True))
+    c.eq(riavvia.tts, "piper",
+         "con le DLL appena arrivate **non** si promette Kokoro: scriverlo in "
+         "configurazione vorrebbe dire aprirlo sulla CPU alla prima battuta, "
+         "con l'aria di aver funzionato")
+    c.ok(any(m.codice == "cuda_riavvia" for m in riavvia.motivi),
+         "e si dice l'unica cosa vera: riaprendo il programma cambia")
+    c.ok("cuda_riavvia" in B.AVVISI,
+         "ed e' un avviso e non una spunta verde, perche' c'e' ancora qualcosa "
+         "da fare")
+    c.ok(not any(m.codice == "cuda_riavvia"
+                 for m in B.scegli(B.Sonda(cuda=True, cuda_da_riavviare=True)).motivi),
+         "con la CUDA gia' ottenuta invece non c'e' niente da riavviare")
 
     c.eq(B.da_scaricare(("ecapa", "piper"), {"piper"}), ("ecapa",),
          "quello che c'e' gia' non si riscarica")
@@ -5259,6 +5516,11 @@ GROUPS = {
     # da loro, perche' «questo pacchetto c'e'?» adesso vuol dire «si carica?».
     "bloccati": test_bloccati,
     "finestra-gdi": test_finestra_gdi,
+    # **La CUDA dichiarata contro la CUDA ottenuta**, e la strada per prendersi
+    # le librerie che nel pacchetto non viaggiano. Sta prima del banco perche' e'
+    # il banco a dipenderne: `Sonda.cuda` adesso vuol dire «una sessione l'ha
+    # presa», non «ORT e' stato compilato con quel provider».
+    "cuda": test_cuda,
     "banco": test_banco,
     # Il registro su file, e la regola che tiene fuori chi simula. Sta prima dei
     # gruppi che aprono una finestra, perche' sono loro a doverla rispettare.

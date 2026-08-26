@@ -259,6 +259,8 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — på din PC, liten modell",
   "⚠ locale — sul tuo PC (va installato)": "⚠ lokal — på din PC (måste vara installerad)",
-  "⚠ wgc": "⚠ wgc"
+  "⚠ wgc": "⚠ wgc",
+  "le librerie della scheda video": "grafikkortets bibliotek",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "grafikkortets bibliotek har just kommit: de laddas nästa gång programmet öppnas, och därifrån är den bättre rösten tillgänglig"
  }
 }

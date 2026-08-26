@@ -259,6 +259,8 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — számítógépén, kis modell",
   "⚠ locale — sul tuo PC (va installato)": "⚠ helyi — a számítógépén (telepíteni kell)",
-  "⚠ wgc": "⚠ wgc"
+  "⚠ wgc": "⚠ wgc",
+  "le librerie della scheda video": "a videokártya programkönyvtárai",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "a videokártya programkönyvtárai éppen megérkeztek: a program következő megnyitásakor töltődnek be, és onnantól a jobb hang elérhető"
  }
 }

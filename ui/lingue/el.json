@@ -259,6 +259,8 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — στον υπολογιστή σας, μικρό μοντέλο",
   "⚠ locale — sul tuo PC (va installato)": "⚠ τοπικό — στον υπολογιστή σας (πρέπει να εγκατασταθεί)",
-  "⚠ wgc": "⚠ wgc"
+  "⚠ wgc": "⚠ wgc",
+  "le librerie della scheda video": "οι βιβλιοθήκες της κάρτας γραφικών",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "οι βιβλιοθήκες της κάρτας γραφικών μόλις έφτασαν: φορτώνονται στο επόμενο άνοιγμα του προγράμματος, και από εκεί η καλύτερη φωνή είναι διαθέσιμη"
  }
 }

@@ -259,6 +259,8 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — tietokoneellasi, pieni malli",
   "⚠ locale — sul tuo PC (va installato)": "⚠ paikallinen — tietokoneellesi (täytyy asentaa)",
-  "⚠ wgc": "⚠ wgc"
+  "⚠ wgc": "⚠ wgc",
+  "le librerie della scheda video": "näytönohjaimen kirjastot",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "näytönohjaimen kirjastot saapuivat juuri: ne ladataan, kun ohjelma seuraavan kerran avataan, ja siitä lähtien parempi ääni on käytettävissä"
  }
 }

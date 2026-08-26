@@ -259,6 +259,8 @@
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — PC'nizde, küçük model",
   "⚠ locale — sul tuo PC (va installato)": "⚠ yerel — PC'nizde (yüklü olmalıdır)",
-  "⚠ wgc": "⚠wgc"
+  "⚠ wgc": "⚠wgc",
+  "le librerie della scheda video": "ekran kartının kitaplıkları",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "ekran kartının kitaplıkları az önce geldi: programın bir sonraki açılışında yüklenir ve o andan itibaren daha iyi ses kullanılabilir"
  }
 }

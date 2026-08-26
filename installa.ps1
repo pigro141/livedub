@@ -140,17 +140,23 @@ if (Test-Path "models\oneocr\oneocr.onemodel") {
 # l'hanno. E' la forma esatta del difetto che questo blocco esisteva per
 # prendere: un ripiego che non si dichiara, girato dall'altra parte.
 if (-not $SenzaGpu) {
+    # **E il provider si chiede alla sessione, non all'elenco.**
+    # `get_available_providers()` elenca quelli **compilati dentro** onnxruntime
+    # e risponde `CUDAExecutionProvider` anche dove le DLL di NVIDIA non ci sono:
+    # questo installatore diceva percio' «Kokoro puo' girare su GPU» su una
+    # macchina dove Kokoro sarebbe partito sulla CPU a 725 ms a battuta.
+    # `core.onnx.cuda_ottenuta` apre una sessione da settanta byte e guarda cosa
+    # ha preso — un ripiego che non si dichiara e' peggio di un errore.
     $prov = & $pyexe -c @"
 try:
-    from core.onnx import preload
-    preload()
-    import onnxruntime as ort
-    print(','.join(ort.get_available_providers()))
+    from core.onnx import cuda_ottenuta
+    ok, com_e = cuda_ottenuta('installa.ps1')
+    print(('si' if ok else 'no') + ':' + com_e)
 except Exception as e:
-    print('errore:', e)
+    print('no: errore:', e)
 "@ 2>&1
-    $haCuda = "$prov" -match "CUDAExecutionProvider"
-    Esito "CUDA" $haCuda $(if ($haCuda) { "provider disponibile: Kokoro puo' girare su GPU" } else { "nessun provider CUDA ($prov). Kokoro su CPU costa 725 ms a battuta contro 207: usa tts.backend=piper" })
+    $haCuda = "$prov" -match "^si:"
+    Esito "CUDA" $haCuda $(if ($haCuda) { "provider ottenuto su una sessione vera: Kokoro puo' girare su GPU" } else { "la sessione non ha preso la CUDA ($prov). Kokoro su CPU costa 725 ms a battuta contro 207: usa tts.backend=piper" })
 }
 
 # -- 6. i modelli ------------------------------------------------------------

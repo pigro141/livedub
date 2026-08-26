@@ -259,6 +259,8 @@
   "⚠ llm": "⚠ лм",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — на вашем ПК, маленькая модель",
   "⚠ locale — sul tuo PC (va installato)": "⚠ локальный — на вашем ПК (должен быть установлен)",
-  "⚠ wgc": "⚠ ВГК"
+  "⚠ wgc": "⚠ ВГК",
+  "le librerie della scheda video": "библиотеки видеокарты",
+  "le librerie della scheda video sono appena arrivate: si caricano alla prossima apertura del programma, e da li' la voce migliore e' disponibile": "библиотеки видеокарты только что получены: они загрузятся при следующем открытии программы, и с этого момента лучший голос станет доступен"
  }
 }

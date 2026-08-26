@@ -32,6 +32,25 @@ $ErrorActionPreference = "Stop"
 $radice = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $radice
 
+# **`2>&1` su un eseguibile nativo dichiara fallita un'installazione riuscita.**
+# In Windows PowerShell 5.1 ogni riga che un `.exe` scrive su stderr viene
+# avvolta in un `NativeCommandError`; con `$ErrorActionPreference = "Stop"` quello
+# e' un errore **terminante**, quindi basta un avviso stampato da un comando
+# andato a buon fine (exit code 0) perche' questo script muoia con `exit 1` dopo
+# aver scritto tutti i passi in verde. Riprodotto: la suite ne stampa uno di
+# serie, e l'ultima cosa che leggeva chi aveva appena installato tutto era un
+# errore.
+#
+# Qui l'unione dei due flussi serve — si vuole leggere anche cio' che il comando
+# lamenta — quindi non si toglie il `2>&1`: si toglie la parte «terminante»,
+# nell'unico punto in cui il comando gira. Fuori resta `Stop`, che e' quello che
+# ferma lo script quando a fallire e' *questo* file.
+function Esegui([scriptblock]$comando) {
+    $prima = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { & $comando 2>&1 } finally { $ErrorActionPreference = $prima }
+}
+
 $esiti = [ordered]@{}
 function Esito($nome, $ok, $nota) {
     $esiti[$nome] = @{ ok = $ok; nota = $nota }
@@ -49,7 +68,7 @@ Write-Host "`n=== livedub, installazione ===`n" -ForegroundColor Cyan
 $py = $null
 foreach ($c in @("py -3.11", "python")) {
     try {
-        $v = & ([scriptblock]::Create("$c --version")) 2>&1
+        $v = Esegui ([scriptblock]::Create("$c --version"))
         if ($v -match "3\.11") { $py = $c; break }
     } catch { }
 }
@@ -58,7 +77,7 @@ if (-not $py) {
     Write-Host "`nSenza Python 3.11 non si va avanti.`n" -ForegroundColor Red
     exit 1
 }
-Esito "Python 3.11" $true (& ([scriptblock]::Create("$py --version")) 2>&1)
+Esito "Python 3.11" $true (Esegui ([scriptblock]::Create("$py --version")))
 
 # -- 2. venv -----------------------------------------------------------------
 $pyexe = Join-Path $radice ".venv\Scripts\python.exe"
@@ -114,11 +133,12 @@ if (-not $ok) {
 # `pip install` fatto a mano — **nessun errore lo direbbe**: la sintesi diventa
 # tre volte piu' lenta e basta. La regola sta in un modulo, non qui, cosi' la
 # esegue anche la suite.
-$doppio = & $pyexe -c @"
+$sorgente = @"
 import importlib.metadata as md
 nomi = {(d.metadata['Name'] or '').lower() for d in md.distributions() if d.metadata['Name']}
 print('DOPPIO' if 'onnxruntime' in nomi else 'SOLO-GPU')
-"@ 2>&1
+"@
+$doppio = Esegui { & $pyexe -c $sorgente }
 $soloGpu = "$doppio" -match "SOLO-GPU"
 Esito "onnxruntime" $soloGpu $(if ($soloGpu) { "solo il pacchetto GPU, com'e' giusto" } else { "c'e' anche la ruota CPU accanto a onnxruntime-gpu: la CUDA e' spenta. Toglierla con `pip uninstall onnxruntime` e rimettere onnxruntime-gpu[cuda,cudnn]==1.28.0" })
 
@@ -128,7 +148,7 @@ Esito "onnxruntime" $soloGpu $(if ($soloGpu) { "solo il pacchetto GPU, com'e' gi
 if (Test-Path "models\oneocr\oneocr.onemodel") {
     Esito "OneOCR" $true "gia' presente"
 } else {
-    & $pyexe -m tools.fetch_oneocr 2>&1 | Out-Null
+    Esegui { & $pyexe -m tools.fetch_oneocr } | Out-Null
     $ok = Test-Path "models\oneocr\oneocr.onemodel"
     Esito "OneOCR" $ok $(if ($ok) { "copiato da Windows" } else { "non copiato: serve lo Strumento di cattura di Windows 11. Si usera' ppocr, che legge peggio sul testo bordato dei giochi" })
 }
@@ -147,14 +167,15 @@ if (-not $SenzaGpu) {
     # macchina dove Kokoro sarebbe partito sulla CPU a 725 ms a battuta.
     # `core.onnx.cuda_ottenuta` apre una sessione da settanta byte e guarda cosa
     # ha preso — un ripiego che non si dichiara e' peggio di un errore.
-    $prov = & $pyexe -c @"
+    $sorgente = @"
 try:
     from core.onnx import cuda_ottenuta
     ok, com_e = cuda_ottenuta('installa.ps1')
     print(('si' if ok else 'no') + ':' + com_e)
 except Exception as e:
     print('no: errore:', e)
-"@ 2>&1
+"@
+    $prov = Esegui { & $pyexe -c $sorgente }
     $haCuda = "$prov" -match "^si:"
     Esito "CUDA" $haCuda $(if ($haCuda) { "provider ottenuto su una sessione vera: Kokoro puo' girare su GPU" } else { "la sessione non ha preso la CUDA ($prov). Kokoro su CPU costa 725 ms a battuta contro 207: usa tts.backend=piper" })
 }
@@ -162,7 +183,7 @@ except Exception as e:
 # -- 6. i modelli ------------------------------------------------------------
 if (-not $SenzaModelli) {
     Write-Host "  ... scarico i modelli (Piper ed ECAPA, qualche centinaio di MB)" -ForegroundColor DarkGray
-    & $pyexe -c @"
+    $sorgente = @"
 from speak.base import make_tts
 from core.config import Config
 cfg = Config()
@@ -172,14 +193,15 @@ try:
     print('voce ok')
 except Exception as e:
     print('voce KO:', e)
-"@ 2>&1 | Out-Null
+"@
+    Esegui { & $pyexe -c $sorgente } | Out-Null
     $ok = (Test-Path "models\piper") -or (Test-Path "models\kokoro")
     Esito "modelli di voce" $ok $(if ($ok) { "in models\" } else { "non scaricati: controlla la rete" })
 }
 
 # -- 7. la prova che conta: la suite -----------------------------------------
 Write-Host "  ... eseguo la suite di verifica" -ForegroundColor DarkGray
-$suite = & $pyexe -m tools.selftest 2>&1 | Select-Object -Last 3
+$suite = Esegui { & $pyexe -m tools.selftest } | Select-Object -Last 3
 $verde = "$suite" -match "verifiche verdi"
 Esito "suite" $verde ("$suite" -split "`n" | Select-Object -Last 1)
 
@@ -204,9 +226,10 @@ Write-Host "  (nella finestra: Scegli finestra -> Seleziona area -> Avvia)`n" -F
 #
 # Serve quando serve, ed e' esattamente il meccanismo che il programma ha gia': il
 # **passo 6 della guida** («Misura questo PC») guarda cosa manca, dice **quanto
-# pesa prima** che uno decida, e consegna la riga da incollare — perche' sono
-# pacchetti e il banco non fa `pip`. Rimandare li' invece di stampare un comando
-# qui vuol dire un posto solo che risponde a questa domanda, invece di due che
-# prima o poi si contraddicono.
+# pesa prima** che uno decida, e — da oggi — la **installa**, eseguendo
+# `tools/installa_traduzione.ps1`, cioe' l'unico posto in cui le opzioni giuste
+# stanno scritte. Rimandare li' invece di stampare un comando qui vuol dire un
+# posto solo che risponde a questa domanda, invece di due che prima o poi si
+# contraddicono.
 Write-Host "La traduzione offline non e' installata: si accende dalla guida," -ForegroundColor DarkGray
-Write-Host "al passo «Misura questo PC», che dice quanto pesa prima di partire.`n" -ForegroundColor DarkGray
+Write-Host "al passo «Misura questo PC», che dice quanto pesa prima di scaricarla.`n" -ForegroundColor DarkGray

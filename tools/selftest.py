@@ -4785,7 +4785,13 @@ def test_cuda(c: Check) -> None:
     fuori_posto: list[str] = []
     for sorgente in sorted(radice.rglob("*.py")) + sorted(radice.glob("*.ps1")):
         parti = sorgente.relative_to(radice).parts
-        if parti[0] in (".venv", "dist", "build", "runs", "models", ".git"):
+        # `startswith(".venv")` e non `== ".venv"`: i venv di prova si chiamano
+        # `.venv-vecchio`, `.venv-f5`… e dentro c'e' il sorgente di onnxruntime,
+        # che quell'elenco lo chiede davvero. Con il confronto esatto la verifica
+        # dichiarava colpevole `site-packages` — cioe' rossa per una cartella che
+        # non e' di questo programma.
+        if parti[0].startswith(".venv") or parti[0] in (
+                "dist", "build", "runs", "models", ".git"):
             continue
         testo = sorgente.read_text(encoding="utf-8", errors="replace")
         if "get_available_providers" not in testo:

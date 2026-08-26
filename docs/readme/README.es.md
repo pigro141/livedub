@@ -275,7 +275,7 @@ solo ayuda si quieres tenerlo todo en unos únicos auriculares.
 
 ## Descargar
 
-{{DOWNLOADS}}
+**Todavia no se publica ningun ejecutable.** livedub se instala desde el codigo fuente, como se describe arriba. Un ejecutable llega aqui solo cuando una maquina de compilacion lo ha abierto y comprobado de verdad.
 
 ## Instalar desde el código
 

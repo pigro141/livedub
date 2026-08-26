@@ -275,7 +275,7 @@ se vuoi tutto in un paio di cuffie sole.
 
 ## Scaricare
 
-{{DOWNLOADS}}
+**Non e' pubblicato nessun eseguibile.** livedub si installa dal sorgente, come descritto sopra. Un eseguibile finisce qui solo quando una macchina di costruzione lo ha davvero aperto e verificato.
 
 ## Installare dal sorgente
 

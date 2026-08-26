@@ -276,7 +276,7 @@ if you want everything in a single pair of headphones.
 
 ## Download
 
-{{DOWNLOADS}}
+**No executable is published yet.** livedub is installed from source, as described above. An executable goes here only once a build machine has actually launched and checked it.
 
 ## Install from source
 

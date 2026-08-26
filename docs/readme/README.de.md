@@ -281,7 +281,7 @@ willst.
 
 ## Herunterladen
 
-{{DOWNLOADS}}
+**Es ist noch keine ausfuehrbare Datei veroeffentlicht.** livedub wird wie oben beschrieben aus dem Quellcode installiert. Eine ausfuehrbare Datei kommt erst hierher, wenn ein Build-Rechner sie tatsaechlich gestartet und geprueft hat.
 
 ## Aus dem Quelltext installieren
 

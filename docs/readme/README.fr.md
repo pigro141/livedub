@@ -279,7 +279,7 @@ que si vous voulez tout avoir dans un seul casque.
 
 ## Télécharger
 
-{{DOWNLOADS}}
+**Aucun executable n'est publie pour l'instant.** livedub s'installe depuis les sources, comme decrit ci-dessus. Un executable n'arrive ici que lorsqu'une machine de compilation l'a reellement lance et verifie.
 
 ## Installer depuis les sources
 

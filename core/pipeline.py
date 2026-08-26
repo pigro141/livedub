@@ -66,6 +66,59 @@ def _lettere(testo: str) -> str:
     return re.sub(r"[^a-z0-9]", "", piatto)
 
 
+def chiave_cast(backend: str, lingua: str) -> str:
+    """Sotto quale nome si ricorda chi ha quale voce. **Pura.**
+
+    Un ricordo delle voci vale per **un motore e una lingua**, e non per il
+    personaggio in generale: `michael` e' una voce inglese di Kokoro, e in una
+    sessione Piper — che ha solo voci italiane — non e' una preferenza da
+    onorare, e' un nome che non vuol dire niente. Tenendo tutto in un dizionario
+    solo, la sessione dopo trovava quella voce, non riusciva a fissarla e lo
+    diceva **a ogni avvio**: un avviso che nessuno puo' soddisfare si spegne da
+    solo nella testa di chi legge, e si porta via anche quelli veri.
+    """
+    return f"{(backend or 'piper').strip().lower()}/{(lingua or 'it').strip().lower()}"
+
+
+def leggi_cast(dati, chiave: str, voci=()) -> dict[str, str]:
+    """Il ricordo che vale **per queste voci**, dal file. **Pura.**
+
+    Due formati, e il secondo e' la storia: il file nuovo tiene una sezione per
+    motore e lingua (`{"piper/it": {...}}`), quello vecchio era piatto
+    (`{"Franklin": "riccardo"}`). Un file piatto non dice di che motore fosse,
+    quindi lo si adotta **solo per le voci che esistono qui**: quelle che non ci
+    sono venivano da un'altra sessione con un altro motore, e proporle sarebbe
+    riprodurre il difetto invece di migrarlo. Non e' una perdita — e' un ricordo,
+    e alla prima battuta si riscrive.
+
+    `voci` vuoto vuol dire «non ho un pool con cui giudicare»: li' non si filtra
+    niente, perche' scartare tutto sarebbe peggio che tenere tutto.
+    """
+    dati = dati if isinstance(dati, dict) else {}
+    sezioni = {k: v for k, v in dati.items() if isinstance(v, dict)}
+    ricordo = sezioni.get(chiave)
+    if ricordo is None:
+        # Il formato vecchio: le voci sciolte in cima al file.
+        ricordo = {k: v for k, v in dati.items() if isinstance(v, str)}
+        note = set(voci or ())
+        if note:
+            ricordo = {k: v for k, v in ricordo.items() if v in note}
+    return {str(k): str(v) for k, v in ricordo.items() if isinstance(v, str)}
+
+
+def scrivi_cast(dati, chiave: str, mappa) -> dict:
+    """Il file nuovo: questa sezione aggiornata, **le altre intatte**. Pura.
+
+    Le altre sezioni si tengono perche' chi prova due motori non deve perdere il
+    cast del primo ogni volta che apre il secondo. Le voci sciolte del formato
+    vecchio invece spariscono: sono gia' state lette qui sopra e riscritte sotto
+    la chiave giusta, e lasciarle vorrebbe dire due risposte alla stessa domanda.
+    """
+    fuori = {k: dict(v) for k, v in (dati or {}).items() if isinstance(v, dict)}
+    fuori[chiave] = dict(mappa)
+    return fuori
+
+
 class _Cast:
     """Chi ha quale voce, e se la tiene fra una sessione e l'altra.
 
@@ -77,18 +130,29 @@ class _Cast:
     Due sorgenti, in ordine: la mappa scritta a mano in `label.voices` — che vince
     su tutto — e il file delle sessioni passate. Il file si riscrive a fine
     sessione con quello che si e' imparato.
+
+    **E il ricordo e' per motore e lingua** (`chiave_cast`): le voci di Kokoro in
+    inglese non si propongono a una sessione Piper in italiano, dove non
+    esistono.
     """
 
-    def __init__(self, cfg, pool) -> None:
+    def __init__(self, cfg, pool, chiave: str = "") -> None:
         self.cfg = cfg
         self.pool = pool
+        self.chiave = chiave or chiave_cast("", "")
+        # Il file intero, per non buttare le sezioni degli altri motori quando si
+        # riscrive la propria.
+        self.dati: dict = {}
         self.mappa: dict[str, str] = {}
         self.percorso = Path(cfg.cast_file) if cfg.cast_file else None
         if self.percorso is not None and self.percorso.exists():
             try:
-                self.mappa.update(json.loads(self.percorso.read_text(encoding="utf-8")))
+                letto = json.loads(self.percorso.read_text(encoding="utf-8"))
+                self.dati = letto if isinstance(letto, dict) else {}
             except Exception as e:  # pragma: no cover - file scritto a mano
                 print(f"cast: {self.percorso} illeggibile: {e!r}", file=sys.stderr)
+        self.mappa.update(leggi_cast(
+            self.dati, self.chiave, {v.voice_id for v in pool.voices}))
         # La mappa dichiarata a mano vince sul ricordo: e' una decisione, non
         # un'abitudine.
         for nome, voce in (cfg.voices or {}).items():
@@ -125,6 +189,11 @@ class _Cast:
         if not voce:
             return
         if self.pool.fissa(speaker_id, voce, t) is None:
+            # **Qui ci arriva solo cio' che l'utente ha scritto a mano**: il
+            # ricordo e' gia' stato filtrato sulle voci di questo pool da
+            # `leggi_cast`. E' la differenza fra un avviso azionabile — una riga
+            # sbagliata in configurazione, che si corregge — e uno che nessuno
+            # puo' soddisfare, che si spegne da solo nella testa di chi legge.
             print(
                 f"cast: la voce {voce!r} per {nome!r} non sta nel pool "
                 f"({', '.join(v.voice_id for v in self.pool.voices)}): ignorata.",
@@ -143,12 +212,17 @@ class _Cast:
             # corrisponde a nessun personaggio visto.
             if a.speaker_id.startswith("L-") and a.lines > 0:
                 nuovo[a.speaker_id[2:]] = a.voice.voice_id
-        if nuovo == self.mappa and self.percorso.exists():
+        # **«Non e' cambiato niente» include il formato.** Con `self.chiave` non
+        # ancora nel file, un ricordo identico e' comunque da riscrivere: se no un
+        # file vecchio resterebbe piatto finche' qualcuno non cambia voce, cioe'
+        # la migrazione non avverrebbe proprio nel caso in cui tutto va bene.
+        if nuovo == self.mappa and self.chiave in self.dati:
             return
         try:
             self.percorso.parent.mkdir(parents=True, exist_ok=True)
+            self.dati = scrivi_cast(self.dati, self.chiave, nuovo)
             self.percorso.write_text(
-                json.dumps(nuovo, ensure_ascii=False, indent=2), encoding="utf-8"
+                json.dumps(self.dati, ensure_ascii=False, indent=2), encoding="utf-8"
             )
         except Exception as e:  # pragma: no cover - dipende dal disco
             print(f"cast: non salvato: {e!r}", file=sys.stderr)
@@ -323,7 +397,13 @@ class DubPipeline:
         # Chi parla scritto dal gioco, se il gioco lo scrive. Spento di default:
         # si veda `LabelConfig`, dove sta anche il perche' non si indovina.
         self.label = LabelReader(cfg.label) if cfg.label.enabled else None
-        self._cast = _Cast(cfg.label, self.pool) if cfg.label.enabled else None
+        # Il ricordo delle voci e' di **questo** motore in **questa** lingua: si
+        # veda `chiave_cast`.
+        self._cast = (
+            _Cast(cfg.label, self.pool,
+                  chiave_cast(cfg.tts.backend, lingua_voce))
+            if cfg.label.enabled else None
+        )
         # Il correttore degli artefatti dell'OCR. `None` quando e' spento — che e'
         # il default — cosi' la catena non paga nemmeno una chiamata per battuta.
         self.revisore = None

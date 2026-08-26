@@ -1945,7 +1945,11 @@ def test_etichetta(c: Check) -> None:
     # caso in cui ognuno, da solo, prenderebbe la prima voce libera del pool.
     v_lamar = parla(cfg2, "Lamar", "Toc toc!")
     v_franklin = parla(cfg2, "Franklin", "Come va, bello?")
-    ricordo = _json.loads(cast.read_text(encoding="utf-8"))
+    # Il file e' **per motore e lingua**: la sessione di prova e' Piper in
+    # italiano, quindi il ricordo sta li' dentro e non sciolto in cima.
+    from core.pipeline import chiave_cast as _chiave
+
+    ricordo = _json.loads(cast.read_text(encoding="utf-8")).get(_chiave("piper", "it"), {})
     c.ok("Lamar" in ricordo and "Franklin" in ricordo,
          f"il file ricorda chi ha quale voce: {ricordo}")
     # **La verifica che conta.** Senza prenotare le voci ricordate all'avvio,
@@ -1975,6 +1979,45 @@ def test_etichetta(c: Check) -> None:
     r4 = p4._speak(SubtitleEvent(text="Franklin: Ciao", cls=LineClass.WHITE, t_on=0.0))
     c.ok(r4.voice_id in {v.voice_id for v in p4.pool.voices},
          "una voce inesistente in config non zittisce nessuno: si dichiara e si prosegue")
+
+    # -- **il ricordo e' per motore e lingua** -------------------------------
+    # Il difetto vero, visto dal vivo: `cast.json` proponeva `michael` — una voce
+    # inglese di Kokoro — a una sessione Piper, che ha solo voci italiane. Il
+    # comportamento (ignorarla) era giusto; sbagliato era che l'avviso uscisse a
+    # **ogni avvio** senza che nessuno potesse soddisfarlo, ed e' la forma di
+    # avviso che questo progetto ha gia' pagato: si spegne da solo nella testa di
+    # chi legge, portandosi via anche quelli veri.
+    from core.pipeline import chiave_cast, leggi_cast, scrivi_cast
+
+    c.eq(chiave_cast("piper", "it"), "piper/it", "la chiave e' motore e lingua")
+    c.eq(chiave_cast("", ""), "piper/it", "e senza niente e' il caso di serie")
+    c.ok(chiave_cast("kokoro", "en") != chiave_cast("piper", "it"),
+         "due motori diversi non condividono il ricordo")
+
+    nidificato = {"kokoro/en": {"ENZO": "michael"}, "piper/it": {"ENZO": "riccardo"}}
+    c.eq(leggi_cast(nidificato, "piper/it", {"riccardo", "paola"}),
+         {"ENZO": "riccardo"}, "si legge la sezione di questo motore")
+    c.eq(leggi_cast(nidificato, "supertonic/it", {"riccardo"}), {},
+         "e di un motore mai usato non si sa niente: meglio di una voce inventata")
+
+    # Il formato vecchio, piatto, non dice di che motore fosse: si adotta solo
+    # cio' che questo pool sa pronunciare.
+    piatto = {"ENZO": "michael", "LAMAR": "riccardo"}
+    c.eq(leggi_cast(piatto, "piper/it", {"riccardo", "paola"}), {"LAMAR": "riccardo"},
+         "dal file vecchio si tiene solo quello che esiste qui")
+    c.eq(leggi_cast(piatto, "piper/it"), piatto,
+         "senza un pool con cui giudicare non si scarta niente")
+    c.eq(scrivi_cast(nidificato, "piper/it", {"ENZO": "paola"}),
+         {"kokoro/en": {"ENZO": "michael"}, "piper/it": {"ENZO": "paola"}},
+         "e riscrivendo la propria sezione non si perde quella dell'altro motore")
+
+    # E la prova che chiude il giro: il file scritto da una sessione vera e'
+    # nidificato, e la voce ricordata sta sotto la chiave di questo motore.
+    su_disco = _json.loads(cast.read_text(encoding="utf-8"))
+    c.ok(chiave_cast("piper", "it") in su_disco,
+         f"la sessione scrive sotto la sua chiave: {sorted(su_disco)}")
+    c.ok(all(isinstance(v, dict) for v in su_disco.values()),
+         "e non lascia voci sciolte in cima, che sarebbero una seconda risposta")
 
 
 def test_correzione(c: Check) -> None:

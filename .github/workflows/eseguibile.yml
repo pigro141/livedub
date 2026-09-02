@@ -22,10 +22,19 @@ name: eseguibile
 on:
   push:
     branches: ['**']
+    # **Un tag `v*` fa esattamente la stessa costruzione, e in piu' pubblica.**
+    # Le prove sono quelle di un push qualunque: una release che passasse da un
+    # percorso diverso sarebbe un pacchetto provato in un modo e consegnato in
+    # un altro, cioe' la forma di difetto che questo file esiste per togliere.
+    tags: ['v*']
   workflow_dispatch:
 
+# `write` e non `read` perche' questo lavoro pubblica una release — ma **solo da
+# un tag**: ogni passo che scrive porta `if: startsWith(github.ref,
+# 'refs/tags/v')`, quindi un push qualunque non ci arriva nemmeno. Avere il
+# permesso non e' usarlo.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   costruisci-e-prova:
@@ -220,6 +229,76 @@ jobs:
           name: livedub-windows
           path: dist/livedub
           retention-days: 14
+
+      # ======================================================================
+      # Da qui in giu' si **pubblica**, e solo da un tag. Tutto quello che sta
+      # sopra e' gia' passato: il pacchetto e' stato costruito, aperto due volte
+      # da due cartelle diverse, e le prove dell'autoprova sono tutte fatte e
+      # tutte verdi. Pubblicare prima di quel punto vorrebbe dire consegnare un
+      # file che nessuno ha mai aperto — che e' la cosa per cui questo workflow
+      # e' nato.
+
+      - name: Lo zip da scaricare
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          # **Il nome porta il tag.** Un `livedub-windows.zip` sempre uguale
+          # rende illeggibile una segnalazione: chi la scrive non sa dire quale
+          # file ha in mano.
+          $tag = '${{ github.ref_name }}'
+          $zip = "livedub-$tag-windows-x64.zip"
+          # `models\` l'ha appena tolto il passo qui sopra. Se ricomparisse,
+          # questo zip si assumerebbe licenze che nessuno ha letto — e OneOCR
+          # non e' ridistribuibile affatto. Quindi si controlla, non ci si fida.
+          if (Test-Path 'dist\livedub\models') {
+            throw "models\ e' ancora nel pacchetto: si veda LICENZE.md"
+          }
+          Compress-Archive -Path 'dist\livedub\*' -DestinationPath $zip -CompressionLevel Optimal
+          $mb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
+          # L'impronta e' l'unica cosa che permette a chi scarica di dire se ha
+          # in mano il file che questo lavoro ha costruito.
+          $sha = (Get-FileHash $zip -Algorithm SHA256).Hash
+          "$zip : $mb MB, SHA256 $sha"
+          "$sha  $zip" | Out-File -Encoding utf8 "$zip.sha256"
+          "ZIP=$zip"  | Out-File -Encoding utf8 -Append $env:GITHUB_ENV
+          "MB=$mb"    | Out-File -Encoding utf8 -Append $env:GITHUB_ENV
+          "SHA=$sha"  | Out-File -Encoding utf8 -Append $env:GITHUB_ENV
+
+      # **Le note stanno in un file del repo, non qui dentro**
+      # (`.github/note-rilascio.md`). Due ragioni, e la seconda conta di piu':
+      # una here-string di PowerShell vuole il suo `"@` alla colonna zero e
+      # dentro un `run: |` la colonna zero non esiste — il workflow non si
+      # analizzava nemmeno; e le parole per chi scarica non si scrivono dentro
+      # un file di configurazione, dove correggere una frase vuol dire toccare
+      # la costruzione.
+      - name: Le note della release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          # `[string]` esplicito: `String.Replace` vuole due stringhe, e un
+          # intero passato li' e' una conversione che si spera invece di chiederla.
+          $prove = [string](Get-Content 'rapporto-1.json' -Raw | ConvertFrom-Json).prove.Count
+          $run = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          $testo = Get-Content '.github/note-rilascio.md' -Raw
+          # Via il commento in testa: e' scritto per chi tocca il file, non per
+          # chi scarica il programma.
+          $testo = [regex]::Replace($testo, '(?s)^<!--.*?-->\s*', '')
+          $testo = $testo.Replace('{{MB}}', $env:MB).Replace('{{SHA}}', $env:SHA)
+          $testo = $testo.Replace('{{PROVE}}', $prove).Replace('{{RUN}}', $run)
+          # **Un segnaposto rimasto non deve arrivare a chi legge.** Sarebbe un
+          # `{{SHA}}` stampato in una pagina pubblica, cioe' il difetto piu'
+          # visibile possibile per il piu' silenzioso dei motivi.
+          if ($testo -match '\{\{') { throw "e' rimasto un segnaposto nelle note" }
+          $testo | Out-File -Encoding utf8 note.md
+          Write-Host $testo
+
+      - name: Pubblica
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create '${{ github.ref_name }}' "$env:ZIP" "$env:ZIP.sha256" --title 'livedub ${{ github.ref_name }}' --notes-file note.md
 
 # ============================================================================
 # Cosa questo controllo **non** dice, ed e' la meta' che conta

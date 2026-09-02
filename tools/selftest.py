@@ -5652,6 +5652,7 @@ def test_installa(c) -> None:
     Qui si prova la regola, che sta fuori da Qt (`core.banco`), e poi il segno,
     che in Qt ci sta ma senza aprire nessuna finestra.
     """
+    c.group("installa")
     from core import banco as B
     from core.config import Config
 
@@ -5815,6 +5816,69 @@ def test_installa(c) -> None:
          "e sta nell'elenco delle chiavi: rilancia `tools/traduci_ui.py --estrai`")
 
 
+
+def test_rilascio(c) -> None:
+    """Le note della release e il workflow che le riempie **dicono la stessa cosa**.
+
+    E' la nona volta della forma «scritta due volte, e la seconda non l'aggiorna
+    nessuno», e qui il difetto uscirebbe nel posto peggiore: un `{{SHA}}` non
+    sostituito stampato in una pagina pubblica, oppure — molto peggio, perche'
+    muto — una riga che il workflow riempie e che nel testo non c'e' piu', quindi
+    un numero raccolto e buttato.
+
+    Il workflow ha gia' la sua guardia (`if ($testo -match '\{\{')`), ma quella
+    scatta **durante una release**, cioe' nell'unico momento in cui non si vuole
+    scoprire niente. Questa scatta adesso, e gira senza rete.
+    """
+    c.group("rilascio")
+    import re
+    from pathlib import Path as _P
+
+    radice = _P(__file__).resolve().parent.parent
+    note = radice / ".github" / "note-rilascio.md"
+    flusso = radice / ".github" / "workflows" / "eseguibile.yml"
+    c.ok(note.is_file(), "il testo delle note sta in un file del repo, non nello YAML")
+    c.ok(flusso.is_file(), "e il workflow c'e'")
+    if not (note.is_file() and flusso.is_file()):
+        return
+
+    testo = note.read_text(encoding="utf-8")
+    yml = flusso.read_text(encoding="utf-8")
+
+    nel_testo = set(re.findall(r"\{\{(\w+)\}\}", testo))
+    # Quelli che il workflow sostituisce davvero. `${{ ... }}` di GitHub non
+    # entra: ha il dollaro davanti, e questa regex chiede due graffe secche.
+    sostituiti = set(re.findall(r"\.Replace\('\{\{(\w+)\}\}'", yml))
+
+    c.eq(sorted(nel_testo - sostituiti), [],
+         "nessun segnaposto resta senza chi lo riempie: sarebbe stampato cosi' "
+         "com'e' in una pagina pubblica")
+    c.eq(sorted(sostituiti - nel_testo), [],
+         "e nessuna sostituzione senza segnaposto: sarebbe un numero raccolto "
+         "e buttato, che e' il difetto muto dei due")
+    c.ok(len(nel_testo) >= 3,
+         f"i segnaposto ci sono ({sorted(nel_testo)})")
+
+    # **Il commento in testa non deve arrivare a chi scarica.** E' scritto per
+    # chi tocca il file. Il workflow lo toglie con una regex ancorata all'inizio:
+    # qui si controlla che ci sia ancora qualcosa da togliere, se no quella riga
+    # e' diventata una guardia che non guarda piu' niente.
+    c.ok(testo.lstrip().startswith("<!--"),
+         "le note cominciano col commento per chi le modifica")
+    ripulito = re.sub(r"(?s)^<!--.*?-->\s*", "", testo.lstrip())
+    c.ok("<!--" not in ripulito.split("\n")[0],
+         "e il workflow lo toglie prima di pubblicarle")
+
+    # E le due cose che la release **non** deve poter dimenticare, perche' sono
+    # scelte di licenza e non di dimensione.
+    c.ok("models" in yml and "LICENZE.md" in yml,
+         "lo zip si rifiuta di partire se `models/` e' ancora nel pacchetto: i "
+         "pesi hanno ognuno la propria licenza e OneOCR non e' ridistribuibile")
+    c.ok(yml.count("startsWith(github.ref, 'refs/tags/v')") >= 3,
+         "e ogni passo che pubblica gira solo da un tag: un push qualunque non "
+         "ci arriva")
+
+
 GROUPS = {
     "clock": test_clock,
     "session": test_session,
@@ -5874,6 +5938,8 @@ GROUPS = {
     "schema": test_schema,
     # «Va installato» deve poter diventare «installato», **e sparire**.
     "installa": test_installa,
+    # Le note della release e chi le riempie non si possono scollare.
+    "rilascio": test_rilascio,
     "livelli": test_livelli,
     "limiti": test_limiti,
     "memoria": test_memoria,

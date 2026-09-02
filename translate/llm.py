@@ -75,6 +75,22 @@ def _scarica(percorso: Path) -> Path:
     return Path(hf_hub_download(repo, file, local_dir=str(percorso.parent)))
 
 
+def scarica_modello(percorso: str | Path = "") -> Path:
+    """Prende il `.gguf` **adesso**, invece che alla prima battuta tradotta.
+
+    E' la stessa strada che userebbe `MotoreLlm` da solo: il percorso, il repo e
+    il nome del file stanno scritti una volta sola, qui sopra. Serve a chi vuole
+    pagare gli ottocento megabyte quando lo decide lui — il passo 6 della guida,
+    e il riquadro che offre di installare una scelta — invece di trovarseli in
+    mezzo a una sessione, dove un'attesa muta sembra un programma bloccato.
+    """
+    dove = Path(percorso or MODELLO_DEFAULT)
+    if dove.is_file():
+        return dove
+    dove.parent.mkdir(parents=True, exist_ok=True)
+    return _scarica(dove)
+
+
 class MotoreLlm:
     """Il modello caricato una volta, condiviso da traduzione e correzione.
 

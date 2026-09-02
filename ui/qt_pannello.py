@@ -52,9 +52,11 @@ from ui.qt_controlli import (
     Elidibile,
     Rettangolo,
     Tabella,
+    indisponibili_qui,
     allarga_tendina,
     blocca_rotella,
     collega,
+    da_installare,
     leggi,
     nome_umano,
     per_campo,
@@ -386,6 +388,41 @@ class Pannello(QWidget):
         self._dillo(f"{campo.percorso} = {_testo(vero)}")
         if self.al_cambio is not None:
             self.al_cambio(campo, vero)
+        self._forse_installa(campo, vero)
+
+    def _forse_installa(self, campo: Campo, valore) -> None:
+        """Scelto qualcosa che va installato, si offre di installarlo. **Qui.**
+
+        Il posto giusto e' questo e non la tendina, per la ragione gia' pagata
+        quattro volte su cinque: la tendina e' un pezzo di Qt e non sa se il
+        valore e' stato **accettato** — fuori scala si rifiuta, e offrire di
+        scaricare un gigabyte per un valore che non e' entrato in configurazione
+        sarebbe un download per niente. Qui si e' appena scritto, riletto e
+        confermato: c'e' una sola verita' da guardare.
+
+        E se e' andata, **i segni si rifanno subito**: «va installato» accanto a
+        una cosa appena installata e' un avviso che dice il falso, ed e' la meta'
+        della richiesta che non riguarda l'installare.
+        """
+        try:
+            from ui.qt_installa import chiedi
+        except Exception:  # pragma: no cover - senza Qt non si arriva qui
+            return
+        if chiedi(campo.percorso, valore, self.cfg, self.window()):
+            self.rimarca()
+
+    def rimarca(self) -> None:
+        """Rifa' i segni di tutte le tendine di questo pannello.
+
+        Percorre i widget invece di ricostruire la pagina: ricostruirla
+        perderebbe il campo di ricerca, la scheda aperta e il punto in cui si
+        stava scorrendo — cioe' farebbe saltare via da dove si era, per un segno.
+        """
+        for percorso, w in self._widget.items():
+            rimarca = getattr(w, "rimarca", None)
+            if rimarca is None:
+                continue
+            rimarca(indisponibili_qui(percorso), da_installare(percorso, self.cfg))
 
     def _rileggi(self, campo: Campo) -> None:
         scrivi(self._widget[campo.percorso], self.cfg.get(campo.percorso))

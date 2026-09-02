@@ -388,3 +388,70 @@ def scarica(dillo=None, fermati=None) -> None:
     finally:
         if lavoro.exists():
             shutil.rmtree(lavoro, ignore_errors=True)
+
+
+# ============================================ c'e' una scheda, si' o no? ======
+
+# La risposta, tenuta da parte. Non cambia mentre il programma e' aperto: una
+# scheda video non si infila nel PC a sessione accesa, e il driver nemmeno.
+_scheda: bool | None = None
+
+
+def scheda_nvidia() -> bool:
+    """C'e' una scheda NVIDIA **con il suo driver** su questa macchina?
+
+    E' la domanda che rompe un giro che si chiudeva su se stesso. `vuole_cuda()`
+    guarda la configurazione, e la configurazione di serie dice `tts.backend =
+    piper`: quindi le librerie CUDA non si scaricavano mai, quindi la sonda
+    trovava «niente CUDA», quindi si sceglieva Piper — su una macchina con una
+    4060 dentro. Il motore migliore non era escluso da una misura: era escluso
+    **dal fatto che nessuno aveva ancora chiesto di misurarlo**.
+
+    Qui non si chiede a `onnxruntime` (che senza le ruote `nvidia-*` risponde di
+    no anche dove la scheda c'e'), e non si guarda la cartella `models/cuda`
+    (che e' quello che si sta decidendo se riempire). Si apre **`nvcuda.dll`**,
+    che e' del driver NVIDIA e sta in `System32`: c'e' se e solo se qualcuno ha
+    installato una scheda NVIDIA. Poi la si fa lavorare — `cuInit` e
+    `cuDeviceGetCount` — perche' **aprire non e' usare**, che in questo progetto
+    e' gia' costata una diagnosi intera: una DLL c'e' e si carica anche quando il
+    driver e' rotto o la scheda e' spenta.
+
+    Zero dispositivi e' `False`, non «boh»: 1,1 GB non si scaricano per una
+    scheda che non risponde. E qualunque cosa vada storta e' `False` per la
+    stessa ragione — qui il costo dello sbaglio non e' simmetrico. Dire di no
+    dove ci sarebbe una GPU lascia il motore leggero, che funziona; dire di si'
+    dove non c'e' fa scaricare un gigabyte a chi non ne fara' mai niente.
+    """
+    global _scheda
+    if _scheda is not None:
+        return _scheda
+    _scheda = _chiedi_al_driver()
+    return _scheda
+
+
+def _chiedi_al_driver() -> bool:
+    """La prova vera, senza cache. Separata perche' la cache si possa verificare."""
+    import ctypes
+
+    try:
+        driver = ctypes.WinDLL("nvcuda.dll")
+    except OSError:
+        # Il caso normale su una macchina senza NVIDIA: la DLL non esiste.
+        return False
+    try:
+        # `cuInit(0)`: 0 e' `CUDA_SUCCESS`. Qualunque altro numero vuol dire che
+        # il driver c'e' come file e non funziona — che per noi e' un no.
+        if driver.cuInit(0) != 0:
+            return False
+        quante = ctypes.c_int(0)
+        if driver.cuDeviceGetCount(ctypes.byref(quante)) != 0:
+            return False
+        return quante.value > 0
+    except Exception:  # pragma: no cover - un driver che si comporta male
+        return False
+
+
+def dimentica_scheda() -> None:
+    """Butta via la risposta tenuta da parte. Serve alle verifiche."""
+    global _scheda
+    _scheda = None

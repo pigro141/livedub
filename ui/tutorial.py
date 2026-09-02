@@ -297,6 +297,14 @@ MOTIVI: dict[str, str] = {
     "cuda_persa":
         "la scheda video e' stata chiesta, ma e' arrivato {0}: sarebbero i "
         "tempi del processore",
+    "cuda_da_prendere":
+        # **La scheda c'e' e le sue librerie no.** E' il caso di chiunque apra il
+        # programma la prima volta su un PC con una NVIDIA dentro: fino a ieri
+        # qui si leggeva «nessuna scheda video adatta», che era falso — la scheda
+        # c'era, mancava solo che qualcuno avesse chiesto di scaricarne le
+        # librerie. Il preventivo qui sopra dice quanto pesano, prima di premere.
+        "c'e' una scheda video NVIDIA: prendo le sue librerie, e da li' la voce "
+        "migliore diventa quella di serie",
     "cuda_riavvia":
         # **Il caso che sembra un guasto e non lo e'.** Le librerie della scheda
         # video si caricano una volta per avvio: appena scaricate sono sul disco
@@ -353,6 +361,7 @@ PEZZI_NOMI: dict[str, str] = {
     "argos": "il traduttore che resta su questo PC",
     "traduzione": "la coppia di lingue",
     "cuda": "le librerie della scheda video",
+    "llm": "il modello che traduce in memoria",
     "misura_sintesi": "sto misurando la voce",
     "misura_traduzione": "sto misurando la traduzione",
 }

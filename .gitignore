@@ -1,4 +1,7 @@
 .venv/
+# Il venv di prima di un aggiornamento: materiale della macchina come .venv,
+# e mezzo giga che non deve poter finire in un `git add -A`.
+.venv-vecchio/
 __pycache__/
 *.py[cod]
 

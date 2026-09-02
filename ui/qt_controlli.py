@@ -1234,36 +1234,91 @@ class SceltaFra(Manopola):
     nei rapporti e nei comandi.
     """
 
+    # **Due segni e non uno, perche' sono due cose diverse.** `⚠` vuol dire «c'e'
+    # e su questa macchina non va», e non c'e' niente da fare; `↓` vuol dire
+    # «funziona, e prima bisogna prenderla», che e' una porta aperta e non una
+    # chiusa. Dare lo stesso segno a un guasto e a un download manderebbe a
+    # cercare un difetto dove c'e' solo un file che manca — ed e' la stessa
+    # distinzione che `core.bloccati` fa fra `criterio` e `assente`.
+    #
+    # `↓` e non `⬇`: la freccia sottile sta in praticamente ogni carattere di
+    # sistema, quella grossa no, e un glifo che manca si disegna come un
+    # quadratino. Un segno che a schermo diventa un quadratino non e' un segno.
+    SEGNO_ROTTO = "⚠"
+    SEGNO_MANCA = "↓"
+
     def __init__(self, valori: tuple[str, ...], etichette: dict[str, str] | None = None,
-                 indisponibili: dict[str, str] | None = None) -> None:
+                 indisponibili: dict[str, str] | None = None,
+                 da_installare: dict[str, str] | None = None) -> None:
         super().__init__()
         L = QHBoxLayout(self)
         L.setContentsMargins(0, 0, 0, 0)
         self.valori = list(valori)
         self._noti = len(self.valori)   # quante voci sono davvero disponibili
+        self.etichette = dict(etichette or {})
         self.combo = QComboBox()
-        # **Una scelta che qui non funziona si marca, non si toglie**, ed e' la
-        # stessa forma di `SceltaLingua`: togliere una voce nasconderebbe che il
-        # programma la sa fare e che il difetto e' di questa macchina, e
-        # lascerebbe l'utente a chiedersi dove sia finita. Il `⚠` piu' la
-        # ragione nel suggerimento dicono le due cose insieme — c'e', e qui non
-        # va — invece di lasciargliela scegliere per poi dargli un errore che
-        # non parla di lei.
-        indisponibili = indisponibili or {}
-        for v in self.valori:
-            testo = (etichette or {}).get(v)
-            voce = f"{v} — {testo}" if testo else v
-            if v in indisponibili:
-                voce = f"⚠ {voce}"
-            self.combo.addItem(voce)
-            if v in indisponibili:
-                self.combo.setItemData(self.combo.count() - 1,
-                                       indisponibili[v], Qt.ToolTipRole)
-        self._indisponibili = dict(indisponibili)
         self.combo.currentIndexChanged.connect(self._scelto)
-        allarga_tendina(self.combo)
+        self.rimarca(indisponibili, da_installare)
         L.addWidget(self.combo, 1)
+
+    # -- i segni -------------------------------------------------------------
+
+    def rimarca(self, indisponibili: dict[str, str] | None = None,
+                da_installare: dict[str, str] | None = None) -> None:
+        """Riscrive le voci con i segni di adesso, **tenendo la scelta**.
+
+        Esiste per una richiesta sola, ed e' la meta' che l'utente ha chiesto
+        insieme al bottone: **installato il pezzo, il segno e la scritta devono
+        sparire**. I segni si calcolano quando si costruisce il menu; senza un
+        modo di rifarli, «da installare» resterebbe scritto accanto a una cosa
+        appena installata fino alla prossima apertura del programma — cioe' un
+        avviso che dice il falso, che e' peggio di uno che non si poteva
+        soddisfare.
+
+        **Una scelta che qui non funziona si marca, non si toglie**: togliere una
+        voce nasconderebbe che il programma la sa fare e che il difetto e' di
+        questa macchina, e lascerebbe l'utente a chiedersi dove sia finita.
+        """
+        self._indisponibili = dict(indisponibili or {})
+        self._da_installare = dict(da_installare or {})
+        scelto = self.combo.currentIndex()
+        self.combo.blockSignals(True)
+        try:
+            self.combo.clear()
+            for i, v in enumerate(self.valori):
+                if i >= self._noti:
+                    # L'intruso: un valore che in configurazione c'e' e in
+                    # elenco no. Si riscrive com'era, se no rimarcando
+                    # diventerebbe una voce qualunque e sparirebbe la sola cosa
+                    # che dice che quel valore non sara' usato.
+                    self.combo.addItem(f"{self.SEGNO_ROTTO} {v} — {FUORI_ELENCO}")
+                    self.combo.setItemData(self.combo.count() - 1,
+                                           _perche_intruso(v), Qt.ToolTipRole)
+                    continue
+                testo = self.etichette.get(v)
+                voce = f"{v} — {testo}" if testo else v
+                motivo = self._perche_di(v)
+                if v in self._indisponibili:
+                    voce = f"{self.SEGNO_ROTTO} {voce}"
+                elif v in self._da_installare:
+                    voce = f"{self.SEGNO_MANCA} {voce}"
+                self.combo.addItem(voce)
+                if motivo:
+                    self.combo.setItemData(self.combo.count() - 1, motivo,
+                                           Qt.ToolTipRole)
+            if 0 <= scelto < self.combo.count():
+                self.combo.setCurrentIndex(scelto)
+        finally:
+            self.combo.blockSignals(False)
+        # La tendina va rimisurata: con o senza il segno le voci sono larghe due
+        # caratteri di differenza, e una casella misurata sul testo di prima
+        # taglia l'ultima parola senza nemmeno i puntini che dicono che manca.
+        allarga_tendina(self.combo)
         self._perche()
+
+    def _perche_di(self, v: str) -> str:
+        """La ragione che accompagna un segno, o niente se quella voce non ne ha."""
+        return self._indisponibili.get(v) or self._da_installare.get(v, "")
 
     def _scelto(self, _i: int) -> None:
         self._perche()
@@ -1278,8 +1333,7 @@ class SceltaFra(Manopola):
         tendina chiusa: senza questa riga il `⚠` resterebbe un segno senza
         spiegazione, che e' meta' dell'avviso — e la meta' che serve e' l'altra.
         """
-        motivo = self._indisponibili.get(str(self.valore()), "")
-        self.combo.setToolTip(motivo)
+        self.combo.setToolTip(self._perche_di(str(self.valore())))
 
     def valore(self) -> Any:
         i = self.combo.currentIndex()
@@ -1312,17 +1366,28 @@ class SceltaFra(Manopola):
                 self._perche()
                 return
             self.valori.append(testo)
-            self.combo.addItem(f"⚠ {testo} — non e' fra quelli disponibili")
+            self.combo.addItem(f"{self.SEGNO_ROTTO} {testo} — {FUORI_ELENCO}")
+            self.combo.setItemData(self.combo.count() - 1, _perche_intruso(testo),
+                                   Qt.ToolTipRole)
             self.combo.setCurrentIndex(len(self.valori) - 1)
-            self.combo.setToolTip(
-                f"«{testo}» non e' fra le scelte possibili qui. Resta scritto "
-                f"perche' e' quello che c'e' in configurazione, ma non sara' usato."
-            )
+            self.combo.setToolTip(_perche_intruso(testo))
         finally:
             self.combo.blockSignals(False)
             # L'intruso e' la voce piu' lunga di tutte: senza rimisurare,
             # l'avviso che dice perche' e' li' verrebbe tagliato a meta'.
             allarga_tendina(self.combo)
+
+
+# Le due frasi dell'intruso — un valore scritto in configurazione che qui in
+# elenco non c'e'. Stanno fuori dalla classe perche' le scrivono due strade
+# (`imposta` quando l'intruso arriva, `rimarca` quando i segni si rifanno) e una
+# frase scritta due volte e' una che al primo ritocco ne diventa due diverse.
+FUORI_ELENCO = "non e' fra quelli disponibili"
+
+
+def _perche_intruso(valore: str) -> str:
+    return (f"«{valore}» non e' fra le scelte possibili qui. Resta scritto "
+            f"perche' e' quello che c'e' in configurazione, ma non sara' usato.")
 
 
 class SceltaCarattere(Manopola):
@@ -1504,7 +1569,7 @@ ETICHETTE: dict[str, dict[str, str]] = {
         "none": "non legge niente",
     },
     "translate.backend": {
-        "locale": "sul tuo PC (va installato)",
+        "locale": "sul tuo PC, senza mandare niente in rete",
         "llm": "sul tuo PC, modello piccolo",
         "ollama": "sul tuo PC, serve Ollama acceso",
         "google": "⚠ manda i sottotitoli a Google",
@@ -1657,7 +1722,8 @@ def per_campo(campo, *, limiti, cfg=None) -> QWidget:
         return blocca_rotella(SceltaFra(*a_mano))
     if campo.scelte:
         return blocca_rotella(SceltaFra(campo.scelte, ETICHETTE.get(percorso),
-                                        indisponibili=_indisponibili(percorso)))
+                                        indisponibili=indisponibili_qui(percorso),
+                                        da_installare=da_installare(percorso, cfg)))
     coppia = limiti(percorso)
     if coppia is not None and campo.tipo in ("int", "float"):
         return blocca_rotella(Cursore(
@@ -1668,7 +1734,7 @@ def per_campo(campo, *, limiti, cfg=None) -> QWidget:
     return w
 
 
-def _indisponibili(percorso: str) -> dict[str, str]:
+def indisponibili_qui(percorso: str) -> dict[str, str]:
     """Quali scelte di questo campo non funzionano su questa macchina, e perche'.
 
     La regola sta in `core.bloccati.scelte_indisponibili`, fuori da Qt; qui
@@ -1683,6 +1749,47 @@ def _indisponibili(percorso: str) -> dict[str, str]:
         return scelte_indisponibili(percorso)
     except Exception:  # pragma: no cover - non deve poter fermare la finestra
         return {}
+
+
+def da_installare(percorso: str, cfg) -> dict[str, str]:
+    """`{valore: cosa manca}` per un campo a scelta, o un dizionario vuoto.
+
+    **La regola sta in `core.banco`, fuori da Qt**, ed e' la stessa che il passo
+    6 della guida usa per il suo preventivo: quali pezzi servono a una scelta
+    (`RICHIESTE`), quali di quelli mancano (`manca_per_scelta`) e quanto pesano
+    (`peso_mb`). Qui resta solo il modo di scriverlo in una riga.
+
+    **Vuoto vuol dire «non ho niente da dichiarare», non «c'e' tutto».** Se il
+    disco non risponde entro il tetto (`presenti_svelto`) non si marca, e va
+    bene: non marcare non promette niente, marcare a torto sarebbe un avviso che
+    nessuno puo' soddisfare. La risposta intanto arriva e finisce in cache,
+    quindi al prossimo ridisegno il segno c'e'.
+
+    E il ripiego largo non e' pigrizia: il pannello si costruisce anche mentre si
+    scattano le schermate, e una finestra che non si apre per colpa di una prova
+    d'ambiente sarebbe un difetto peggiore di quello che questa riga dichiara.
+    """
+    try:
+        from core import banco
+
+        if percorso not in banco.RICHIESTE or cfg is None:
+            return {}
+        avuti = banco.presenti_svelto(cfg)
+        if avuti is None:
+            return {}
+        fuori: dict[str, str] = {}
+        for valore in banco.RICHIESTE[percorso]:
+            manca = banco.manca_per_scelta(percorso, valore, avuti)
+            if manca:
+                fuori[valore] = DA_PRENDERE.format(banco.peso_mb(manca))
+        return fuori
+    except Exception:  # pragma: no cover - non deve poter fermare la finestra
+        return {}
+
+
+# La frase che accompagna il `↓`. E' un modello riempito con un numero, quindi
+# si traduce lui e non la frase composta — la stessa regola di `ui.lingua`.
+DA_PRENDERE = "Va installato: {0} MB da scaricare. Scegliendolo, il programma offre di farlo."
 
 
 def _testo(valore: Any) -> str:

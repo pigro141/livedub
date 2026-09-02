@@ -426,6 +426,33 @@ def _tutorial(app, f, fuori: Path, sigla: str) -> int:
     return scritti
 
 
+def _installa(app, f, fuori: Path, sigla: str) -> int:
+    """Il riquadro che offre di installare, nei suoi tre stati.
+
+    Due dei tre non si vedono aprendolo: «sta scaricando» vuole una rete e un
+    gigabyte di attesa, «non e' arrivato» vuole una rete rotta. Sono anche gli
+    unici due in cui il riquadro dice qualcosa di diverso da «premi qui», quindi
+    sono quelli che vale la pena guardare.
+    """
+    from ui.qt_installa import DialogoInstalla
+
+    d = DialogoInstalla("tts.backend", "kokoro",
+                        ("cuda", "kokoro", "voci_kokoro"), f.cfg, f)
+    d.setAttribute(Qt.WA_DontShowOnScreen, True)
+    d.show()
+    scritti = 0
+    try:
+        for stato, nome in (("", "offerta"), ("in corso", "carica"),
+                            ("rotto", "rotto")):
+            d.posa(stato)
+            app.processEvents()
+            d.grab().save(str(fuori / f"{sigla}-installa-{nome}.png"))
+            scritti += 1
+    finally:
+        d.reject()
+    return scritti
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         prog="tools.scatta", description="Le schermate della finestra, nei due temi")
@@ -442,6 +469,8 @@ def main(argv: list[str] | None = None) -> int:
     # Non esiste finche' non lo si apre, e la regola di questo progetto e' che un
     # pezzo che nessuno ha guardato non e' scritto, e' supposto. Qui si apre e si
     # fotografa passo per passo, nei due temi, con lo stesso metodo.
+    ap.add_argument("--installa", action="store_true",
+                    help="il riquadro che offre di installare una scelta")
     ap.add_argument("--tutorial", action="store_true",
                     help="fotografa i passi della guida iniziale invece delle schede")
     # **La scena di vetrina risponde a un'altra domanda** e per questo e' un'altra
@@ -488,8 +517,9 @@ def main(argv: list[str] | None = None) -> int:
             f.setAttribute(Qt.WA_DontShowOnScreen, True)
             f.show()
             app.processEvents()
-            if args.tutorial or args.vetrina:
-                scena = _tutorial if args.tutorial else _vetrina
+            if args.tutorial or args.vetrina or args.installa:
+                scena = (_tutorial if args.tutorial
+                         else _installa if args.installa else _vetrina)
                 try:
                     scritti += scena(app, f, fuori, f"{sigla}{nome}")
                 finally:

@@ -5553,6 +5553,182 @@ def test_lingue_voci(c: Check) -> None:
     c.ok("kokoro" not in motori_possibili(lenta),
          "una CUDA che va come una CPU retrocede, ed e' la stessa riga del banco")
 
+
+def test_installa(c) -> None:
+    """«Va installato» deve poter diventare «installato», e sparire.
+
+    Il difetto che questo gruppo guarda non e' che l'installazione non funzioni:
+    e' che l'**avviso** non avesse una fine. Il pannello marcava una scelta come
+    da installare e non offriva nessun modo di installarla; e se qualcuno la
+    installava per un'altra strada, il segno restava li' — un avviso che dice il
+    falso, che e' peggio di uno che non si puo' soddisfare.
+
+    Qui si prova la regola, che sta fuori da Qt (`core.banco`), e poi il segno,
+    che in Qt ci sta ma senza aprire nessuna finestra.
+    """
+    from core import banco as B
+    from core.config import Config
+
+    cfg = Config()
+
+    # -- la tabella e' vera, non un elenco di nomi somiglianti ---------------
+    for percorso, quali in B.RICHIESTE.items():
+        c.ok(cfg.get(percorso) is not None,
+             f"«{percorso}» e' un campo vero della configurazione")
+        for valore, codici in quali.items():
+            for codice in codici:
+                c.ok(codice in B.PEZZI,
+                     f"«{percorso}={valore}» chiede un pezzo dichiarato ({codice})")
+
+    # **E ogni valore nominato deve essere una scelta che il campo accetta.**
+    # Una tabella che parla di un valore inesistente non da' nessun errore:
+    # semplicemente non scatta mai, cioe' e' una funzione morta con l'aria di
+    # esserci. E' la stessa forma «scritta due volte, e la seconda non
+    # l'aggiorna nessuno», quindi qui si confronta con lo schema vero.
+    from core.schema import campi
+
+    per_percorso = {x.percorso: x for x in campi(cfg)}
+    for percorso, quali in B.RICHIESTE.items():
+        campo = per_percorso.get(percorso)
+        if campo is None or not campo.scelte:
+            continue
+        for valore in quali:
+            c.ok(valore in campo.scelte,
+                 f"«{valore}» e' davvero una delle scelte di {percorso}")
+
+    # -- cosa manca, che e' una funzione pura --------------------------------
+    c.eq(B.manca_per_scelta("tts.backend", "kokoro", {"cuda", "kokoro"}),
+         ("voci_kokoro",),
+         "manca solo quello che non c'e', nell'ordine dichiarato")
+    c.eq(B.manca_per_scelta("tts.backend", "kokoro",
+                            {"cuda", "kokoro", "voci_kokoro"}), (),
+         "e con tutto sul disco non manca niente")
+    c.eq(B.manca_per_scelta("capture.backend", "wgc", frozenset()), (),
+         "un pacchetto che Windows rifiuta non e' «da installare»: installarlo "
+         "di nuovo non cambierebbe niente, e il bottone sarebbe una porta finta")
+    c.eq(B.manca_per_scelta("campo.inventato", "x", frozenset()), (),
+         "un campo che non ha niente dietro non chiede niente")
+
+    # -- il peso si dichiara prima, e viene da PEZZI -------------------------
+    c.eq(B.peso_mb(("cuda", "kokoro", "voci_kokoro")),
+         B.PEZZI["cuda"].mb + B.PEZZI["kokoro"].mb + B.PEZZI["voci_kokoro"].mb,
+         "il preventivo e' la somma dei pezzi, non un numero scritto a parte")
+
+    # -- «se il computer lo permette»: il giro che si chiudeva su se stesso --
+    #
+    # Senza `gpu_nvidia`, la configurazione di serie (piper) non chiedeva mai le
+    # librerie CUDA, quindi non arrivavano, quindi la sonda diceva «niente CUDA»,
+    # quindi si restava su piper. La risposta era gia' scritta nella domanda.
+    c.eq(B.prendere_cuda(cfg, B.Sonda()), False,
+         "senza scheda e senza averla chiesta, un gigabyte non si scarica")
+    c.eq(B.prendere_cuda(cfg, B.Sonda(gpu_nvidia=True)), True,
+         "con una scheda NVIDIA dentro le sue librerie si prendono: e' cosa "
+         "vuol dire «se il computer lo permette»")
+    cfg2 = Config()
+    cfg2.set("tts.device", "cuda")
+    c.eq(B.prendere_cuda(cfg2, B.Sonda()), True,
+         "e chi l'ha chiesta a mano se le prende comunque")
+
+    scelta = B.scegli(B.Sonda(gpu_nvidia=True))
+    c.eq(scelta.tts, "piper",
+         "la scheda c'e' e le librerie no: non si promette il motore migliore, "
+         "perche' promettere un motore che non puo' aprirsi e' il ripiego "
+         "silenzioso girato dall'altra parte")
+    c.ok(any(m.codice == "cuda_da_prendere" for m in scelta.motivi),
+         "ma lo si dichiara, invece di dire «nessuna scheda video»")
+    c.ok("cuda_da_prendere" not in B.AVVISI,
+         "e non e' una rinuncia: e' una cosa che sta per essere sistemata")
+    c.eq(B.scegli(B.Sonda(cuda=True, gpu_nvidia=True)).tts, "kokoro",
+         "e appena le librerie ci sono, il motore migliore diventa quello di serie")
+
+    # -- la scheda si chiede al driver, e la risposta si tiene ---------------
+    from core import cuda as C
+
+    C.dimentica_scheda()
+    prima = C.scheda_nvidia()
+    c.ok(isinstance(prima, bool), "la scheda c'e' o non c'e': niente «forse»")
+    c.eq(C.scheda_nvidia(), prima,
+         "e la risposta e' la stessa: una scheda video non si infila nel PC a "
+         "sessione accesa")
+
+    # -- «non lo so ancora» non e' «non c'e' niente» -------------------------
+    B.dimentica_presenti()
+    c.ok(B.presenti_svelto(cfg, entro_ms=0.0) is not None,
+         "chi puo' aspettare ha la risposta vera")
+    c.ok(isinstance(B.presenti_in_cache(cfg), frozenset),
+         "e la seconda volta arriva dalla cache")
+    B.dimentica_presenti()
+    c.ok(B._presenti_memo is None,
+         "installato qualcosa, la risposta di prima va buttata: se no la cosa "
+         "appena presa resta marcata come mancante fino alla riapertura")
+
+    # -- e adesso il segno, che e' la meta' che si vede ----------------------
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.instance() or QApplication([])
+    from ui.qt_controlli import SceltaFra
+
+    sf = SceltaFra(("piper", "kokoro"), {"kokoro": "il migliore"},
+                   da_installare={"kokoro": "Va installato: 1463 MB"})
+    sf.imposta("kokoro")
+    c.ok(SceltaFra.SEGNO_MANCA in sf.combo.currentText(),
+         "una scelta da installare si marca")
+    c.ok(SceltaFra.SEGNO_ROTTO not in sf.combo.currentText(),
+         "ma non con il segno del guasto: «prima va presa» e «qui non va» "
+         "chiedono all'utente due cose diverse, e una delle due si puo' fare")
+    c.eq(sf.combo.toolTip(), "Va installato: 1463 MB",
+         "e la ragione si legge a tendina chiusa, che e' dove sta il valore "
+         "gia' scritto in configurazione")
+
+    # **La riga che l'utente ha chiesto**: installato, il segno sparisce.
+    sf.rimarca({}, {})
+    c.eq(sf.valore(), "kokoro", "rimarcare non cambia la scelta")
+    c.ok(SceltaFra.SEGNO_MANCA not in sf.combo.currentText(),
+         "e il segno se ne va")
+    c.eq(sf.combo.toolTip(), "",
+         "insieme alla scritta che diceva di installarlo")
+    c.eq(sf.combo.count(), 2, "senza lasciare voci di troppo nell'elenco")
+
+    # E l'intruso sopravvive a un rimarca: e' l'unico posto che dice che quel
+    # valore, scritto in configurazione, non sara' usato.
+    sf.imposta("qwen")
+    sf.rimarca({}, {})
+    c.eq(sf.valore(), "qwen", "un valore fuori elenco resta quello che e'")
+    c.ok(SceltaFra.SEGNO_ROTTO in sf.combo.currentText(),
+         "e continua a dire che non e' fra quelli disponibili")
+
+    # -- il riquadro non si apre se non c'e' nessuno a guardare --------------
+    #
+    # E' la lezione gia' pagata: la guardia scritta come «dichiarata fuori
+    # schermo» non copriva «costruita e mai mostrata», che e' quello che fa
+    # questa suite — e il modale l'ha tenuta appesa dieci minuti senza stampare
+    # una riga. La condizione giusta e' «e' davvero davanti a qualcuno».
+    from PySide6.QtWidgets import QWidget
+
+    from ui.qt_installa import chiedi, testi
+
+    muto = QWidget()
+    c.eq(chiedi("tts.backend", "kokoro", cfg, muto), False,
+         "con la finestra non mostrata non si apre nessun modale")
+    c.eq(chiedi("tts.backend", "kokoro", cfg, None), False,
+         "e senza padre nemmeno")
+    c.ok(len(testi()) >= 6,
+         "e le parole del riquadro sono dichiarate, se no resterebbero in "
+         "italiano in mezzo a un programma tradotto")
+
+    # Le parole dichiarate devono stare nei cataloghi, se no la dichiarazione e'
+    # una lista che nessuno legge.
+    import json
+    from pathlib import Path as _P
+
+    chiavi = set(json.loads(
+        (_P(__file__).resolve().parent.parent / "ui" / "lingue" / "_chiavi.json")
+        .read_text(encoding="utf-8")))
+    fuori = [t for t in testi() if t not in chiavi]
+    c.eq(fuori, [],
+         "e sta nell'elenco delle chiavi: rilancia `tools/traduci_ui.py --estrai`")
+
+
 GROUPS = {
     "clock": test_clock,
     "session": test_session,
@@ -5610,6 +5786,8 @@ GROUPS = {
     # su una macchina senza il modello».
     "gioco2": test_gioco2,
     "schema": test_schema,
+    # «Va installato» deve poter diventare «installato», **e sparire**.
+    "installa": test_installa,
     "livelli": test_livelli,
     "limiti": test_limiti,
     "memoria": test_memoria,

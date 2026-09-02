@@ -180,6 +180,13 @@ a = Analysis(
         # lo stesso e la finestra muore all'Avvia sulla macchina che ne ha
         # bisogno — cioe' esattamente quella per cui esiste.
         "capture.printwindow",
+        # **Il riquadro che offre di installare, per la stessa ragione.**
+        # `ui/qt_pannello.py` lo importa dentro il metodo che applica una
+        # scelta, cosi' costruire il pannello non tira dentro Qt piu' del
+        # necessario. Senza questa riga il pacchetto viene su verde e chi
+        # sceglie Kokoro nell'eseguibile non vede nessun riquadro — cioe' torna
+        # esattamente il difetto che quel riquadro esiste per togliere.
+        "ui.qt_installa",
         # **Le librerie CUDA si scaricano su richiesta, e chi le scarica si
         # importa dentro una funzione.** `core/onnx.py` e `core/banco.py`
         # importano `core.cuda` cosi' per non pagarlo a ogni avvio: l'analisi

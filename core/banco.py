@@ -153,6 +153,13 @@ class Sonda:
     # prese. Succede subito dopo lo scaricamento: le librerie ci sono, il processo
     # no. Serve a dire «riapri il programma» invece di «niente CUDA».
     cuda_da_riavviare: bool = False
+    # **C'e' una scheda NVIDIA con il suo driver**, indipendentemente dal fatto
+    # che le librerie CUDA siano gia' sul disco (`core.cuda.scheda_nvidia`). E'
+    # il campo che rompe il giro chiuso: senza, la configurazione di serie
+    # (`tts.backend = piper`) non chiede mai le librerie, quindi non si scaricano
+    # mai, quindi `cuda` resta falso — e il motore migliore restava escluso su
+    # una macchina che lo reggeva benissimo, senza che nessuna misura lo dicesse.
+    gpu_nvidia: bool = False
     # Cosa la sessione ha **davvero** preso, quando una sessione e' stata aperta
     # (`core.onnx.verifica_provider`). Vuoto finche' non si e' provato.
     provider: str = ""
@@ -197,6 +204,7 @@ class Motivo:
 MOTIVI: tuple[str, ...] = (
     "cuda_si",
     "cuda_no",
+    "cuda_da_prendere",
     "cuda_persa",
     "cuda_riavvia",
     "sintesi_ok",
@@ -275,6 +283,16 @@ def scegli(s: Sonda) -> Scelta:
         # dice l'unica cosa vera: riaprendo il programma cambia.
         tts = "piper"
         motivi.append(Motivo("cuda_riavvia"))
+    elif s.gpu_nvidia:
+        # **La scheda c'e' e le sue librerie no.** Non si promette Kokoro — le
+        # DLL non sono sul disco, e promettere un motore che non puo' aprirsi e'
+        # esattamente il ripiego silenzioso girato dall'altra parte. Si dice
+        # l'unica cosa vera: c'e' una GPU, quelle librerie si possono prendere, e
+        # da li' in poi la voce migliore e' a portata. Chi le prende e' `esegui`,
+        # che dopo lo scaricamento **risonda e rifa' questa scelta** — e a quel
+        # giro il ramo di sopra dira' Kokoro.
+        tts = "piper"
+        motivi.append(Motivo("cuda_da_prendere"))
     else:
         tts = "piper"
         motivi.append(Motivo("cuda_no"))
@@ -394,6 +412,14 @@ PEZZI: dict[str, Pezzo] = {
     # voce sulla scheda video, ed e' l'unico pezzo che si scarica per una scelta e
     # non perche' la catena ne abbia bisogno per partire.
     "cuda": Pezzo("cuda", 1132),
+    # **Il modello locale in memoria, e i due pezzi sono uno solo.** 4,3 MB e'
+    # la ruota `llama_cpp_python-0.3.19-cp311-win_amd64` misurata sull'indice
+    # CPU di abetlen — l'ultima che per Windows esiste gia' costruita, e la sola
+    # ragione per cui questa riga puo' esistere; 800 MB e' `gemma-3-1b-it-Q4_K_M`,
+    # dichiarato in `translate/llm.py`. Stanno insieme perche' separati sarebbero
+    # una scelta che «si installa» e non funziona: il pacchetto senza il modello
+    # non traduce niente, e il modello senza il pacchetto non si apre.
+    "llm": Pezzo("llm", 804),
 }
 
 
@@ -416,6 +442,28 @@ def vuole_cuda(cfg) -> bool:
         return False
     return (getattr(tts, "backend", "") == "kokoro"
             or str(getattr(tts, "device", "") or "").lower() == "cuda")
+
+
+def prendere_cuda(cfg, sonda: Sonda) -> bool:
+    """Si scaricano le librerie della scheda video? **Pura.**
+
+    Due strade, e sono diverse. La prima e' la configurazione: chi ha **scritto**
+    Kokoro o `tts.device = cuda` ha chiesto la GPU, e le sue librerie sono parte
+    di quella richiesta (`vuole_cuda`). La seconda e' la macchina: **se il
+    computer lo permette, la voce migliore e' quella che si sceglie di serie** —
+    e «lo permette» vuol dire che c'e' una scheda NVIDIA che risponde, non che
+    qualcuno l'abbia scritto da qualche parte.
+
+    Senza la seconda, la prima non poteva scattare mai da sola: la configurazione
+    di serie dice Piper, quindi nessuno chiedeva la GPU, quindi le librerie non
+    arrivavano, quindi la sonda diceva «niente CUDA» e si restava su Piper. Un
+    giro chiuso in cui la risposta era gia' scritta nella domanda.
+
+    Il prezzo e' dichiarato e non nascosto: sono 1132 MB, e chi li paga li vede
+    scritti **prima** di premere, nel preventivo del passo 6. Un'attesa
+    dichiarata e' un'attesa; e' quella muta a essere una finestra bloccata.
+    """
+    return vuole_cuda(cfg) or bool(sonda.gpu_nvidia)
 
 
 def serve(scelta: Scelta, *, traduzione: bool = False,
@@ -453,6 +501,57 @@ def serve(scelta: Scelta, *, traduzione: bool = False,
     if traduzione and scelta.traduzione == "locale":
         fuori.append("traduzione")
     return tuple(fuori)
+
+
+# **Cosa ha bisogno di trovare sul disco una singola scelta del pannello.**
+#
+# E' una domanda diversa da quella di `serve()`, e per questo e' una tabella
+# diversa: `serve()` risponde a «cosa serve alla catena per partire con questa
+# configurazione», guardando la scelta gia' fatta dal banco; qui si risponde a
+# «se adesso metto **questo valore** in **questo campo**, cosa manca?» — che e'
+# la domanda che si fa chi sta guardando una tendina, prima di aver deciso.
+#
+# Sta qui e non in `ui/` per la regola gia' pagata quattro volte su cinque: le
+# regole stanno fuori da Qt, cosi' si verificano senza aprire una finestra. E sta
+# accanto a `PEZZI` perche' i pesi sono li': una seconda tabella dei megabyte
+# sarebbe la nona volta della forma «scritta due volte, e la seconda non
+# l'aggiorna nessuno».
+#
+# **Quello che non c'e' e' voluto.** `capture.backend = wgc` non compare: quel
+# pacchetto e' gia' in `requirements.txt`, e quando non va e' perche' Windows lo
+# rifiuta — offrire di installarlo sarebbe un bottone che non puo' funzionare.
+# La sua riga la dice `core.bloccati`, che e' l'altra meta' di questa domanda:
+# **qui c'e' cio' che manca e si puo' prendere, li' cio' che c'e' e non si puo'
+# usare.**
+RICHIESTE: dict[str, dict[str, tuple[str, ...]]] = {
+    "tts.backend": {
+        "piper": ("piper",),
+        # Le librerie della scheda video stanno **dentro** questa scelta: Kokoro
+        # su CPU costa 725 ms a battuta contro 207, cioe' non e' vivibile.
+        # Scaricare il modello senza di loro vorrebbe dire 331 MB per un motore
+        # che poi si sceglie di non usare.
+        "kokoro": ("cuda", "kokoro", "voci_kokoro"),
+    },
+    "tts.device": {"cuda": ("cuda",)},
+    "vision.ocr_backend": {"oneocr": ("oneocr",)},
+    "translate.backend": {
+        "locale": ("argos", "traduzione"),
+        "llm": ("llm",),
+    },
+    "correct.backend": {"llm": ("llm",)},
+}
+
+
+def manca_per_scelta(percorso: str, valore, presenti) -> tuple[str, ...]:
+    """Cosa manca sul disco per poter usare `percorso = valore`. **Pura.**
+
+    Vuoto vuol dire «niente da installare», e comprende il caso piu' comune di
+    tutti: un campo che non ha nessun pezzo dietro. Non e' una risposta
+    approssimata — chi non e' in `RICHIESTE` non ha bisogno di niente, e dirlo
+    con una tupla vuota e' quello che permette a chi chiama di non sapere nulla
+    di quali campi siano speciali.
+    """
+    return da_scaricare(RICHIESTE.get(percorso, {}).get(str(valore), ()), presenti)
 
 
 def da_scaricare(codici, presenti) -> tuple[str, ...]:
@@ -574,6 +673,20 @@ def presenti(cfg) -> frozenset[str]:
     except Exception:
         pass
 
+    # **Il modello locale c'e' se ci sono tutti e due i pezzi.** Il pacchetto si
+    # **importa** (Smart App Control lo lascia sul disco e non lo carica), e il
+    # `.gguf` deve stare li': con uno solo dei due la scelta si accenderebbe e
+    # morirebbe alla prima battuta — che e' precisamente cio' che `dopo_lo_scarico`
+    # esiste per non fare con Kokoro.
+    try:
+        from core import bloccati
+        from translate.llm import MODELLO_DEFAULT
+
+        if bloccati.pezzo("llm").ok and Path(MODELLO_DEFAULT).is_file():
+            fuori.add("llm")
+    except Exception:
+        pass
+
     try:
         import argostranslate.package as ap
 
@@ -587,6 +700,63 @@ def presenti(cfg) -> frozenset[str]:
         pass
 
     return frozenset(fuori)
+
+
+# **Quanto si e' disposti ad aspettare per disegnare un segno.** Stesso numero e
+# stessa ragione di `core.bloccati.ENTRO_MS`, e non e' prudenza: `presenti()`
+# costa **2022 ms la prima volta e 1 ms le successive** (misurato), perche' apre
+# una sessione ONNX per chiedere la CUDA e importa `argostranslate`. Pagarli
+# mentre si disegna una scheda vorrebbe dire una finestra ferma due secondi per
+# scrivere un segno che quasi sempre non serve.
+PRESENTI_ENTRO_MS = 400.0
+
+_presenti_memo: frozenset[str] | None = None
+
+
+def presenti_in_cache(cfg) -> frozenset[str]:
+    """`presenti()` chiesto una volta sola. Chi puo' aspettare chiama questa.
+
+    Chi **deve** sapere la verita' prima di agire — il riquadro che offre di
+    installare, il banco — la chiama e aspetta: due secondi prima di scaricare un
+    gigabyte sono il prezzo giusto. Chi sta solo disegnando un menu usa
+    `presenti_svelto`.
+    """
+    global _presenti_memo
+    if _presenti_memo is None:
+        _presenti_memo = presenti(cfg)
+    return _presenti_memo
+
+
+def presenti_svelto(cfg, entro_ms: float = PRESENTI_ENTRO_MS):
+    """Cosa c'e' gia', **se si riesce a saperlo in fretta**. `None` = non ancora.
+
+    `None` non e' «non c'e' niente», ed e' tutta la differenza: chi disegna un
+    menu con `None` **non marca nulla**, e va bene — non marcare non promette
+    niente, mentre marcare a torto sarebbe un avviso che nessuno puo'
+    soddisfare, e quelli si spengono da soli nella testa di chi li legge. La
+    risposta intanto continua ad arrivare e finisce in cache, quindi la volta
+    dopo che si disegna la scheda il segno c'e'.
+    """
+    import threading
+
+    global _presenti_memo
+    if _presenti_memo is not None or entro_ms <= 0:
+        return presenti_in_cache(cfg)
+    t = threading.Thread(target=presenti_in_cache, args=(cfg,), daemon=True)
+    t.start()
+    t.join(entro_ms / 1000.0)
+    return _presenti_memo
+
+
+def dimentica_presenti() -> None:
+    """Butta via la risposta. **Da chiamare dopo aver installato qualcosa.**
+
+    Senza, la cosa appena scaricata resterebbe marcata come mancante fino alla
+    prossima apertura del programma — che e' l'altra meta' della richiesta a cui
+    il riquadro d'installazione risponde.
+    """
+    global _presenti_memo
+    _presenti_memo = None
 
 
 def sonda_veloce(cfg) -> Sonda:
@@ -636,9 +806,21 @@ def sonda_veloce(cfg) -> Sonda:
     #
     # Il costo e' un import per pacchetto, pagato una volta (`core.bloccati` ha
     # la cache) e dentro un passo che gia' apre modelli veri.
+    # **La scheda si chiede al driver, non a ORT.** Senza le ruote `nvidia-*`
+    # ORT risponde «niente CUDA» anche dove la GPU c'e': e' la risposta giusta
+    # alla domanda «la posso usare adesso» e quella sbagliata alla domanda «vale
+    # la pena scaricarle». Sono due domande, e per un po' ne rispondeva una sola.
+    try:
+        from core.cuda import scheda_nvidia
+
+        gpu = scheda_nvidia()
+    except Exception:  # pragma: no cover - dipende dall'ambiente
+        gpu = False
+
     return Sonda(
         cuda=cuda,
         cuda_da_riavviare=da_riavviare,
+        gpu_nvidia=gpu,
         argos=bloccati.pezzo("argos").ok,
         llm=bloccati.pezzo("llm").ok,
         traduzione_accesa=cfg.translate.enabled,
@@ -817,9 +999,10 @@ def esegui(cfg, *, passo=None, fermati=None) -> Referto:
     falliti: dict[str, str] = {}
     mb = 0
 
-    # Chi ha **chiesto** la scheda video si prende anche le sue librerie: si veda
-    # `vuole_cuda()`. Non e' una misura, e' la configurazione.
-    con_cuda = vuole_cuda(cfg)
+    # Chi ha **chiesto** la scheda video si prende anche le sue librerie — e chi
+    # ce l'ha e non l'ha chiesta pure, perche' «se il computer lo permette» la
+    # voce migliore e' quella di serie. Si veda `prendere_cuda()`.
+    con_cuda = prendere_cuda(cfg, sonda)
     preso_cuda = False
     preso_argos = False
 
@@ -1066,6 +1249,68 @@ def installa_argos() -> None:
         raise RuntimeError(f"installata ma non si carica: {pezzo.dettaglio}"[:200])
 
 
+# **La riga che installa il modello locale, e le sue due condizioni.** La versione
+# non e' una preferenza: su Windows la 0.3.19 e' **l'ultima ruota gia' costruita**
+# che l'indice CPU di abetlen abbia per cp311 — le piu' nuove su PyPI hanno il
+# solo sdist, quindi pip compila e senza MSVC muore con `CMAKE_C_COMPILER not
+# set`. E' lo stesso difetto che il 25 agosto fermava *tutta* l'installazione, e
+# la riga qui sotto e' quella che il commento di `requirements.txt` gia' consegna
+# a mano: sta scritta una volta e viene letta da tutti e due i posti.
+COMANDO_LLM: tuple[str, ...] = (
+    "-m", "pip", "install", "llama-cpp-python==0.3.19",
+    "--extra-index-url", "https://abetlen.github.io/llama-cpp-python/whl/cpu",
+    # **`--only-binary` non e' prudenza, e' il confine.** Senza, pip che non
+    # trova la ruota ripiega sull'sdist e si mette a compilare: l'installazione
+    # non fallisce, resta appesa per minuti e poi muore lontano da qui.
+    "--only-binary", ":all:",
+)
+
+
+def installa_llm() -> None:
+    """Il modello locale in memoria: prima il pacchetto, poi il `.gguf`.
+
+    **In quest'ordine, e non e' indifferente.** Il modello pesa ottocento
+    megabyte e il pacchetto quattro: cominciare dal grosso vorrebbe dire, sulle
+    macchine dove la ruota non c'e', ottocento megabyte scaricati per una scelta
+    che comunque non si accendera'. Si paga prima il pezzo che puo' dire di no.
+
+    E come `installa_argos`, la verifica non e' «il comando e' finito»: il
+    pacchetto si **importa**, perche' sotto Smart App Control un `pip install`
+    riesce benissimo e la libreria poi non carica — e li' `core.bloccati` e'
+    l'unico che sa distinguere «non c'e'» da «c'e' e Windows lo rifiuta».
+    """
+    import subprocess
+    import sys
+
+    # Stessa ragione di `installa_argos`: dentro il pacchetto congelato non c'e'
+    # ne' un venv ne' `pip`, e `sys.executable` e' il programma stesso — quindi
+    # il processo figlio riaprirebbe la finestra invece di installare.
+    if getattr(sys, "frozen", False):
+        raise RuntimeError(
+            "in questa versione impacchettata il modello locale non si installa: "
+            "si usa «ollama» o «google», oppure si esegue il programma da sorgente")
+
+    esito = subprocess.run([sys.executable, *COMANDO_LLM],
+                           capture_output=True, text=True)
+    if esito.returncode != 0:
+        raise RuntimeError(_ultima_riga(esito.stdout, esito.stderr)
+                           or "l'installazione non e' riuscita")
+
+    from core import bloccati
+
+    bloccati.dimentica("llm")
+    pezzo = bloccati.pezzo("llm")
+    if not pezzo.ok:
+        raise RuntimeError(f"installato ma non si carica: {pezzo.dettaglio}"[:200])
+
+    # Il modello, con la stessa strada che userebbe la prima traduzione: il
+    # percorso e il nome del file stanno scritti una volta sola, in casa di chi
+    # li usa.
+    from translate.llm import scarica_modello
+
+    scarica_modello()
+
+
 def _ultima_riga(*testi: str) -> str:
     """L'ultima riga non vuota, che e' quella in cui uno script dice cosa e' andato storto."""
     for testo in reversed(testi):
@@ -1128,6 +1373,9 @@ def _prendi(codice: str, cfg) -> None:
         return
     if codice == "argos":
         installa_argos()
+        return
+    if codice == "llm":
+        installa_llm()
         return
     if codice == "traduzione":
         from translate.locale import TraduttoreLocale

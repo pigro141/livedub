@@ -1036,6 +1036,13 @@ class Tutorial(QDialog):
             banco.applica(self.cfg, esito)
             if self.padre is not None:
                 self.padre._riallinea()
+                # **E i segni, che sono un'altra domanda.** `_riallinea` rilegge
+                # i valori; qui invece sul disco e' appena arrivato mezzo
+                # gigabyte, e senza questa riga il pannello continuerebbe a
+                # dire «va installato» accanto a una cosa che il passo 6 ha
+                # appena installato. E' la stessa meta' mancante gia' pagata
+                # altrove: *scaricare non e' rileggere*.
+                self.padre._rimarca()
         # La guida puo' essere gia' stata chiusa: il thread e' figlio
         # dell'applicazione apposta, quindi finisce comunque, e i modelli sul
         # disco restano presi. Ridipingere una finestra chiusa no.

@@ -5749,6 +5749,24 @@ def test_installa(c) -> None:
          "installato qualcosa, la risposta di prima va buttata: se no la cosa "
          "appena presa resta marcata come mancante fino alla riapertura")
 
+    # **E a buttarla e' `scarica()`, non chi la chiama.** Metterlo nei chiamanti
+    # vorrebbe dire una cosa da ricordarsi, e il secondo chiamante non se la
+    # ricorda mai: e' la stessa scelta di `preload_dlls()` spostata dentro
+    # `core/onnx.py`. Qui si chiede un pezzo che non esiste — quindi non si
+    # scarica niente, `_prendi` solleva e il guasto finisce fra i falliti — e si
+    # guarda se la cache e' stata buttata lo stesso, perche' un pezzo lasciato a
+    # meta' e' un cambiamento sul disco quanto uno arrivato intero.
+    B.presenti_in_cache(cfg)
+    c.ok(B._presenti_memo is not None, "la cache c'e'")
+    falliti = B.scarica(("pezzo_che_non_esiste",), cfg)
+    c.ok("pezzo_che_non_esiste" in falliti,
+         "un pezzo sconosciuto torna indietro col suo motivo invece di sparire")
+    c.ok(B._presenti_memo is None,
+         "e passata di li' la cache e' andata: non e' piu' una cosa da "
+         "ricordarsi, e' una cosa che non puo' non succedere")
+    c.eq(B.scarica((), cfg), {},
+         "senza niente da prendere non si fa niente, cache compresa")
+
     # -- e adesso il segno, che e' la meta' che si vede ----------------------
     from PySide6.QtWidgets import QApplication
 

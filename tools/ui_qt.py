@@ -2156,6 +2156,19 @@ class Finestra(QMainWindow):
         for p in self.findChildren(Pannello):
             p.aggiorna()
 
+    def _rimarca(self) -> None:
+        """Rifa' i segni «va installato» di tutte le schede. **Non e' `_riallinea`.**
+
+        Sono due cose diverse e vanno chiamate in due momenti diversi.
+        `_riallinea` rilegge i **valori** e la chiama ogni cambio di campo;
+        questa rilegge cosa c'e' **sul disco**, e serve solo dopo che qualcosa e'
+        stato installato. Metterla dentro `_riallinea` vorrebbe dire rifare i
+        segni di centosessantasei manopole a ogni giro di rotellina, per una
+        risposta che cambia due volte in una sessione.
+        """
+        for p in self.findChildren(Pannello):
+            p.rimarca()
+
     # I campi che l'overlay si copia dentro alla nascita: cambiandoli non basta
     # scriverli in config, va **detto alla finestra**. Sono le chiavi di `_stile`
     # tradotte in percorsi, e la verifica `overlay_stile` tiene le due liste

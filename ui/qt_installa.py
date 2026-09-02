@@ -278,11 +278,14 @@ class DialogoInstalla(QDialog):
             self.b_installa.setText(INSTALLA)
             return
 
-        from core import banco, bloccati, onnx
+        # `banco.scarica` ha gia' buttato la sua cache — sta in fondo a lei
+        # apposta, cosi' nessun chiamante se lo deve ricordare. Qui restano le
+        # due che non sono sue: quale pacchetto si importa, e se la sessione
+        # ONNX prende la CUDA.
+        from core import bloccati, onnx
 
         bloccati.dimentica()
         onnx.dimentica()
-        banco.dimentica_presenti()
         self.installato = True
         self._tinta("tenue")
         self.stato.setText(lingua.traduci(FATTO, self.cfg.ui.lingua))

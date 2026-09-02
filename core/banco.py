@@ -950,6 +950,17 @@ def scarica(codici, cfg, *, dillo=None, fermati=None) -> dict[str, str]:
             _prendi(codice, cfg)
         except Exception as guasto:
             falliti[codice] = f"{type(guasto).__name__}: {guasto}".splitlines()[0]
+
+    # **La risposta di prima adesso e' vecchia, e non lo deve ricordare chi
+    # chiama.** Passata di qui, qualcosa sul disco e' cambiato: se `presenti()`
+    # continuasse a rispondere dalla cache, la cosa appena scaricata resterebbe
+    # marcata «da installare» finche' il programma non si riapre. Metterlo qui e
+    # non nei due chiamanti e' la stessa scelta di `preload_dlls()` spostata in
+    # `core/onnx.py`: non e' piu' una cosa da ricordarsi, e' una cosa che non
+    # puo' non succedere. Si butta anche quando **tutto** e' fallito, perche'
+    # `_prendi` puo' aver lasciato a meta' un pezzo che prima c'era.
+    if codici:
+        dimentica_presenti()
     return falliti
 
 

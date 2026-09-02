@@ -38,7 +38,7 @@ und mischt sie über das Spiel. Alles auf deinem eigenen Rechner.
 
 ## Ansehen
 
-Unten drei stumme Clips, denn eine README kann keinen Ton abspielen: GitHub
+Unten vier stumme Clips, denn eine README kann keinen Ton abspielen: GitHub
 animiert ein GIF, gibt ihm aber keinen Ton, und dieses Programm **spricht** — es
 zu hören ist die Hälfte von dem, was es zu sehen gibt. Jeder Clip führt zum
 vollständigen Video, mit Stimme:
@@ -55,6 +55,20 @@ geliefert. Man hört die Stimme zwischen zwei Figuren wechseln: `[nicola]` und
 [![Synchronisation in GTA V](../../assets/vetrina/doppiaggio-gtav.gif)](https://pigro141.github.io/livedub/?lang=de#watch)
 
 *Spiel es mit Ton ab: stumm sieht man, dass es liest, nicht dass es spricht.*
+
+### Vier Sprachen, eine Szene
+
+Dieselben dreizehn Sekunden des GTA-VI-Trailers, viermal synchronisiert. Die
+offiziellen Untertitel wurden **ins Bild eingebrannt**, so wie GTA V sie schreibt
+— Schriftgröße und Position an einem echten Einzelbild des Spiels gemessen, nicht
+geraten — und die Kette hat sie aus den Pixeln zurückgelesen. Hier wird nichts
+übersetzt: jeder Durchgang liest den Untertitel, der schon in dieser Sprache
+dasteht, und spricht ihn mit einer Kokoro-Stimme **dieser Sprache**. `[neutra]`
+ist die Stimme, die heißt *ich weiß noch nicht, wer spricht*: bei Zeilen von
+0,6-2 s bestätigt der Stimmabdruck niemanden, und das zu sagen ist besser, als
+eine Figur zu erfinden.
+
+[![vier Sprachen](../../assets/vetrina/trailer-multilingua.gif)](https://pigro141.github.io/livedub/?lang=de#watch)
 
 ### Die Übersetzung, über das Spiel gezeichnet
 
@@ -699,8 +713,8 @@ ausprobiert.**
 
 ## Wie es gebaut ist, und warum man den Zahlen trauen kann
 
-Es gibt kein pytest: die Testreihe ist ein ausführbares Modul, **2085 Prüfungen**
-in 78 Gruppen.
+Es gibt kein pytest: die Testreihe ist ein ausführbares Modul, **2195 Prüfungen**
+in 81 Gruppen.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

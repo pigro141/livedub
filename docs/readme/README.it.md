@@ -38,7 +38,7 @@ il gioco. Tutto sulla tua macchina.
 
 ## Guardalo
 
-Qui sotto tre spezzoni muti, perché un README non può suonare: GitHub anima una
+Qui sotto quattro spezzoni muti, perché un README non può suonare: GitHub anima una
 GIF ma non le dà audio, e questo programma **parla** — sentirlo è metà di quello
 che c'è da vedere. Ogni spezzone porta al video intero, con la voce:
 **[la vetrina](https://pigro141.github.io/livedub/?lang=it#watch)**.
@@ -54,6 +54,19 @@ a due altezze.
 [![il doppiaggio su GTA V](../../assets/vetrina/doppiaggio-gtav.gif)](https://pigro141.github.io/livedub/?lang=it#watch)
 
 *Riproducilo con l'audio: muto si vede che legge, non che dice.*
+
+### Quattro lingue, una scena sola
+
+Gli stessi tredici secondi del trailer di GTA VI, doppiati quattro volte. I
+sottotitoli ufficiali sono stati **impressi nell'immagine** come li scrive GTA V
+— corpo del carattere e posizione misurati su un fotogramma vero del gioco, non
+indovinati — e la catena li ha riletti dai pixel. Qui non si traduce niente: ogni
+passata legge il sottotitolo già scritto in quella lingua e lo dice con una voce
+Kokoro **di quella lingua**. `[neutra]` è la voce che vuol dire *non so ancora chi
+parla*: su battute da 0,6-2 s l'impronta non conferma nessuno, e dirlo è meglio
+che inventare un personaggio.
+
+[![quattro lingue](../../assets/vetrina/trailer-multilingua.gif)](https://pigro141.github.io/livedub/?lang=it#watch)
 
 ### La traduzione, disegnata sopra il gioco
 
@@ -676,7 +689,7 @@ non l'ha ancora provato nessuno proprio su GTA V.**
 
 ## Com'è fatto, e perché ai numeri si può credere
 
-Non c'è pytest: la suite è un modulo che si esegue, **2085 verifiche** in 78
+Non c'è pytest: la suite è un modulo che si esegue, **2195 verifiche** in 81
 gruppi.
 
 ```powershell

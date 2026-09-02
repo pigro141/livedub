@@ -38,7 +38,7 @@ mixe par-dessus le jeu. Le tout sur votre propre machine.
 
 ## Le voir
 
-Ci-dessous trois extraits muets, parce qu'un README ne peut pas jouer de son :
+Ci-dessous quatre extraits muets, parce qu'un README ne peut pas jouer de son :
 GitHub anime un GIF mais ne lui donne pas d'audio, et ce programme **parle** —
 l'entendre est la moitié de ce qu'il y a à voir. Chaque extrait mène à la vidéo
 entière, avec la voix :
@@ -55,6 +55,19 @@ deux hauteurs.
 [![le doublage sur GTA V](../../assets/vetrina/doppiaggio-gtav.gif)](https://pigro141.github.io/livedub/?lang=fr#watch)
 
 *Lisez-le avec le son : muet, on voit qu'il lit, pas qu'il dit.*
+
+### Quatre langues, une seule scène
+
+Les mêmes treize secondes de la bande-annonce de GTA VI, doublées quatre fois. Les
+sous-titres officiels ont été **incrustés dans l'image** à la manière de GTA V — la
+taille de la police et la position mesurées sur une vraie image du jeu, non
+devinées — et la chaîne les a relus dans les pixels. Ici rien n'est traduit :
+chaque passage lit le sous-titre déjà écrit dans cette langue et le dit avec une
+voix Kokoro **de cette langue**. `[neutra]` est la voix qui veut dire *je ne sais
+pas encore qui parle* : sur des répliques de 0,6-2 s l'empreinte ne confirme
+personne, et le dire vaut mieux qu'inventer un personnage.
+
+[![quatre langues](../../assets/vetrina/trailer-multilingua.gif)](https://pigro141.github.io/livedub/?lang=fr#watch)
 
 ### La traduction, dessinée par-dessus le jeu
 
@@ -689,8 +702,8 @@ en silence. **Ce repli, personne ne l'a encore essayé sur GTA V lui-même.**
 
 ## Comment c'est fait, et pourquoi on peut croire les chiffres
 
-Il n'y a pas de pytest : la série est un module qu'on exécute, **2085
-vérifications** en 78 groupes.
+Il n'y a pas de pytest : la série est un module qu'on exécute, **2195
+vérifications** en 81 groupes.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

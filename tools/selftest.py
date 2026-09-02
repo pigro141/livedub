@@ -1059,6 +1059,46 @@ def test_lessico(c: Check) -> None:
             c.ok(reale.nota(w), f"e contiene {w!r}")
         c.eq(reale.conta("IIFIL REEr lte"), 0, "mentre la spazzatura resta spazzatura")
 
+        # **E su una lingua che non e' l'italiano lo stesso lessico fa danno.**
+        # Misurato sui sottotitoli spagnoli ufficiali del trailer di GTA VI:
+        # `scolla` spezza le parole spagnole in coppie di parole italiane vere,
+        # e il risultato e' pronunciabile — quindi non c'e' nessun contatore che
+        # lo mostri. La verifica usa il lessico **vero**, perche' e' quello che
+        # gira, e chiede che il difetto ci sia ancora: se un giorno non ci fosse
+        # piu' la guardia sotto sarebbe inutile, e questa riga lo direbbe.
+        rotte = [w for w in ("Cuidado", "Bueno", "Quiere", "noche")
+                 if reale.scolla(w) != w]
+        c.ok(len(rotte) >= 3,
+             f"il lessico italiano spezza le parole spagnole ({', '.join(rotte)})")
+
+    # Quindi il lettore lo accende **solo** se il gioco scrive in italiano.
+    from core.config import Config
+    from vision.reader import SubtitleReader
+
+    cfg = Config()
+    cfg.vision.use_lexicon = True
+    for lingua, atteso in (("it", True), ("es", False), ("fr", False),
+                           ("it-IT", True), ("auto", False), ("", True)):
+        r = SubtitleReader(cfg.vision, lingua=lingua)
+        c.eq(r._lex is not None, atteso and bool(carica(cfg.vision.lexicon_dir)),
+             f"lessico {'acceso' if atteso else 'spento'} con lingua={lingua!r}")
+
+    # E la lingua che conta e' quella **letta**, non quella parlata: chi doppia
+    # GTA V spagnolo in italiano legge spagnolo, e il lessico deve tacere.
+    from core.pipeline import DubPipeline
+    from speak.base import ToneTts
+
+    cfg2 = Config()
+    cfg2.vision.use_lexicon = True
+    cfg2.vision.ocr_backend = "null"
+    cfg2.translate.enabled = True
+    cfg2.translate.source = "es"
+    cfg2.translate.target = "it"
+    cfg2.translate.backend = "nessuno"
+    p = DubPipeline(cfg2, ToneTts())
+    c.eq(p.reader.lingua, "es", "il lettore prende `translate.source`, non `target`")
+    c.ok(p.reader._lex is None, "e col gioco in spagnolo il lessico italiano resta spento")
+
 
 def test_fretta(c: Check) -> None:
     """Stringere il residuo di una battuta gia' cominciata.
@@ -5621,6 +5661,25 @@ def test_tabella_lingue(c: Check) -> None:
     testo_js = SITO.read_text(encoding="utf-8")
     c.ok(f'"{d.righe[-1].codice}"' in testo_js and d.righe[-1].inglese in testo_js,
          "e la vetrina ce l'ha anche lei")
+
+    # **Quanti gruppi ha la suite, secondo cio' che e' pubblicato.** README e
+    # vetrina lo dicono a chi decide se installare, e il numero era gia'
+    # scivolato da solo: 78 scritti contro 81 veri, piu' 2085 verifiche contro
+    # 2187. Nessuno se ne accorge, perche' un numero vecchio non da' errore.
+    #
+    # **Si verifica il conteggio dei gruppi e non quello delle verifiche**, e la
+    # differenza e' che il primo si sa **prima** di girare (`len(GROUPS)`)
+    # mentre il secondo si sa solo dopo, cioe' mentre questa riga sta ancora
+    # contando se stessa. Una verifica che non puo' esprimere la risposta e'
+    # peggio di una che manca; il numero delle verifiche resta prosa, e questa
+    # riga prende almeno l'altro — che e' quello che si muove insieme.
+    quanti = len(GROUPS)
+    for nome, percorso in list(READMES.items()) + [("sito", SITO)]:
+        testo = percorso.read_text(encoding="utf-8")
+        c.ok(re.search(rf"(?<!\d){quanti}(?!\d)\s*\n?\s*"
+                       r"(groups|gruppi|Gruppen|grupos|groupes|グループ|组)", testo)
+             is not None,
+             f"{nome}: dichiara {quanti} gruppi, come `len(GROUPS)`")
 
     # **I nomi delle lingue non si traducono**, e non e' una dimenticanza: sono
     # dati letti dal codice. Passarli da un traduttore automatico e' come `uk —

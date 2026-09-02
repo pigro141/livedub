@@ -14,9 +14,9 @@ runs/
 *.wav
 *.onnx
 
-# L'eccezione: i tre video della vetrina. `*.mp4` sta li' sopra per le
-# registrazioni di gioco, che pesano e si rifanno; questi tre invece **sono** il
-# prodotto che si mostra, e il sito li suona con un `<video>`. Senza questa riga
+# L'eccezione: i quattro video della vetrina. `*.mp4` sta li' sopra per le
+# registrazioni di gioco, che pesano e si rifanno; questi quattro invece **sono**
+# il prodotto che si mostra, e il sito li suona con un `<video>`. Senza questa riga
 # finiscono nel repo le sole GIF mute, la pagina va in 404 e non lo dice nessuno:
 # il difetto si vede solo aprendo il sito, cioe' dopo aver pubblicato.
 !assets/vetrina/*.mp4

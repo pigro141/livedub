@@ -254,9 +254,60 @@ PASSO_PER_UNITA = 12.9
 # **Chi aggiunge una lingua misuri la sua**, con `spoken_length()` e dopo
 # `taglia_silenzio`: un numero preso da un'altra lingua e' esattamente il difetto
 # che questa tabella esiste per chiudere.
+#
+# ---------------------------------------------------------------------------
+#
+# **Spagnolo, francese e portoghese: misurati, e solo uno e' entrato.**
+#
+# Misura del 3 settembre 2026 sulle battute vere dei sottotitoli ufficiali del
+# trailer di GTA VI (due tratti, 16-20 battute per lingua, 564-688 caratteri di
+# parlato), una sintesi per battuta a `speed = 1,0`, durata presa **dopo**
+# `taglia_silenzio`, mediana per voce:
+#
+#     lingua  voce             sesso   car/s   f0 mediana
+#     it      kokoro-nicola      m     13,01    84,5 Hz
+#     it      kokoro-sara        f     13,37   288,2 Hz
+#     es      kokoro-es_alex     m     13,69   150,0 Hz
+#     es      kokoro-es_santa    m     13,23   119,2 Hz
+#     es      kokoro-es_dora     f     13,85   200,1 Hz
+#     fr      kokoro-siwis       f     14,39   265,7 Hz
+#     pt      kokoro-pt_alex     m     13,07   154,7 Hz
+#     pt      kokoro-pt_santa    m     12,40   123,9 Hz
+#     pt      kokoro-pt_dora     f     13,38   207,0 Hz
+#
+# **La misura si convalida da sola**: l'italiano, rifatto su sedici battute che
+# non c'entrano niente con le ventiquattro da cui usci' il 12,93 archiviato,
+# torna **13,01** — lo 0,6% di scarto. Senza quel caso nullo gli altri tre
+# numeri sarebbero tre numeri; con quello sono tre misure.
+#
+# **La soglia era dichiarata prima della misura**, ed e' il 10%: la distanza che
+# questo progetto ha gia' giudicato degna di due righe diverse (12,9 contro
+# 14,37 = 11,4%). Il verdetto, contro il ripiego di 12,9:
+#
+#     es   la voce piu' lenta fa 13,23   +2,6%   dentro, non entra
+#     pt   la voce piu' lenta fa 12,40   -3,9%   dentro, non entra
+#     fr   l'unica voce fa      14,39   +11,6%   fuori, **entra**
+#
+# Spagnolo e portoghese **sono misurati e deliberatamente non scritti**: i loro
+# numeri stanno a cavallo del ripiego, e riscriverne uno quasi uguale vorrebbe
+# dire dichiarare una precisione che questa misura non ha. Sta scritto qui
+# perche' «non misurato» e «misurato e uguale» sono due cose diverse, e la
+# seconda non si ricerca.
+#
+# **E la voce femminile non ha bisogno di un meccanismo suo.** Era la seconda
+# ipotesi, con la stessa soglia: femminile contro maschile fa **+2,7% (it),
+# +2,9% (es), +5,1% (pt)** — un verso costante (la femminile e' sempre la piu'
+# svelta) e un'ampiezza che non arriva a meta' della soglia. Quindi
+# `chars_per_second` resta una proprieta' del **motore piu' la lingua** e non
+# della singola voce, e `speak/pool.py` non guadagna un campo. Il francese non
+# entra in questo confronto: Kokoro ne ha **una sola** voce ed e' femminile,
+# quindi il suo 14,39 e' il passo di quella lingua per costruzione — non c'e'
+# una maschile da cui distinguerlo, e dire «il francese e' piu' svelto» sarebbe
+# dire una cosa che questa misura non puo' separare da «siwis e' svelta».
 PASSO_LINGUA = {
     "it": 12.9,
     "en": 14.37,
+    "fr": 14.39,
 }
 
 

@@ -38,7 +38,7 @@ the game. All on your own machine.
 
 ## See it
 
-Three silent clips below, because a README cannot play sound: GitHub animates a
+Four silent clips below, because a README cannot play sound: GitHub animates a
 GIF but gives it no audio, and this program **speaks** — hearing it is half of
 what there is to see. Each clip links to the full video, with the voice:
 **[the showcase](https://pigro141.github.io/livedub/#watch)**.
@@ -54,6 +54,19 @@ are the same voice at two pitches.
 [![dubbing on GTA V](assets/vetrina/doppiaggio-gtav.gif)](https://pigro141.github.io/livedub/#watch)
 
 *Play it with sound: silent, you can see that it reads, not that it says.*
+
+### Four languages, one scene
+
+The same thirteen seconds of the GTA VI trailer, dubbed four times. The official
+subtitles were **burned into the picture** the way GTA V writes them — font size
+and position measured off a real frame of the game, not guessed — and the chain
+read them back out of the pixels. Nothing is translated here: each pass reads the
+subtitle already written in that language and speaks it with a Kokoro voice **of
+that language**. `[neutra]` is the voice that means *I do not know yet who is
+talking*: on lines of 0.6–2 s the fingerprint confirms nobody, and saying so is
+better than inventing a character.
+
+[![four languages](assets/vetrina/trailer-multilingua.gif)](https://pigro141.github.io/livedub/#watch)
 
 ### Translation, drawn over the game
 
@@ -676,8 +689,8 @@ black. **Nobody has yet tried that fallback on GTA V itself.**
 
 ## How it is built, and why the numbers can be trusted
 
-There is no pytest: the suite is a runnable module, **2085
-checks** in 78 groups.
+There is no pytest: the suite is a runnable module, **2195
+checks** in 81 groups.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

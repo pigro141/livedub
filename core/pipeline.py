@@ -370,11 +370,17 @@ class DubPipeline:
         guaio = troppo_grande(cfg.vision.roi)
         if guaio and dillo is not None:
             dillo(guaio)
+        # **La lingua che il gioco *scrive*, che non e' quella che si parlera'.**
+        # Serve al lessico, che e' italiano: si veda `SubtitleReader`. `auto` non
+        # e' una lingua — e' «chiedilo al traduttore» — quindi non si puo'
+        # affermare che il gioco scriva in italiano, e il lessico non si accende.
+        lingua_letta = cfg.translate.source if cfg.translate.enabled else "it"
         self.reader = SubtitleReader(
             cfg.vision,
             motore,
             metrics=self.metrics,
             clock=clock,
+            lingua=lingua_letta,
             on_error="bypass",  # in gioco una battuta persa e' meglio di una sessione persa
         )
         # Il pool segue il backend: senza, una sessione SuperTonic riceverebbe

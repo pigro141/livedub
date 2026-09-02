@@ -36,7 +36,7 @@
 
 ## 看一看
 
-下面是三段无声的片段，因为 README 不能出声：GitHub 会让 GIF 动起来，却不给它音频，
+下面是四段无声的片段，因为 README 不能出声：GitHub 会让 GIF 动起来，却不给它音频，
 而这个程序**会说话** —— 听见它，是可看之处的一半。每一段都通向带声音的完整视频：
 **[展示页](https://pigro141.github.io/livedub/?lang=zh#watch)**。
 
@@ -49,6 +49,17 @@
 [![GTA V 上的配音](../../assets/vetrina/doppiaggio-gtav.gif)](https://pigro141.github.io/livedub/?lang=zh#watch)
 
 *请带声音播放：静音时你只能看到它在读，看不到它在说。*
+
+### 四种语言，同一场戏
+
+GTA VI 预告片中同样的十三秒，配了四遍。官方字幕按 GTA V 写字幕的样子**烧进了
+画面** —— 字号和位置是在游戏真实的一帧上量出来的，不是猜的 —— 然后这条链条
+又把它们从像素里读了回来。这里什么都没有翻译：每一遍读的都是本来就用那种语言
+写好的字幕，再用**那种语言的** Kokoro 嗓音说出来。`[neutra]` 是表示*还不知道
+是谁在说话*的那把嗓音：在 0,6-2 秒的台词上，声纹确认不了任何人，而这样讲比
+凭空造一个角色要好。
+
+[![四种语言](../../assets/vetrina/trailer-multilingua.gif)](https://pigro141.github.io/livedub/?lang=zh#watch)
 
 ### 画在游戏上面的翻译
 
@@ -590,7 +601,7 @@ CUDA 上是 213 毫秒，所以没有 CUDA 的机器绝不会被换到它上面�
 
 ## 它是怎么造的，以及为什么这些数字可信
 
-没有 pytest：测试套件是一个可以直接运行的模块，78 组里共 **2085 项检查**。
+没有 pytest：测试套件是一个可以直接运行的模块，81 组里共 **2195 项检查**。
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

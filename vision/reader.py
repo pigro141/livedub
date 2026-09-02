@@ -57,6 +57,7 @@ class SubtitleReader(Stage):
         clock: Clock | None = None,
         tap: Callable[[float, list, bool], None] | None = None,
         roi: tuple | None = None,
+        lingua: str = "it",
         **kw,
     ) -> None:
         super().__init__("vision.read", metrics=metrics, clock=clock, **kw)
@@ -124,8 +125,28 @@ class SubtitleReader(Stage):
         self._n_gergo = m.counter("vision.ocr.non_italiano")
         # Il lessico si carica una volta e si dichiara: se la cartella non c'e'
         # il filtro e' **spento**, e va detto invece che scoperto misurando.
+        #
+        # **E vale solo se il gioco scrive in italiano.** `models/lexicon` e' un
+        # elenco di parole italiane, e i due usi che se ne fanno diventano
+        # tutti e due dannosi su un'altra lingua:
+        #
+        # * `scolla` spezza una parola sconosciuta in due parole *italiane*
+        #   note. Misurato sui sottotitoli spagnoli del trailer di GTA VI:
+        #   `Cuidado.` -> `Cui dado.`, `Bueno` -> `Bue no`, `Quiere` ->
+        #   `Qui ere`, `noche` -> `no che`. Quattro riparazioni su una riga sola,
+        #   tutte sbagliate e tutte plausibili — il sintetizzatore le pronuncia
+        #   e nessun contatore le mostra;
+        # * il cancello `conta(text) == 0` butta le righe **senza nessuna parola
+        #   italiana**, cioe' su un gioco spagnolo puo' buttare il dialogo vero.
+        #   E' l'unico filtro che possa scartare una battuta buona, e su
+        #   un'altra lingua smette di essere «una su trenta».
+        #
+        # Nona forma in questo progetto di «una tabella misurata su una
+        # distribuzione e applicata a un'altra», e la piu' silenziosa: la riga
+        # esce, e' pronunciabile, e i contatori restano verdi.
+        self.lingua = (lingua or "it").replace("_", "-").split("-")[0].lower()
         self._lex = None
-        if getattr(cfg, "use_lexicon", False):
+        if getattr(cfg, "use_lexicon", False) and self.lingua == "it":
             from vision.lexicon import carica
 
             lex = carica(cfg.lexicon_dir)

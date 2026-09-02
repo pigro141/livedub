@@ -224,6 +224,52 @@
         return box;
       }
 
+      /* La tabella delle lingue parlate, e l'unico blocco le cui **celle non
+         si traducono**.
+
+         Le righe le genera `tools/tabella_lingue.py` leggendo il catalogo di
+         ogni motore: sono codici ISO, nomi in inglese e spunte, cioe' dati —
+         la stessa famiglia di un comando o del nome di un dispositivo, che in
+         questo progetto non passa dal traduttore da quando `uk — Ucraino` e'
+         diventato «Regno Unito — ucraino» dentro la finestra.
+
+         E c'e' una seconda ragione, meccanica: se ci passassero, ogni lingua
+         aggiunta a un motore cambierebbe una chiave in `en.js` e romperebbe sei
+         cataloghi oggi completi. Il riassunto e le intestazioni invece sono
+         scritti a mano, sono stabili, e si traducono come tutto il resto. */
+      case "lingue": {
+        var d = document.createElement("details");
+        d.className = "lingue";
+        d.appendChild(el("summary", null, ricco(b.riassunto)));
+        var cassa = el("div", "tab-scorre");
+        var tl = document.createElement("table");
+        var th1 = document.createElement("thead");
+        var trt = document.createElement("tr");
+        (b.testa || []).forEach(function (c) { trt.appendChild(el("th", null, ricco(c))); });
+        th1.appendChild(trt); tl.appendChild(th1);
+        var tbl = document.createElement("tbody");
+        (b.righe || []).forEach(function (riga) {
+          var tr3 = document.createElement("tr");
+          riga.forEach(function (c, i) {
+            /* Il codice ISO in `<code>`, il resto testo semplice. Niente `T()`
+               e niente `innerHTML`: quello che arriva qui e' un dato. */
+            var td = document.createElement("td");
+            if (i === 0) {
+              var co = document.createElement("code");
+              co.textContent = c;
+              td.appendChild(co);
+            } else {
+              td.textContent = c;
+            }
+            if (i >= 2) td.className = "spunta";
+            tr3.appendChild(td);
+          });
+          tbl.appendChild(tr3);
+        });
+        tl.appendChild(tbl); cassa.appendChild(tl); d.appendChild(cassa);
+        return d;
+      }
+
       case "griglia": {
         var g = el("div", "griglia");
         (b.voci || []).forEach(function (v) {

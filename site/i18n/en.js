@@ -417,7 +417,77 @@
           },
           {
             t: "p",
-            x: "Only two languages are exclusive to a single engine — Croatian and Lithuanian, both on supertonic; six are covered by all three; twenty-one are piper-only. A character beyond the number of native voices is told apart by shifting the pitch, which is what you hear in the first clip: <code>[nicola]</code> and <code>[nicola-2_5]</code> are one voice at two pitches."
+            x: "<b>Which engine speaks which is the list below</b>, and it is not written by hand: it is regenerated from the engines' own catalogues by <code>tools/tabella_lingue.py</code>, and the test suite fails if it ever stops matching them. A character beyond the number of native voices is told apart by shifting the pitch, which is what you hear in the first clip: <code>[nicola]</code> and <code>[nicola-2_5]</code> are one voice at two pitches."
+          },
+          {
+            t: "lingue",
+            riassunto: "Open the full list, language by language",
+            testa: ["code", "language", "piper", "supertonic", "kokoro"],
+            /* Le righe qui sotto sono **generate**, e per questo non passano dal
+               traduttore: si veda il blocco `lingue` in `site/livedub.js` e la
+               testata di `tools/tabella_lingue.py`. */
+            righe: [
+/* lingue: inizio */
+              /* generato da `tools/tabella_lingue.py`, non si scrive a mano */
+              ["sq", "Albanian", "✓", "", ""],
+              ["ar", "Arabic", "✓", "✓", ""],
+              ["hy", "Armenian", "✓", "", ""],
+              ["eu", "Basque", "✓", "", ""],
+              ["bn", "Bengali", "✓", "", ""],
+              ["bg", "Bulgarian", "✓", "✓", ""],
+              ["ca", "Catalan", "✓", "", ""],
+              ["zh", "Chinese (Simplified)", "✓", "", "✓"],
+              ["hr", "Croatian", "", "✓", ""],
+              ["cs", "Czech", "✓", "✓", ""],
+              ["da", "Danish", "✓", "✓", ""],
+              ["nl", "Dutch", "✓", "✓", ""],
+              ["en", "English", "✓", "✓", "✓"],
+              ["et", "Estonian", "✓", "✓", ""],
+              ["fi", "Finnish", "✓", "✓", ""],
+              ["fr", "French", "✓", "✓", "✓"],
+              ["ka", "Georgian", "✓", "", ""],
+              ["de", "German", "✓", "✓", ""],
+              ["el", "Greek", "✓", "✓", ""],
+              ["he", "Hebrew", "✓", "", ""],
+              ["hi", "Hindi", "✓", "✓", "✓"],
+              ["hu", "Hungarian", "✓", "✓", ""],
+              ["is", "Icelandic", "✓", "", ""],
+              ["id", "Indonesian", "✓", "✓", ""],
+              ["it", "Italian", "✓", "✓", "✓"],
+              ["ja", "Japanese", "", "✓", "✓"],
+              ["kk", "Kazakh", "✓", "", ""],
+              ["ko", "Korean", "✓", "✓", ""],
+              ["ku", "Kurdish (Kurmanji)", "✓", "", ""],
+              ["lv", "Latvian", "✓", "✓", ""],
+              ["lt", "Lithuanian", "", "✓", ""],
+              ["lb", "Luxembourgish", "✓", "", ""],
+              ["ml", "Malayalam", "✓", "", ""],
+              ["mr", "Marathi", "✓", "", ""],
+              ["ne", "Nepali", "✓", "", ""],
+              ["no", "Norwegian", "✓", "", ""],
+              ["fa", "Persian", "✓", "", ""],
+              ["pl", "Polish", "✓", "✓", ""],
+              ["pt", "Portuguese", "✓", "✓", "✓"],
+              ["ro", "Romanian", "✓", "✓", ""],
+              ["ru", "Russian", "✓", "✓", ""],
+              ["sr", "Serbian", "✓", "", ""],
+              ["sk", "Slovak", "✓", "✓", ""],
+              ["sl", "Slovenian", "✓", "✓", ""],
+              ["es", "Spanish", "✓", "✓", "✓"],
+              ["sw", "Swahili", "✓", "", ""],
+              ["sv", "Swedish", "✓", "✓", ""],
+              ["te", "Telugu", "✓", "", ""],
+              ["tr", "Turkish", "✓", "✓", ""],
+              ["uk", "Ukrainian", "✓", "✓", ""],
+              ["ur", "Urdu", "✓", "", ""],
+              ["vi", "Vietnamese", "✓", "✓", ""],
+              ["cy", "Welsh", "✓", "", ""]
+/* lingue: fine */
+            ]
+          },
+          {
+            t: "p",
+            x: "The names in that list stay in English in every language of this page: they are data read from the code, like a device name or a model key. A language name run through a machine translator is how <code>uk — Ucraino</code> once became «Regno Unito — ucraino» inside the window."
           },
           { t: "h3", x: "What is claimed, and what was actually tested" },
           {

@@ -466,11 +466,83 @@ Qui tre cose diverse si chiamano *lingua*, si impostano in tre posti diversi, ed
 | `tone`, `silent` | — | un bip non ha lingua | — | — |
 | **unione** | **53** | | | |
 
-Solo due lingue sono esclusive di un motore — croato e lituano, tutte e due su
-supertonic; sei sono coperte da tutti e tre; ventuno sono solo di piper. Oltre il
-numero di voci native i personaggi si distinguono spostando i semitoni — è quello
-che si sente nella prima GIF: `[nicola]` e `[nicola-2_5]` sono una voce sola a
-due altezze.
+**Quale motore parla quale lingua lo dice l'elenco qui sotto**, e non è scritto
+a mano: lo rigenera `tools/tabella_lingue.py` leggendo i cataloghi dei motori, e
+la suite fallisce il giorno che smette di corrispondere. Oltre il numero di voci
+native i personaggi si distinguono spostando i semitoni — è quello che si sente
+nella prima GIF: `[nicola]` e `[nicola-2_5]` sono una voce sola a due altezze.
+
+<!-- lingue: inizio -->
+<!-- generato da `tools/tabella_lingue.py`, non si scrive a mano -->
+
+<details>
+<summary><b>Tutte le 53 lingue, motore per motore</b> — ✓ vuol dire che quel motore ha almeno una voce sua in quella lingua.</summary>
+
+| codice | lingua | piper | supertonic | kokoro |
+|---|---|:---:|:---:|:---:|
+| `sq` | Albanian | ✓ |  |  |
+| `ar` | Arabic | ✓ | ✓ |  |
+| `hy` | Armenian | ✓ |  |  |
+| `eu` | Basque | ✓ |  |  |
+| `bn` | Bengali | ✓ |  |  |
+| `bg` | Bulgarian | ✓ | ✓ |  |
+| `ca` | Catalan | ✓ |  |  |
+| `zh` | Chinese (Simplified) | ✓ |  | ✓ |
+| `hr` | Croatian |  | ✓ |  |
+| `cs` | Czech | ✓ | ✓ |  |
+| `da` | Danish | ✓ | ✓ |  |
+| `nl` | Dutch | ✓ | ✓ |  |
+| `en` | English | ✓ | ✓ | ✓ |
+| `et` | Estonian | ✓ | ✓ |  |
+| `fi` | Finnish | ✓ | ✓ |  |
+| `fr` | French | ✓ | ✓ | ✓ |
+| `ka` | Georgian | ✓ |  |  |
+| `de` | German | ✓ | ✓ |  |
+| `el` | Greek | ✓ | ✓ |  |
+| `he` | Hebrew | ✓ |  |  |
+| `hi` | Hindi | ✓ | ✓ | ✓ |
+| `hu` | Hungarian | ✓ | ✓ |  |
+| `is` | Icelandic | ✓ |  |  |
+| `id` | Indonesian | ✓ | ✓ |  |
+| `it` | Italian | ✓ | ✓ | ✓ |
+| `ja` | Japanese |  | ✓ | ✓ |
+| `kk` | Kazakh | ✓ |  |  |
+| `ko` | Korean | ✓ | ✓ |  |
+| `ku` | Kurdish (Kurmanji) | ✓ |  |  |
+| `lv` | Latvian | ✓ | ✓ |  |
+| `lt` | Lithuanian |  | ✓ |  |
+| `lb` | Luxembourgish | ✓ |  |  |
+| `ml` | Malayalam | ✓ |  |  |
+| `mr` | Marathi | ✓ |  |  |
+| `ne` | Nepali | ✓ |  |  |
+| `no` | Norwegian | ✓ |  |  |
+| `fa` | Persian | ✓ |  |  |
+| `pl` | Polish | ✓ | ✓ |  |
+| `pt` | Portuguese | ✓ | ✓ | ✓ |
+| `ro` | Romanian | ✓ | ✓ |  |
+| `ru` | Russian | ✓ | ✓ |  |
+| `sr` | Serbian | ✓ |  |  |
+| `sk` | Slovak | ✓ | ✓ |  |
+| `sl` | Slovenian | ✓ | ✓ |  |
+| `es` | Spanish | ✓ | ✓ | ✓ |
+| `sw` | Swahili | ✓ |  |  |
+| `sv` | Swedish | ✓ | ✓ |  |
+| `te` | Telugu | ✓ |  |  |
+| `tr` | Turkish | ✓ | ✓ |  |
+| `uk` | Ukrainian | ✓ | ✓ |  |
+| `ur` | Urdu | ✓ |  |  |
+| `vi` | Vietnamese | ✓ | ✓ |  |
+| `cy` | Welsh | ✓ |  |  |
+
+Leggendo una colonna si ha il catalogo di quel motore. Lingue che parla un motore solo: `piper` 21 · `supertonic` 2 (Croatian, Lithuanian) · `kokoro` 0. Lingue che parlano tutti e tre: 6 — English, French, Hindi, Italian, Portuguese, Spanish.
+
+</details>
+<!-- lingue: fine -->
+
+*I nomi di quell'elenco restano in inglese in tutte le lingue di questo repo:
+sono dati letti dal codice, come il nome di un dispositivo o la chiave di un
+modello. Un nome di lingua passato da un traduttore automatico è come `uk —
+Ucraino` diventato «Regno Unito — ucraino» dentro la finestra.*
 
 ### Cosa si dichiara, e cosa è stato davvero provato
 

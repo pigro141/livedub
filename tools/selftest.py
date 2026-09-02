@@ -5554,6 +5554,92 @@ def test_lingue_voci(c: Check) -> None:
          "una CUDA che va come una CPU retrocede, ed e' la stessa riga del banco")
 
 
+def test_tabella_lingue(c: Check) -> None:
+    """La tabella delle lingue parlate: quella del codice e quella pubblicata.
+
+    Esiste per prendere l'ottava occorrenza della forma piu' cara di questo
+    repo — **una tabella scritta due volte, e la seconda non l'aggiorna
+    nessuno**. Il README e la vetrina dichiarano cinquantatre lingue a chi
+    decide se installare: il giorno che un motore ne guadagna o ne perde una,
+    quei due file continuerebbero a dire il numero di ieri senza dare errore, e
+    l'unico modo di accorgersene sarebbe che qualcuno vada a contare.
+
+    Gira **senza rete e senza modelli**: `lingue_con_voce` legge i cataloghi,
+    che sono tabelle nel repo, e il resto e' leggere due file di testo.
+    """
+    c.group("tabella_lingue")
+
+    from tools.tabella_lingue import (
+        MOTORI, READMES, SITO, TESTI, controlla, dati,
+    )
+
+    d = dati()
+
+    # -- i dati vengono dai cataloghi dei motori, non da un elenco locale ----
+    for m in MOTORI:
+        c.ok(len(d.per_motore[m]) > 0, f"«{m}» dichiara almeno una lingua")
+    c.eq(len(d.righe), len(set().union(*(set(v) for v in d.per_motore.values()))),
+         "l'unione non perde ne' duplica una lingua")
+    c.eq(len({r.codice for r in d.righe}), len(d.righe),
+         "e nessun codice compare due volte")
+    c.ok(all(r.motori for r in d.righe),
+         "ogni lingua dell'unione ha almeno un motore che la parla")
+    c.ok(all(r.inglese and r.inglese != r.codice for r in d.righe),
+         "ogni codice ha un nome per esteso in translate/lingue.py")
+
+    # Le due esclusioni **dichiarate** nel README, che sono la ragione per cui
+    # questa tabella non e' l'indice ufficiale di Piper: il giapponese cade
+    # (`phoneme_type: japanese`, che `piper-tts` non conosce) e il cinese resta
+    # perche' ha comunque voci `espeak`, sono le due `pinyin` a restare fuori.
+    c.ok("ja" not in d.per_motore["piper"],
+         "il giapponese non e' fra le lingue di piper, ed e' voluto")
+    c.ok("ja" in d.per_motore["supertonic"] and "ja" in d.per_motore["kokoro"],
+         "ma si parla lo stesso, con gli altri due")
+    c.ok("zh" in d.per_motore["piper"],
+         "il cinese invece resta: fuori vanno le due voci pinyin, non la lingua")
+
+    # -- e cio' che e' pubblicato dice ancora quello che dice il codice ------
+    guai = controlla(d)
+    c.ok(not guai, "README e vetrina sono allineati al codice: " + (
+        "; ".join(guai) if guai else
+        "rilancia `python -m tools.tabella_lingue` se questa fallisce"))
+
+    # **Tutti e sette i README**, non solo l'inglese: chi legge il tedesco legge
+    # il suo, e una consegna che vale per una lingua sola non e' la consegna.
+    c.eq(len(READMES), 7, "i README coperti sono sette")
+    c.eq(sorted(READMES), sorted(TESTI),
+         "e ognuno ha la sua cornice tradotta in TESTI")
+    for sigla, percorso in READMES.items():
+        testo = percorso.read_text(encoding="utf-8")
+        # Il confronto riga per riga lo fa gia' `controlla`, che rigenera il
+        # blocco intero: qui basta dire che l'elenco e' **dentro quel file** e
+        # non che due stringhe coincidono da qualche parte.
+        c.ok(f"`{d.righe[0].codice}`" in testo and d.righe[0].inglese in testo
+             and f"`{d.righe[-1].codice}`" in testo,
+             f"README.{sigla}: l'elenco delle lingue c'e', dal primo all'ultimo")
+
+    testo_js = SITO.read_text(encoding="utf-8")
+    c.ok(f'"{d.righe[-1].codice}"' in testo_js and d.righe[-1].inglese in testo_js,
+         "e la vetrina ce l'ha anche lei")
+
+    # **I nomi delle lingue non si traducono**, e non e' una dimenticanza: sono
+    # dati letti dal codice. Passarli da un traduttore automatico e' come `uk —
+    # Ucraino` diventato «Regno Unito — ucraino» dentro la finestra. La verifica
+    # guarda le **chiavi** dei sei cataloghi: una chiave uguale al nome di una
+    # lingua vorrebbe dire che qualcuno ha passato la tabella dal traduttore.
+    i18n = SITO.parent
+    nomi = {r.inglese for r in d.righe}
+    for catalogo in sorted(i18n.glob("*.js")):
+        if catalogo.name == "en.js":
+            continue
+        chiavi = set(re.findall(r'^\s*"([^"\\]+)":', catalogo.read_text(encoding="utf-8"),
+                                re.M))
+        intrusi = sorted(chiavi & nomi)
+        c.ok(not intrusi,
+             f"{catalogo.name}: nessun nome di lingua fra le chiavi tradotte "
+             f"({', '.join(intrusi) if intrusi else 'nessuno'})")
+
+
 def test_installa(c) -> None:
     """«Va installato» deve poter diventare «installato», e sparire.
 
@@ -5842,6 +5928,10 @@ GROUPS = {
     # voce) e quella della finestra (i cataloghi, e cosa resta in italiano).
     "lingue": test_lingue,
     "lingue_voci": test_lingue_voci,
+    # **Cio' che il README e la vetrina dichiarano contro cio' che il codice
+    # sa fare.** Un numero pubblicato invecchia in silenzio: e' l'unico posto
+    # del progetto dove un difetto lo legge chi decide se installare.
+    "tabella_lingue": test_tabella_lingue,
     "ui_lingua": test_ui_lingua,
     # La guida iniziale: quando si apre, che saltarla la chiude per sempre, e
     # che quello che dice sta nei cataloghi — un dialogo che non esiste finche'

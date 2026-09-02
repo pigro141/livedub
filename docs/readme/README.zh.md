@@ -409,10 +409,76 @@ powershell -ExecutionPolicy Bypass -File installa.ps1 -SenzaGpu
 | `tone`, `silent` | — | 一声哔响没有语言 | — | — |
 | **合计** | **53** | | | |
 
-只有两种语言是某一个引擎独有的 —— 克罗地亚语和立陶宛语，都在 supertonic 上；有六种
-是三个引擎都覆盖的；有二十一种只有 piper 有。超出原生嗓音数量的角色，靠移动音高来
-区分 —— 这正是你在第一段 GIF 里听到的：`[nicola]` 和 `[nicola-2_5]` 是同一把嗓音的
-两个音高。
+**哪个引擎会说哪种语言，由下面的列表回答**，而且它不是手写的：`tools/tabella_lingue.py` 从各引擎自己的目录重新生成，一旦对不上，测试套件就会失败。超出原生嗓音数量的角色，靠移动音高来区分 —— 这正是你在第一段 GIF 里听到的：`[nicola]` 和 `[nicola-2_5]` 是同一把嗓音的两个音高。
+
+<!-- lingue: inizio -->
+<!-- generato da `tools/tabella_lingue.py`, non si scrive a mano -->
+
+<details>
+<summary><b>全部 53 种语言，逐个引擎</b> — ✓ 表示该引擎在这种语言里至少有一把自己的嗓音。</summary>
+
+| 代码 | 语言 | piper | supertonic | kokoro |
+|---|---|:---:|:---:|:---:|
+| `sq` | Albanian | ✓ |  |  |
+| `ar` | Arabic | ✓ | ✓ |  |
+| `hy` | Armenian | ✓ |  |  |
+| `eu` | Basque | ✓ |  |  |
+| `bn` | Bengali | ✓ |  |  |
+| `bg` | Bulgarian | ✓ | ✓ |  |
+| `ca` | Catalan | ✓ |  |  |
+| `zh` | Chinese (Simplified) | ✓ |  | ✓ |
+| `hr` | Croatian |  | ✓ |  |
+| `cs` | Czech | ✓ | ✓ |  |
+| `da` | Danish | ✓ | ✓ |  |
+| `nl` | Dutch | ✓ | ✓ |  |
+| `en` | English | ✓ | ✓ | ✓ |
+| `et` | Estonian | ✓ | ✓ |  |
+| `fi` | Finnish | ✓ | ✓ |  |
+| `fr` | French | ✓ | ✓ | ✓ |
+| `ka` | Georgian | ✓ |  |  |
+| `de` | German | ✓ | ✓ |  |
+| `el` | Greek | ✓ | ✓ |  |
+| `he` | Hebrew | ✓ |  |  |
+| `hi` | Hindi | ✓ | ✓ | ✓ |
+| `hu` | Hungarian | ✓ | ✓ |  |
+| `is` | Icelandic | ✓ |  |  |
+| `id` | Indonesian | ✓ | ✓ |  |
+| `it` | Italian | ✓ | ✓ | ✓ |
+| `ja` | Japanese |  | ✓ | ✓ |
+| `kk` | Kazakh | ✓ |  |  |
+| `ko` | Korean | ✓ | ✓ |  |
+| `ku` | Kurdish (Kurmanji) | ✓ |  |  |
+| `lv` | Latvian | ✓ | ✓ |  |
+| `lt` | Lithuanian |  | ✓ |  |
+| `lb` | Luxembourgish | ✓ |  |  |
+| `ml` | Malayalam | ✓ |  |  |
+| `mr` | Marathi | ✓ |  |  |
+| `ne` | Nepali | ✓ |  |  |
+| `no` | Norwegian | ✓ |  |  |
+| `fa` | Persian | ✓ |  |  |
+| `pl` | Polish | ✓ | ✓ |  |
+| `pt` | Portuguese | ✓ | ✓ | ✓ |
+| `ro` | Romanian | ✓ | ✓ |  |
+| `ru` | Russian | ✓ | ✓ |  |
+| `sr` | Serbian | ✓ |  |  |
+| `sk` | Slovak | ✓ | ✓ |  |
+| `sl` | Slovenian | ✓ | ✓ |  |
+| `es` | Spanish | ✓ | ✓ | ✓ |
+| `sw` | Swahili | ✓ |  |  |
+| `sv` | Swedish | ✓ | ✓ |  |
+| `te` | Telugu | ✓ |  |  |
+| `tr` | Turkish | ✓ | ✓ |  |
+| `uk` | Ukrainian | ✓ | ✓ |  |
+| `ur` | Urdu | ✓ |  |  |
+| `vi` | Vietnamese | ✓ | ✓ |  |
+| `cy` | Welsh | ✓ |  |  |
+
+竖着读一列，就是那个引擎的目录。只有一个引擎会说的：`piper` 21 · `supertonic` 2 (Croatian, Lithuanian) · `kokoro` 0。三个引擎都会说的：6 — English, French, Hindi, Italian, Portuguese, Spanish。
+
+</details>
+<!-- lingue: fine -->
+
+*那份列表里的名称在本仓库的所有语言中都保持英文：它们是从代码读出的数据，和设备名或模型键一样。把语言名交给机器翻译会发生什么，看窗口里 `uk — Ucraino` 变成 «Regno Unito — ucraino» 就知道了。*
 
 ### 声称的是什么，真正验过的又是什么
 

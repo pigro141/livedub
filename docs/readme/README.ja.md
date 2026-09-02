@@ -441,10 +441,76 @@ powershell -ExecutionPolicy Bypass -File installa.ps1 -SenzaGpu
 | `tone`, `silent` | — | ビープ音に言語はありません | — | — |
 | **合計** | **53** | | | |
 
-一つのエンジンだけが持つ言語は二つだけです — クロアチア語とリトアニア語で、どちらも
-supertonic。六つは三つすべてが持ち、二十一は piper だけが持ちます。生の声の数を
-超えた登場人物は音の高さをずらして区別され、それが最初の GIF で聞こえるものです:
-`[nicola]` と `[nicola-2_5]` は一つの声を二つの高さで使ったものです。
+**どのエンジンがどの言語を話すかは、下の一覧が答えます**。手で書いたものではありません: `tools/tabella_lingue.py` が各エンジン自身のカタログから作り直し、食い違った日にはテスト一式が落ちます。生の声の数を超えた登場人物は音の高さをずらして区別され、それが最初の GIF で聞こえるものです: `[nicola]` と `[nicola-2_5]` は一つの声を二つの高さで使ったものです。
+
+<!-- lingue: inizio -->
+<!-- generato da `tools/tabella_lingue.py`, non si scrive a mano -->
+
+<details>
+<summary><b>53 言語すべて、エンジンごと</b> — ✓ は、そのエンジンがその言語に自前の声を少なくとも一つ持っているという意味です。</summary>
+
+| コード | 言語 | piper | supertonic | kokoro |
+|---|---|:---:|:---:|:---:|
+| `sq` | Albanian | ✓ |  |  |
+| `ar` | Arabic | ✓ | ✓ |  |
+| `hy` | Armenian | ✓ |  |  |
+| `eu` | Basque | ✓ |  |  |
+| `bn` | Bengali | ✓ |  |  |
+| `bg` | Bulgarian | ✓ | ✓ |  |
+| `ca` | Catalan | ✓ |  |  |
+| `zh` | Chinese (Simplified) | ✓ |  | ✓ |
+| `hr` | Croatian |  | ✓ |  |
+| `cs` | Czech | ✓ | ✓ |  |
+| `da` | Danish | ✓ | ✓ |  |
+| `nl` | Dutch | ✓ | ✓ |  |
+| `en` | English | ✓ | ✓ | ✓ |
+| `et` | Estonian | ✓ | ✓ |  |
+| `fi` | Finnish | ✓ | ✓ |  |
+| `fr` | French | ✓ | ✓ | ✓ |
+| `ka` | Georgian | ✓ |  |  |
+| `de` | German | ✓ | ✓ |  |
+| `el` | Greek | ✓ | ✓ |  |
+| `he` | Hebrew | ✓ |  |  |
+| `hi` | Hindi | ✓ | ✓ | ✓ |
+| `hu` | Hungarian | ✓ | ✓ |  |
+| `is` | Icelandic | ✓ |  |  |
+| `id` | Indonesian | ✓ | ✓ |  |
+| `it` | Italian | ✓ | ✓ | ✓ |
+| `ja` | Japanese |  | ✓ | ✓ |
+| `kk` | Kazakh | ✓ |  |  |
+| `ko` | Korean | ✓ | ✓ |  |
+| `ku` | Kurdish (Kurmanji) | ✓ |  |  |
+| `lv` | Latvian | ✓ | ✓ |  |
+| `lt` | Lithuanian |  | ✓ |  |
+| `lb` | Luxembourgish | ✓ |  |  |
+| `ml` | Malayalam | ✓ |  |  |
+| `mr` | Marathi | ✓ |  |  |
+| `ne` | Nepali | ✓ |  |  |
+| `no` | Norwegian | ✓ |  |  |
+| `fa` | Persian | ✓ |  |  |
+| `pl` | Polish | ✓ | ✓ |  |
+| `pt` | Portuguese | ✓ | ✓ | ✓ |
+| `ro` | Romanian | ✓ | ✓ |  |
+| `ru` | Russian | ✓ | ✓ |  |
+| `sr` | Serbian | ✓ |  |  |
+| `sk` | Slovak | ✓ | ✓ |  |
+| `sl` | Slovenian | ✓ | ✓ |  |
+| `es` | Spanish | ✓ | ✓ | ✓ |
+| `sw` | Swahili | ✓ |  |  |
+| `sv` | Swedish | ✓ | ✓ |  |
+| `te` | Telugu | ✓ |  |  |
+| `tr` | Turkish | ✓ | ✓ |  |
+| `uk` | Ukrainian | ✓ | ✓ |  |
+| `ur` | Urdu | ✓ |  |  |
+| `vi` | Vietnamese | ✓ | ✓ |  |
+| `cy` | Welsh | ✓ |  |  |
+
+列を縦に読めば、そのエンジンのカタログになります。一つのエンジンだけが話す言語: `piper` 21 · `supertonic` 2 (Croatian, Lithuanian) · `kokoro` 0。三つとも話す言語: 6 — English, French, Hindi, Italian, Portuguese, Spanish。
+
+</details>
+<!-- lingue: fine -->
+
+*その一覧の名前は、このリポジトリのどの言語でも英語のままにしてあります。デバイス名やモデルのキーと同じく、コードから読んだデータだからです。言語名を機械翻訳に通すと何が起きるかは、ウィンドウの中で `uk — Ucraino` が «Regno Unito — ucraino» になった一件が示しています。*
 
 ### 何を主張し、実際に何を試したか
 

@@ -301,6 +301,23 @@ th{color:var(--tenue); font-weight:650; font-size:.76rem; text-transform:upperca
 tbody tr:last-child td{border-bottom:0}
 td b{color:var(--testo)}
 
+/* L'elenco delle lingue parlate: cinquantatre righe, che aperte di serie
+   spingerebbero in fondo alla pagina tutto quello che viene dopo. Chiuso e' una
+   riga sola, e la spunta sta al centro della sua colonna perche' quella tabella
+   si legge **in colonna** — la domanda e' «questo motore parla la mia lingua?»,
+   non «cosa dice la riga del norvegese». */
+details.lingue{
+  background:var(--superficie); border:1px solid var(--bordo);
+  border-radius:var(--raggio); padding:14px 20px; margin:1.8em 0;
+}
+details.lingue>summary{
+  cursor:pointer; color:var(--accento); font-weight:600; font-size:.94rem;
+}
+details.lingue .tab-scorre{margin:1em 0 .3em}
+details.lingue table{min-width:360px}
+details.lingue td.spunta{text-align:center; color:var(--accento); font-weight:700}
+details.lingue td code{font-size:.86em; color:var(--tenue)}
+
 .nota{
   background:var(--superficie); border:1px solid var(--bordo);
   border-left:3px solid var(--accento); border-radius:0 var(--raggio) var(--raggio) 0;

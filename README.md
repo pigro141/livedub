@@ -466,11 +466,84 @@ does not have.
 | `tone`, `silent` | — | a beep has no language | — | — |
 | **union** | **53** | | | |
 
-Only two languages are exclusive to a single engine — Croatian and Lithuanian,
-both on supertonic; six are covered by all three; twenty-one are piper-only.
-Beyond the number of native voices, characters are told apart by shifting the
-pitch — that is what you hear in the first GIF: `[nicola]` and `[nicola-2_5]`
-are one voice at two pitches.
+**Which engine speaks which is the list below**, and it is not written by hand:
+it is regenerated from the engines' own catalogues by
+[`tools/tabella_lingue.py`](tools/tabella_lingue.py), and the test suite fails if
+it ever stops matching them. Beyond the number of native voices, characters are
+told apart by shifting the pitch — that is what you hear in the first GIF:
+`[nicola]` and `[nicola-2_5]` are one voice at two pitches.
+
+<!-- lingue: inizio -->
+<!-- generato da `tools/tabella_lingue.py`, non si scrive a mano -->
+
+<details>
+<summary><b>All 53 languages, engine by engine</b> — ✓ means that engine has at least one voice of its own in that language.</summary>
+
+| code | language | piper | supertonic | kokoro |
+|---|---|:---:|:---:|:---:|
+| `sq` | Albanian | ✓ |  |  |
+| `ar` | Arabic | ✓ | ✓ |  |
+| `hy` | Armenian | ✓ |  |  |
+| `eu` | Basque | ✓ |  |  |
+| `bn` | Bengali | ✓ |  |  |
+| `bg` | Bulgarian | ✓ | ✓ |  |
+| `ca` | Catalan | ✓ |  |  |
+| `zh` | Chinese (Simplified) | ✓ |  | ✓ |
+| `hr` | Croatian |  | ✓ |  |
+| `cs` | Czech | ✓ | ✓ |  |
+| `da` | Danish | ✓ | ✓ |  |
+| `nl` | Dutch | ✓ | ✓ |  |
+| `en` | English | ✓ | ✓ | ✓ |
+| `et` | Estonian | ✓ | ✓ |  |
+| `fi` | Finnish | ✓ | ✓ |  |
+| `fr` | French | ✓ | ✓ | ✓ |
+| `ka` | Georgian | ✓ |  |  |
+| `de` | German | ✓ | ✓ |  |
+| `el` | Greek | ✓ | ✓ |  |
+| `he` | Hebrew | ✓ |  |  |
+| `hi` | Hindi | ✓ | ✓ | ✓ |
+| `hu` | Hungarian | ✓ | ✓ |  |
+| `is` | Icelandic | ✓ |  |  |
+| `id` | Indonesian | ✓ | ✓ |  |
+| `it` | Italian | ✓ | ✓ | ✓ |
+| `ja` | Japanese |  | ✓ | ✓ |
+| `kk` | Kazakh | ✓ |  |  |
+| `ko` | Korean | ✓ | ✓ |  |
+| `ku` | Kurdish (Kurmanji) | ✓ |  |  |
+| `lv` | Latvian | ✓ | ✓ |  |
+| `lt` | Lithuanian |  | ✓ |  |
+| `lb` | Luxembourgish | ✓ |  |  |
+| `ml` | Malayalam | ✓ |  |  |
+| `mr` | Marathi | ✓ |  |  |
+| `ne` | Nepali | ✓ |  |  |
+| `no` | Norwegian | ✓ |  |  |
+| `fa` | Persian | ✓ |  |  |
+| `pl` | Polish | ✓ | ✓ |  |
+| `pt` | Portuguese | ✓ | ✓ | ✓ |
+| `ro` | Romanian | ✓ | ✓ |  |
+| `ru` | Russian | ✓ | ✓ |  |
+| `sr` | Serbian | ✓ |  |  |
+| `sk` | Slovak | ✓ | ✓ |  |
+| `sl` | Slovenian | ✓ | ✓ |  |
+| `es` | Spanish | ✓ | ✓ | ✓ |
+| `sw` | Swahili | ✓ |  |  |
+| `sv` | Swedish | ✓ | ✓ |  |
+| `te` | Telugu | ✓ |  |  |
+| `tr` | Turkish | ✓ | ✓ |  |
+| `uk` | Ukrainian | ✓ | ✓ |  |
+| `ur` | Urdu | ✓ |  |  |
+| `vi` | Vietnamese | ✓ | ✓ |  |
+| `cy` | Welsh | ✓ |  |  |
+
+Reading down a column gives that engine's catalogue. Spoken by one engine only: `piper` 21 · `supertonic` 2 (Croatian, Lithuanian) · `kokoro` 0. Spoken by all three: 6 — English, French, Hindi, Italian, Portuguese, Spanish.
+
+</details>
+<!-- lingue: fine -->
+
+*The names in that list stay in English in every language of this repository:
+they are data read from the code, like a device name or a model key. A language
+name run through a machine translator is how `uk — Ucraino` once became «Regno
+Unito — ucraino» inside the window.*
 
 ### What is claimed, and what was actually tested
 

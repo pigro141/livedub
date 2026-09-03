@@ -1,0 +1,11 @@
+# Il bottone «Sponsor» in cima alla pagina del repo.
+#
+# Il link a Ko-fi c'era gia' — in fondo ai sette README e sulla vetrina — ma in
+# due posti che si leggono solo scorrendo fino alla fine. Questo file lo mette
+# **in testata**, accanto a «Watch» e «Fork», ed e' l'unico posto di GitHub che
+# ci arriva da solo: non e' una riga in piu' da scrivere, e' quella che mancava.
+#
+# Nome del file e delle chiavi: sono quelli che GitHub cerca, e non si scelgono.
+# `custom` vuole una lista di URL — Ko-fi non ha una chiave sua fra quelle
+# riconosciute.
+custom: ["https://ko-fi.com/filippodebenedittis"]

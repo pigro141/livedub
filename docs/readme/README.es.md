@@ -59,11 +59,13 @@ entre dos personajes: `[nicola]` y `[nicola-2_5]` son la misma voz a dos alturas
 Los mismos trece segundos del tráiler de GTA VI, doblados cuatro veces. Los
 subtítulos oficiales se **grabaron en la imagen** tal como los escribe GTA V —el
 cuerpo de letra y la posición medidos sobre un fotograma real del juego, no
-adivinados— y la cadena volvió a leerlos de los píxeles. Aquí no se traduce nada:
-cada pasada lee el subtítulo ya escrito en ese idioma y lo dice con una voz Kokoro
-**de ese idioma**. `[neutra]` es la voz que significa *todavía no sé quién habla*:
-en líneas de 0,6-2 s la huella no confirma a nadie, y decirlo es mejor que
-inventarse un personaje.
+adivinados— y la cadena volvió a leerlos de los píxeles. Aquí no se traduce
+nada: cada pasada lee el subtítulo ya escrito en ese idioma y lo dice con una
+voz Kokoro **de ese idioma**. Un nombre en la banda negra —`[nicola-2_5]`,
+`[es_santa]`— significa que la huella ha confirmado **quién** habla. El
+fragmento es una llamada telefónica a propósito: la huella necesita a alguien
+que hable seguido, y donde las líneas duran un segundo la respuesta honesta
+sigue siendo `[neutra]`, *todavía no sé quién habla*.
 
 [![cuatro idiomas](../../assets/vetrina/trailer-multilingua.gif)](https://pigro141.github.io/livedub/?lang=es#watch)
 

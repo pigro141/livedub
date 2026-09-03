@@ -59,14 +59,16 @@ geliefert. Man hört die Stimme zwischen zwei Figuren wechseln: `[nicola]` und
 ### Vier Sprachen, eine Szene
 
 Dieselben dreizehn Sekunden des GTA-VI-Trailers, viermal synchronisiert. Die
-offiziellen Untertitel wurden **ins Bild eingebrannt**, so wie GTA V sie schreibt
-— Schriftgröße und Position an einem echten Einzelbild des Spiels gemessen, nicht
-geraten — und die Kette hat sie aus den Pixeln zurückgelesen. Hier wird nichts
-übersetzt: jeder Durchgang liest den Untertitel, der schon in dieser Sprache
-dasteht, und spricht ihn mit einer Kokoro-Stimme **dieser Sprache**. `[neutra]`
-ist die Stimme, die heißt *ich weiß noch nicht, wer spricht*: bei Zeilen von
-0,6-2 s bestätigt der Stimmabdruck niemanden, und das zu sagen ist besser, als
-eine Figur zu erfinden.
+offiziellen Untertitel wurden **ins Bild eingebrannt**, so wie GTA V sie
+schreibt — Schriftgröße und Position an einem echten Einzelbild des Spiels
+gemessen, nicht geraten — und die Kette hat sie aus den Pixeln zurückgelesen.
+Hier wird nichts übersetzt: jeder Durchgang liest den Untertitel, der schon in
+dieser Sprache dasteht, und spricht ihn mit einer Kokoro-Stimme **dieser
+Sprache**. Ein Name im schwarzen Balken — `[nicola-2_5]`, `[es_santa]` — heißt,
+dass der Stimmabdruck bestätigt hat, **wer** spricht. Der Ausschnitt ist mit
+Absicht ein Telefonat: der Stimmabdruck braucht jemanden, der am Stück redet,
+und wo die Zeilen eine Sekunde dauern, bleibt die ehrliche Antwort `[neutra]`,
+*ich weiß noch nicht, wer spricht*.
 
 [![vier Sprachen](../../assets/vetrina/trailer-multilingua.gif)](https://pigro141.github.io/livedub/?lang=de#watch)
 

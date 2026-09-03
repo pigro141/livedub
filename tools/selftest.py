@@ -3216,6 +3216,41 @@ def test_template(c: Check) -> None:
     c.ok(v.index("boxblur") < v.index("tradotto.ass"),
          "e la sfocatura prima del testo, se no si sfocherebbe il testo stesso")
 
+    # -- la banda dei letti va a capo, se no si mangia il nome della voce ----
+    #
+    # E' l'unica cosa che quella banda deve dire — *ha sbagliato a leggere o a
+    # dire?* — e il nome della voce sta **in testa** alla riga, quindi e' il
+    # primo pezzo che se ne va quando il testo sborda. Sborda in silenzio: il
+    # video esce, il testo c'e', e manca il pezzo che si stava guardando.
+    # Misurato sulla vetrina spagnola, `[es_santa] Probablemente...` compariva
+    # come `anta] Probablemente...`.
+    from tools.dub import scrivi_sottotitoli
+
+    class _Detta:
+        t_scheduled, duration = 1.0, 2.0
+        text = ("Probablemente por eso ha sobrevivido tanto tiempo. "
+                "Podriamos aprender algo de el.")
+        voice_id = "es_santa"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        testo = scrivi_sottotitoli([_Detta()], Path(tmp) / "letto.ass", 1280).read_text(
+            encoding="utf-8")
+    c.ok("WrapStyle: 0" in testo,
+         "la banda va a capo da sola: `WrapStyle: 2` vuol dire «mai», e una riga "
+         "piu' larga del video si perde ai due lati senza dare errore")
+    c.ok(f"[{_Detta.voice_id}] {_Detta.text}" in testo,
+         "e il nome della voce resta in testa alla riga, dove si legge insieme al testo")
+
+    # Andare a capo serve a qualcosa solo se la riga in piu' ci sta: la banda e
+    # il corpo del carattere escono da due formule diverse (`_filtro_video` e
+    # `scrivi_sottotitoli`), e nessuna delle due sa dell'altra. Si rileggono da
+    # cio' che il codice ha appena scritto, non si riscrivono qui.
+    corpo = int(re.search(r"Style: ocr,Consolas,(\d+),", testo).group(1))
+    alta = int(re.search(r"pad=iw:ih\+(\d+):", _filtro_video(1280, Path("letto.ass"))).group(1))
+    c.ok(alta >= 2 * round(corpo * 1.2) + 10,
+         f"nella banda alta {alta} px ci stanno due righe da {corpo} px piu' il "
+         f"margine: se no il testo andato a capo finirebbe sopra il gioco")
+
 
 def test_stringi_non_accodare(c: Check) -> None:
     """La battuta si stringe per stare nella sua finestra, non si sposta avanti.

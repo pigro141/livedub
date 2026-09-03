@@ -319,12 +319,25 @@ def scrivi_sottotitoli(righe: list, destinazione: Path, larghezza: int) -> Path:
 
     Accanto al testo va il nome della voce: cosi' si vede anche a chi la catena
     ha attribuito la battuta, nello stesso istante in cui la si sente.
+
+    **E la riga lunga va a capo, perche' senza andarci sparisce.** `WrapStyle: 2`
+    vuol dire «non andare mai a capo da solo», e la banda e' larga quanto il
+    video: una riga piu' lunga esce dai due lati e viene tagliata **senza dare
+    errore**, cioe' proprio il nome della voce — che sta all'inizio — e' il primo
+    pezzo che se ne va. Misurato a 1280 px: il corpo e' `1280 // 44 = 29`, che in
+    Consolas fa 16,0 px per carattere (l'inchiostro misurato su un fotogramma
+    vero ne da' 15,4, che e' lo stesso numero meno le spalle del primo e
+    dell'ultimo glifo), quindi fra i due margini da 20 ci stanno **77
+    caratteri**. Una battuta letta dai 91 caratteri della vetrina spagnola ne
+    perdeva sette per parte: `[es_santa] Probablemente...` compariva come
+    `anta] Probablemente...`. Con `WrapStyle: 0` diventa due righe da 35 px in
+    una banda alta 106 (`_filtro_video`), e ci sta tutto.
     """
     testa = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {larghezza}
 PlayResY: {int(larghezza * 9 / 16)}
-WrapStyle: 2
+WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, BackColour, Bold, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding

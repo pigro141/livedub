@@ -60,11 +60,13 @@ a due altezze.
 Gli stessi tredici secondi del trailer di GTA VI, doppiati quattro volte. I
 sottotitoli ufficiali sono stati **impressi nell'immagine** come li scrive GTA V
 — corpo del carattere e posizione misurati su un fotogramma vero del gioco, non
-indovinati — e la catena li ha riletti dai pixel. Qui non si traduce niente: ogni
-passata legge il sottotitolo già scritto in quella lingua e lo dice con una voce
-Kokoro **di quella lingua**. `[neutra]` è la voce che vuol dire *non so ancora chi
-parla*: su battute da 0,6-2 s l'impronta non conferma nessuno, e dirlo è meglio
-che inventare un personaggio.
+indovinati — e la catena li ha riletti dai pixel. Qui non si traduce niente:
+ogni passata legge il sottotitolo già scritto in quella lingua e lo dice con una
+voce Kokoro **di quella lingua**. Un nome nella fascia nera — `[nicola-2_5]`,
+`[es_santa]` — vuol dire che l'impronta ha confermato **chi** parla. Il tratto è
+una telefonata apposta: all'impronta serve qualcuno che parli di fila, e dove le
+battute durano un secondo la risposta onesta resta `[neutra]`, *non so ancora
+chi parla*.
 
 [![quattro lingue](../../assets/vetrina/trailer-multilingua.gif)](https://pigro141.github.io/livedub/?lang=it#watch)
 

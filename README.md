@@ -60,11 +60,13 @@ are the same voice at two pitches.
 The same thirteen seconds of the GTA VI trailer, dubbed four times. The official
 subtitles were **burned into the picture** the way GTA V writes them — font size
 and position measured off a real frame of the game, not guessed — and the chain
-read them back out of the pixels. Nothing is translated here: each pass reads the
-subtitle already written in that language and speaks it with a Kokoro voice **of
-that language**. `[neutra]` is the voice that means *I do not know yet who is
-talking*: on lines of 0.6–2 s the fingerprint confirms nobody, and saying so is
-better than inventing a character.
+read them back out of the pixels. Nothing is translated here: each pass reads
+the subtitle already written in that language and speaks it with a Kokoro voice
+**of that language**. A name in the black band — `[nicola-2_5]`, `[es_santa]` —
+means the fingerprint has confirmed **who** is talking. The stretch is a phone
+call on purpose: the fingerprint needs somebody who speaks for a while, and
+where the lines last a second the honest answer stays `[neutra]`, *I do not know
+yet who is talking*.
 
 [![four languages](assets/vetrina/trailer-multilingua.gif)](https://pigro141.github.io/livedub/#watch)
 

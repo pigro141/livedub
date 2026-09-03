@@ -81,7 +81,7 @@
             t: "video",
             src: "assets/vetrina/trailer-multilingua.mp4",
             poster: "assets/vetrina/trailer-multilingua-poster.jpg",
-            x: "<b>Four languages, one scene.</b> The same thirteen seconds of the GTA VI trailer, dubbed four times. The official subtitles were <b>burned into the picture</b> the way GTA V writes them — font size and position measured off a real frame of the game, not guessed — and the chain read them back out of the pixels. Nothing is translated here: each pass reads the subtitle already written in that language and speaks it with a Kokoro voice <b>of that language</b>. <code>[neutra]</code> is the voice that means <i>I do not know yet who is talking</i>: on lines of 0.6-2 s the fingerprint confirms nobody, and saying so is better than inventing a character."
+            x: "<b>Four languages, one scene.</b> The same thirteen seconds of the GTA VI trailer, dubbed four times. The official subtitles were <b>burned into the picture</b> the way GTA V writes them — font size and position measured off a real frame of the game, not guessed — and the chain read them back out of the pixels. Nothing is translated here: each pass reads the subtitle already written in that language and speaks it with a Kokoro voice <b>of that language</b>. A name in the black band — <code>[nicola-2_5]</code>, <code>[es_santa]</code> — means the fingerprint has confirmed <b>who</b> is talking. The stretch is a phone call on purpose: the fingerprint needs somebody who speaks for a while, and where the lines last a second the honest answer stays <code>[neutra]</code>, <i>I do not know yet who is talking</i>."
           },
           {
             t: "video",

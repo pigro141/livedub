@@ -58,14 +58,16 @@ deux hauteurs.
 
 ### Quatre langues, une seule scène
 
-Les mêmes treize secondes de la bande-annonce de GTA VI, doublées quatre fois. Les
-sous-titres officiels ont été **incrustés dans l'image** à la manière de GTA V — la
-taille de la police et la position mesurées sur une vraie image du jeu, non
-devinées — et la chaîne les a relus dans les pixels. Ici rien n'est traduit :
-chaque passage lit le sous-titre déjà écrit dans cette langue et le dit avec une
-voix Kokoro **de cette langue**. `[neutra]` est la voix qui veut dire *je ne sais
-pas encore qui parle* : sur des répliques de 0,6-2 s l'empreinte ne confirme
-personne, et le dire vaut mieux qu'inventer un personnage.
+Les mêmes treize secondes de la bande-annonce de GTA VI, doublées quatre fois.
+Les sous-titres officiels ont été **incrustés dans l'image** à la manière de GTA
+V — la taille de la police et la position mesurées sur une vraie image du jeu,
+non devinées — et la chaîne les a relus dans les pixels. Ici rien n'est traduit
+: chaque passage lit le sous-titre déjà écrit dans cette langue et le dit avec
+une voix Kokoro **de cette langue**. Un nom dans le bandeau noir —
+`[nicola-2_5]`, `[es_santa]` — veut dire que l'empreinte a confirmé **qui**
+parle. Le passage est un appel téléphonique exprès : l'empreinte a besoin de
+quelqu'un qui parle d'affilée, et là où les répliques durent une seconde la
+réponse honnête reste `[neutra]`, *je ne sais pas encore qui parle*.
 
 [![quatre langues](../../assets/vetrina/trailer-multilingua.gif)](https://pigro141.github.io/livedub/?lang=fr#watch)
 

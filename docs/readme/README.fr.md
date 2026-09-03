@@ -10,6 +10,7 @@ en train de parler, synthétise la réplique avec la voix de ce personnage et la
 mixe par-dessus le jeu. Le tout sur votre propre machine.
 
 [![build](https://img.shields.io/github/actions/workflow/status/pigro141/livedub/eseguibile.yml?branch=main&style=flat-square&label=build)](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)
+[![release](https://img.shields.io/github/v/release/pigro141/livedub?style=flat-square&label=download&color=2b8a6b)](https://github.com/pigro141/livedub/releases/latest)
 [![licence](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b?style=flat-square)](../../LICENSE)
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11-2b8a6b?style=flat-square)
@@ -294,12 +295,12 @@ C'est la voie recommandée et celle qui marche sur toutes les machines, et elle
 n'a pas bougé.
 
 **Il y a aussi un exécutable, et il a vraiment été lancé.** Chaque push le
-construit sur GitHub Actions puis l'*exécute* : dans le paquet, il lit un
-sous-titre dessiné, synthétise une réplique et construit la fenêtre, et
-l'artefact n'est publié que si tout cela passe. C'est l'artefact
-`livedub-windows` au bas de la
-[dernière construction au vert](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml).
-Télécharger un artefact demande un compte GitHub, et chacun reste là 14 jours.
+construit sur GitHub Actions puis l'*exécute* : dans le paquet il lit un
+sous-titre dessiné, synthétise une réplique et construit la fenêtre, et rien
+n'est publié si l'une de ces douze vérifications ne passe pas. Le paquet
+vérifié est sur la [page des releases](https://github.com/pigro141/livedub/releases/latest) — une archive
+d'environ 400 Mo avec son SHA256 à côté, sans compte GitHub et sans date
+d'expiration.
 
 **Deux limites, déclarées plutôt que cachées.** Avec **Smart App Control**
 activé — et il l'est par défaut sur une installation propre de Windows 11 —

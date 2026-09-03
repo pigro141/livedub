@@ -10,6 +10,7 @@ parlando, sintetizza la battuta con la voce di quel personaggio e la mixa sopra
 il gioco. Tutto sulla tua macchina.
 
 [![costruzione](https://img.shields.io/github/actions/workflow/status/pigro141/livedub/eseguibile.yml?branch=main&style=flat-square&label=build)](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)
+[![release](https://img.shields.io/github/v/release/pigro141/livedub?style=flat-square&label=download&color=2b8a6b)](https://github.com/pigro141/livedub/releases/latest)
 [![licenza](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b?style=flat-square)](../../LICENSE)
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11-2b8a6b?style=flat-square)
@@ -291,11 +292,11 @@ com'era.
 
 **E c'e' anche un eseguibile, ed e' stato aperto davvero.** Ogni push lo
 costruisce su GitHub Actions e poi lo *esegue*: dentro il pacchetto legge un
-sottotitolo disegnato, sintetizza una battuta e costruisce la finestra, e
-l'artefatto sale solo se tutto questo passa. E' l'artefatto `livedub-windows` in
-fondo alla
-[costruzione verde piu' recente](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml).
-Per scaricare un artefatto serve un account GitHub, e ognuno resta li' 14 giorni.
+sottotitolo disegnato, sintetizza una battuta e costruisce la finestra, e non
+si pubblica niente se anche una sola di quelle dodici prove non passa. Il
+pacchetto provato sta nella [pagina delle release](https://github.com/pigro141/livedub/releases/latest) —
+uno zip da circa 400 MB con accanto il suo SHA256, senza bisogno di un
+account GitHub e senza scadenza.
 
 **Due limiti, dichiarati invece che nascosti.** Con **Smart App Control** acceso
 — ed e' acceso di serie su un'installazione pulita di Windows 11 — l'eseguibile

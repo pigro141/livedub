@@ -9,6 +9,7 @@
 声でせりふを合成してゲームに重ねて流します。すべて自分のパソコンの中で。
 
 [![ビルド](https://img.shields.io/github/actions/workflow/status/pigro141/livedub/eseguibile.yml?branch=main&style=flat-square&label=build)](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)
+[![release](https://img.shields.io/github/v/release/pigro141/livedub?style=flat-square&label=download&color=2b8a6b)](https://github.com/pigro141/livedub/releases/latest)
 [![ライセンス](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b?style=flat-square)](../../LICENSE)
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11-2b8a6b?style=flat-square)
@@ -277,12 +278,11 @@ GTA V が動いている状態で* — RAM 31.8 GB、Windows 11 Pro ビルド 26
 **PowerShell でソースからインストール** — すぐ下のブロックです。これが推奨の道であり、
 どのマシンでも動く道で、以前のままです。
 
-**実行ファイルもあります。しかも実際に起動されています。** push のたびに GitHub Actions が
-それをビルドし、そのうえで*実行*します。パッケージの中で描画された字幕を読み、一つの台詞を
-合成し、ウィンドウを組み立てる。それが全部通ったときだけ成果物が上がります。
-[直近の緑のビルド](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)の
-末尾にある `livedub-windows` という成果物がそれです。成果物のダウンロードには GitHub の
-アカウントが要り、それぞれ 14 日間だけ残ります。
+**実行ファイルもあり、実際に起動されています。** push のたびに GitHub Actions が
+ビルドし、そのうえで*実行*します。パッケージの中で描かれた字幕を読み、台詞を合成し、
+ウィンドウを組み立てます。その 12 個の検査がすべて通らなければ、何も公開されません。
+検査を通ったパッケージは[リリースのページ](https://github.com/pigro141/livedub/releases/latest)にあります —
+約 400 MB の zip と、その隣に SHA256。GitHub のアカウントは要らず、期限もありません。
 
 **限界は二つ、隠さずに書きます。** **Smart App Control** が有効だと — Windows 11 を
 まっさらに入れた状態では既定で有効です — 実行ファイルは**起動しません**。ビルドはどれも

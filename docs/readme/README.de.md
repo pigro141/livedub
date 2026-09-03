@@ -10,6 +10,7 @@ Spiels, wer gerade spricht, synthetisiert die Zeile mit der Stimme dieser Figur
 und mischt sie über das Spiel. Alles auf deinem eigenen Rechner.
 
 [![Build](https://img.shields.io/github/actions/workflow/status/pigro141/livedub/eseguibile.yml?branch=main&style=flat-square&label=build)](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)
+[![release](https://img.shields.io/github/v/release/pigro141/livedub?style=flat-square&label=download&color=2b8a6b)](https://github.com/pigro141/livedub/releases/latest)
 [![Lizenz](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b?style=flat-square)](../../LICENSE)
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11-2b8a6b?style=flat-square)
@@ -298,12 +299,11 @@ ist unverändert geblieben.
 
 **Es gibt auch eine ausführbare Datei, und sie ist wirklich gestartet worden.**
 Jeder Push baut sie auf GitHub Actions und *führt sie dann aus*: im Paket liest
-sie einen gezeichneten Untertitel, synthetisiert eine Zeile und baut das Fenster,
-und das Artefakt geht nur hoch, wenn all das durchgeht. Es ist das Artefakt
-`livedub-windows` am Fuß des
-[jüngsten grünen Laufs](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml).
-Zum Herunterladen eines Artefakts braucht es ein GitHub-Konto, und jedes bleibt
-14 Tage liegen.
+sie einen gezeichneten Untertitel, synthetisiert eine Zeile und baut das
+Fenster, und veröffentlicht wird nur, wenn alle zwölf dieser Prüfungen
+durchgehen. Das geprüfte Paket liegt auf der [Release-Seite](https://github.com/pigro141/livedub/releases/latest) — ein Zip
+von rund 400 MB mit seinem SHA256 daneben, ohne GitHub-Konto und ohne
+Ablaufdatum.
 
 **Zwei Grenzen, erklärt statt versteckt.** Mit eingeschaltetem **Smart App
 Control** — und auf einem frisch installierten Windows 11 ist es standardmäßig

@@ -294,7 +294,7 @@
           },
           {
             t: "p",
-            x: "<b>There is also an executable, and it has been launched.</b> Every push builds it on GitHub Actions and then <i>runs</i> it: inside the package it reads a drawn subtitle, synthesises a line and builds the window, and the artifact is uploaded only if all of that passes. It is the <code>livedub-windows</code> artifact at the foot of the <a href=\"https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml\">latest green run</a>. Downloading an artifact needs a GitHub account, and each one is kept for 14 days."
+            x: "<b>There is also an executable, and it has been launched.</b> Every push builds it on GitHub Actions and then <i>runs</i> it: inside the package it reads a drawn subtitle, synthesises a line and builds the window, and nothing is published unless all twelve of those checks pass. The tested package is on the <a href=\"https://github.com/pigro141/livedub/releases/latest\">Releases page</a> — a zip of about 400 MB with its SHA256 beside it, no GitHub account needed and no expiry date."
           },
           {
             t: "p",

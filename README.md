@@ -10,6 +10,7 @@ game's audio, synthesises the line in that character's voice and mixes it over
 the game. All on your own machine.
 
 [![build](https://img.shields.io/github/actions/workflow/status/pigro141/livedub/eseguibile.yml?branch=main&style=flat-square&label=build)](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)
+[![release](https://img.shields.io/github/v/release/pigro141/livedub?style=flat-square&label=download&color=2b8a6b)](https://github.com/pigro141/livedub/releases/latest)
 [![licence](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b?style=flat-square)](LICENSE)
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11-2b8a6b?style=flat-square)
@@ -290,12 +291,12 @@ if you want everything in a single pair of headphones.
 recommended way and the one that works on every machine, and nothing about it has
 changed.
 
-**There is also an executable, and it has been launched.** Every push builds it on
-GitHub Actions and then *runs* it: inside the package it reads a drawn subtitle,
-synthesises a line and builds the window, and the artifact is uploaded only if all
-of that passes. It is the `livedub-windows` artifact at the foot of the
-[latest green run](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml).
-Downloading an artifact needs a GitHub account, and each one is kept for 14 days.
+**There is also an executable, and it has been launched.** Every push builds
+it on GitHub Actions and then *runs* it: inside the package it reads a drawn
+subtitle, synthesises a line and builds the window, and nothing is published
+unless all twelve of those checks pass. The tested package is on the
+[Releases page](https://github.com/pigro141/livedub/releases/latest) — a zip of about 400 MB with its
+SHA256 beside it, no GitHub account needed and no expiry date.
 
 **Two limits, stated rather than hidden.** With **Smart App Control** on — and it
 is on by default on a clean Windows 11 install — the executable **does not

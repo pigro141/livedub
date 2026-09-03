@@ -9,6 +9,7 @@
 合成这句台词，再混到游戏上面。全部在你自己的电脑上。
 
 [![构建](https://img.shields.io/github/actions/workflow/status/pigro141/livedub/eseguibile.yml?branch=main&style=flat-square&label=build)](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)
+[![release](https://img.shields.io/github/v/release/pigro141/livedub?style=flat-square&label=download&color=2b8a6b)](https://github.com/pigro141/livedub/releases/latest)
 [![许可证](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b?style=flat-square)](../../LICENSE)
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11-2b8a6b?style=flat-square)
@@ -259,12 +260,10 @@ GTA V* —— 31.8 GB 内存，Windows 11 Pro 版本号 26200，Python 3.11.9。
 **用 PowerShell 从源码安装** —— 就是下面那段。这是推荐的路，也是在每一台机器上都能走通的
 路，而且一如从前。
 
-**另外也有可执行文件，而且它真的被打开过。** 每次 push 都会在 GitHub Actions 上把它构建
-出来，然后*运行*它：在包内读一行画出来的字幕、合成一句台词、把窗口搭起来，全部通过了才会
-上传产物。它就是
-[最近一次变绿的构建](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)
-页面底部那个名为 `livedub-windows` 的产物。下载产物需要一个 GitHub 账号，每个产物保留
-14 天。
+**也有一个可执行文件，而且它真的被打开过。**每次 push 都会在 GitHub Actions 上构建它，
+然后*运行*它：在包内读取一条画出来的字幕、合成一句台词、搭出窗口；这十二项检查只要有一项
+不过，就什么都不发布。通过检查的包在[发布页](https://github.com/pigro141/livedub/releases/latest)上 ——
+一个约 400 MB 的 zip，旁边放着它的 SHA256，不需要 GitHub 账号，也没有有效期。
 
 **两条界限，说明白而不藏着。** 打开 **Smart App Control** 时 —— 在全新安装的 Windows 11
 上它默认就是打开的 —— 可执行文件**起不来**：每次构建都是一个新文件，而新文件按其构成本就

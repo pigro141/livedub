@@ -10,6 +10,7 @@ hablando, sintetiza la frase con la voz de ese personaje y la mezcla sobre el
 juego. Todo en tu propia máquina.
 
 [![compilación](https://img.shields.io/github/actions/workflow/status/pigro141/livedub/eseguibile.yml?branch=main&style=flat-square&label=build)](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml)
+[![release](https://img.shields.io/github/v/release/pigro141/livedub?style=flat-square&label=download&color=2b8a6b)](https://github.com/pigro141/livedub/releases/latest)
 [![licencia](https://img.shields.io/badge/licence-GPL--3.0--or--later-2b8a6b?style=flat-square)](../../LICENSE)
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2b8a6b?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11-2b8a6b?style=flat-square)
@@ -288,13 +289,12 @@ solo ayuda si quieres tenerlo todo en unos únicos auriculares.
 **Instalación desde el código con PowerShell** — el bloque de aquí abajo. Es la
 vía recomendada y la que funciona en todas las máquinas, y sigue igual que antes.
 
-**Y también hay un ejecutable, y se ha abierto de verdad.** Cada push lo compila
-en GitHub Actions y después lo *ejecuta*: dentro del paquete lee un subtítulo
-dibujado, sintetiza una línea y construye la ventana, y el artefacto solo se sube
-si todo eso pasa. Es el artefacto `livedub-windows` al pie de la
-[compilación verde más reciente](https://github.com/pigro141/livedub/actions/workflows/eseguibile.yml).
-Para descargar un artefacto hace falta una cuenta de GitHub, y cada uno se guarda
-14 días.
+**Y también hay un ejecutable, y se ha abierto de verdad.** Cada push lo
+construye en GitHub Actions y luego lo *ejecuta*: dentro del paquete lee un
+subtítulo dibujado, sintetiza una frase y construye la ventana, y no se publica
+nada si alguna de esas doce pruebas no pasa. El paquete probado está en la
+[página de releases](https://github.com/pigro141/livedub/releases/latest) — un zip de unos 400 MB con su
+SHA256 al lado, sin necesidad de cuenta de GitHub y sin fecha de caducidad.
 
 **Dos límites, declarados en vez de escondidos.** Con **Smart App Control**
 encendido — y viene encendido de fábrica en una instalación limpia de Windows 11

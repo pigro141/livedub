@@ -346,6 +346,15 @@ def chiedi(percorso: str, valore, cfg, padre=None) -> bool:
 
     if padre is None or not padre.isVisible():
         return False
+    # **Prima si guarda la tabella, poi il disco.** Questa funzione la chiama il
+    # pannello a **ogni** campo che cambia, e i campi che hanno qualcosa dietro
+    # sono cinque su centosessantasei: chiedere `presenti()` per gli altri
+    # centosessantuno vorrebbe dire pagare **due secondi** — misurati: 2022 ms la
+    # prima volta, 1 ms le successive — per rispondere «niente da fare» a chi ha
+    # spostato un cursore. `RICHIESTE` e' un dizionario, quindi la domanda giusta
+    # costa un accesso.
+    if percorso not in banco.RICHIESTE:
+        return False
     try:
         codici = banco.manca_per_scelta(percorso, valore,
                                         banco.presenti_in_cache(cfg))

@@ -5867,6 +5867,7 @@ def test_installa(c) -> None:
     # schermo» non copriva «costruita e mai mostrata», che e' quello che fa
     # questa suite — e il modale l'ha tenuta appesa dieci minuti senza stampare
     # una riga. La condizione giusta e' «e' davvero davanti a qualcuno».
+    from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QWidget
 
     from ui.qt_installa import chiedi, testi
@@ -5876,6 +5877,44 @@ def test_installa(c) -> None:
          "con la finestra non mostrata non si apre nessun modale")
     c.eq(chiedi("tts.backend", "kokoro", cfg, None), False,
          "e senza padre nemmeno")
+
+    # **E un campo senza niente dietro non deve guardare il disco.** Questa
+    # funzione la chiama il pannello a *ogni* manopola che cambia, e `presenti()`
+    # costa 2022 ms la prima volta: pagarli per rispondere «niente da fare» a chi
+    # ha spostato un cursore sarebbe una finestra ferma due secondi al primo
+    # ritocco.
+    #
+    # **Il padre qui e' visibile, e non e' un dettaglio.** La prima stesura di
+    # questa verifica usava il widget mai mostrato di sopra: `chiedi` torna
+    # `False` alla prima riga, quindi il disco non lo tocca **mai** e il conteggio
+    # sarebbe stato zero anche con la cura tolta. Era una verifica che non poteva
+    # fallire proprio nel caso per cui esiste — la nona volta di quella forma in
+    # questo progetto. `WA_DontShowOnScreen` piu' `show()` da' un widget che
+    # `isVisible()` dichiara visibile senza comparire a schermo.
+    visto = QWidget()
+    visto.setAttribute(Qt.WA_DontShowOnScreen, True)
+    visto.show()
+    c.ok(visto.isVisible(), "il padre della prova e' visibile, se no non prova niente")
+
+    volte = []
+    vero = B.presenti_in_cache
+    # Tutto presente: cosi' `chiedi` arriva in fondo senza aprire nessun modale,
+    # e quello che si conta e' **se** ha guardato, non cosa ha trovato.
+    B.presenti_in_cache = lambda _cfg, _v=volte: (_v.append(1), frozenset(B.PEZZI))[1]
+    try:
+        c.eq(chiedi("tts.backend", "kokoro", cfg, visto), False,
+             "con tutto sul disco non c'e' niente da installare")
+        c.eq(volte, [1],
+             "ma il disco l'ha guardato: e' un campo che ha dei pezzi dietro")
+        volte.clear()
+        chiedi("timing.rate_max", 1.25, cfg, visto)
+        chiedi("mix.duck_db", -20, cfg, visto)
+        c.eq(volte, [],
+             "un campo che non ha nessun pezzo dietro non tocca il disco: la "
+             "risposta sta in un dizionario, e costa un accesso")
+    finally:
+        B.presenti_in_cache = vero
+        visto.close()
     c.ok(len(testi()) >= 6,
          "e le parole del riquadro sono dichiarate, se no resterebbero in "
          "italiano in mezzo a un programma tradotto")

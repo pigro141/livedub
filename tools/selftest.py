@@ -6029,6 +6029,29 @@ def test_rilascio(c) -> None:
          "e ogni passo che pubblica gira solo da un tag: un push qualunque non "
          "ci arriva")
 
+    # -- e il numero di verifiche che il repo pubblica ------------------------
+    #
+    # **Non si controlla che sia giusto, si controlla che sia uno solo.** Quanto
+    # valga si sa solo dopo aver fatto girare la suite, e questa riga sta
+    # *dentro* la suite: mentre conta, sta ancora contando anche se stessa. La
+    # domanda che invece si puo' fare qui e' quella che il difetto vero aveva
+    # gia' — i quattordici posti dicevano `78`, e il giapponese e il cinese
+    # `76`. Non erano vecchi allo stesso modo: avevano **cominciato a
+    # contraddirsi**, e quello si vede senza sapere la risposta.
+    from tools.conta_verifiche import dichiarati, posti
+
+    quali = posti()
+    c.eq(len(quali), 14, "i posti in cui quel numero e' scritto sono quattordici")
+    detti = dichiarati()
+    vuoti = sorted(n for n, v in detti.items() if not v)
+    c.eq(vuoti, [],
+         "in ognuno il numero si trova: se una regex smettesse di trovarlo, lo "
+         "strumento riscriverebbe tredici file su quattordici senza dirlo")
+    tutti = sorted({x for v in detti.values() for x in v})
+    c.eq(len(tutti), 1,
+         f"e dicono tutti lo stesso ({tutti}): rilancia "
+         f"`python -m tools.conta_verifiche` se questa diventa rossa")
+
 
 GROUPS = {
     "clock": test_clock,

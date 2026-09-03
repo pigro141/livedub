@@ -227,6 +227,26 @@ def cambia(w, testo: str) -> None:
     w.setText(testo)
 
 
+def dimentica(w) -> None:
+    """Butta la memoria dell'originale italiano di questo widget.
+
+    La chiama chi **riscrive da capo** il contenuto di un controllo: una tendina
+    che si rifa' con altri segni, un elenco ricostruito. Senza, la memoria resta
+    quella di prima e `applica` la usa come chiave: misurato, la voce
+    `«↓ piper — svelto, gira ovunque»` e' finita cosi' dentro `_chiavi.json` e
+    ci sarebbe rimasta, con il `↓` rimesso al suo posto a ogni cambio di lingua
+    **anche dopo aver installato la voce**.
+
+    Non e' `cambia()`, che serve a chi scrive **una** stringa nuova sapendo qual
+    e': qui le stringhe le riscrive un ciclo, e l'unica cosa vera da dire e' «il
+    testo di adesso e' il nuovo originale».
+    """
+    for nome in list(w.dynamicPropertyNames()):
+        chiave = bytes(nome).decode("utf-8", "ignore")
+        if chiave.startswith("__it_"):
+            w.setProperty(chiave, None)
+
+
 def mancanti(codice: str) -> tuple[str, ...]:
     """Le chiavi che quella lingua non ha, in ordine di estrazione."""
     if codice == SORGENTE:
@@ -255,16 +275,57 @@ def scrivi(codice: str, voci: dict[str, str], backend: str) -> Path:
 # --------------------------------------------------------- quale lingua --
 
 
+def _da_windows() -> str:
+    """La lingua **in cui l'utente usa Windows**, chiesta al sistema. `""` se no.
+
+    E' `GetUserDefaultUILanguage`, cioe' la lingua dell'interfaccia — che e'
+    esattamente quello che «come Windows» promette. Non e' il locale del
+    processo, e la differenza non e' teorica: **il locale del processo ce lo
+    cambia una libreria di terze parti sotto i piedi**.
+
+    Misurato, ed e' il difetto che l'utente ha fotografato: alla **prima
+    sintesi** Piper carica espeak-ng, che fa `setlocale(LC_ALL, "en_US.UTF-8")`.
+    Da quel momento `locale.getlocale()` risponde `('en_US', 'UTF-8')` su una
+    macchina italiana, `auto` diventa `en`, e ogni frase composta **dopo**
+    (`aggiorna_pronto`, il riquadro d'installazione) esce in inglese dentro una
+    finestra che era gia' stata vestita in italiano. Nessun errore, nessun
+    contatore: due strade che leggono lo stesso campo e ottengono due risposte,
+    perche' il campo non e' nostro.
+    """
+    import ctypes
+
+    try:
+        k = ctypes.windll.kernel32
+        lcid = int(k.GetUserDefaultUILanguage())
+        buf = ctypes.create_unicode_buffer(85)
+        if k.LCIDToLocaleName(lcid, buf, len(buf), 0):
+            return buf.value or ""
+    except Exception:  # pragma: no cover - non Windows, o una API che non c'e'
+        return ""
+    return ""
+
+
+@lru_cache(maxsize=1)
 def di_sistema() -> str:
     """La lingua di Windows, ridotta a un codice di questa tabella.
 
     Serve a `ui.lingua = auto`. Si passa da `translate.lingue.normalizza` perche'
-    Windows dice `it_IT` e Google dice `it`: due modi di scrivere la stessa cosa,
+    Windows dice `it-IT` e Google dice `it`: due modi di scrivere la stessa cosa,
     e un confronto secco fra i due non trova niente **senza dare errore**.
+
+    **La risposta si tiene**, ed e' la stessa ragione di `MisuraCarattere`: la
+    lingua in cui uno usa Windows non cambia mentre il programma e' aperto,
+    quindi una risposta che cambia non e' un'informazione, e' rumore. La cache e'
+    la seconda difesa; la prima e' chiedere al sistema invece che al locale del
+    processo (si veda `_da_windows`).
     """
     import locale as _locale
 
     from translate.lingue import normalizza
+
+    dal_sistema = _da_windows()
+    if dal_sistema:
+        return normalizza(dal_sistema) or SORGENTE
 
     try:
         etichetta = _locale.getlocale()[0] or ""

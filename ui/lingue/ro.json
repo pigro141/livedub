@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "Cât de repede coboară",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "Ceea ce devine cu adevărat mai rău este grafica: tradusul este desenat peste original, reconstruind fundalul în jurul liniei, iar cu cât zona este mai mare, cu atât reconstrucția preia mai multe lucruri care nu se potrivesc acolo. Peste 0,12 în înălțime, programul vă spune când trageți dreptunghiul și când porniți lanțul. Dreptunghiul este desenat de la pasul 2 din fila «Pregătire».",
   "Questo PC: cosa riesce a fare, e cosa manca": "Acest PC: ce poate face și ce îi lipsește",
+  "Questo non si puo' installare da qui.": "Acesta nu poate fi instalat de aici.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "Acest parametru este citit o singură dată când lanțul începe.\nSchimbându-l în timp ce sesiunea este activată, va apărea banda de aplicare.",
   "Questo va installato": "Acesta trebuie instalat",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "Deci jocul trebuie să fie cu ferestre sau fără margini, nu exclusiv pe ecran complet. În opțiunile video ale jocurilor există aproape întotdeauna „Fără margini”, iar pentru a-l privi este identic cu ecranul complet.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Alegeți fereastra jocului",
   "Se il gioco la scrive in un altro modo": "Dacă jocul scrie altfel",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "Dacă o măriți, programul arată la fel: o zonă mare este mai puțin precisă, nu se schimbă.",
+  "Serve a «{0} = {1}»:": "Este folosit pentru «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "Este necesar pentru că un model lipsă nu dă o eroare. Programele sunt deja instalate; nu modelele - se iau la prima cerere, iar daca nu ajung programul nu se opreste: cade inapoi pe ceva mai usor si merge mai departe. Fără acest pas, ați asculta de rezervă fără să știți.",
   "Sessione": "Sesiune",
   "Sfoglia…": "Răsfoiți...",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} plăci de sunet pentru a asculta, {1} pentru a juca",
   "{0}: non riuscito — {1}": "{0}: eșuat — {1}",
   "«come Windows» qui vuol dire: {0}": "„ca Windows” aici înseamnă: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ piper — rapid, du-te peste tot (recomandat)",
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — pe computer, model mic"
  }

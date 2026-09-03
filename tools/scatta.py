@@ -437,7 +437,8 @@ def _installa(app, f, fuori: Path, sigla: str) -> int:
     from ui.qt_installa import DialogoInstalla
 
     d = DialogoInstalla("tts.backend", "kokoro",
-                        ("cuda", "kokoro", "voci_kokoro"), f.cfg, f)
+                        ("cuda", "kokoro", "voci_kokoro"), f.cfg, f,
+                        congelato=False)
     d.setAttribute(Qt.WA_DontShowOnScreen, True)
     d.show()
     scritti = 0
@@ -450,6 +451,22 @@ def _installa(app, f, fuori: Path, sigla: str) -> int:
             scritti += 1
     finally:
         d.reject()
+
+    # **Il quarto stato e' l'unico che non ha un bottone, ed e' quello che
+    # l'utente ha fotografato al contrario.** Dentro il pacchetto congelato
+    # «Installa» apriva una porta chiusa: si premeva e usciva un `RuntimeError`.
+    # Adesso lo si dice prima, e questa e' l'immagine che lo prova — da sorgente,
+    # perche' `congelato` arriva da fuori apposta.
+    g = DialogoInstalla("translate.backend", "locale", ("argos", "traduzione"),
+                        f.cfg, f, congelato=True)
+    g.setAttribute(Qt.WA_DontShowOnScreen, True)
+    g.show()
+    try:
+        app.processEvents()
+        g.grab().save(str(fuori / f"{sigla}-installa-daquino.png"))
+        scritti += 1
+    finally:
+        g.reject()
     return scritti
 
 

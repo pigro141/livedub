@@ -3979,6 +3979,31 @@ def test_lingue(c: Check) -> None:
     c.ok(not copertura("locale").sa_fare("auto") and copertura("google").sa_fare("auto"),
          "e i due backend rispondono diverso sulla stessa domanda")
 
+    # -- e **in che ordine** lo dice, che non e' un dettaglio di stile -------
+    #
+    # L'avviso c'era gia' — «`auto` non lo capisce: diventa `en`» — ed era in
+    # **coda** a una riga di centosessanta caratteri, dentro un'etichetta che si
+    # accorcia coi puntini. A schermo si leggeva «⚠ Argos traduce coppie
+    # installate:…» e la meta' che conta non compariva mai. La misura giusta e'
+    # quindi sull'inizio della frase, non sul fatto che la frase ci sia.
+    from translate.lingue import nota_per
+
+    # Trenta e non sessanta: e' quanto sta nell'etichetta prima dei puntini,
+    # misurato a schermo con `tools/scatta.py`. Un tetto piu' largo di quello
+    # che si vede sarebbe una verifica che non puo' esprimere la risposta.
+    INIZIO = 30
+    for nome in ("locale", "llm", "ollama"):
+        testa = nota_per(nome, AUTO)[:INIZIO]
+        c.ok("en" in testa,
+             f"con «{nome}» e `auto`, la lingua che verra' davvero usata si "
+             f"legge nei primi {INIZIO} caratteri ({nome}: {testa!r})")
+        c.ok(nota_per(nome, "it") == copertura(nome).nota,
+             f"e su una lingua scelta a mano la nota resta quella di sempre ({nome})")
+        c.ok(nota_per(nome, AUTO).count("diventa `en`") == 0,
+             f"senza ripetere due volte la stessa cosa ({nome})")
+    c.eq(nota_per("google", AUTO), "",
+         "google `auto` lo capisce davvero: li' non c'e' niente da dire")
+
     # -- e la voce, che e' l'altra meta' -------------------------------------
     # Tradurre verso una lingua per cui il motore montato non ha voci non da'
     # errore: esce una voce che ne pronuncia un'altra.
@@ -4184,6 +4209,44 @@ def test_ui_lingua(c: Check) -> None:
     c.ok(L.da_destra("he"), "anche scritto con l'ISO moderno")
     c.ok(not L.da_destra("it") and not L.da_destra("ja"),
          "e l'italiano e il giapponese no")
+
+    # -- **la lingua di sistema non cambia mentre il programma e' aperto** ---
+    #
+    # E' il difetto che l'utente ha fotografato, ed e' il piu' insidioso di
+    # tutti: finestra italiana con dentro un riquadro inglese, e la riga «da
+    # fare nella preparazione» pure inglese. Nessun errore, nessuna traccia.
+    #
+    # La causa: `di_sistema()` leggeva il locale del **processo**, e alla prima
+    # sintesi Piper carica espeak-ng, che fa `setlocale(LC_ALL, "en_US.UTF-8")`.
+    # Da li' in poi `auto` valeva `en` — quindi la finestra, gia' vestita in
+    # italiano, restava italiana, e tutto cio' che si compone **dopo**
+    # (`traduci`) usciva inglese. Due strade che leggono lo stesso campo e
+    # ottengono due risposte, perche' il campo non era nostro.
+    #
+    # La cura si prova facendo **esattamente quello che fa espeak**, e va provata
+    # con la cache buttata: se no passerebbe anche il solo memo, e il memo da
+    # solo dipende da chi arriva per primo.
+    import locale as _locale
+
+    prima_lingua = L.di_sistema()
+    era = _locale.setlocale(_locale.LC_ALL)
+    try:
+        _locale.setlocale(_locale.LC_ALL, "en_US.UTF-8")
+        c.eq(_locale.getlocale()[0], "en_US",
+             "il locale del processo e' stato davvero cambiato, se no questa "
+             "verifica non prova niente")
+        L.di_sistema.cache_clear()
+        c.eq(L.di_sistema(), prima_lingua,
+             "e la lingua di Windows non si e' mossa: la si chiede al sistema "
+             "(`GetUserDefaultUILanguage`), non al locale che espeak calpesta")
+        c.eq(L.risolvi("auto"), L.risolvi("auto"),
+             "quindi `auto` risponde sempre la stessa cosa dentro una sessione")
+    finally:
+        try:
+            _locale.setlocale(_locale.LC_ALL, era)
+        except Exception:  # pragma: no cover - dipende dal sistema
+            pass
+        L.di_sistema.cache_clear()
 
     # -- `auto` e il ripiego dichiarato --------------------------------------
     c.ok(L.risolvi("auto") in lingue,
@@ -5965,6 +6028,317 @@ def test_installa(c) -> None:
     fuori = [t for t in testi() if t not in chiavi]
     c.eq(fuori, [],
          "e sta nell'elenco delle chiavi: rilancia `tools/traduci_ui.py --estrai`")
+
+    _installa_nomi(c)
+    _installa_perche(c, cfg)
+    _installa_congelato(c)
+    _installa_gia_scelto(c)
+    _installa_segni(c)
+    _installa_parole(c)
+
+
+def _installa_nomi(c) -> None:
+    """**Ogni nome che `core/banco.py` importa deve esistere davvero.**
+
+    E' la verifica che sarebbe costata due righe e non c'era.
+    `from speak.backends.piper import KNOWN` e' rimasto in due punti dal giorno
+    in cui Piper e' passato da due voci a 175: `KNOWN` non esisteva piu', l'
+    import stava dentro un `except Exception: pass`, e quindi **piper non e' mai
+    stato contato come presente** — il motore di serie risultava da installare su
+    ogni macchina — mentre `_prendi` moriva con `ImportError: cannot import name
+    'KNOWN'` sotto il bottone «Installa». Nessun numero lo diceva.
+
+    Si legge il **sorgente** con `ast`, come fa gia' `ui_lingua` per le frasi
+    composte: cosi' l'elenco non si scrive, si ricava, e un import nuovo e
+    sbagliato non puo' passare.
+    """
+    import ast
+    import importlib
+    from pathlib import Path as _P
+
+    albero = ast.parse((_P(__file__).resolve().parent.parent / "core" / "banco.py")
+                       .read_text(encoding="utf-8"))
+    quanti = 0
+    for nodo in ast.walk(albero):
+        if not isinstance(nodo, ast.ImportFrom) or nodo.level or not nodo.module:
+            continue
+        try:
+            modulo = importlib.import_module(nodo.module)
+        except Exception as guasto:
+            # Un pacchetto di terze parti che su questa macchina non c'e' non e'
+            # un difetto di `banco.py`: quello e' il caso che `presenti()`
+            # gestisce apposta. Qui si guarda **il nome dentro un modulo che si
+            # importa**, che e' l'unica cosa che non puo' essere una notizia.
+            c.ok(isinstance(guasto, (ImportError, OSError)),
+                 f"«{nodo.module}» non si importa, ed e' un'assenza dichiarabile "
+                 f"({type(guasto).__name__})")
+            continue
+        for nome in nodo.names:
+            quanti += 1
+            c.ok(hasattr(modulo, nome.name),
+                 f"core/banco.py importa «{nome.name}» da «{nodo.module}», e c'e'")
+    c.ok(quanti > 20, f"e i nomi importati sono {quanti}: la passeggiata li vede")
+
+
+def _installa_perche(c, cfg) -> None:
+    """**Un «manca» che non dice perche' e' indistinguibile da un difetto.**
+
+    `presenti()` avvolgeva ogni prova in `except Exception: pass`, quindi «il
+    modello non e' sul disco» e «da questo modulo importo un nome che non esiste»
+    davano la stessa risposta. La seconda e' rimasta in piedi per settimane.
+
+    Qui si chiede la risposta vera su **questa** macchina e si guarda che nessuna
+    delle prove sia caduta per un difetto di codice: un pacchetto che non c'e' e'
+    una notizia, un `ImportError` su un nome no.
+    """
+    from core import banco as B
+
+    # -- la regola, che si prova con eccezioni finte -------------------------
+    c.ok(B.e_un_difetto(ImportError("cannot import name 'KNOWN'")),
+         "un nome che non si importa e' un difetto di questo file, non un "
+         "modello che manca")
+    c.ok(not B.e_un_difetto(ModuleNotFoundError("No module named 'argostranslate'")),
+         "ma un pacchetto che non c'e' e' esattamente quello che si sta chiedendo")
+    c.ok(B.e_un_difetto(AttributeError("x")) and B.e_un_difetto(TypeError("x")),
+         "e cosi' un attributo o una firma sbagliata")
+    c.ok(not B.e_un_difetto(FileNotFoundError("models/kokoro.onnx")),
+         "un file che non c'e' e' la risposta normale a questa domanda")
+
+    # -- e adesso su questa macchina ----------------------------------------
+    B.dimentica_presenti()
+    B.presenti(cfg)
+    guasti = {k: v for k, v in B.perche_manca().items()
+              if v.split(":")[0] in ("ImportError", "AttributeError", "TypeError",
+                                     "NameError", "IndexError")}
+    c.eq(guasti, {},
+         "nessuna prova di `presenti()` cade per un difetto di codice: quando "
+         "succedeva, il motore di serie risultava «da installare» su ogni "
+         "macchina e nessun numero lo diceva")
+
+    # **Le voci di Piper si chiedono al pool, non a un elenco scritto qui.**
+    voci = B.voci_piper(cfg)
+    c.ok(bool(voci), "il motore di serie ha delle voci da cercare sul disco")
+    from speak.pool import basi_per, conosciuta
+
+    c.eq(tuple(voci), tuple(basi_per("piper", B.lingua_parlata(cfg))),
+         "e sono quelle del pool, cioe' le stesse che `make_tts` precarica: due "
+         "elenchi vorrebbero dire scaricare una cosa e controllarne un'altra")
+    c.ok(all(conosciuta(v) for v in voci),
+         "ognuna sta in un catalogo vero, se no `model_path` solleverebbe")
+
+    # E cambiando lingua cambiano le voci: era il motivo per cui l'elenco fisso
+    # non poteva restare.
+    import copy as _copy
+
+    altra = _copy.deepcopy(cfg)
+    altra.set("translate.enabled", True)
+    altra.set("translate.target", "de")
+    c.eq(B.lingua_parlata(altra), "de",
+         "con la traduzione accesa si parla la lingua d'arrivo")
+    c.ok(set(B.voci_piper(altra)) != set(voci),
+         "quindi le voci da avere sul disco sono altre: un `KNOWN` fisso non "
+         "poteva rispondere a questa domanda")
+
+
+def _installa_congelato(c) -> None:
+    """Un bottone che non puo' funzionare non si offre: **lo si dice prima**."""
+    from core import banco as B
+
+    c.eq(B.non_di_qui(("argos", "piper", "llm"), True), ("argos", "llm"),
+         "nel pacchetto congelato la traduzione offline e il modello locale non "
+         "si installano: non c'e' ne' un venv ne' pip")
+    c.eq(B.non_di_qui(("argos", "llm"), False), (),
+         "da sorgente invece si installano, ed e' la strada normale")
+    c.eq(B.non_di_qui(("kokoro", "cuda", "oneocr"), True), (),
+         "i modelli si scaricano anche dal pacchetto: sono file, non pacchetti pip")
+    for chiave in B.NON_DI_QUI:
+        c.ok(chiave in B.PEZZI, f"«{chiave}» e' un pezzo dichiarato")
+        c.ok("sorgente" in B.NON_DI_QUI[chiave],
+             f"e la riga di «{chiave}» dice cosa fare invece di dire solo di no")
+
+
+def _installa_gia_scelto(c) -> None:
+    """**Il valore che c'era gia' non faceva comparire niente.**
+
+    `chiedi` la chiamava solo `Pannello.applica`, cioe' solo al *cambio* di un
+    campo: `tts.backend = piper` e' il default e non cambia mai, quindi la
+    scelta piu' comune di tutte era l'unica che non poteva essere offerta.
+    """
+    from core import banco as B
+    from core.config import Config
+
+    cfg = Config()
+    c.eq(B.manca_per_config(cfg, frozenset()),
+         (("tts.backend", "piper", ("piper",)),),
+         "con il disco vuoto, il motore di serie e' una scelta a cui manca "
+         "qualcosa: e' scritta in configurazione dall'inizio, e nessuno la "
+         "chiedeva mai")
+    c.eq(B.manca_per_config(cfg, {"piper"}), (),
+         "e col suo modello sul disco non c'e' piu' niente da dire")
+
+    # **La traduzione conta solo se e' accesa.** `translate.backend` vale
+    # `locale` anche da spenta — e' il suo default — e offrire tre giga di Argos
+    # a chi doppia GTA V in italiano sarebbe un riquadro per una cosa che non
+    # succedera'.
+    c.eq(cfg.translate.enabled, False, "la traduzione e' spenta di serie")
+    c.ok(all(p != "translate.backend" for p, _v, _x in
+             B.manca_per_config(cfg, {"piper"})),
+         "con la traduzione spenta non si offre di installare il traduttore")
+    cfg.set("translate.enabled", True)
+    c.eq(B.manca_per_config(cfg, {"piper"}),
+         (("translate.backend", "locale", ("argos", "traduzione")),),
+         "accesa si', ed e' la stessa tabella di prima")
+    for percorso, interruttore in B.ACCESO.items():
+        c.ok(percorso in B.RICHIESTE, f"«{percorso}» e' un campo con dei pezzi dietro")
+        c.ok(B.getattr_percorso(cfg, interruttore) is not None,
+             f"e «{interruttore}» e' un campo vero della configurazione")
+
+    # -- e la porta che lo chiede, con la stessa guardia dell'altra ----------
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from ui.qt_installa import chiedi_tutto
+
+    QApplication.instance() or QApplication([])
+    muto = QWidget()
+    c.eq(chiedi_tutto(cfg, muto), False,
+         "con la finestra non mostrata non si apre nessun modale, come per "
+         "`chiedi`: e' la guardia che ha gia' tenuto la suite appesa dieci minuti")
+    c.eq(chiedi_tutto(cfg, None), False, "e senza padre nemmeno")
+
+    # **La memoria di cosa e' gia' stato proposto**, che e' l'altra meta': un
+    # riquadro che torna a ogni Avvia e' quello che si spegne da solo nella
+    # testa di chi lo legge. Col padre visibile e tutto sul disco non si apre
+    # niente, ma le coppie gia' viste si segnano lo stesso.
+    visto = QWidget()
+    visto.setAttribute(Qt.WA_DontShowOnScreen, True)
+    visto.show()
+    vero = B.presenti_in_cache
+    B.presenti_in_cache = lambda _cfg: frozenset(B.PEZZI)
+    try:
+        c.ok(visto.isVisible(), "il padre della prova e' visibile, se no non prova niente")
+        segnati: set = set()
+        c.eq(chiedi_tutto(cfg, visto, segnati), False,
+             "con tutto sul disco non c'e' niente da offrire")
+        c.eq(segnati, set(), "e niente da ricordarsi")
+    finally:
+        B.presenti_in_cache = vero
+        visto.close()
+
+
+def _installa_segni(c) -> None:
+    """**«Non lo so ancora» non e' «non c'e' niente da dichiarare», qui.**
+
+    Difetto visto dall'utente: installato un pezzo, sparivano i segni `↓` di
+    *tutto*. `banco.scarica` butta la cache in fondo a se stessa, quindi la
+    prova successiva costa 2022 ms e i 400 ms del tetto non bastano:
+    `presenti_svelto` tornava `None`, `da_installare` tornava `{}` e le tendine
+    si rifacevano senza nessun segno. Chi **disegna** una scheda puo' non
+    marcare; chi **rifa'** i segni dopo un'installazione no.
+    """
+    from core import banco as B
+    from core.config import Config
+    from ui.qt_controlli import da_installare
+
+    cfg = Config()
+    svelto, in_cache = B.presenti_svelto, B.presenti_in_cache
+    B.presenti_svelto = lambda _cfg, entro_ms=0.0: None      # «non lo so ancora»
+    B.presenti_in_cache = lambda _cfg: frozenset()           # il disco e' vuoto
+    try:
+        c.eq(da_installare("tts.backend", cfg), {},
+             "disegnando una scheda, «non lo so ancora» non marca niente: "
+             "marcare a torto sarebbe un avviso che nessuno puo' soddisfare")
+        aspettando = da_installare("tts.backend", cfg, aspetta=True)
+        c.ok("piper" in aspettando and "kokoro" in aspettando,
+             "ma rifacendo i segni si aspetta la risposta vera, se no "
+             "installare una cosa cancella i segni di tutte le altre")
+    finally:
+        B.presenti_svelto, B.presenti_in_cache = svelto, in_cache
+
+
+def _installa_parole(c) -> None:
+    """Il riquadro parla **la lingua della finestra**, anche dopo aver premuto.
+
+    Difetto fotografato: nel riquadro inglese il bottone diceva «Installa» e
+    quello accanto «Not now». `lingua.applica` traduce quello che trova **quando
+    passa**; `_finito` e `_premuto` riscrivevano il bottone con la costante
+    italiana, cioe' dopo la passeggiata.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from core.config import Config
+    from ui import lingua as L
+    from ui.qt_installa import CHIUDI, INSTALLA, SERVE_A, DialogoInstalla
+
+    QApplication.instance() or QApplication([])
+    cfg = Config()
+    cfg.ui.lingua = "en"
+    catalogo = L.carica("en")
+    padre = QWidget()
+    padre.setAttribute(Qt.WA_DontShowOnScreen, True)
+    padre.show()
+    try:
+        d = DialogoInstalla("tts.backend", "kokoro", ("kokoro",), cfg, padre,
+                            congelato=False)
+        c.eq(d.b_installa.text(), catalogo[INSTALLA],
+             "aperto, il bottone parla la lingua della finestra")
+        d.posa("rotto")
+        c.eq(d.b_installa.text(), catalogo[INSTALLA],
+             "e dopo un tentativo andato male **continua** a parlarla: era qui "
+             "che tornava italiano in mezzo all'inglese")
+        d._finito({})
+        c.eq(d.b_installa.text(), catalogo[CHIUDI],
+             "come quando ce l'ha fatta")
+        c.ok(catalogo[SERVE_A].split("{")[0].strip() in d.a_cosa.text(),
+             "e la riga che dice per quale scelta passa dal catalogo invece di "
+             "essere composta in italiano")
+        c.ok("tts.backend" in d.a_cosa.text() and "kokoro" in d.a_cosa.text(),
+             "col percorso e il valore dentro il segnaposto, dove nessun "
+             "traduttore li tocca")
+        d.reject()
+
+        # -- e la tendina che si rifa' i segni non torna italiana -------------
+        #
+        # `SceltaFra.rimarca` riscrive le voci **in italiano** — e' la lingua del
+        # sorgente — quindi dopo un'installazione quella tendina restava
+        # italiana dentro una finestra tradotta. E la memoria che `ui.lingua`
+        # tiene sul widget era peggio: essendo quella di prima, al cambio di
+        # lingua successivo rimetteva la voce **col segno di allora**, cioe' il
+        # `↓` di una cosa appena installata. Si e' visto: la chiave
+        # `«↓ piper — svelto...»` e' finita cosi' dentro `_chiavi.json`.
+        from ui.qt_controlli import SceltaFra
+
+        etichette = {"piper": "svelto, gira ovunque"}
+        sf = SceltaFra(("piper",), etichette,
+                       da_installare={"piper": "Va installato: 92 MB"})
+        L.applica(sf, "en")
+        c.ok(SceltaFra.SEGNO_MANCA in sf.combo.itemText(0),
+             "prima dell'installazione la voce porta il segno")
+        sf.rimarca({}, {})              # installato: i segni si rifanno
+        c.ok(SceltaFra.SEGNO_MANCA not in sf.combo.itemText(0),
+             "installato, il segno se ne va")
+        L.applica(sf, "en")             # e la finestra si riveste
+        c.ok(SceltaFra.SEGNO_MANCA not in sf.combo.itemText(0),
+             "e non torna al cambio di lingua: la memoria dell'originale e' "
+             "stata rifatta insieme alle voci")
+        c.ok(L.carica("en").get(etichette["piper"], "") in sf.combo.itemText(0)
+             or etichette["piper"] not in L.carica("en"),
+             "e la voce resta nella lingua della finestra")
+
+        # -- e il caso in cui non c'e' niente da premere ---------------------
+        g = DialogoInstalla("translate.backend", "locale", ("argos", "traduzione"),
+                            cfg, padre, congelato=True)
+        c.ok(not g.b_installa.isVisible(),
+             "quello che da qui non si puo' installare non offre un bottone: "
+             "premerlo sollevava, cioe' diceva la cosa giusta dopo")
+        c.eq(g.b_dopo.text(), catalogo[CHIUDI],
+             "resta solo «Chiudi», tradotto come il resto")
+        c.ok("google" in g.stato.text(),
+             "e si legge cosa fare al posto suo, che e' la meta' che conta")
+        g.reject()
+    finally:
+        padre.close()
 
 
 

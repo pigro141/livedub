@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "कितनी जल्दी कम हो जाता है",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "जो चीज़ वास्तव में बदतर हो जाती है वह है ग्राफिक्स: अनुवादित को मूल के ऊपर खींचा जाता है, रेखा के चारों ओर पृष्ठभूमि का पुनर्निर्माण किया जाता है, और क्षेत्र जितना अधिक होता है, पुनर्निर्माण में उतनी ही अधिक चीजें शामिल होती हैं जो वहां फिट नहीं होती हैं। 0.12 से ऊपर की ऊंचाई पर प्रोग्राम आपको बताता है कि आप आयत कब खींचते हैं और आप श्रृंखला कब शुरू करते हैं। आयत \"तैयारी\" टैब के चरण 2 से बनाई गई है।",
   "Questo PC: cosa riesce a fare, e cosa manca": "यह पीसी: यह क्या कर सकता है, और इसमें क्या कमी है",
+  "Questo non si puo' installare da qui.": "इसे यहां से इंस्टॉल नहीं किया जा सकता.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "श्रृंखला शुरू होने पर यह पैरामीटर केवल एक बार पढ़ा जाता है।\nसेशन चालू रहने के दौरान इसे बदलने से इसे लगाने की स्ट्रिप सामने आ जाएगी।",
   "Questo va installato": "इसे स्थापित करना होगा",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "इसलिए गेम को विंडो या बॉर्डर रहित होना चाहिए, विशेष रूप से पूर्ण स्क्रीन नहीं। गेम्स के वीडियो विकल्पों में लगभग हमेशा \"बॉर्डरलेस\" होता है, और देखने में यह पूर्ण स्क्रीन के समान है।",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "गेम विंडो चुनें",
   "Se il gioco la scrive in un altro modo": "यदि गेम इसे दूसरे तरीके से लिखता है",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "यदि आप इसे बड़ा बनाते हैं, तो प्रोग्राम वही पढ़ता है: एक बड़ा क्षेत्र कम सटीक होता है, यह बदलता नहीं है।",
+  "Serve a «{0} = {1}»:": "इसका उपयोग «{0} = {1}» के लिए किया जाता है:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "इसकी आवश्यकता है क्योंकि एक लापता मॉडल कोई त्रुटि नहीं देता है। प्रोग्राम पहले से इंस्टॉल हैं; मॉडल नहीं - उन्हें पहले अनुरोध पर लिया जाता है, और यदि वे नहीं पहुंचते हैं तो कार्यक्रम बंद नहीं होता है: यह किसी हल्की चीज़ पर वापस आ जाता है और आगे बढ़ जाता है। इस चरण के बिना आप फ़ॉलबैक को बिना जाने ही सुन रहे होंगे।",
   "Sessione": "सत्र",
   "Sfoglia…": "ब्राउज़ करें...",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "सुनने के लिए {0} साउंड कार्ड, बजाने के लिए {1}",
   "{0}: non riuscito — {1}": "{0}: विफल — {1}",
   "«come Windows» qui vuol dire: {0}": "यहां \"विंडोज़ की तरह\" का अर्थ है: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ पाइपर - जल्दी, हर जगह जाओ (अनुशंसित)",
   "⚠ llm": "⚠ एलएलएम",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ एलएलएम - आपके पीसी पर, छोटा मॉडल"
  }

@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "எவ்வளவு விரைவாக குறைகிறது",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "உண்மையில் மோசமானது என்ன கிராபிக்ஸ்: மொழிபெயர்க்கப்பட்டது அசல் மீது வரையப்பட்ட, வரி சுற்றி பின்னணி புனரமைப்பு, மற்றும் அதிக பகுதியில், அந்த புனரமைப்பு அங்கு பொருந்தாத பொருட்களை எடுக்கும். 0.12 உயரத்திற்கு மேல், நீங்கள் செவ்வகத்தை இழுக்கும்போதும், சங்கிலியைத் தொடங்கும்போதும் நிரல் உங்களுக்குச் சொல்கிறது. \"தயாரித்தல்\" தாவலின் படி 2 இலிருந்து செவ்வகம் வரையப்பட்டது.",
   "Questo PC: cosa riesce a fare, e cosa manca": "இந்த பிசி: இது என்ன செய்ய முடியும், என்ன குறைகிறது",
+  "Questo non si puo' installare da qui.": "இதை இங்கிருந்து நிறுவ முடியாது.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "சங்கிலி தொடங்கும் போது இந்த அளவுரு ஒரு முறை மட்டுமே படிக்கப்படும்.\nஅமர்வு இயக்கத்தில் இருக்கும்போது அதை மாற்றினால், அதைப் பயன்படுத்துவதற்கான துண்டு தோன்றும்.",
   "Questo va installato": "இதை நிறுவ வேண்டும்",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "எனவே கேம் சாளரம் அல்லது எல்லையற்றதாக இருக்க வேண்டும், முழுத் திரையில் பிரத்தியேகமாக இருக்கக்கூடாது. கேம்களின் வீடியோ விருப்பங்களில் எப்போதும் \"எல்லையற்றது\" உள்ளது, மேலும் அதைப் பார்க்க முழுத் திரைக்கு ஒத்ததாக இருக்கும்.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "விளையாட்டு சாளரத்தை தேர்வு செய்யவும்",
   "Se il gioco la scrive in un altro modo": "விளையாட்டு வேறு வழியில் எழுதினால்",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "நீங்கள் அதை பெரிதாக்கினால், நிரல் அதைப் படிக்கும்: ஒரு பெரிய பகுதி குறைவான துல்லியமானது, அது மாறாது.",
+  "Serve a «{0} = {1}»:": "இது «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "விடுபட்ட மாதிரி பிழையைக் கொடுக்காததால் இது தேவைப்படுகிறது. நிரல்கள் ஏற்கனவே நிறுவப்பட்டுள்ளன; மாதிரிகள் இல்லை - அவை முதல் கோரிக்கையின் பேரில் எடுக்கப்படுகின்றன, மேலும் அவை வரவில்லை என்றால் நிரல் நிறுத்தப்படாது: அது இலகுவான ஒன்றில் மீண்டும் விழுந்து நகர்கிறது. இந்த படி இல்லாமல், நீங்கள் அதை அறியாமல் வீழ்ச்சியைக் கேட்டுக் கொண்டிருப்பீர்கள்.",
   "Sessione": "அமர்வு",
   "Sfoglia…": "உலாவுக…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "கேட்பதற்கு {0} ஒலி அட்டைகள், விளையாடுவதற்கு {1}",
   "{0}: non riuscito — {1}": "{0}: தோல்வி - {1}",
   "«come Windows» qui vuol dire: {0}": "இங்கே \"விண்டோஸ் போன்றது\" என்றால்: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ பைபர் - விரைவாக, எல்லா இடங்களிலும் செல்லுங்கள் (பரிந்துரைக்கப்படுகிறது)",
   "⚠ llm": "⚠ எல்.எல்.எம்",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — உங்கள் கணினியில், சிறிய மாடலில்"
  }

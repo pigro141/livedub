@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "Que rápido baja",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "Lo que realmente empeora son los gráficos: lo traducido se dibuja sobre el original, reconstruyendo el fondo alrededor de la línea, y cuanto mayor es el área, más cosas que no caben allí se incluyen en la reconstrucción. Por encima de 0,12 de altura, el programa te indica cuándo tiras del rectángulo y cuándo inicias la cadena. El rectángulo se dibuja desde el paso 2 de la pestaña «Preparación».",
   "Questo PC: cosa riesce a fare, e cosa manca": "Esta PC: qué puede hacer y qué le falta",
+  "Questo non si puo' installare da qui.": "Esto no se puede instalar desde aquí.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "Este parámetro se lee solo una vez cuando comienza la cadena.\nAl cambiarla durante la sesión aparecerá la tira para aplicarla.",
   "Questo va installato": "Esto debe ser instalado",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "Por lo tanto, el juego debe tener ventanas o sin bordes, no exclusivamente en pantalla completa. En las opciones de vídeo de los juegos casi siempre aparece \"Borderless\", y al verlo es idéntico a pantalla completa.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Elige la ventana del juego",
   "Se il gioco la scrive in un altro modo": "Si el juego lo escribe de otra manera",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "Si lo haces más grande, el programa lee lo mismo: un área grande es menos precisa, no cambia.",
+  "Serve a «{0} = {1}»:": "Se utiliza para «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "Es necesario porque un modelo faltante no da error. Los programas ya están instalados; no los modelos: se toman a la primera petición y, si no llegan, el programa no se detiene: recurre a algo más ligero y continúa. Sin este paso, estarías escuchando el respaldo sin saberlo.",
   "Sessione": "Sesión",
   "Sfoglia…": "Explorar…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} tarjetas de sonido para escuchar, {1} para reproducir",
   "{0}: non riuscito — {1}": "{0}: fallido: {1}",
   "«come Windows» qui vuol dire: {0}": "«como Windows» aquí significa: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ piper — rápido, ve a todas partes (recomendado)",
   "⚠ llm": "⚠llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — en tu PC, modelo pequeño"
  }

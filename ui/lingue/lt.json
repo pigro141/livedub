@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "Kaip greitai sumažėja",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "Kas iš tikrųjų blogėja, yra grafika: išversta ant originalo, atkuriant foną aplink liniją, ir kuo didesnis plotas, tuo rekonstrukcija įtraukia ten netelpančių dalykų. Virš 0,12 aukščio programa praneš, kai traukiate stačiakampį ir paleidžiate grandinę. Stačiakampis nupieštas iš 2 skirtuko „Paruošimas“ veiksmo.",
   "Questo PC: cosa riesce a fare, e cosa manca": "Šis kompiuteris: ką jis gali ir ko jam trūksta",
+  "Questo non si puo' installare da qui.": "Tai negali būti įdiegta iš čia.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "Šis parametras nuskaitomas tik vieną kartą, kai grandinė paleidžiama.\nPakeitus jį seansui įjungus, atsiras juostelė, kurią reikia taikyti.",
   "Questo va installato": "Tai turi būti įdiegta",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "Taigi žaidimas turi būti su langu arba be kraštinių, o ne tik per visą ekraną. Žaidimų vaizdo parinktyse beveik visada yra „Borderless“, o žiūrint į tai identiška viso ekrano režimui.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Pasirinkite žaidimo langą",
   "Se il gioco la scrive in un altro modo": "Jei žaidimas rašo kitaip",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "Jei padidinsite, programa skaito tą patį: didelis plotas yra mažiau tikslus, jis nesikeičia.",
+  "Serve a «{0} = {1}»:": "Jis naudojamas „{0} = {1}“:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "Jis reikalingas, nes trūkstamas modelis neduoda klaidos. Programos jau įdiegtos; ne modeliai - jie paimami pirmam pageidavimu, o jei neateina programa nesustoja: nukrenta ant ko nors lengvesnio ir juda toliau. Be šio žingsnio klausytumėtės atšaukimo to nežinodami.",
   "Sessione": "Sesija",
   "Sfoglia…": "Naršyti…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} garso plokštės, kurių galima klausytis, {1} groti",
   "{0}: non riuscito — {1}": "{0}: nepavyko – {1}",
   "«come Windows» qui vuol dire: {0}": "„kaip Windows“ čia reiškia: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ vamzdininkas – greitas, visur eis (rekomenduojama)",
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm – jūsų kompiuteryje, mažas modelis"
  }

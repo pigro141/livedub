@@ -687,7 +687,7 @@ lo ha probado nadie en el propio GTA V.**
 
 ## Cómo está hecho, y por qué se puede confiar en los números
 
-No hay pytest: la batería es un módulo que se ejecuta, **2205 comprobaciones** en
+No hay pytest: la batería es un módulo que se ejecuta, **2302 comprobaciones** en
 81 grupos.
 
 ```powershell

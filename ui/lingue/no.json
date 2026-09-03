@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "Hvor raskt den senker seg",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "Det som virkelig blir verre er grafikken: det oversatte tegnes over originalen, og rekonstruerer bakgrunnen rundt linjen, og jo høyere området er, jo mer tar rekonstruksjonen inn ting som ikke passer der. Over 0,12 i høyden forteller programmet deg når du trekker i rektangelet og når du starter kjedet. Rektangelet er tegnet fra trinn 2 i «Forberedelse»-fanen.",
   "Questo PC: cosa riesce a fare, e cosa manca": "Denne PC-en: hva den kan, og hva den mangler",
+  "Questo non si puo' installare da qui.": "Dette kan ikke installeres herfra.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "Denne parameteren leses kun én gang når kjeden starter.\nVed å endre den mens økten er på, vises stripen for å bruke den.",
   "Questo va installato": "Denne må installeres",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "Så spillet må være uten vindu eller kantlinje, ikke utelukkende fullskjerm. I videoalternativene til spill er det nesten alltid \"Borderless\", og for å se på det er det identisk med fullskjerm.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Velg spillvinduet",
   "Se il gioco la scrive in un altro modo": "Hvis spillet skriver det på en annen måte",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "Hvis du gjør det større, leser programmet det samme: et stort område er mindre presist, det endres ikke.",
+  "Serve a «{0} = {1}»:": "Den brukes for «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "Det er nødvendig fordi en manglende modell ikke gir feil. Programmene er allerede installert; ikke modellene - de blir tatt ved første forespørsel, og hvis de ikke kommer, stopper ikke programmet: det faller tilbake på noe lettere og går videre. Uten dette trinnet ville du lyttet til fallback uten å vite det.",
   "Sessione": "Sesjon",
   "Sfoglia…": "Bla gjennom...",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} lydkort å lytte til, {1} å spille på",
   "{0}: non riuscito — {1}": "{0}: mislyktes – {1}",
   "«come Windows» qui vuol dire: {0}": "«som Windows» betyr her: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ piper — raskt, gå overalt (anbefalt)",
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — på din PC, liten modell"
  }

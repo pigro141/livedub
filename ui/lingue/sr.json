@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "Колико брзо се спушта",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "Оно што заиста постаје гора је графика: преведено је нацртано преко оригинала, реконструишући позадину око линије, а што је већа област, то реконструкција више узима ствари које се ту не уклапају. Изнад 0,12 висине програм вам говори док повлачите правоугаоник и када покрећете ланац. Правоугаоник је нацртан из корака 2 картице «Припрема».",
   "Questo PC: cosa riesce a fare, e cosa manca": "Овај рачунар: шта може, а шта му недостаје",
+  "Questo non si puo' installare da qui.": "Ово се не може инсталирати одавде.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "Овај параметар се чита само једном када се ланац покрене.\nАко га промените док је сесија укључена, појавиће се трака за примену.",
   "Questo va installato": "Ово мора бити инсталирано",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "Дакле, игра мора бити са прозорима или без ивица, а не искључиво преко целог екрана. У видео опцијама игара скоро увек постоји „Бордерлесс“, а гледање на њега идентично је целом екрану.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Изаберите прозор игре",
   "Se il gioco la scrive in un altro modo": "Ако игра то напише на други начин",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "Ако га повећате, програм чита исто: велика површина је мање прецизна, не мења се.",
+  "Serve a «{0} = {1}»:": "Користи се за «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "То је потребно јер модел који недостаје не даје грешку. Програми су већ инсталирани; модели не – узимају се на први захтев, а ако не стигну, програм се не зауставља: ​​враћа се на нешто лакше и наставља даље. Без овог корака слушали бисте резервни, а да то не знате.",
   "Sessione": "Сессион",
   "Sfoglia…": "Прегледај…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} звучне картице за слушање, {1} за репродукцију",
   "{0}: non riuscito — {1}": "{0}: није успело — {1}",
   "«come Windows» qui vuol dire: {0}": "„као Виндовс“ овде значи: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ пипер — брзо, иди свуда (препоручује се)",
   "⚠ llm": "⚠ ллм",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ ллм — на вашем рачунару, мали модел"
  }

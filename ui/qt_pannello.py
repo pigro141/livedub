@@ -403,13 +403,22 @@ class Pannello(QWidget):
         E se e' andata, **i segni si rifanno subito**: «va installato» accanto a
         una cosa appena installata e' un avviso che dice il falso, ed e' la meta'
         della richiesta che non riguarda l'installare.
+
+        **E si rifanno in tutte le schede, non solo in questa.** Lo stesso campo
+        compare nella sua scheda e in «Tutte le impostazioni»: rifacendo i segni
+        di un pannello solo, l'altro continuava a dire «va installato» di una
+        cosa appena presa — la stessa forma del segno che resta, spostata di una
+        linguetta. La finestra sa dove sono tutti i pannelli (`_rimarca`), questo
+        non lo sa: quindi lo si chiede a lei, e si ripiega su di se' se il padre
+        e' un altro (una prova, una schermata).
         """
         try:
             from ui.qt_installa import chiedi
         except Exception:  # pragma: no cover - senza Qt non si arriva qui
             return
         if chiedi(campo.percorso, valore, self.cfg, self.window()):
-            self.rimarca()
+            tutti = getattr(self.window(), "_rimarca", None)
+            (tutti or self.rimarca)()
 
     def rimarca(self) -> None:
         """Rifa' i segni di tutte le tendine di questo pannello.
@@ -417,12 +426,26 @@ class Pannello(QWidget):
         Percorre i widget invece di ricostruire la pagina: ricostruirla
         perderebbe il campo di ricerca, la scheda aperta e il punto in cui si
         stava scorrendo — cioe' farebbe saltare via da dove si era, per un segno.
+
+        **E qui si aspetta la risposta vera** (`aspetta=True`). Disegnando una
+        scheda «non lo so ancora» vuol dire «non marco niente», e va bene; qui no
+        — questa funzione la si chiama **dopo** un'installazione, cioe' proprio
+        quando la cache e' stata buttata e la prima prova costa due secondi. Con
+        il tetto dei 400 ms tornava `None`, e i segni sparivano tutti insieme:
+        anche quelli delle cose che nessuno aveva installato.
         """
         for percorso, w in self._widget.items():
             rimarca = getattr(w, "rimarca", None)
             if rimarca is None:
                 continue
-            rimarca(indisponibili_qui(percorso), da_installare(percorso, self.cfg))
+            rimarca(indisponibili_qui(percorso),
+                    da_installare(percorso, self.cfg, aspetta=True))
+        # **E si rimette la lingua.** `SceltaFra.rimarca` riscrive le voci in
+        # italiano — e' la lingua del sorgente — e butta la memoria degli
+        # originali: senza questa riga, installare un pezzo lascerebbe le
+        # tendine italiane dentro una finestra tradotta. La passeggiata e' la
+        # stessa di sempre, e su un pannello solo costa nulla.
+        lingua.applica(self, self.cfg.ui.lingua)
 
     def _rileggi(self, campo: Campo) -> None:
         scrivi(self._widget[campo.percorso], self.cfg.get(campo.percorso))

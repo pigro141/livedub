@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "얼마나 빨리 낮아지는지",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "실제로 더 나쁜 것은 그래픽입니다. 번역된 내용은 원본 위에 그려져 선 주위의 배경을 재구성하고 영역이 높을수록 거기에 맞지 않는 내용을 재구성하는 데 더 많은 시간이 걸립니다. 높이가 0.12 이상인 경우 프로그램은 직사각형을 당길 때와 체인을 시작할 때 알려줍니다. 직사각형은 «준비» 탭의 2단계에서 그려집니다.",
   "Questo PC: cosa riesce a fare, e cosa manca": "이 PC: 할 수 있는 것과 부족한 것",
+  "Questo non si puo' installare da qui.": "여기서는 설치할 수 없습니다.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "이 매개변수는 체인이 시작될 때 한 번만 읽혀집니다.\n세션이 켜져 있는 동안 이를 변경하면 이를 적용할 스트립이 나타납니다.",
   "Questo va installato": "이건 꼭 설치해야 해요",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "따라서 게임은 전체 화면만 사용하는 것이 아니라 창 모드나 경계선이 없어야 합니다. 게임의 비디오 옵션에는 거의 항상 \"Borderless\"가 있으며, 전체 화면과 동일하게 보입니다.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "게임 창을 선택하세요",
   "Se il gioco la scrive in un altro modo": "게임이 다른 방식으로 쓰는 경우",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "더 크게 만들면 프로그램은 동일하게 읽습니다. 즉, 넓은 영역은 덜 정확하고 변경되지 않습니다.",
+  "Serve a «{0} = {1}»:": "«{0} = {1}»에 사용됩니다.",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "모델이 누락되어도 오류가 발생하지 않기 때문에 필요합니다. 프로그램은 이미 설치되어 있습니다. 모델이 아닙니다. 첫 번째 요청 시 모델을 가져오고 모델이 도착하지 않아도 프로그램은 멈추지 않습니다. 즉, 더 가벼운 모델로 돌아가서 계속 진행됩니다. 이 단계가 없으면 자신도 모르게 폴백을 듣게 될 것입니다.",
   "Sessione": "세션",
   "Sfoglia…": "찾아보기…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "들을 수 있는 사운드 카드 {0}개, 재생할 사운드 카드 {1}개",
   "{0}: non riuscito — {1}": "{0}: 실패 — {1}",
   "«come Windows» qui vuol dire: {0}": "여기서 «Windows와 유사»는 다음을 의미합니다. {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ 파이퍼 — 빨리, 어디든 가세요(권장)",
   "⚠ llm": "⚠ lm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — PC에서 소형 모델"
  }

@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "下降速度有多快",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "真正變得更糟的是圖形：翻譯的內容是在原始內容上繪製的，重建了線條周圍的背景，並且區域越高，重建時吸收的不適合那裡的東西就越多。當高度超過 0.12 時，當您拉動矩形以及啟動鏈條時，程式會告訴您。此矩形是從「準備」標籤的步驟 2 中繪製的。",
   "Questo PC: cosa riesce a fare, e cosa manca": "這台電腦：它能做什麼，缺乏什麼",
+  "Questo non si puo' installare da qui.": "無法從這裡安裝。",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "此參數在鏈啟動時只讀一次。\n透過在會話開啟時變更它，將出現套用它的條帶。",
   "Questo va installato": "這個必須安裝",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "所以遊戲必須是視窗化或無邊框的，而不是全螢幕的。在遊戲的視訊選項中幾乎總是有“無邊框”，並且看起來它與全螢幕相同。",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "選擇遊戲視窗",
   "Se il gioco la scrive in un altro modo": "如果遊戲以另一種方式編寫",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "如果將其變大，程式會讀取相同的內容：大區域的精確度較低，它不會改變。",
+  "Serve a «{0} = {1}»:": "它用於“{0} = {1}”：",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "這是必需的，因為丟失的模型不會給出錯誤。程式已安裝；模型沒有－它們是在第一個請求時被獲取的，如果它們沒有到達，程式也不會停止：它會退回到更輕的東西上並繼續前進。如果沒有這一步，您將在不知不覺中聽到後備聲音。",
   "Sessione": "會議",
   "Sfoglia…": "瀏覽…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} 個音效卡可供聆聽，{1} 個音效卡可供播放",
   "{0}: non riuscito — {1}": "{0}：失敗 — {1}",
   "«come Windows» qui vuol dire: {0}": "「像 Windows」在這裡的意思是：{0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ Piper — 快速，無所不在（推薦）",
   "⚠ llm": "⚠ 勒姆",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — 在您的 PC 上，小型型號"
  }

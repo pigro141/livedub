@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "Hoe snel zakt het",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "Wat echt nog erger wordt, zijn de graphics: de vertaalde tekst wordt over het origineel heen getekend, waarbij de achtergrond rond de lijn wordt gereconstrueerd, en hoe hoger het gebied, hoe meer er bij de reconstructie dingen worden opgenomen die daar niet passen. Boven een hoogte van 0,12 cm vertelt het programma u wanneer u aan de rechthoek trekt en wanneer u de ketting start. De rechthoek is getekend vanaf stap 2 van het tabblad «Voorbereiding».",
   "Questo PC: cosa riesce a fare, e cosa manca": "Deze pc: wat hij kan, en wat hij mist",
+  "Questo non si puo' installare da qui.": "Dit kan vanaf hier niet worden geïnstalleerd.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "Deze parameter wordt slechts één keer gelezen wanneer de keten start.\nAls u deze wijzigt terwijl de sessie bezig is, verschijnt de strip om deze aan te brengen.",
   "Questo va installato": "Deze moet worden geïnstalleerd",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "Het spel moet dus een venster of randloos zijn, en niet uitsluitend op volledig scherm. In de video-opties van games is er bijna altijd \"Borderless\", en om ernaar te kijken is het identiek aan volledig scherm.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Kies het spelvenster",
   "Se il gioco la scrive in un altro modo": "Als de game het anders schrijft",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "Als je het groter maakt, leest het programma hetzelfde: een groot gebied is minder nauwkeurig, het verandert niet.",
+  "Serve a «{0} = {1}»:": "Het wordt gebruikt voor «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "Dit is nodig omdat een ontbrekend model geen fout geeft. De programma's zijn al geïnstalleerd; niet de modellen - die worden op eerste verzoek meegenomen, en als ze niet aankomen stopt het programma niet: het valt terug op iets lichters en gaat verder. Zonder deze stap zou je naar de fallback luisteren zonder het te weten.",
   "Sessione": "Sessie",
   "Sfoglia…": "Blader…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} geluidskaarten om naar te luisteren, {1} om op te spelen",
   "{0}: non riuscito — {1}": "{0}: mislukt — {1}",
   "«come Windows» qui vuol dire: {0}": "«zoals Windows» betekent hier: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ piper — snel, overal naartoe (aanbevolen)",
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — op uw pc, klein model"
  }

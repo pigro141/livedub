@@ -68,15 +68,27 @@ FATTO = "Installato: adesso questa scelta funziona."
 # un'attesa; un'attesa muta e' una finestra che sembra bloccata. Qui si arriva a
 # un gigabyte e mezzo.
 QUANTO = "Da scaricare: {0} MB"
-# I due modelli che si riempiono a runtime: dentro ci finiscono numeri e nomi di
-# pezzi, quindi il widget che li porta e' marcato `nontradurre` e si traduce il
-# **modello**, non la frase composta.
-MODELLI: tuple[str, ...] = (QUANTO,)
+# La riga che dice **per cosa**. Prima era composta a mano e non passava da
+# nessun catalogo: nella finestra inglese dell'utente si leggeva
+# «This must be installed» sopra «"tts.backend = piper" ha bisogno di:», cioe'
+# una frase italiana in mezzo a una schermata tradotta. Il percorso e il valore
+# stanno nel segnaposto, dove nessun traduttore li tocca.
+SERVE_A = "Serve a «{0} = {1}»:"
+# **Il caso che non e' un'installazione: qui non si puo' fare.** Dentro il
+# pacchetto congelato non c'e' ne' un venv ne' `pip` (si veda
+# `core.banco.NON_DI_QUI`), e il riquadro deve dirlo **prima** invece di offrire
+# un bottone che solleva. Il perche' per esteso lo porta `NON_DI_QUI`, che e'
+# tecnico e resta in italiano come il registro; questa e' la riga che si legge.
+QUI_NO = "Questo non si puo' installare da qui."
+# I modelli che si riempiono a runtime: dentro ci finiscono numeri, percorsi di
+# config e nomi di pezzi, quindi il widget che li porta e' marcato `nontradurre`
+# e si traduce il **modello**, non la frase composta.
+MODELLI: tuple[str, ...] = (QUANTO, SERVE_A)
 
 
 def testi() -> tuple[str, ...]:
     """Tutto quello che questo riquadro dice. Per `ui.lingua.fuori_dalla_passeggiata`."""
-    return (TITOLO, INSTALLA, ANNULLA, NON_ADESSO, CHIUDI, FATTO, *MODELLI)
+    return (TITOLO, INSTALLA, ANNULLA, NON_ADESSO, CHIUDI, FATTO, QUI_NO, *MODELLI)
 
 
 # ============================================================== il lavoro =====
@@ -129,15 +141,32 @@ class DialogoInstalla(QDialog):
     non torna piu'.
     """
 
+    # **La larghezza sta scritta, e viene dalla regola.** Senza, il dialogo la
+    # prendeva dal suo testo piu' lungo: l'elenco dei pezzi e' corto, quindi
+    # usciva stretto — righe da tre parole sotto un titolo, e un messaggio di
+    # guasto da trecento caratteri che sbordava. Meta' del contenuto della
+    # finestra (`tema.MAX_CONTENUTO`) e' la stessa misura con cui si impagina il
+    # resto del programma, non un numero d'occhio.
+    LARGO = tema.MAX_CONTENUTO // 2 + tema.S7
+
     def __init__(self, percorso: str, valore, codici: tuple[str, ...], cfg,
-                 padre=None) -> None:
+                 padre=None, congelato: bool | None = None) -> None:
         super().__init__(padre)
+        from core import banco
+
         self.cfg = cfg
         self.percorso = percorso
         self.valore = valore
         self.codici = tuple(codici)
         self._lavoro: _Lavoro | None = None
         self.installato = False
+        # **Quello che da qui non si puo' prendere, saputo prima di disegnare.**
+        # La regola sta in `core.banco.non_di_qui`, fuori da Qt, e il booleano
+        # arriva da fuori cosi' il caso dell'eseguibile si puo' fotografare e
+        # verificare da sorgente.
+        if congelato is None:
+            congelato = banco.congelato()
+        self.non_di_qui = banco.non_di_qui(self.codici, congelato)
 
         self.setWindowTitle(TITOLO)
         self.setModal(True)
@@ -154,11 +183,19 @@ class DialogoInstalla(QDialog):
         titolo.setObjectName("titoloPasso")
         L.addWidget(titolo)
 
+        # La riga che dice per **quale scelta**: modello tradotto, valori dentro
+        # il segnaposto. Marcata `nontradurre` perche' e' composta a runtime.
+        self.a_cosa = QLabel("")
+        self.a_cosa.setObjectName("tenue")
+        self.a_cosa.setWordWrap(True)
+        self.a_cosa.setProperty(lingua.MARCHIO, True)
+        L.addWidget(self.a_cosa)
+
         # **Cosa manca, per nome e non per codice.** I nomi sono quelli del passo
         # 6 (`ui.tutorial.PEZZI_NOMI`): scriverne una seconda serie qui vorrebbe
         # dire che la stessa cosa si chiama in due modi in due schermate, e che
         # la seconda serie non la traduce nessuno.
-        self.che_cosa = QLabel(self._elenco())
+        self.che_cosa = QLabel("")
         self.che_cosa.setWordWrap(True)
         self.che_cosa.setProperty(lingua.MARCHIO, True)
         L.addWidget(self.che_cosa)
@@ -178,6 +215,11 @@ class DialogoInstalla(QDialog):
         self.barra.ferma()
         L.addWidget(self.barra)
 
+        # Il respiro fra il testo e i bottoni sta **qui** e non fra il titolo e
+        # l'elenco: le righe che si leggono insieme stanno vicine, e il vuoto va
+        # dove finisce il discorso. Prima era il contrario, e si vedeva.
+        L.addStretch(1)
+
         riga = QHBoxLayout()
         riga.setSpacing(tema.S3)
         riga.addStretch(1)
@@ -192,8 +234,34 @@ class DialogoInstalla(QDialog):
         riga.addWidget(self.b_installa)
         L.addLayout(riga)
 
-        self._quanto()
+        self.setMinimumWidth(self.LARGO)
+        self._riempi()
         lingua.applica(self, cfg.ui.lingua)
+
+    # -- le parole, che passano tutte dalla stessa porta ---------------------
+
+    def _T(self, testo: str, *valori) -> str:
+        """Una frase di questo riquadro, nella lingua della finestra.
+
+        **Ogni `setText` di qui dentro passa da questa riga**, ed e' la cura di
+        un difetto fotografato: `_finito` e `_premuto` riscrivevano il bottone
+        con la costante italiana (`setText(INSTALLA)`), quindi dopo un tentativo
+        d'installazione il riquadro inglese mostrava «Non adesso» accanto a
+        «Installa». La passeggiata di `ui.lingua` traduce quello che trova
+        **quando passa**: chi riscrive dopo deve tradurre da se'.
+        """
+        fuori = lingua.traduci(testo, self.cfg.ui.lingua)
+        return fuori.format(*valori) if valori else fuori
+
+    def _bottone(self, b, testo: str) -> None:
+        """Scrive su un bottone tradotto, **e ricorda l'originale italiano**.
+
+        `lingua.cambia` e non `setText`: senza la memoria, la passeggiata
+        successiva prenderebbe la traduzione come originale e al secondo cambio
+        di lingua tradurrebbe una traduzione.
+        """
+        lingua.cambia(b, testo)
+        b.setText(self._T(testo))
 
     # -- cosa si sta per fare ------------------------------------------------
 
@@ -202,18 +270,40 @@ class DialogoInstalla(QDialog):
         from ui.tutorial import PEZZI_NOMI
 
         codice = self.cfg.ui.lingua
-        righe = [f"«{self.percorso} = {self.valore}» ha bisogno di:"]
-        righe += [f"  • {lingua.traduci(PEZZI_NOMI.get(c, c), codice)}"
-                  for c in self.codici]
-        return "\n".join(righe)
+        return "\n".join(f"  • {lingua.traduci(PEZZI_NOMI.get(c, c), codice)}"
+                         for c in self.codici)
+
+    def _riempi(self) -> None:
+        """Le tre righe di partenza, e il bottone che ne consegue.
+
+        **Il caso «da qui no» non e' un guasto ed e' l'unico senza bottone.**
+        Offrire «Installa» dentro il pacchetto congelato voleva dire una porta
+        chiusa dipinta come aperta: si premeva, e usciva un `RuntimeError` che
+        diceva la cosa giusta nel momento sbagliato.
+        """
+        from core import banco
+
+        self.a_cosa.setText(self._T(SERVE_A, self.percorso, self.valore))
+        self.che_cosa.setText(self._elenco())
+        if self.non_di_qui:
+            self._tinta("errore")
+            # Le frasi di `NON_DI_QUI` nascono come messaggi di eccezione,
+            # quindi cominciano in minuscolo: qui vengono dopo un punto, e una
+            # minuscola dopo un punto si legge come una riga tagliata a meta'.
+            motivi = "; ".join(banco.NON_DI_QUI[c][:1].upper()
+                               + banco.NON_DI_QUI[c][1:] for c in self.non_di_qui)
+            self.stato.setText(f"{self._T(QUI_NO)} {motivi}")
+            self.b_installa.setVisible(False)
+            self._bottone(self.b_dopo, CHIUDI)
+            return
+        self._quanto()
 
     def _quanto(self) -> None:
         from core import banco
 
         mb = banco.peso_mb(self.codici)
         if mb:
-            self.stato.setText(
-                lingua.traduci(QUANTO, self.cfg.ui.lingua).format(mb))
+            self.stato.setText(self._T(QUANTO, mb))
 
     # -- premere -------------------------------------------------------------
 
@@ -225,7 +315,7 @@ class DialogoInstalla(QDialog):
         if self._lavoro is not None and self._lavoro.isRunning():
             self._lavoro.annulla()
             return
-        self.b_installa.setText(ANNULLA)
+        self._bottone(self.b_installa, ANNULLA)
         self.b_dopo.setEnabled(False)
         self.barra.scorre()
         self._lavoro = _Lavoro(self.codici, self.cfg)
@@ -268,14 +358,14 @@ class DialogoInstalla(QDialog):
         if isinstance(esito, Exception):
             self._tinta("errore")
             self.stato.setText(f"{type(esito).__name__}: {esito}".splitlines()[0][:300])
-            self.b_installa.setText(INSTALLA)
+            self._bottone(self.b_installa, INSTALLA)
             return
         if esito:
             # `scarica` torna **quello che non ce l'ha fatta**: un pezzo che
             # fallisce non ferma gli altri e non sparisce.
             self._tinta("errore")
             self.stato.setText("; ".join(f"{c}: {p}" for c, p in esito.items())[:300])
-            self.b_installa.setText(INSTALLA)
+            self._bottone(self.b_installa, INSTALLA)
             return
 
         # `banco.scarica` ha gia' buttato la sua cache — sta in fondo a lei
@@ -288,8 +378,8 @@ class DialogoInstalla(QDialog):
         onnx.dimentica()
         self.installato = True
         self._tinta("tenue")
-        self.stato.setText(lingua.traduci(FATTO, self.cfg.ui.lingua))
-        self.b_installa.setText(CHIUDI)
+        self.stato.setText(self._T(FATTO))
+        self._bottone(self.b_installa, CHIUDI)
         self.b_dopo.setVisible(False)
 
 
@@ -312,7 +402,7 @@ class DialogoInstalla(QDialog):
         il nome dell'eccezione davanti.
         """
         if quale == "in corso":
-            self.b_installa.setText(ANNULLA)
+            self._bottone(self.b_installa, ANNULLA)
             self.b_dopo.setEnabled(False)
             self.barra.scorre()
             self._avanza(self.codici[0], 0, len(self.codici))
@@ -320,7 +410,7 @@ class DialogoInstalla(QDialog):
             self._finito({self.codici[0]: "ConnectionError: rete non raggiungibile"})
         else:
             self.barra.ferma()
-            self.b_installa.setText(INSTALLA)
+            self._bottone(self.b_installa, INSTALLA)
             self.b_dopo.setEnabled(True)
             self._tinta("tenue")
             self._quanto()
@@ -365,3 +455,46 @@ def chiedi(percorso: str, valore, cfg, padre=None) -> bool:
     d = DialogoInstalla(percorso, valore, codici, cfg, padre)
     d.exec()
     return d.installato
+
+
+def chiedi_tutto(cfg, padre=None, gia_chiesto: set | None = None) -> bool:
+    """Le scelte **gia' scritte** in configurazione a cui manca qualcosa.
+
+    **Il difetto che questa funzione chiude.** `chiedi` la chiamava solo
+    `Pannello.applica`, cioe' solo quando un campo *cambia*: un valore che sta
+    li' dall'inizio non faceva comparire il riquadro mai. Il caso e' il piu'
+    comune di tutti — `tts.backend = piper` e' il default, e con il suo modello
+    non sul disco la sessione parte e ripiega in silenzio, che e' esattamente il
+    difetto per cui `core/banco.py` esiste.
+
+    **Il momento giusto e' l'Avvia, e non l'apertura.** All'apertura sarebbe un
+    modale che compare da solo prima che qualcuno abbia toccato niente — e la
+    prima volta ci pensa gia' il passo 6 della guida, che scarica. L'Avvia
+    invece e' un gesto, ed e' l'istante esatto in cui quella scelta smette di
+    essere una riga di configurazione e diventa una catena che parte: chiedere
+    li' vuol dire chiedere quando la risposta serve.
+
+    `gia_chiesto` tiene le coppie gia' proposte in questa sessione: un pezzo che
+    da qui non si puo' prendere (l'eseguibile congelato) non deve ripresentarsi
+    a ogni Avvia — un avviso che torna sempre e' quello che si spegne da solo
+    nella testa di chi lo legge.
+    """
+    from core import banco
+
+    if padre is None or not padre.isVisible():
+        return False
+    try:
+        avuti = banco.presenti_in_cache(cfg)
+        manca = banco.manca_per_config(cfg, avuti)
+    except Exception:  # pragma: no cover - guardare il disco non ferma l'Avvia
+        return False
+    cambiato = False
+    for percorso, valore, codici in manca:
+        if gia_chiesto is not None and (percorso, valore) in gia_chiesto:
+            continue
+        if gia_chiesto is not None:
+            gia_chiesto.add((percorso, valore))
+        d = DialogoInstalla(percorso, valore, codici, cfg, padre)
+        d.exec()
+        cambiato = cambiato or d.installato
+    return cambiato

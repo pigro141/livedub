@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "کتنی جلدی کم ہو جاتی ہے۔",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "جو چیز واقعی خراب ہو جاتی ہے وہ گرافکس ہے: ترجمہ اصل پر کھینچا جاتا ہے، لائن کے ارد گرد پس منظر کی تشکیل نو کرتا ہے، اور رقبہ جتنا زیادہ ہوتا ہے، تعمیر نو میں ایسی چیزیں لگتی ہیں جو وہاں فٹ نہیں ہوتی ہیں۔ 0.12 اونچائی سے اوپر پروگرام آپ کو بتاتا ہے جب آپ مستطیل کھینچتے ہیں اور جب آپ سلسلہ شروع کرتے ہیں۔ مستطیل \"تیاری\" ٹیب کے مرحلہ 2 سے تیار کیا گیا ہے۔",
   "Questo PC: cosa riesce a fare, e cosa manca": "یہ پی سی: یہ کیا کر سکتا ہے، اور اس میں کیا کمی ہے۔",
+  "Questo non si puo' installare da qui.": "اسے یہاں سے انسٹال نہیں کیا جا سکتا۔",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "یہ پیرامیٹر صرف ایک بار پڑھا جاتا ہے جب سلسلہ شروع ہوتا ہے۔\nسیشن کے دوران اسے تبدیل کرنے سے، اسے لاگو کرنے کی پٹی ظاہر ہو جائے گی۔",
   "Questo va installato": "یہ انسٹال ہونا ضروری ہے۔",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "اس لیے گیم کو ونڈو یا بارڈر لیس ہونا چاہیے، خصوصی طور پر فل سکرین نہیں۔ گیمز کے ویڈیو آپشنز میں تقریباً ہمیشہ \"بارڈر لیس\" ہوتا ہے اور اسے دیکھنے کے لیے یہ فل سکرین کی طرح ہے۔",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "گیم ونڈو کا انتخاب کریں۔",
   "Se il gioco la scrive in un altro modo": "اگر کھیل اسے دوسرے طریقے سے لکھتا ہے۔",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "اگر آپ اسے بڑا بناتے ہیں، تو پروگرام وہی پڑھتا ہے: ایک بڑا علاقہ کم درست ہے، یہ تبدیل نہیں ہوتا ہے۔",
+  "Serve a «{0} = {1}»:": "یہ «{0} = {1}» کے لیے استعمال ہوتا ہے:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "اس کی ضرورت ہے کیونکہ ایک غائب ماڈل غلطی نہیں دیتا ہے۔ پروگرام پہلے ہی انسٹال ہو چکے ہیں۔ ماڈلز نہیں کرتے - وہ پہلی درخواست پر لے جاتے ہیں، اور اگر وہ نہیں پہنچتے ہیں تو پروگرام نہیں رکتا: یہ ہلکی چیز پر واپس آتا ہے اور آگے بڑھتا ہے۔ اس قدم کے بغیر آپ فال بیک کو جانے بغیر سن رہے ہوں گے۔",
   "Sessione": "سیشن",
   "Sfoglia…": "براؤز کریں…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} ساؤنڈ کارڈز سننے کے لیے، {1} چلانے کے لیے",
   "{0}: non riuscito — {1}": "{0}: ناکام — {1}",
   "«come Windows» qui vuol dire: {0}": "«ونڈوز کی طرح» کا یہاں مطلب ہے: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ پائپر — جلدی، ہر جگہ جائیں (تجویز کردہ)",
   "⚠ llm": "⚠ ایل ایل ایم",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — آپ کے کمپیوٹر پر، چھوٹے ماڈل"
  }

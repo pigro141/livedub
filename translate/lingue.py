@@ -357,6 +357,42 @@ _SENZA_AUTO = (
     " `auto` non lo capisce: diventa `en` (`translate/locale.py`, `coppia()`)."
 )
 
+# **La stessa cosa detta per prima**, per chi ha `auto` scritto adesso.
+#
+# Il difetto non era che mancasse l'avviso: c'era, ed e' la coda di `_SENZA_AUTO`
+# — cioe' il **fondo** di una riga lunga centosessanta caratteri, dentro
+# un'etichetta `Elidibile` che si accorcia coi puntini. A schermo si leggeva
+# «⚠ Argos traduce coppie installate:…» e la meta' che conta, quella che dice che
+# la lingua di partenza **non e' quella scelta**, non compariva mai. Una misura
+# che non puo' esprimere la risposta va cambiata, non interpretata: qui la
+# risposta e' l'ordine delle parole.
+# **Corta apposta.** L'etichetta che la porta e' larga poco piu' di duecento
+# pixel: misurato a schermo, ci stanno una trentina di caratteri prima dei
+# puntini. Quindi la risposta — *quale lingua verra' usata davvero* — sta nelle
+# prime quattordici, e la spiegazione viene dopo, dove puo' anche non leggersi.
+AUTO_DIVENTA = (
+    "«auto» diventa «en»: si traduce dall'inglese, non dalla lingua che c'e' "
+    "scritta a schermo."
+)
+
+
+def nota_per(backend: str, codice: str) -> str:
+    """La frase da mettere sotto la casella per **questa** lingua di partenza.
+
+    E' una regola, quindi sta qui e non in Qt: cosa dire dipende dal backend e
+    dal codice, non da come e' fatta la finestra. Con `auto` su un backend che
+    non lo capisce, la conseguenza viene **prima** della spiegazione — e' l'unica
+    cosa che l'utente deve leggere, e nell'ordine di prima finiva sotto i
+    puntini di sospensione.
+    """
+    cop = copertura(backend)
+    if normalizza(codice) != AUTO or cop.auto:
+        return cop.nota
+    # La coda tecnica dice gia' la stessa cosa, e ripeterla farebbe una riga
+    # ancora piu' lunga: si toglie di li' e si mette davanti, detta a parole.
+    resto = cop.nota.replace(_SENZA_AUTO.strip(), "").strip()
+    return AUTO_DIVENTA + (f" {resto}" if resto else "")
+
 
 def copertura(backend: str) -> Copertura:
     """Cosa dichiara di saper fare il backend scelto.

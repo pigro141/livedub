@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "چقدر زود پایین میاد",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "چیزی که واقعاً بدتر می‌شود گرافیک است: ترجمه روی نسخه اصلی کشیده می‌شود، پس‌زمینه اطراف خط را بازسازی می‌کند، و هر چه منطقه بالاتر باشد، بازسازی بیشتر مواردی را به خود اختصاص می‌دهد که در آنجا جا نمی‌شوند. در ارتفاع بالای 0.12، برنامه هنگام کشیدن مستطیل و شروع زنجیر به شما می گوید. مستطیل از مرحله 2 برگه «آماده سازی» ترسیم شده است.",
   "Questo PC: cosa riesce a fare, e cosa manca": "این رایانه شخصی: چه کاری می تواند انجام دهد و چه چیزی ندارد",
+  "Questo non si puo' installare da qui.": "این را نمی توان از اینجا نصب کرد.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "هنگامی که زنجیره شروع به کار می کند، این پارامتر فقط یک بار خوانده می شود.\nبا تغییر آن در حالی که جلسه روشن است، نواری برای اعمال آن ظاهر می شود.",
   "Questo va installato": "این باید نصب شود",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "بنابراین بازی باید دارای پنجره یا بدون حاشیه باشد، نه منحصراً تمام صفحه. در گزینه های ویدیویی بازی ها تقریباً همیشه \"Borderless\" وجود دارد و برای نگاه کردن به آن با تمام صفحه یکسان است.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "پنجره بازی را انتخاب کنید",
   "Se il gioco la scrive in un altro modo": "اگر بازی آن را به شکل دیگری بنویسد",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "اگر آن را بزرگتر کنید، برنامه به همین صورت خوانده می شود: یک منطقه بزرگ دقت کمتری دارد، تغییر نمی کند.",
+  "Serve a «{0} = {1}»:": "برای «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "این مورد نیاز است زیرا یک مدل از دست رفته خطا نمی دهد. برنامه ها قبلاً نصب شده اند. نه مدل‌ها - در اولین درخواست گرفته می‌شوند و اگر نرسند برنامه متوقف نمی‌شود: دوباره روی چیزی سبک‌تر می‌افتد و ادامه می‌دهد. بدون این مرحله شما بدون دانستن آن به نسخه بازگشتی گوش می دهید.",
   "Sessione": "جلسه",
   "Sfoglia…": "مرور…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} کارت صدا برای گوش دادن، {1} برای پخش",
   "{0}: non riuscito — {1}": "{0}: ناموفق - {1}",
   "«come Windows» qui vuol dire: {0}": "«مانند ویندوز» در اینجا به این معنی است: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ پایپر - سریع، همه جا بروید (توصیه می شود)",
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — در رایانه شخصی شما، مدل کوچک"
  }

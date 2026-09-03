@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "כמה מהר זה יורד",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "מה שבאמת מחמיר הוא הגרפיקה: המתורגם מצויר על המקור, משחזר את הרקע מסביב לקו, וככל שהשטח גבוה יותר, כך השחזור לוקח יותר דברים שלא מתאימים לשם. מעל 0.12 גובה התוכנית אומרת לך בזמן שאתה מושך את המלבן ומתי אתה מתחיל את השרשרת. המלבן נמשך משלב 2 של הכרטיסייה \"הכנה\".",
   "Questo PC: cosa riesce a fare, e cosa manca": "המחשב הזה: מה הוא יכול לעשות, ומה חסר לו",
+  "Questo non si puo' installare da qui.": "לא ניתן להתקין את זה מכאן.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "פרמטר זה נקרא פעם אחת בלבד כאשר השרשרת מתחילה.\nעל ידי שינוי זה בזמן שההפעלה פועלת, יופיע הרצועה להחלתה.",
   "Questo va installato": "זה חייב להיות מותקן",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "אז המשחק חייב להיות חלונות או חסר גבולות, לא מסך מלא בלבד. באפשרויות הווידאו של משחקים יש כמעט תמיד \"Borderless\", וכדי להסתכל עליו זה זהה למסך מלא.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "בחר את חלון המשחק",
   "Se il gioco la scrive in un altro modo": "אם המשחק כותב את זה בצורה אחרת",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "אם אתה מגדיל אותו, התוכנית קוראת אותו דבר: שטח גדול פחות מדויק, הוא לא משתנה.",
+  "Serve a «{0} = {1}»:": "הוא משמש עבור «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "זה נחוץ כי דגם חסר אינו נותן שגיאה. התוכניות כבר מותקנות; לא הדגמים - הם נלקחים בבקשה הראשונה, ואם הם לא מגיעים התוכנית לא מפסיקה: היא נופלת על משהו קל יותר וממשיכה הלאה. בלי הצעד הזה היית מקשיב ל-fallback מבלי לדעת זאת.",
   "Sessione": "מושב",
   "Sfoglia…": "עיין…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} כרטיסי קול להאזנה, {1} להפעלה",
   "{0}: non riuscito — {1}": "{0}: נכשל - {1}",
   "«come Windows» qui vuol dire: {0}": "\"כמו Windows\" כאן פירושו: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ piper - מהיר, לך לכל מקום (מומלץ)",
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — במחשב האישי שלך, דגם קטן"
  }

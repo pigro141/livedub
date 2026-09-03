@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "Колко бързо се понижава",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "Това, което наистина става по-лошо, е графиката: преведеното е нарисувано върху оригинала, възстановявайки фона около линията и колкото по-висока е зоната, толкова повече тази реконструкция поема неща, които не се вписват там. Над 0,12 височина програмата ви казва, докато дърпате правоъгълника и когато стартирате веригата. Правоъгълникът е начертан от стъпка 2 на раздела «Подготовка».",
   "Questo PC: cosa riesce a fare, e cosa manca": "Този компютър: какво може и какво му липсва",
+  "Questo non si puo' installare da qui.": "Това не може да се инсталира от тук.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "Този параметър се чете само веднъж при стартиране на веригата.\nАко го промените, докато сесията е включена, ще се появи лентата за прилагане.",
   "Questo va installato": "Това трябва да се инсталира",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "Така че играта трябва да е с прозорец или без граници, а не само на цял екран. Във видео опциите на игрите почти винаги има \"Borderless\" и да го гледате е идентичен на цял екран.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Изберете прозореца на играта",
   "Se il gioco la scrive in un altro modo": "Ако играта го пише по друг начин",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "Ако го направите по-голям, програмата чете същото: голяма площ е по-малко прецизна, не се променя.",
+  "Serve a «{0} = {1}»:": "Използва се за «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "Необходимо е, защото липсващ модел не дава грешка. Програмите вече са инсталирани; не моделите - взимат се при първа заявка и ако не пристигнат програмата не спира: връща се на нещо по-леко и продължава. Без тази стъпка бихте слушали резервния вариант, без да го знаете.",
   "Sessione": "Сесия",
   "Sfoglia…": "Преглед...",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} звукови карти за слушане, {1} за игра",
   "{0}: non riuscito — {1}": "{0}: неуспешно — {1}",
   "«come Windows» qui vuol dire: {0}": "„като Windows“ тук означава: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ piper — бърз, отивам навсякъде (препоръчително)",
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — на вашия компютър, малък модел"
  }

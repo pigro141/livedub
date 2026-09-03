@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "কত দ্রুত কমে যায়",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "যেটা আসলেই খারাপ হয়ে যায় তা হল গ্রাফিক্স: অনুবাদ করা হয়েছে মূলের ওপরে, রেখার চারপাশে পটভূমি পুনর্গঠন করা হয়, এবং যত বেশি এলাকা হবে, পুনর্গঠনে তত বেশি জিনিস লাগবে যা সেখানে খাপ খায় না। 0.12 উচ্চতার উপরে প্রোগ্রামটি আপনাকে বলে যে আপনি আয়তক্ষেত্র টানবেন এবং যখন আপনি চেইন শুরু করবেন। আয়তক্ষেত্রটি \"প্রস্তুতি\" ট্যাবের ধাপ 2 থেকে আঁকা হয়েছে।",
   "Questo PC: cosa riesce a fare, e cosa manca": "এই পিসি: এটি কি করতে পারে, এবং এর কি অভাব রয়েছে",
+  "Questo non si puo' installare da qui.": "এটি এখান থেকে ইনস্টল করা যাবে না।",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "এই প্যারামিটার শুধুমাত্র একবার পড়া হয় যখন চেইন শুরু হয়।\nঅধিবেশন চালু থাকাকালীন এটি পরিবর্তন করে, এটি প্রয়োগ করার জন্য স্ট্রিপ প্রদর্শিত হবে।",
   "Questo va installato": "এই ইনস্টল করা আবশ্যক",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "তাই গেমটি অবশ্যই জানালাযুক্ত বা সীমানাবিহীন হতে হবে, একচেটিয়াভাবে পূর্ণ পর্দা নয়। গেমগুলির ভিডিও বিকল্পগুলিতে প্রায় সর্বদা \"সীমান্তহীন\" থাকে এবং এটি দেখতে এটি পূর্ণ পর্দার মতো।",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "গেম উইন্ডো নির্বাচন করুন",
   "Se il gioco la scrive in un altro modo": "গেমটি যদি অন্যভাবে লিখি",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "আপনি যদি এটিকে আরও বড় করেন তবে প্রোগ্রামটি একই রকম পড়ে: একটি বড় এলাকা কম সুনির্দিষ্ট, এটি পরিবর্তন হয় না।",
+  "Serve a «{0} = {1}»:": "এটি «{0} = {1}» এর জন্য ব্যবহৃত হয়:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "এটি প্রয়োজন কারণ একটি অনুপস্থিত মডেল একটি ত্রুটি দেয় না। প্রোগ্রামগুলি ইতিমধ্যে ইনস্টল করা আছে; মডেলগুলি নয় - সেগুলি প্রথম অনুরোধে নেওয়া হয়, এবং যদি তারা না আসে তবে প্রোগ্রামটি থামবে না: এটি হালকা কিছুতে ফিরে আসে এবং এগিয়ে যায়। এই পদক্ষেপ ছাড়া আপনি এটি না জেনে ফলব্যাক শুনতে হবে.",
   "Sessione": "অধিবেশন",
   "Sfoglia…": "ব্রাউজ করুন...",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "শোনার জন্য {0} সাউন্ড কার্ড, {1} চালানোর জন্য৷",
   "{0}: non riuscito — {1}": "{0}: ব্যর্থ — {1}",
   "«come Windows» qui vuol dire: {0}": "\"উইন্ডোজের মত\" এখানে মানে: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ পাইপার — দ্রুত, সব জায়গায় যান (প্রস্তাবিত)",
   "⚠ llm": "⚠ এলএলএম",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — আপনার পিসিতে, ছোট মডেল"
  }

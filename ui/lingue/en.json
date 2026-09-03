@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "How quickly it lowers",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "What really gets worse is the graphics: the translated is drawn over the original, reconstructing the background around the line, and the higher the area, the more that reconstruction takes in stuff that doesn't fit there. Above 0.12 in height the program tells you as you pull the rectangle and when you start the chain. The rectangle is drawn from step 2 of the «Preparation» tab.",
   "Questo PC: cosa riesce a fare, e cosa manca": "This PC: what it can do, and what it lacks",
+  "Questo non si puo' installare da qui.": "This cannot be installed from here.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "This parameter is read only once when the chain starts.\nBy changing it while the session is on, the strip to apply it will appear.",
   "Questo va installato": "This must be installed",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "So the game must be windowed or borderless, not full screen exclusively. In the video options of games there is almost always \"Borderless\", and to look at it it is identical to full screen.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Choose the game window",
   "Se il gioco la scrive in un altro modo": "If the game writes it another way",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "If you make it larger, the program reads the same: a large area is less precise, it does not change.",
+  "Serve a «{0} = {1}»:": "It is used for «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "It is needed because a missing model does not give an error. The programs are already installed; not the models - they are taken at the first request, and if they don't arrive the program doesn't stop: it falls back on something lighter and moves on. Without this step you would be listening to the fallback without knowing it.",
   "Sessione": "Session",
   "Sfoglia…": "Browse…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} sound cards to listen to, {1} to play on",
   "{0}: non riuscito — {1}": "{0}: failed — {1}",
   "«come Windows» qui vuol dire: {0}": "«like Windows» here means: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ piper — quick, go everywhere (recommended)",
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — on your PC, small model"
  }

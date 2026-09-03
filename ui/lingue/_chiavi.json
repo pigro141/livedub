@@ -111,7 +111,7 @@
  "EMOZIONE — QUANTO SCALDARE LA VOCE",
  "VOCE — IL SINTETIZZATORE E IL POOL DI VOCI",
  "Motore della voce",
- "↓ piper — svelto, gira ovunque (consigliato)",
+ "piper — svelto, gira ovunque (consigliato)",
  "supertonic — piu' espressivo, piu' lento",
  "kokoro — il migliore, vuole una GPU",
  "tone — un bip al posto della voce, per sentire i tempi",
@@ -148,7 +148,6 @@
  "Traduce una battuta con ognuno e dice quale funziona **qui**,\nquanto costa e se i sottotitoli escono dal PC.",
  "Quanto forte si sente la nostra voce e quanto quella del gioco. La voce originale non si toglie del tutto: si abbassa il centro dell'audio, dove sta il parlato, e musica ed effetti restano dove sono. Si cambia mentre si ascolta, senza ripremere Avvia.",
  "Come suona il doppiaggio: chi parla, con che voce e quanto di fretta. La fretta si sente subito; il motore e il numero di voci al prossimo avvio. Quanto forte sta nella scheda Volumi.",
- "piper — svelto, gira ovunque (consigliato)",
  "Che cosa catturare",
  "Il gioco dev'essere in finestra o senza bordi, non a schermo intero esclusivo. Scegliendo la finestra invece dello schermo, nel fotogramma che va all'OCR non entra nient'altro — nemmeno le nostre finestre, che altrimenti il programma finisce per leggere.",
  "Scegli la finestra del gioco",
@@ -267,5 +266,7 @@
  "Non adesso",
  "Chiudi",
  "Installato: adesso questa scelta funziona.",
- "Da scaricare: {0} MB"
+ "Questo non si puo' installare da qui.",
+ "Da scaricare: {0} MB",
+ "Serve a «{0} = {1}»:"
 ]

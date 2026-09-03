@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "مدى سرعة انخفاضه",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "ما يزيد الأمر سوءًا حقًا هو الرسومات: يتم رسم المترجم فوق النص الأصلي، مما يعيد بناء الخلفية حول الخط، وكلما زادت المساحة، كلما زادت عملية إعادة البناء من الأشياء التي لا تناسبها. ارتفاع أعلى من 0.12 يخبرك البرنامج عند سحب المستطيل وعند بدء السلسلة. يتم رسم المستطيل من الخطوة 2 من علامة التبويب «التحضير».",
   "Questo PC: cosa riesce a fare, e cosa manca": "هذا الكمبيوتر: ما يمكنه فعله وما يفتقر إليه",
+  "Questo non si puo' installare da qui.": "لا يمكن تثبيت هذا من هنا.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "تتم قراءة هذه المعلمة مرة واحدة فقط عند بدء السلسلة.\nومن خلال تغييره أثناء تشغيل الجلسة، سيظهر الشريط المراد تطبيقه.",
   "Questo va installato": "يجب تثبيت هذا",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "لذلك يجب أن تكون اللعبة ذات نوافذ أو بلا حدود، وليس ملء الشاشة حصريًا. في خيارات الفيديو للألعاب، يوجد دائمًا \"بلا حدود\" تقريبًا، وللنظر إليها فهي مطابقة للشاشة الكاملة.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "اختر نافذة اللعبة",
   "Se il gioco la scrive in un altro modo": "إذا كانت اللعبة تكتبها بطريقة أخرى",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "إذا قمت بتكبيرها، يقرأ البرنامج نفس الشيء: المساحة الكبيرة تكون أقل دقة، ولا تتغير.",
+  "Serve a «{0} = {1}»:": "يتم استخدامه لـ «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "إنه ضروري لأن النموذج المفقود لا يعطي خطأ. البرامج مثبتة بالفعل؛ وليس النماذج - يتم أخذها عند الطلب الأول، وإذا لم تصل فإن البرنامج لا يتوقف: بل يلجأ إلى شيء أخف ويمضي قدمًا. بدون هذه الخطوة سوف تستمع إلى النسخة الاحتياطية دون أن تعرفها.",
   "Sessione": "جلسة",
   "Sfoglia…": "تصفح…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} بطاقات صوت للاستماع إليها، {1} للتشغيل عليها",
   "{0}: non riuscito — {1}": "{0}: فشل — {1}",
   "«come Windows» qui vuol dire: {0}": "«مثل Windows» هنا تعني: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ بايبر – سريع، اذهب إلى كل مكان (مستحسن)",
   "⚠ llm": "⚠ م",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — على جهاز الكمبيوتر الخاص بك، نموذج صغير"
  }

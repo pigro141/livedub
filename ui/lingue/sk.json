@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "Ako rýchlo klesá",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "Čo sa naozaj zhoršuje, je grafika: preložený je prekreslený cez originál, rekonštruuje sa pozadie okolo čiary, a čím je oblasť vyššia, tým viac táto rekonštrukcia zaberá veci, ktoré sa tam nezmestia. Nad 0,12 výšky vám program povie, keď ťaháte za obdĺžnik a kedy spúšťate reťaz. Obdĺžnik je nakreslený z kroku 2 na karte «Príprava».",
   "Questo PC: cosa riesce a fare, e cosa manca": "Tento počítač: čo dokáže a čo mu chýba",
+  "Questo non si puo' installare da qui.": "Toto sa odtiaľto nedá nainštalovať.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "Tento parameter sa číta iba raz, keď sa reťaz spustí.\nKeď ho zmeníte, keď je relácia zapnutá, objaví sa prúžok, ktorý ho chcete použiť.",
   "Questo va installato": "Toto musí byť nainštalované",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "Takže hra musí byť v okne alebo bez okrajov, nie výlučne na celú obrazovku. Vo video možnostiach hier je takmer vždy „Borderless“ a pri pohľade naň je totožné s celou obrazovkou.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Vyberte herné okno",
   "Se il gioco la scrive in un altro modo": "Ak to hra napíše inak",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "Ak ju zväčšíte, program číta to isté: veľká oblasť je menej presná, nemení sa.",
+  "Serve a «{0} = {1}»:": "Používa sa pre «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "Je to potrebné, pretože chýbajúci model nedáva chybu. Programy sú už nainštalované; nie modely – tie sa vezmú na prvú žiadosť a ak neprídu, program sa nezastaví: padne na niečo ľahšie a ide ďalej. Bez tohto kroku by ste počúvali záložné riešenie bez toho, aby ste o tom vedeli.",
   "Sessione": "Relácia",
   "Sfoglia…": "Prehliadať…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "Zvukové karty na počúvanie: {0}, na prehrávanie: {1}",
   "{0}: non riuscito — {1}": "{0}: neúspešné – {1}",
   "«come Windows» qui vuol dire: {0}": "„ako Windows“ tu znamená: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ Piper – rýchlo, choďte všade (odporúča sa)",
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — na vašom PC, malý model"
  }

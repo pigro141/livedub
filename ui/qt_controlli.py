@@ -65,7 +65,7 @@ from PySide6.QtWidgets import (
 )
 
 from ui import qt_tema as tema
-from ui.lingua import MARCHIO
+from ui.lingua import MARCHIO, dimentica as lingua_dimentica
 
 # --------------------------------------------------------- la rotellina ------
 
@@ -1184,11 +1184,12 @@ class SceltaLingua(Manopola):
         invece di restare quella del backend di ieri.
         """
         from speak.pool import ha_voce, lingue_con_voce
-        from translate.lingue import AUTO, copertura
+        from translate.lingue import AUTO, copertura, nota_per
 
         cfg = self._cfg
         tr = getattr(cfg, "translate", None) if cfg is not None else None
-        self._copertura = copertura(getattr(tr, "backend", "") if tr else "")
+        backend = getattr(tr, "backend", "") if tr else ""
+        self._copertura = copertura(backend)
         codice = self.valore()
 
         pezzi: list[str] = []
@@ -1196,9 +1197,12 @@ class SceltaLingua(Manopola):
             # Su `auto` la nota del backend **e' gia'** la spiegazione giusta —
             # dice che diventa `en` — e sostituirla con «non fa questa lingua»
             # toglierebbe l'unica informazione che serve: quale lingua verra'
-            # usata al suo posto.
-            pezzi.append("⚠ " + (self._copertura.nota if codice == AUTO else
-                                 f"il traduttore «{getattr(tr, 'backend', '?')}» "
+            # usata al suo posto. La regola su **in che ordine** dirlo sta in
+            # `translate.lingue.nota_per`, fuori da Qt: questa etichetta si
+            # accorcia coi puntini, quindi cio' che conta deve stare davanti — e
+            # finche' stava in coda non si e' mai letto.
+            pezzi.append("⚠ " + (nota_per(backend, codice) if codice == AUTO else
+                                 f"il traduttore «{backend or '?'}» "
                                  f"non fa questa lingua."))
         elif self._copertura.nota:
             pezzi.append(self._copertura.nota)
@@ -1282,6 +1286,14 @@ class SceltaFra(Manopola):
         self._indisponibili = dict(indisponibili or {})
         self._da_installare = dict(da_installare or {})
         scelto = self.combo.currentIndex()
+        # **Le voci qui sotto si riscrivono in italiano**, che e' la lingua del
+        # sorgente: la memoria che `ui.lingua` tiene su questo widget adesso e'
+        # vecchia, e tenerla vorrebbe dire due cose sbagliate insieme — la
+        # tendina resta italiana in mezzo a una finestra tradotta, e al prossimo
+        # cambio di lingua torna la voce **col segno di prima** perche' la chiave
+        # e' quella memorizzata. Si e' visto: `«↓ piper — svelto, gira ovunque»`
+        # e' finita cosi' dentro `_chiavi.json`.
+        lingua_dimentica(self.combo)
         self.combo.blockSignals(True)
         try:
             self.combo.clear()
@@ -1751,7 +1763,7 @@ def indisponibili_qui(percorso: str) -> dict[str, str]:
         return {}
 
 
-def da_installare(percorso: str, cfg) -> dict[str, str]:
+def da_installare(percorso: str, cfg, *, aspetta: bool = False) -> dict[str, str]:
     """`{valore: cosa manca}` per un campo a scelta, o un dizionario vuoto.
 
     **La regola sta in `core.banco`, fuori da Qt**, ed e' la stessa che il passo
@@ -1765,6 +1777,15 @@ def da_installare(percorso: str, cfg) -> dict[str, str]:
     nessuno puo' soddisfare. La risposta intanto arriva e finisce in cache,
     quindi al prossimo ridisegno il segno c'e'.
 
+    **`aspetta` e' la meta' che mancava, ed e' un difetto misurato.** Quel «non
+    lo so ancora» va bene mentre si **disegna** una scheda e non va bene mentre
+    si **rifanno** i segni dopo un'installazione: li' la cache e' appena stata
+    buttata (`banco.scarica` lo fa in fondo a se stessa), quindi la prima prova
+    costa **2022 ms** e i 400 del tetto non bastano mai. Risultato visto
+    dall'utente: installato un pezzo, sparivano i segni di **tutto**, anche di
+    cio' che non era installato. Chi rifa' i segni ha appena aspettato un
+    download: puo' aspettare due secondi per dire la verita'.
+
     E il ripiego largo non e' pigrizia: il pannello si costruisce anche mentre si
     scattano le schermate, e una finestra che non si apre per colpa di una prova
     d'ambiente sarebbe un difetto peggiore di quello che questa riga dichiara.
@@ -1774,7 +1795,8 @@ def da_installare(percorso: str, cfg) -> dict[str, str]:
 
         if percorso not in banco.RICHIESTE or cfg is None:
             return {}
-        avuti = banco.presenti_svelto(cfg)
+        avuti = (banco.presenti_in_cache(cfg) if aspetta
+                 else banco.presenti_svelto(cfg))
         if avuti is None:
             return {}
         fuori: dict[str, str] = {}

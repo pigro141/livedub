@@ -119,6 +119,46 @@ RIGA_PIP = "powershell -ExecutionPolicy Bypass -File tools\\installa_traduzione.
 # uno prema. Tre giga che compaiono dopo sarebbero un download a sorpresa.
 TRADUZIONE_MB = 3100
 
+# **I pezzi che da un pacchetto congelato non si possono prendere, e perche'.**
+#
+# Dentro l'eseguibile non c'e' ne' un venv ne' `pip`, e `sys.executable` e' il
+# programma stesso: un processo figlio riaprirebbe la finestra invece di
+# installare. `installa_argos` e `installa_llm` lo sapevano gia' e sollevavano —
+# ma **dopo** che l'utente aveva premuto «Installa», cioe' offrendo un bottone
+# che non poteva funzionare. Un bottone cosi' e' precisamente quello che il
+# riquadro d'installazione esiste per non essere.
+#
+# Le frasi stanno qui una volta sola e le leggono tutti e due: chi lo dice prima
+# (`non_di_qui`) e chi solleva se ci si arriva lo stesso. Due copie della stessa
+# rinuncia sarebbero l'ennesima tabella scritta due volte, e la seconda direbbe
+# un'altra cosa il giorno che cambia l'alternativa consigliata.
+NON_DI_QUI: dict[str, str] = {
+    "argos": "in questa versione impacchettata la traduzione offline non si "
+             "installa: si usa «google», oppure si esegue il programma da sorgente",
+    "llm": "in questa versione impacchettata il modello locale non si installa: "
+           "si usa «ollama» o «google», oppure si esegue il programma da sorgente",
+}
+
+
+def non_di_qui(codici, congelato: bool) -> tuple[str, ...]:
+    """Quali di questi pezzi **questa copia** del programma non puo' prendere. Pura.
+
+    `congelato` arriva da fuori (`sys.frozen`) apposta: cosi' il caso che su
+    questa macchina non capita mai — l'eseguibile — si verifica con un booleano
+    invece che con un pacchetto costruito.
+    """
+    if not congelato:
+        return ()
+    return tuple(c for c in codici if c in NON_DI_QUI)
+
+
+def congelato() -> bool:
+    """Stiamo girando dentro il pacchetto PyInstaller?"""
+    import sys
+
+    return bool(getattr(sys, "frozen", False))
+
+
 # I pacchetti che `tools/installa_traduzione.ps1` mette, e che quindi la disfatta
 # toglie. **Non c'e' `packaging`**, che lo script chiede senza versione perche'
 # gia' c'era: e' una dipendenza di pip stesso, e toglierla per disfare una cosa
@@ -554,6 +594,43 @@ def manca_per_scelta(percorso: str, valore, presenti) -> tuple[str, ...]:
     return da_scaricare(RICHIESTE.get(percorso, {}).get(str(valore), ()), presenti)
 
 
+# **Quali campi contano solo se la loro funzione e' accesa.** `translate.backend`
+# vale `locale` anche con la traduzione spenta — e' il suo default — e chiedere
+# tre giga di Argos a chi doppia GTA V in italiano sarebbe un riquadro che si
+# apre per una cosa che non succedera'. La condizione sta qui e non in Qt, come
+# tutto il resto di questo file.
+ACCESO: dict[str, str] = {"translate.backend": "translate.enabled"}
+
+
+def manca_per_config(cfg, presenti) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+    """Cosa manca alle scelte **gia' scritte** in configurazione. Pura.
+
+    `manca_per_scelta` risponde a «se adesso metto *questo* valore, cosa manca?»,
+    ed e' la domanda di chi sta guardando una tendina. Questa risponde a «con la
+    configurazione di adesso, cosa manca?» — che e' un'altra domanda, ed e'
+    quella che nessuno faceva.
+
+    **Il difetto era proprio li'.** Il riquadro d'installazione lo apriva solo
+    `Pannello.applica`, cioe' solo quando un campo **cambia**: un valore che sta
+    in configurazione dall'inizio — `tts.backend = piper`, che e' il default —
+    non lo faceva comparire mai, per quanto gli mancasse il modello. La scelta
+    piu' comune di tutte era l'unica che non poteva essere offerta.
+
+    Torna `(percorso, valore, pezzi che mancano)` per ogni campo che ha qualcosa
+    dietro e non ce l'ha sul disco, nell'ordine di `RICHIESTE`.
+    """
+    fuori: list[tuple[str, str, tuple[str, ...]]] = []
+    for percorso in RICHIESTE:
+        interruttore = ACCESO.get(percorso)
+        if interruttore and not getattr_percorso(cfg, interruttore):
+            continue
+        valore = str(getattr_percorso(cfg, percorso))
+        manca = manca_per_scelta(percorso, valore, presenti)
+        if manca:
+            fuori.append((percorso, valore, manca))
+    return tuple(fuori)
+
+
 def da_scaricare(codici, presenti) -> tuple[str, ...]:
     """Quello che manca davvero, nell'ordine chiesto. **Pura.**"""
     avuti = set(presenti or ())
@@ -587,6 +664,77 @@ BATTUTE: tuple[str, ...] = (
 )
 
 
+def lingua_parlata(cfg) -> str:
+    """In che lingua questa configurazione **parlera'**.
+
+    E' la stessa riga di `misura_sintesi` e di `DubPipeline`: con la traduzione
+    accesa conta la lingua d'arrivo, se no quella del gioco. Sta qui perche' la
+    chiedono in tre — chi misura, chi guarda cosa c'e' sul disco e chi scarica —
+    e tre copie della stessa riga sono tre copie che si scollano.
+    """
+    return cfg.translate.target if cfg.translate.enabled else "it"
+
+
+def voci_piper(cfg) -> tuple[str, ...]:
+    """Le voci Piper che **questa** configurazione userebbe davvero.
+
+    Prima qui c'era `from speak.backends.piper import KNOWN`, e `KNOWN` non
+    esiste piu' dal giorno in cui Piper e' passato da due voci a 175 in
+    cinquanta lingue. Non e' stato un errore visibile: l'import stava dentro un
+    `except Exception: pass`, quindi **piper non e' mai stato contato come
+    presente** — il motore *di serie* risultava da installare su ogni macchina —
+    e `_prendi("piper")` moriva con `ImportError: cannot import name 'KNOWN'`,
+    che e' esattamente cio' che l'utente ha letto nel riquadro.
+
+    La cura non e' riscrivere l'elenco: e' **chiederlo a chi lo usa**, come dice
+    gia' la docstring di `presenti()`. Le voci sono quelle che `make_tts`
+    precarica — `cfg.tts.voices` se sono dichiarate per Piper, se no la famiglia
+    della lingua che si parlera' (`speak.pool.basi_per`). Cosi' il giorno che il
+    pool cambia, questa risposta cambia con lui invece di restare indietro in
+    silenzio.
+    """
+    from speak.pool import basi_per
+
+    dichiarate = tuple(cfg.tts.voices or ())
+    if dichiarate and cfg.tts.backend == "piper":
+        return dichiarate
+    return tuple(basi_per("piper", lingua_parlata(cfg)))
+
+
+# **Perche' un pezzo e' stato contato come mancante**, `codice -> il guasto`.
+# Riempito da `presenti()` a ogni giro, e non e' una decorazione: senza, un
+# `ImportError` su un nome che non esiste e un modello che davvero non c'e'
+# danno la **stessa** risposta — «manca» — e il primo dei due e' un difetto di
+# questo file. E' costato che il motore di serie risultasse da installare su
+# ogni macchina, per settimane, con la suite verde.
+_perche_manca: dict[str, str] = {}
+
+
+def perche_manca() -> dict[str, str]:
+    """Cosa e' andato storto nell'ultimo `presenti()`, pezzo per pezzo."""
+    return dict(_perche_manca)
+
+
+# **Le eccezioni che vogliono dire «il pezzo non c'e'».** Tutto il resto — un
+# `ImportError` su un **nome** (che non e' `ModuleNotFoundError`), un
+# `AttributeError`, un `TypeError` — non e' un pezzo mancante: e' una riga
+# sbagliata qui dentro, e la verifica `installa` la prende invece di lasciarla
+# passare per una risposta.
+_DIFETTO = (AttributeError, TypeError, NameError, IndexError, SyntaxError)
+
+
+def e_un_difetto(guasto: BaseException) -> bool:
+    """Questo guasto dice «il pezzo non c'e'», o «questo file e' rotto»? **Pura.**
+
+    `ModuleNotFoundError` e' un pacchetto che manca, cioe' una notizia vera;
+    `ImportError` secco su un nome che non esiste e' un difetto del codice, e
+    per mesi ha avuto la stessa faccia del primo.
+    """
+    if isinstance(guasto, ModuleNotFoundError):
+        return False
+    return isinstance(guasto, (ImportError, *_DIFETTO))
+
+
 def presenti(cfg) -> frozenset[str]:
     """Quali pezzi ci sono gia', chiedendolo **a chi li usa**.
 
@@ -599,48 +747,48 @@ def presenti(cfg) -> frozenset[str]:
     controlli **cosa** c'e' dentro, non che ci sia — e chi lo controlla dopo
     chieda a lui, invece di scriverne una seconda versione che al primo pezzo
     nuovo dira' un'altra cosa.
+
+    **E ogni «non c'e'» dice perche'** (`perche_manca`). Finche' i guasti
+    finivano in un `except Exception: pass`, «il modello non e' sul disco» e «da
+    questo modulo importo un nome che non esiste piu'» davano la stessa
+    risposta: la seconda e' rimasta in piedi per settimane, e il motore di serie
+    risultava da installare su tutte le macchine.
     """
     fuori: set[str] = set()
+    _perche_manca.clear()
 
-    try:
-        from speak.backends.piper import KNOWN, model_path
+    def prova(codice: str, guarda) -> None:
+        try:
+            if guarda() is not False:
+                fuori.add(codice)
+        except Exception as guasto:  # noqa: BLE001 - qui si classifica, apposta
+            _perche_manca[codice] = f"{type(guasto).__name__}: {guasto}".splitlines()[0]
 
-        if all(model_path(n, download=False) for n in KNOWN):
-            fuori.add("piper")
-    except Exception:
-        pass
+    def _piper() -> bool:
+        from speak.backends.piper import model_path
 
-    try:
+        voci = voci_piper(cfg)
+        return bool(voci) and all(model_path(n, download=False) for n in voci)
+
+    def _kokoro() -> None:
         from speak.backends.kokoro import model_path as kokoro_path
 
         kokoro_path(cfg.tts.kokoro_weights, download=False)
-        fuori.add("kokoro")
-    except Exception:
-        pass
 
-    try:
+    def _voci_kokoro() -> None:
         from speak.backends.kokoro import voices_path
 
         voices_path(download=False)
-        fuori.add("voci_kokoro")
-    except Exception:
-        pass
 
-    try:
+    def _ecapa() -> None:
         from listen.embed import EcapaOnnxEmbedder
 
         EcapaOnnxEmbedder._fetch(False)
-        fuori.add("ecapa")
-    except Exception:
-        pass
 
-    try:
+    def _oneocr() -> bool:
         from tools.fetch_oneocr import DESTINAZIONE, FILE
 
-        if all((DESTINAZIONE / f).is_file() for f in FILE):
-            fuori.add("oneocr")
-    except Exception:
-        pass
+        return all((DESTINAZIONE / f).is_file() for f in FILE)
 
     # **La domanda su CUDA non e' «i file ci sono»: e' «la sessione la prende».**
     # Chi ha una CUDA di sistema, o gira da sorgente con i pacchetti `nvidia-*`
@@ -648,56 +796,53 @@ def presenti(cfg) -> frozenset[str]:
     # seconda copia delle stesse librerie. La cartella nostra conta solo quando la
     # sessione non ce l'ha fatta — li' e' l'unica cosa che distingue «manca» da
     # «manca ancora per un riavvio».
-    try:
+    def _cuda() -> bool:
         from core.onnx import cuda_ottenuta
 
         if cuda_ottenuta("il banco")[0]:
-            fuori.add("cuda")
-        else:
-            from core.cuda import presente
+            return True
+        from core.cuda import presente
 
-            if presente():
-                fuori.add("cuda")
-    except Exception:
-        pass
+        return presente()
 
     # **Il pacchetto si chiede a chi lo prova davvero.** `core.bloccati` non
     # guarda se il file c'e': lo **importa**, che e' l'unica domanda che
     # distingue «installato» da «installato e caricabile» su una macchina con
     # Smart App Control acceso.
-    try:
+    def _argos() -> bool:
         from core import bloccati
 
-        if bloccati.pezzo("argos").ok:
-            fuori.add("argos")
-    except Exception:
-        pass
+        return bloccati.pezzo("argos").ok
 
     # **Il modello locale c'e' se ci sono tutti e due i pezzi.** Il pacchetto si
     # **importa** (Smart App Control lo lascia sul disco e non lo carica), e il
     # `.gguf` deve stare li': con uno solo dei due la scelta si accenderebbe e
     # morirebbe alla prima battuta — che e' precisamente cio' che `dopo_lo_scarico`
     # esiste per non fare con Kokoro.
-    try:
+    def _llm() -> bool:
         from core import bloccati
         from translate.llm import MODELLO_DEFAULT
 
-        if bloccati.pezzo("llm").ok and Path(MODELLO_DEFAULT).is_file():
-            fuori.add("llm")
-    except Exception:
-        pass
+        return bloccati.pezzo("llm").ok and Path(MODELLO_DEFAULT).is_file()
 
-    try:
+    def _traduzione() -> bool:
         import argostranslate.package as ap
 
         from translate.locale import coppia
 
         da, a = coppia(cfg.translate.source, cfg.translate.target)
-        if da == a or any(p.from_code == da and p.to_code == a
-                          for p in ap.get_installed_packages()):
-            fuori.add("traduzione")
-    except Exception:
-        pass
+        return da == a or any(p.from_code == da and p.to_code == a
+                              for p in ap.get_installed_packages())
+
+    prova("piper", _piper)
+    prova("kokoro", _kokoro)
+    prova("voci_kokoro", _voci_kokoro)
+    prova("ecapa", _ecapa)
+    prova("oneocr", _oneocr)
+    prova("cuda", _cuda)
+    prova("argos", _argos)
+    prova("llm", _llm)
+    prova("traduzione", _traduzione)
 
     return frozenset(fuori)
 
@@ -1219,10 +1364,11 @@ def installa_argos() -> None:
     # due processi figli qui sotto riaprirebbero la finestra invece di
     # rispondere. Dirlo e' l'unica cosa vera; provarci sarebbe un guasto in un
     # punto in cui nessuno lo collegherebbe alla traduzione.
-    if getattr(sys, "frozen", False):
-        raise RuntimeError(
-            "in questa versione impacchettata la traduzione offline non si "
-            "installa: si usa «google», oppure si esegue il programma da sorgente")
+    if congelato():
+        # La frase sta in `NON_DI_QUI`, che e' anche quella che il riquadro
+        # mostra **prima** di offrire un bottone. Scritta due volte, la seconda
+        # smetterebbe di dire la stessa cosa.
+        raise RuntimeError(NON_DI_QUI["argos"])
 
     script = _RADICE / "tools" / "installa_traduzione.ps1"
     if not script.is_file():
@@ -1296,10 +1442,8 @@ def installa_llm() -> None:
     # Stessa ragione di `installa_argos`: dentro il pacchetto congelato non c'e'
     # ne' un venv ne' `pip`, e `sys.executable` e' il programma stesso — quindi
     # il processo figlio riaprirebbe la finestra invece di installare.
-    if getattr(sys, "frozen", False):
-        raise RuntimeError(
-            "in questa versione impacchettata il modello locale non si installa: "
-            "si usa «ollama» o «google», oppure si esegue il programma da sorgente")
+    if congelato():
+        raise RuntimeError(NON_DI_QUI["llm"])
 
     esito = subprocess.run([sys.executable, *COMANDO_LLM],
                            capture_output=True, text=True)
@@ -1342,9 +1486,13 @@ def _prendi(codice: str, cfg) -> None:
     scarica in un modo e si controlla in un altro.
     """
     if codice == "piper":
-        from speak.backends.piper import KNOWN, model_path
+        from speak.backends.piper import model_path
 
-        for nome in KNOWN:
+        # Le stesse voci che `presenti()` guarda, e per la stessa ragione: due
+        # elenchi — uno per controllare e uno per scaricare — sono due elenchi
+        # che si scollano, e qui si scollerebbero in silenzio (si scarica una
+        # cosa e se ne controlla un'altra, quindi «manca» per sempre).
+        for nome in voci_piper(cfg):
             model_path(nome, download=True)
         return
     if codice == "kokoro":

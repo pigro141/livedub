@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "Wie schnell es sinkt",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "Was noch schlimmer wird, sind die Grafiken: Die Übersetzung wird über das Original gezeichnet, wodurch der Hintergrund um die Linie herum rekonstruiert wird, und je höher der Bereich, desto mehr Dinge werden in die Rekonstruktion aufgenommen, die dort nicht hineinpassen. Über 0,12 in der Höhe teilt Ihnen das Programm mit, wann Sie das Rechteck ziehen und wann Sie die Kette starten. Das Rechteck wird aus Schritt 2 der Registerkarte „Vorbereitung“ gezeichnet.",
   "Questo PC: cosa riesce a fare, e cosa manca": "Dieser PC: Was er kann und was ihm fehlt",
+  "Questo non si puo' installare da qui.": "Dies kann von hier aus nicht installiert werden.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "Dieser Parameter wird nur einmal beim Start der Kette gelesen.\nWenn Sie es während der Sitzung ändern, wird der Streifen zum Anwenden angezeigt.",
   "Questo va installato": "Dies muss installiert werden",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "Das Spiel muss also fenster- oder randlos sein, nicht ausschließlich im Vollbildmodus. In den Videooptionen von Spielen gibt es fast immer „Randlos“, und optisch ist es identisch mit Vollbild.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Wählen Sie das Spielfenster",
   "Se il gioco la scrive in un altro modo": "Wenn das Spiel es anders schreibt",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "Wenn Sie es vergrößern, liest das Programm dasselbe: Ein großer Bereich ist ungenauer, er ändert sich nicht.",
+  "Serve a «{0} = {1}»:": "Es wird für «{0} = {1}» verwendet:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "Dies ist erforderlich, da ein fehlendes Modell keinen Fehler auslöst. Die Programme sind bereits installiert; nicht die Modelle – sie werden auf die erste Anfrage hin genommen, und wenn sie nicht eintreffen, hört das Programm nicht auf: Es greift auf etwas Leichteres zurück und geht weiter. Ohne diesen Schritt würden Sie dem Fallback zuhören, ohne es zu wissen.",
   "Sessione": "Sitzung",
   "Sfoglia…": "Durchsuchen…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} Soundkarten zum Anhören, {1} zum Spielen",
   "{0}: non riuscito — {1}": "{0}: fehlgeschlagen – {1}",
   "«come Windows» qui vuol dire: {0}": "„wie Windows“ bedeutet hier: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ Piper – schnell, überall hin (empfohlen)",
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm – auf Ihrem PC, kleines Modell"
  }

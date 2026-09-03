@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "Nó giảm nhanh thế nào",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "Điều thực sự tệ hơn là đồ họa: bản dịch được vẽ trên bản gốc, tái tạo lại nền xung quanh đường nét và diện tích càng cao thì bản tái tạo đó càng chứa nhiều nội dung không phù hợp ở đó. Chiều cao trên 0,12, chương trình sẽ cho bạn biết khi bạn kéo hình chữ nhật và khi bạn bắt đầu chuỗi. Hình chữ nhật được vẽ từ bước 2 của tab \"Chuẩn bị\".",
   "Questo PC: cosa riesce a fare, e cosa manca": "Chiếc PC này: nó có thể làm được những gì và nó thiếu những gì",
+  "Questo non si puo' installare da qui.": "Điều này không thể được cài đặt từ đây.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "Tham số này chỉ được đọc một lần khi chuỗi bắt đầu.\nBằng cách thay đổi nó trong khi phiên đang diễn ra, dải áp dụng nó sẽ xuất hiện.",
   "Questo va installato": "Cái này phải được cài đặt",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "Vì vậy, trò chơi phải ở chế độ cửa sổ hoặc không viền, không chỉ toàn màn hình. Trong các tùy chọn video của trò chơi hầu như luôn có \"Không viền\", và nhìn vào nó thì nó giống hệt với toàn màn hình.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Chọn cửa sổ trò chơi",
   "Se il gioco la scrive in un altro modo": "Nếu trò chơi viết nó theo cách khác",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "Nếu bạn làm cho nó lớn hơn, chương trình sẽ đọc tương tự: một khu vực lớn sẽ kém chính xác hơn, nó không thay đổi.",
+  "Serve a «{0} = {1}»:": "Nó được sử dụng cho «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "Nó cần thiết vì mô hình bị thiếu sẽ không gây ra lỗi. Các chương trình đã được cài đặt sẵn; các mô hình thì không - chúng được thực hiện theo yêu cầu đầu tiên và nếu chúng không đến thì chương trình sẽ không dừng lại: nó rơi trở lại thứ gì đó nhẹ hơn và tiếp tục. Nếu không có bước này, bạn sẽ nghe bản dự phòng mà không biết.",
   "Sessione": "Phiên",
   "Sfoglia…": "Duyệt…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} card âm thanh để nghe, {1} để phát",
   "{0}: non riuscito — {1}": "{0}: thất bại — {1}",
   "«come Windows» qui vuol dire: {0}": "«giống như Windows» ở đây có nghĩa là: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ piper — nhanh chóng, đi khắp mọi nơi (khuyên dùng)",
   "⚠ llm": "⚠ ừm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — trên PC của bạn, kiểu máy nhỏ"
  }

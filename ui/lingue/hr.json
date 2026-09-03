@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "Kako se brzo spušta",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "Ono što stvarno postaje gore je grafika: prevedeno je iscrtano preko originala, rekonstruira pozadinu oko linije, a što je više područje, to više rekonstrukcija uključuje stvari koje tu ne stanu. Iznad 0,12 visine program vam govori dok povlačite pravokutnik i kada pokrećete lanac. Pravokutnik je nacrtan iz koraka 2 kartice «Priprema».",
   "Questo PC: cosa riesce a fare, e cosa manca": "Ovo računalo: što može, a što mu nedostaje",
+  "Questo non si puo' installare da qui.": "Ovo se ne može instalirati odavde.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "Ovaj parametar se čita samo jednom kada lanac započne.\nAko ga promijenite dok je sesija uključena, pojavit će se traka za njegovu primjenu.",
   "Questo va installato": "Ovo mora biti instalirano",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "Dakle, igra mora biti s prozorima ili bez obruba, a ne isključivo preko cijelog zaslona. U video opcijama igara gotovo uvijek postoji \"Borderless\", a za gledanje je identično kao na cijelom ekranu.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Odaberite prozor igre",
   "Se il gioco la scrive in un altro modo": "Ako igra piše na drugi način",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "Ako ga povećate, program glasi isto: veliko područje je manje precizno, ne mijenja se.",
+  "Serve a «{0} = {1}»:": "Koristi se za «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "Potreban je jer model koji nedostaje ne daje pogrešku. Programi su već instalirani; ne modeli - uzimaju se na prvi zahtjev, a ako ne stignu program ne staje: vraća se na nešto lakše i ide dalje. Bez ovog koraka slušali biste zamjenu, a da toga niste ni svjesni.",
   "Sessione": "Sjednica",
   "Sfoglia…": "Pregledaj...",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} zvučnih kartica za slušanje, {1} za reprodukciju",
   "{0}: non riuscito — {1}": "{0}: nije uspjelo — {1}",
   "«come Windows» qui vuol dire: {0}": "«kao Windows» ovdje znači: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ piper — brz, ići posvuda (preporučeno)",
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — na vašem računalu, mali model"
  }

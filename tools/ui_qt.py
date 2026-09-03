@@ -2353,6 +2353,15 @@ class Finestra(QMainWindow):
         # catene sullo stesso processo.
         if self.motore.stato != FERMO:
             return
+        # **Adesso e' il momento in cui una scelta smette di essere una riga di
+        # configurazione**, quindi e' il momento di dire che le manca un pezzo.
+        # `chiedi` lo faceva solo quando un campo **cambiava**: un valore che sta
+        # li' dall'inizio — `tts.backend = piper`, che e' il default — non lo
+        # faceva comparire mai, e la sessione partiva ripiegando in silenzio.
+        # All'apertura sarebbe stato un modale che compare prima che qualcuno
+        # abbia toccato niente (e la prima volta ci pensa gia' la guida); qui e'
+        # dopo un gesto.
+        self._offri_installazione()
         # **L'overlay si costruisce adesso, con la configurazione di adesso.**
         # E si dice a chiare lettere se c'e' o no: una traduzione che esce e non
         # si vede e' un difetto che non lascia tracce da nessuna parte.
@@ -2379,6 +2388,31 @@ class Finestra(QMainWindow):
         # seconda volta, e sono le copie a divergere.
         self.motore.avvia()
         self._dipingi_bottoni()
+
+    def _offri_installazione(self) -> None:
+        """Alle scelte di **adesso** manca qualcosa? Allora si offre di prenderla.
+
+        La regola — quali campi hanno un pezzo dietro, quali di quei pezzi non
+        sono sul disco, e quali funzioni sono accese — sta in
+        `core.banco.manca_per_config`, fuori da Qt. Qui c'e' solo il momento in
+        cui la si chiede e la memoria di cosa e' gia' stato proposto in questa
+        sessione: un riquadro che torna a ogni Avvia e' quello che si spegne da
+        solo nella testa di chi lo legge.
+
+        Il prezzo e' dichiarato: `presenti()` costa 2022 ms la prima volta e 1 ms
+        le successive. Quasi sempre e' gia' pagato — disegnando le schede,
+        `da_installare` ha gia' avviato la prova in un thread e la risposta e' in
+        cache — e quando non lo e' sono due secondi prima di una sessione, non
+        dentro.
+        """
+        try:
+            from ui.qt_installa import chiedi_tutto
+        except Exception:  # pragma: no cover - senza Qt non si arriva qui
+            return
+        if not hasattr(self, "_gia_offerto"):
+            self._gia_offerto: set = set()
+        if chiedi_tutto(self.cfg, self, self._gia_offerto):
+            self._rimarca()
 
     def ferma(self) -> None:
         self.motore.ferma()

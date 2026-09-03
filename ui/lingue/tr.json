@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "Ne kadar çabuk düşüyor",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "Gerçekten daha da kötüleşen şey grafikler: Çevrilmiş olan orijinalin üzerine çiziliyor, çizgi etrafında arka plan yeniden oluşturuluyor ve alan ne kadar yüksekse, yeniden yapılandırma oraya sığmayan şeyleri o kadar fazla içine alıyor. Yükseklik 0,12'nin üzerindeyse program size dikdörtgeni ne zaman çektiğinizi ve zincire ne zaman başladığınızı söyler. Dikdörtgen, «Hazırlık» sekmesinin 2. adımından çizilir.",
   "Questo PC: cosa riesce a fare, e cosa manca": "Bu bilgisayar: yapabilecekleri ve eksikleri",
+  "Questo non si puo' installare da qui.": "Bu buradan yüklenemez.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "Bu parametre zincir başladığında yalnızca bir kez okunur.\nSeans açıkken değiştirildiğinde uygulanacak şerit görünecektir.",
   "Questo va installato": "Bu kurulmalı",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "Bu nedenle oyunun yalnızca tam ekran değil, pencereli veya çerçevesiz olması gerekir. Oyunların video seçeneklerinde neredeyse her zaman \"Kenarlıksız\" bulunur ve ona bakmak tam ekranla aynıdır.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Oyun penceresini seçin",
   "Se il gioco la scrive in un altro modo": "Eğer oyun bunu başka bir şekilde yazarsa",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "Eğer onu büyütürseniz, program aynı şeyi okur: geniş bir alan daha az kesindir, değişmez.",
+  "Serve a «{0} = {1}»:": "«{0} = {1}» için kullanılır:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "Eksik model hata vermediği için gereklidir. Programlar zaten kuruludur; modeller bunu yapmaz; ilk istek üzerine alınırlar ve ulaşmazlarsa program durmaz: daha hafif bir şeye biner ve yoluna devam eder. Bu adım olmasaydı, geri dönüşü bilmeden dinliyor olurdunuz.",
   "Sessione": "Oturum",
   "Sfoglia…": "Göz at…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "Dinlenecek {0} ses kartı, çalınacak {1} ses kartı",
   "{0}: non riuscito — {1}": "{0}: başarısız oldu — {1}",
   "«come Windows» qui vuol dire: {0}": "«Windows gibi» burada şu anlama gelir: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ piper — hızlı, her yere gidin (önerilir)",
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — PC'nizde, küçük model"
  }

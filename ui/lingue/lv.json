@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "Cik ātri tas pazeminās",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "Kas patiešām kļūst sliktāks, ir grafika: tulkotais tiek zīmēts virs oriģināla, rekonstruējot fonu ap līniju, un jo augstāks ir laukums, jo vairāk rekonstrukcija uzņem lietas, kas tur neiederas. Virs 0,12 augstuma programma jums paziņo, kad velkat taisnstūri un kad sākat ķēdi. Taisnstūris ir zīmēts no cilnes \"Sagatavošana\" 2. darbības.",
   "Questo PC: cosa riesce a fare, e cosa manca": "Šis dators: ko tas spēj un kā tam trūkst",
+  "Questo non si puo' installare da qui.": "To nevar instalēt no šejienes.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "Šis parametrs tiek nolasīts tikai vienu reizi, kad ķēde sākas.\nMainot to, kamēr sesija ir ieslēgta, tiks parādīta josla, lai to lietotu.",
   "Questo va installato": "Tas ir jāinstalē",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "Tāpēc spēlei ir jābūt logiem vai bez apmalēm, nevis tikai pilnekrāna režīmā. Spēļu video opcijās gandrīz vienmēr ir \"Borderless\", un, skatoties uz to, tas ir identisks pilnekrāna režīmam.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Izvēlieties spēles logu",
   "Se il gioco la scrive in un altro modo": "Ja spēle to raksta citā veidā",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "Ja padarīsit to lielāku, programma skan tāpat: liela platība ir mazāk precīza, tā nemainās.",
+  "Serve a «{0} = {1}»:": "To lieto, lai \"{0} = {1}\":",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "Tas ir nepieciešams, jo trūkstošais modelis nedod kļūdu. Programmas jau ir instalētas; ne modeļi - tie tiek uzņemti pēc pirmā pieprasījuma, un, ja tie neierodas, programma neapstājas: tā atgriežas pie kaut kā vieglāka un virzās tālāk. Bez šī soļa jūs klausītos atkāpšanos, to nezinot.",
   "Sessione": "Sesija",
   "Sfoglia…": "Pārlūkot…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} skaņas kartes, ko klausīties, {1} atskaņošanai",
   "{0}: non riuscito — {1}": "{0}: neizdevās — {1}",
   "«come Windows» qui vuol dire: {0}": "“kā Windows” šeit nozīmē: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ pīpētājs — ātrs, iet visur (ieteicams)",
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — datorā, mazs modelis"
  }

@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "มันลดลงเร็วแค่ไหน.",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "สิ่งที่แย่กว่านั้นคือกราฟิก: การแปลจะถูกวาดทับต้นฉบับ สร้างพื้นหลังขึ้นมาใหม่รอบเส้น และยิ่งพื้นที่สูงเท่าไร การสร้างใหม่ก็จะต้องใช้สิ่งที่ไม่พอดีตรงนั้นมากขึ้นเท่านั้น ความสูงที่สูงกว่า 0.12 โปรแกรมจะบอกคุณเมื่อคุณดึงสี่เหลี่ยมและเมื่อคุณเริ่มห่วงโซ่ สี่เหลี่ยมถูกดึงมาจากขั้นตอนที่ 2 ของแท็บ \"การเตรียมการ\"",
   "Questo PC: cosa riesce a fare, e cosa manca": "พีซีเครื่องนี้: ทำอะไรได้บ้าง และขาดอะไร",
+  "Questo non si puo' installare da qui.": "ไม่สามารถติดตั้งได้จากที่นี่",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "พารามิเตอร์นี้จะถูกอ่านเพียงครั้งเดียวเมื่อเชนสตาร์ท\nเมื่อเปลี่ยนในขณะที่เปิดเซสชัน แถบที่จะใช้จะปรากฏขึ้น",
   "Questo va installato": "จะต้องติดตั้งสิ่งนี้",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "ดังนั้นเกมจะต้องเป็นแบบมีหน้าต่างหรือไร้ขอบ ไม่ใช่เฉพาะแบบเต็มหน้าจอ ในตัวเลือกวิดีโอของเกมจะมี \"ไร้ขอบ\" เกือบตลอดเวลาและเมื่อมองดูแล้วก็จะเหมือนกับแบบเต็มหน้าจอ",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "เลือกหน้าต่างเกม",
   "Se il gioco la scrive in un altro modo": "หากเกมเขียนเป็นอย่างอื่น",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "หากคุณทำให้ใหญ่ขึ้น โปรแกรมจะอ่านเหมือนเดิม พื้นที่ขนาดใหญ่มีความแม่นยำน้อยลง มันไม่เปลี่ยนแปลง",
+  "Serve a «{0} = {1}»:": "ใช้สำหรับ «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "จำเป็นเนื่องจากโมเดลที่หายไปไม่ได้ทำให้เกิดข้อผิดพลาด โปรแกรมได้รับการติดตั้งแล้ว โมเดลไม่ - พวกเขาจะถูกรับไปตามคำขอแรก และหากไม่มาถึง โปรแกรมก็จะไม่หยุด: มันจะถอยกลับไปหาสิ่งที่เบากว่าและเดินหน้าต่อไป หากไม่มีขั้นตอนนี้ คุณจะฟังเพลงทางเลือกโดยไม่รู้ตัว",
   "Sessione": "เซสชัน",
   "Sfoglia…": "เรียกดู...",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "การ์ดเสียง {0} รายการเพื่อฟัง {1} เพื่อเล่น",
   "{0}: non riuscito — {1}": "{0}: ล้มเหลว — {1}",
   "«come Windows» qui vuol dire: {0}": "«like Windows» ในที่นี้หมายถึง: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ ไพเพอร์ — รวดเร็ว ไปทุกที่ (แนะนำ)",
   "⚠ llm": "⚠เลิ่กลั่ก",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — บนพีซีของคุณ รุ่นเล็ก"
  }

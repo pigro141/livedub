@@ -123,6 +123,7 @@
   "Quanto svelto si abbassa": "Як швидко він опускається",
   "Quello che peggiora davvero e' la grafica: il tradotto viene disegnato sopra l'originale ricostruendo lo sfondo attorno alla riga, e piu' l'area e' alta piu' quella ricostruzione prende roba che non c'entra. Sopra 0,12 di altezza il programma te lo dice, mentre tiri il rettangolo e quando avvii la catena. Il rettangolo si tira dal passo 2 della scheda «Preparazione».": "Що насправді стає гіршим, так це графіка: переклад намальований поверх оригіналу, реконструюючи фон навколо рядка, і чим вище область, тим більше ця реконструкція приймає речі, які туди не вписуються. При висоті вище 0,12 програма повідомляє вам, коли ви тягнете прямокутник і починаєте ланцюг. Прямокутник намальований з кроку 2 вкладки «Підготовка».",
   "Questo PC: cosa riesce a fare, e cosa manca": "Цей ПК: що він може і чого йому не вистачає",
+  "Questo non si puo' installare da qui.": "Це неможливо встановити звідси.",
   "Questo parametro si legge una volta sola quando la catena parte.\nCambiandolo a sessione accesa comparira' la striscia per applicarlo.": "Цей параметр зчитується лише один раз під час запуску ланцюжка.\nЯкщо змінити його під час сеансу, з’явиться смужка для його застосування.",
   "Questo va installato": "Це має бути встановлено",
   "Quindi il gioco deve stare in finestra o senza bordi, non a schermo intero esclusivo. Nelle opzioni video dei giochi c'e' quasi sempre «Senza bordi», e a vedersi e' identico allo schermo intero.": "Отже, гра має бути віконною або без рамок, а не виключно повноекранною. У відеоопціях ігор майже завжди присутній «Borderless», і дивитися його ідентично повноекранному режиму.",
@@ -138,6 +139,7 @@
   "Scegli la finestra del gioco": "Виберіть вікно гри",
   "Se il gioco la scrive in un altro modo": "Якщо гра пише це іншим способом",
   "Se lo tiri largo il programma legge lo stesso: un'area grande e' meno precisa, non muta.": "Якщо зробити його більшим, програма читає так само: велика площа менш точна, вона не змінюється.",
+  "Serve a «{0} = {1}»:": "Він використовується для «{0} = {1}»:",
   "Serve perche' un modello che manca non da' errore. I programmi sono gia' installati; i modelli no — si prendono alla prima richiesta, e se non arrivano il programma non si ferma: ripiega su qualcosa di piu' leggero e va avanti. Senza questo passo staresti ascoltando il ripiego senza saperlo.": "Це потрібно, тому що відсутня модель не дає помилку. Програми вже встановлені; моделі ні - їх беруть за першою вимогою, а якщо вони не приходять, програма не зупиняється: повертається до чогось легшого і йде далі. Без цього кроку ви б слухали резервний варіант, не підозрюючи про це.",
   "Sessione": "Сесія",
   "Sfoglia…": "Перегляд…",
@@ -268,7 +270,6 @@
   "{0} schede audio da ascoltare, {1} su cui suonare": "{0} звукових карт для прослуховування, {1} для відтворення",
   "{0}: non riuscito — {1}": "{0}: помилка — {1}",
   "«come Windows» qui vuol dire: {0}": "«як Windows» тут означає: {0}",
-  "↓ piper — svelto, gira ovunque (consigliato)": "↓ piper — швидкий, всюди (рекомендовано)",
   "⚠ llm": "⚠ llm",
   "⚠ llm — sul tuo PC, modello piccolo": "⚠ llm — на вашому ПК, маленька модель"
  }

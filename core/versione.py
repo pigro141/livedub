@@ -17,7 +17,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-VERSIONE = "0.9.0"
+# 0.9.1: la traduzione offline e' entrata nel pacchetto, e il motore di serie
+# non risulta piu' da installare su ogni macchina. Sono correzioni di cose
+# che chi ha scaricato la 0.9.0 ha trovato rotte, quindi cambia la terza
+# cifra: la 1.0 e' un'altra domanda, e l'elenco di cosa le manca sta nelle
+# note di sviluppo.
+VERSIONE = "0.9.1"
 NOME = "livedub"
 
 

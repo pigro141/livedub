@@ -22,6 +22,7 @@ percorsi relativi a `__file__` — che qui puntano a `models/`, `profiles/` e
 `runs/` — cambiano a ogni esecuzione. La cartella e' piu' brutta e non mente.
 """
 
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -29,6 +30,39 @@ from PyInstaller.utils.hooks import (collect_data_files, collect_dynamic_libs,
                                      copy_metadata)
 
 RADICE = Path(SPECPATH)
+
+# ================== il pacchetto non dipende da cosa ha nel venv chi compila ==
+#
+# **Era vero e nessuna riga lo diceva.** Il `dist\livedub` costruito qui il 26
+# agosto pesava 1170 MB e aveva dentro argostranslate, ctranslate2, stanza e 358
+# MB di torch; quello della CI ne pesava 673 e la traduzione offline non ce
+# l'aveva affatto, perche' `eseguibile.yml` installa i due `requirements` e li'
+# argos non c'era. Stesso spec, stesso comando, due prodotti diversi — e la
+# differenza era una **funzione intera**, non una rifinitura. E' la stessa forma
+# di `profiles/ultima.json` (la sessione di chi ha compilato finita dentro il
+# pacchetto) su un pezzo cinquanta volte piu' grosso.
+#
+# La cura ha due meta'. I cinque pacchetti stanno adesso nei due `requirements`,
+# quindi la CI e questa macchina partono dallo stesso ambiente; e qui si
+# **pretende** che ci siano, invece di lasciare che la loro assenza diventi
+# cinque `Hidden import not found` in mezzo a millecento righe di INFO.
+#
+# **Fermare la costruzione e non tirare avanti**, che e' il contrario di quello
+# che si fa con `llama_cpp` qui sotto: quello e' facoltativo — `translate.backend
+# = llm` non e' il default — mentre `locale` **e'** il default, e un pacchetto
+# che parte, apre la finestra giusta e non traduce e' precisamente il difetto per
+# cui `tools/autoprova.py` esiste.
+TRADUZIONE = ("argostranslate", "minisbd", "ctranslate2", "sentencepiece",
+              "sacremoses")
+_manca = [n for n in TRADUZIONE if importlib.util.find_spec(n) is None]
+if _manca:
+    raise SystemExit(
+        "livedub.spec: manca la traduzione offline (" + ", ".join(_manca) + ").\n"
+        "Il pacchetto verrebbe su lo stesso e non saprebbe tradurre, e nessuna\n"
+        "riga lo direbbe. L'ambiente si ricostruisce con i due comandi soliti:\n"
+        "  .\\.venv\\Scripts\\python.exe -m pip install -r requirements.txt\n"
+        "  .\\.venv\\Scripts\\python.exe -m pip install -r requirements-nodeps.txt --no-deps"
+    )
 
 # ============================ i dati che stanno dentro le librerie, non qui ===
 #
@@ -107,6 +141,19 @@ try:
     BINARI_LIBRERIE += collect_dynamic_libs("llama_cpp")
 except Exception as e:  # noqa: BLE001 — qualunque cosa dica, il senso e' «non c'e'»
     print(f"livedub.spec: llama_cpp non c'e', il traduttore `llm` restera' fuori ({e})")
+
+# La traduzione offline: **CTranslate2 carica le sue DLL da solo, per percorso**.
+# `ctranslate2/__init__.py` fa `os.add_dll_directory(package_dir)` e poi un
+# `ctypes.CDLL` su ogni `*.dll` accanto a se': sono 62 MB (`ctranslate2.dll` 59 +
+# `libiomp5md` 2 + `cudnn64_9` 0,4), e finiscono nel posto giusto solo chiedendo
+# esplicitamente di metterceli. E' la stessa riga di `espeakng_loader`, e la
+# stessa ragione.
+BINARI_LIBRERIE += collect_dynamic_libs("ctranslate2")
+
+# `sacremoses` porta i suoi `nonbreaking_prefixes` (una tabella per lingua):
+# `argostranslate/tokenizer.py` importa `MosesPunctNormalizer` e i due tokenizer,
+# che quei file li aprono per percorso. Sono dati, quindi PyInstaller non li vede.
+DATI_LIBRERIE += collect_data_files("sacremoses")
 
 a = Analysis(
     # **La finestra Qt, non quella Tk.** L'eseguibile impacchettava
@@ -201,15 +248,30 @@ a = Analysis(
         "translate.llm",
         "translate.ollama",
         "translate.google",
-        # Argos carica il suo modello per nome, e `sbd.py` importa questi due
-        # anche quando non li usa (il modo di spezzare le frasi di serie e'
-        # `ARGOSTRANSLATE`): senza, l'analisi statica non li vede.
+        # Argos carica il suo modello per nome: senza queste righe l'analisi
+        # statica non lo vede, perche' `translate/locale.py` lo importa dentro
+        # una funzione.
+        #
+        # **`stanza` stava qui e adesso e' fra gli `excludes`.** Non e' una
+        # potatura: e' *la* riga che toglie i tre giga. `sbd.py` lo importa in
+        # cima al modulo, quindi finche' stava qui entrava — e con lui torch, se
+        # chi compilava ce l'aveva. Adesso `translate/locale.py` gli mette
+        # davanti un segnaposto in `sys.modules` e chiede
+        # `ARGOS_CHUNK_TYPE=MINISBD`, che spezza le frasi con un `.onnx` da 178
+        # KB: misurato, 12 battute su 12 identiche carattere per carattere.
         "argostranslate.translate",
         "argostranslate.package",
-        "stanza",
+        "argostranslate.sbd",
         "minisbd",
+        "minisbd.models",
         "ctranslate2",
         "sentencepiece",
+        "sacremoses",
+        # **`pkg_resources` non lo nomina nessun nostro import.** Lo usa
+        # `ctranslate2/__init__.py` per trovare la propria cartella e caricare le
+        # DLL che ci stanno dentro: senza, la traduzione muore all'import con un
+        # `ModuleNotFoundError` che non nomina ctranslate2.
+        "pkg_resources",
         "PIL._tkinter_finder",
     ],
     hookspath=[],
@@ -220,20 +282,30 @@ a = Analysis(
     # no attribute 'write'` a **ognuno** dei modelli da prendere. Il perche' per
     # esteso sta in `pyi_uscite.py`.
     runtime_hooks=["pyi_uscite.py"],
-    # **Torch adesso deve entrare, e non perche' serva.** Questa riga diceva
-    # «torch non c'e' e non deve entrare», ed era vera finche' la traduzione
-    # offline era opzionale. Ora `translate.locale` e' il default installato di
-    # serie, e la catena e' obbligata: argostranslate importa `stanza` in cima a
-    # `sbd.py`, e stanza importa torch. Torch non traduce niente — Argos gira su
-    # CTranslate2 — ma senza di lui l'eseguibile muore alla prima battuta
-    # tradotta con un `ModuleNotFoundError`, cioe' proprio dove l'utente finale
-    # non puo' farci niente.
+    # **Torch resta fuori, e ci e' voluta una misura per rimettercelo.** Questa
+    # riga ha detto per due settimane che torch «adesso deve entrare», perche'
+    # argostranslate importa `stanza` in cima a `sbd.py` e stanza importa torch.
+    # Vero, e la conclusione era sbagliata: stanza serve solo a **spezzare le
+    # frasi**, e quel lavoro lo fa MiniSBD con 178 KB.
     #
-    # Il prezzo e' misurato: +712 MB nel venv (3120 -> 3832), e nel pacchetto
-    # sara' lo stesso ordine. Chi volesse un eseguibile piccolo ha una strada
-    # dichiarata: rimettere `torch` qui dentro e cambiare il default a
-    # `translate.backend=llm` (444 ms invece di 38, ma zero dipendenze nuove).
-    excludes=["torchaudio", "matplotlib", "pytest", "IPython"],
+    # I numeri che decidono, misurati in `site-packages`: torch **3037,5 MB**
+    # contro i **65,8** di tutta la traduzione (ctranslate2 61,8 + sentencepiece
+    # 2,0 + sacremoses 1,7 + argostranslate 0,2 + minisbd 0,1). E l'uscita non
+    # cambia: 12 battute su 12 identiche carattere per carattere, prima battuta
+    # 201 ms invece di 1422.
+    #
+    # **`stanza` e' escluso e non solo «non incluso»**, ed e' la meta' che rende
+    # il pacchetto uguale da qui e dalla CI: chi compila su una macchina che ha
+    # ancora stanza nel venv (tutti quelli di prima) se lo porterebbe dentro, e
+    # con lui torch, senza che nessuna riga lo dica. Escluderlo fa scegliere a
+    # `translate/locale.py` il suo segnaposto, che e' esattamente cio' che
+    # succede sulla macchina di chi scarica.
+    #
+    # `ctranslate2` lo importa dentro un `try/except ImportError`
+    # (`specs/model_spec.py`), quindi senza torch funziona; ed e' anche il motivo
+    # per cui **da sorgente** torch continua a comparire in `sys.modules` mentre
+    # nel pacchetto no.
+    excludes=["torch", "stanza", "torchaudio", "matplotlib", "pytest", "IPython"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

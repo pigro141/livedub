@@ -333,9 +333,16 @@ MOTIVI: dict[str, str] = {
         # banco non fa `pip` — quindi l'unica cosa che puo' fare per l'utente e'
         # dirgli **cosa** deve arrivare e **quanto pesa** prima che decida, e
         # consegnargli la riga giusta invece di una che gli spegne la GPU.
-        "per tradurre servono {0} MB da scaricare (torch, che la traduzione non "
-        "usa mai ma senza cui non parte). Da incollare in PowerShell, nella "
-        "cartella del programma: {1}",
+        #
+        # **Qui c'era scritto «(torch, che la traduzione non usa mai ma senza cui
+        # non parte)», e non e' piu' vero.** Torch entrava per `stanza`, che ad
+        # Argos serve solo a spezzare le frasi; adesso quel lavoro lo fa MiniSBD
+        # con 178 KB e il preventivo e' sceso da 3100 MB a 66. La frase e'
+        # cambiata sapendo il prezzo: e' una **chiave** dei quarantuno cataloghi,
+        # quindi tocca ritradurla in tutti. Una frase che dice il falso in
+        # quarantuno lingue e' peggio di una da ritradurre.
+        "per tradurre servono {0} MB da scaricare. Da incollare in PowerShell, "
+        "nella cartella del programma: {1}",
     "traduzione_lenta":
         # **I due numeri hanno tutti e due la loro unita', e sono due frasi.**
         # Con «piu' dei {1} di attesa» l'hindi si e' **mangiato il secondo

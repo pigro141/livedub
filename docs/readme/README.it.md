@@ -337,17 +337,15 @@ e `--no-deps` è un'opzione globale che non può stare nello stesso file del res
 .\.venv\Scripts\python.exe -m pip install -r requirements-nodeps.txt --no-deps
 ```
 
-**L'installazione è leggera apposta, e una cosa ne resta fuori apposta.** La
-traduzione offline **non si installa**: costa **3100 MB**, quasi tutti di
-`torch` — che la traduzione non usa mai, ma senza il quale il suo divisore di
-frasi non si importa nemmeno. Farli pagare a chiunque installi il programma, per
-una funzione **spenta di serie**, è il contrario di una scelta. Arriva **quando
-serve**: il banco della guida guarda cosa manca, **dichiara quanto pesa prima**
-che tu decida, e ti consegna la riga da incollare. La consegna invece di
-eseguirla perché quelli sono *pacchetti*, e lì un `pip install` ingenuo è
-esattamente ciò che rimette dentro la ruota CPU. Se non arriva è una **rinuncia
-dichiarata**, non un ripiego muto. La coppia di lingue invece è un modello, 98
-MB, e quella il banco la scarica da solo.
+**L'installazione è leggera apposta, e adesso la traduzione offline ci sta
+dentro.** Costava **3100 MB** e restava fuori — quasi tutti di `torch`, che la
+traduzione non usa mai. Quei tre giga li tirava dentro `stanza`, che ad Argos
+serve solo per *spezzare le frasi*: con MiniSBD quel lavoro costa **178 KB**, e
+il motore intero pesa **66 MB** misurati. Adesso arriva con i due comandi qui
+sopra, e viaggia **dentro l'eseguibile** — la stessa frase esce identica
+carattere per carattere da sorgente e dal pacchetto. La coppia di lingue invece
+resta un modello, 98 MB, e quella il banco la scarica da solo quando premi
+Avvia.
 
 ### Avviarlo
 
@@ -692,7 +690,7 @@ non l'ha ancora provato nessuno proprio su GTA V.**
 
 ## Com'è fatto, e perché ai numeri si può credere
 
-Non c'è pytest: la suite è un modulo che si esegue, **2302 verifiche** in 81
+Non c'è pytest: la suite è un modulo che si esegue, **2342 verifiche** in 82
 gruppi.
 
 ```powershell

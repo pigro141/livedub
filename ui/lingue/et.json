@@ -246,7 +246,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr – Windowsi oma, täpsem",
   "parla con la voce": "räägi oma häälega",
   "passo {0} di {1}": "samm {0}/{1}",
-  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "tõlkimiseks vajate allalaadimiseks {0} MB (tõrvik, mida tõlge kunagi ei kasuta, kuid ilma milleta see ei käivitu). PowerShelli kleepimiseks programmi kausta: {1}",
+  "per tradurre servono {0} MB da scaricare. Da incollare in PowerShell, nella cartella del programma: {1}": "Tõlkimiseks vajate allalaadimiseks {0} MB. PowerShelli kleepimiseks programmi kausta: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "\"{0}\" jaoks pole veel kataloogi: itaalia keel jääb alles",
   "piper — svelto, gira ovunque (consigliato)": "torupill – kiire, sobib kõikjale (soovitatav)",
   "ppocr — gira ovunque": "ppocr — jookseb igal pool",

@@ -2725,6 +2725,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="prova il pacchetto e scrive il rapporto, senza aprire niente")
     ap.add_argument("--senza-rete", action="store_true",
                     help="con --autoprova: salta le prove che scaricano un modello")
+    # **Le opzioni dell'autoprova si passano tutte, se no il pacchetto sa fare
+    # meno del sorgente.** `--solo` serve a confrontare **la stessa** prova qui
+    # dentro e da sorgente — il caso nullo della traduzione offline — e senza
+    # questa riga da qui non si potrebbe chiedere.
+    ap.add_argument("--solo", default="",
+                    help="con --autoprova: solo queste prove, separate da virgola")
     args = ap.parse_args(argv)
 
     if args.autoprova:
@@ -2733,6 +2739,8 @@ def main(argv: list[str] | None = None) -> int:
         righe = [args.autoprova]
         if args.senza_rete:
             righe.append("--senza-rete")
+        if args.solo:
+            righe += ["--solo", args.solo]
         return autoprova(righe)
 
     cfg, da_dove = preferenze.riprendi(args.profile, args.overrides)

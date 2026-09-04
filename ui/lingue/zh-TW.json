@@ -246,7 +246,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — Windows 版本，更精確",
   "parla con la voce": "用你的聲音說話",
   "passo {0} di {1}": "第 {0} 步（共 {1} 步）",
-  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "要進行翻譯，您需要下載 {0} MB（火炬，翻譯從不使用它，但沒有它就無法開始）。若要貼上到 PowerShell 中，請在程式資料夾中：{1}",
+  "per tradurre servono {0} MB da scaricare. Da incollare in PowerShell, nella cartella del programma: {1}": "要翻譯，您需要 {0} MB 才能下載。若要貼上到 PowerShell 中，請在程式資料夾中：{1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "對於“{0}”，還沒有目錄：義大利語仍然存在",
   "piper — svelto, gira ovunque (consigliato)": "Piper — 快速，無所不在（推薦）",
   "ppocr — gira ovunque": "ppocr — 到處運行",

@@ -365,6 +365,68 @@ def _parla_davvero() -> str:
             f"sintesi {costo:.0f} ms")
 
 
+# La frase della prova di traduzione, **una sola e sempre la stessa**: e' il
+# caso nullo fra il sorgente e il pacchetto, e due frasi diverse non si possono
+# confrontare. Viene dalla registrazione su cui e' stato misurato tutto il resto.
+DA_TRADURRE = "Sali in macchina, muoviti, non ho tempo per queste cose."
+
+
+def _traduce_offline() -> str:
+    """La traduzione offline **traduce**, dentro il pacchetto e senza torch.
+
+    E' la prova che distingue «il pacchetto la contiene» da «il pacchetto la sa
+    fare», e le due cose si erano gia' separate: `livedub.spec` dichiarava
+    argostranslate fra gli `hiddenimports` mentre la CI non lo installava, quindi
+    il pacchetto pubblicato veniva su verde **senza** la traduzione. Un import
+    non basta a dirlo — Argos importa benissimo e muore sul modello della coppia
+    di lingue — quindi qui si traduce una riga vera.
+
+    Le tre cose che guarda, e ognuna e' gia' costata:
+
+    - **lo spezza-frasi e' MiniSBD.** Quello di serie sceglie Stanza guardando il
+      pacchetto della coppia (che porta una cartella `stanza/`), e stanza tira
+      torch: 3037,5 MB per una cosa che la traduzione non usa. La riga che lo
+      imposta va eseguita **prima** dell'import e non da' nessun errore se e'
+      messa dopo;
+    - **torch non e' stato importato** — nel pacchetto, dove non c'e'. Da
+      sorgente compare lo stesso, perche' `ctranslate2/specs/model_spec.py` lo
+      importa dentro un `try` se lo trova installato: e' l'unica ragione per cui
+      questa riga e' condizionata al congelato invece di valere sempre;
+    - **il testo tradotto finisce nella nota.** E' quello che permette il caso
+      nullo vero: la stessa frase da sorgente e dentro l'eseguibile deve dare lo
+      stesso identico testo, e lo confronta `eseguibile.yml`.
+    """
+    from translate.locale import TraduttoreLocale
+
+    from argostranslate import settings
+
+    if settings.chunk_type is not settings.ChunkType.MINISBD:
+        raise AssertionError(
+            f"spezza-frasi {settings.chunk_type.name} invece di MINISBD: "
+            "qualcuno ha importato argostranslate prima di `translate.locale`")
+
+    tr = TraduttoreLocale(da="it", a="en", dillo=lambda riga: print("   " + riga, flush=True))
+    if not tr.prepara():
+        raise AssertionError("la coppia it->en non e' pronta")
+    fuori = tr.traduci(DA_TRADURRE, "it", "en")
+    if not fuori:
+        raise AssertionError("non ha tradotto niente")
+    if fuori.strip() == DA_TRADURRE:
+        raise AssertionError(f"ha restituito l'originale: {fuori!r}")
+
+    if percorsi.congelato():
+        if "torch" in sys.modules:
+            raise AssertionError(
+                "torch e' dentro il pacchetto: sono tre giga per una cosa che la "
+                "traduzione non usa, e vuol dire che `stanza` e' rientrato")
+        finto = sys.modules.get("stanza")
+        if finto is None or getattr(finto, "__file__", None) is not None:
+            raise AssertionError(
+                "`stanza` non e' il segnaposto: `sbd.py` lo importa in cima al "
+                "modulo, e qui dentro quello vero non c'e'")
+    return f"{DA_TRADURRE!r} -> {fuori!r} [{settings.chunk_type.name}]"
+
+
 def _apre_la_finestra() -> str:
     """La finestra vera, costruita e **mai mostrata** (`WA_DontShowOnScreen`).
 
@@ -406,13 +468,22 @@ PROVE = [
     ("immagini-foglio", _immagini_del_foglio, "qt"),
     ("legge-una-riga", _legge_una_riga, "sempre"),
     ("parla-davvero", _parla_davvero, "rete"),
+    # Scarica la coppia di lingue (98 MB) piu' lo spezza-frasi (178 KB), come
+    # farebbe il primo Avvia di chi ha acceso la traduzione.
+    ("traduce-offline", _traduce_offline, "rete"),
     ("apre-la-finestra", _apre_la_finestra, "qt"),
 ]
 
 
-def esegui(senza_rete: bool = False, senza_qt: bool = False) -> Rapporto:
+def esegui(senza_rete: bool = False, senza_qt: bool = False,
+           solo: tuple[str, ...] = ()) -> Rapporto:
     r = Rapporto()
     for nome, funzione, richiede in PROVE:
+        # **`solo` non salta: toglie.** Una prova che non e' stata chiesta non
+        # deve comparire come «saltata» accanto a quelle che si e' rinunciato a
+        # fare — la differenza fra le due e' l'unica cosa che il rapporto dice.
+        if solo and nome not in solo:
+            continue
         if richiede == "rete" and senza_rete:
             r.righe.append({"prova": nome, "esito": "saltata",
                             "nota": "chiesto --senza-rete", "ms": 0.0})
@@ -437,7 +508,17 @@ def main(argv: list[str] | None = None) -> int:
                     help="salta le prove che scaricano un modello")
     ap.add_argument("--senza-qt", action="store_true",
                     help="salta le prove che costruiscono la finestra")
+    ap.add_argument("--solo", default="",
+                    help="solo queste prove, separate da virgola "
+                         f"({', '.join(n for n, _, _ in PROVE)})")
     args = ap.parse_args(argv)
+
+    solo = tuple(n.strip() for n in args.solo.split(",") if n.strip())
+    ignote = [n for n in solo if n not in {p[0] for p in PROVE}]
+    if ignote:
+        # Un nome sbagliato non deve diventare «zero prove, tutte passate»: e'
+        # un rapporto verde che non ha guardato niente.
+        ap.error(f"prove sconosciute: {', '.join(ignote)}")
 
     # **Chi simula scrive nel registro del banco.** Questa prova costruisce la
     # finestra, e `Finestra.__init__` apre il registro dell'utente: senza questa
@@ -448,7 +529,7 @@ def main(argv: list[str] | None = None) -> int:
 
     registro.banco()
 
-    r = esegui(senza_rete=args.senza_rete, senza_qt=args.senza_qt)
+    r = esegui(senza_rete=args.senza_rete, senza_qt=args.senza_qt, solo=solo)
     fuori = {
         "congelato": percorsi.congelato(),
         "radice": str(percorsi.radice()),

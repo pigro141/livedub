@@ -335,17 +335,14 @@ es una opción global que no puede vivir en el mismo archivo que el resto:
 .\.venv\Scripts\python.exe -m pip install -r requirements-nodeps.txt --no-deps
 ```
 
-**La instalación es ligera a propósito, y una cosa se queda fuera a propósito.**
-La traducción sin conexión **no se instala**: cuesta **3100 MB**, casi todos de
-`torch` — que la traducción no usa nunca, pero sin el cual su separador de frases
-ni siquiera se importa. Cobrárselo a todo el que instale el programa, por una
-función que está **apagada de fábrica**, es lo contrario de una decisión. Llega
-**cuando hace falta**: el banco de la guía mira qué falta, **declara cuánto pesa
-antes** de que decidas, y te entrega la línea para pegar. Te la entrega en vez de
-ejecutarla porque eso son *paquetes*, y ahí un `pip install` ingenuo es
-exactamente lo que vuelve a meter la rueda para CPU. Si no llega, es una
-**renuncia declarada**, no un apaño mudo. El par de idiomas en cambio es un
-modelo, 98 MB, y ese lo descarga el banco solo.
+**La instalación es ligera a propósito, y ahora la traducción sin conexión está
+dentro.** Costaba **3100 MB** y se quedaba fuera — casi todos de `torch`, que la
+traducción no usa nunca. Esos tres gigas los metía `stanza`, que a Argos solo le
+sirve para *separar frases*: con MiniSBD ese trabajo cuesta **178 KB**, y el
+motor entero pesa **66 MB** medidos. Ahora llega con los dos comandos de arriba y
+viaja **dentro del ejecutable** — la misma frase sale idéntica carácter por
+carácter desde el código y desde el paquete. El par de idiomas en cambio sigue
+siendo un modelo, 98 MB, y ese lo descarga el banco solo cuando pulsas Inicio.
 
 ### Ponerlo en marcha
 
@@ -687,8 +684,8 @@ lo ha probado nadie en el propio GTA V.**
 
 ## Cómo está hecho, y por qué se puede confiar en los números
 
-No hay pytest: la batería es un módulo que se ejecuta, **2302 comprobaciones** en
-81 grupos.
+No hay pytest: la batería es un módulo que se ejecuta, **2342 comprobaciones** en
+82 grupos.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

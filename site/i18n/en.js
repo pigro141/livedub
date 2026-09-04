@@ -333,7 +333,7 @@
           },
           {
             t: "p",
-            x: "<b>The install is deliberately light, and one thing is deliberately left out of it.</b> Offline translation is <b>not installed</b>: it costs <b>3100 MB</b>, almost all of it <code>torch</code> — which the translation never uses, but without which its sentence splitter will not even import. Charging that to everyone who installs the program, for a feature that is <b>off by default</b>, is the opposite of a choice. It arrives <b>when you need it</b>: the bench in the guide looks at what is missing, <b>says how much it weighs before you decide</b>, and hands you the line to paste. It hands it over rather than running it, because those are <i>packages</i>, and a naïve <code>pip install</code> there pulls in the CPU build of ONNX Runtime and switches CUDA off in silence. If it does not arrive, that is a <b>declared refusal</b>, not a mute fallback. The language pair itself is a model, 98 MB, and that one the bench downloads on its own."
+            x: "<b>The install is deliberately light, and offline translation is now inside it.</b> It used to cost <b>3100 MB</b> and to be left out — almost all of that was <code>torch</code>, which the translation never uses. Those three gigabytes came in with <code>stanza</code>, which Argos needs only to <i>split sentences</i>: with MiniSBD that job costs <b>178 KB</b>, and the whole engine weighs a measured <b>66 MB</b>. So it now arrives with the two commands above, and it travels <b>inside the executable</b> — the same sentence comes out character for character from source and from the package. The language pair is still a model, 98 MB, and that one the bench downloads on its own when you press Start."
           },
           { t: "h3", x: "Run it" },
           { t: "codice", x: ".\\.venv\\Scripts\\python.exe -m tools.ui_qt --profile live" },
@@ -352,7 +352,7 @@
           },
           {
             t: "p",
-            x: "<b>Why you can trust the numbers.</b> There is a test suite of <b>2302 checks</b> in 81 groups that runs without a game, without a GPU and without any model, and a bench that runs <b>the same chain</b> over a recording. The measurements that changed a decision are written <b>next to the parameter they decided</b>, inside <code>core/config.py</code> — which is the same text the window shows when you press <code>?</code>."
+            x: "<b>Why you can trust the numbers.</b> There is a test suite of <b>2342 checks</b> in 82 groups that runs without a game, without a GPU and without any model, and a bench that runs <b>the same chain</b> over a recording. The measurements that changed a decision are written <b>next to the parameter they decided</b>, inside <code>core/config.py</code> — which is the same text the window shows when you press <code>?</code>."
           }
         ]
       },

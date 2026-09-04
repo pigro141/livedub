@@ -336,18 +336,15 @@ a global option that cannot live in the same file as the rest:
 .\.venv\Scripts\python.exe -m pip install -r requirements-nodeps.txt --no-deps
 ```
 
-**The install is deliberately light, and one thing is deliberately left out of
-it.** Offline translation is **not installed**: it costs **3100 MB**, almost all
-of it `torch` — which the translation never uses, but without which its sentence
-splitter will not even import. Charging that to everyone who installs the
-program, for a feature that is **off by default**, is the opposite of a choice.
-It arrives **when you need it**: the bench in the guide looks at what is missing,
-**says how much it weighs before you decide**, and hands you the line to paste.
-It hands it over rather than running it, because those are *packages* and a
-naïve `pip install` there is exactly what pulls the CPU wheel back in. If it
-does not arrive, that is a **declared refusal**, not a mute fallback. The
-language pair itself is a model, 98 MB, and that one the bench downloads on its
-own.
+**The install is deliberately light, and offline translation is now inside it.**
+It used to cost **3100 MB** and to be left out — almost all of that was `torch`,
+which the translation never uses. Those three gigabytes came in with `stanza`,
+which Argos needs only to *split sentences*: with MiniSBD that job costs **178
+KB**, and the whole engine weighs a measured **66 MB**. So it now arrives with
+the two commands above, and it travels **inside the executable** — the same
+sentence comes out character for character from source and from the package. The
+language pair is still a model, 98 MB, and that one the bench downloads on its
+own when you press Start.
 
 ### Run it
 
@@ -692,8 +689,8 @@ black. **Nobody has yet tried that fallback on GTA V itself.**
 
 ## How it is built, and why the numbers can be trusted
 
-There is no pytest: the suite is a runnable module, **2302
-checks** in 81 groups.
+There is no pytest: the suite is a runnable module, **2342
+checks** in 82 groups.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

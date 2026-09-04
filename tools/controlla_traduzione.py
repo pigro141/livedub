@@ -20,6 +20,28 @@ from __future__ import annotations
 
 import importlib.metadata as md
 
+# **La porta, e sta in cima al modulo apposta.** `translate.locale` mette
+# `ARGOS_CHUNK_TYPE` nell'ambiente e il segnaposto di `stanza` in `sys.modules`
+# prima che argostranslate venga importato; aprirla piu' in basso di un import di
+# argos non farebbe niente e non darebbe errore. La verifica `argos` legge questo
+# file con `ast` e guarda i numeri di riga, non la presenza.
+import translate.locale  # noqa: F401,E402
+
+
+def _spezza_frasi() -> str:
+    """Quale spezza-frasi e' in uso, detto invece che supposto.
+
+    Non e' una curiosita': quello di serie sceglie **Stanza** — che tira torch,
+    tre giga per una cosa che la traduzione non usa — e la differenza non da'
+    nessun errore. Si veda `translate.locale.prepara_argos`.
+    """
+    try:
+        from argostranslate import settings
+
+        return f"spezza-frasi {settings.chunk_type.name}"
+    except Exception as e:  # pragma: no cover - dipende dall'ambiente
+        return f"spezza-frasi ignoto ({e})"
+
 
 def controlla(vuole_cuda: bool = True) -> tuple[bool, list[str]]:
     """`(va_bene, righe)`. Le righe si stampano cosi' come sono."""
@@ -59,7 +81,8 @@ def controlla(vuole_cuda: bool = True) -> tuple[bool, list[str]]:
     try:
         import argostranslate.translate  # noqa: F401
 
-        righe.append(f"argostranslate {md.version('argostranslate')}: si importa")
+        righe.append(f"argostranslate {md.version('argostranslate')}: si importa "
+                     f"({_spezza_frasi()})")
     except Exception as e:
         bene = False
         righe.append(

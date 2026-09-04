@@ -6427,6 +6427,310 @@ def test_rilascio(c) -> None:
          f"`python -m tools.conta_verifiche` se questa diventa rossa")
 
 
+# ============================================================== la traduzione =
+#
+# Le quattro cose che tengono in piedi «la traduzione offline sta dentro
+# l'eseguibile e non costa tre giga». Nessuna delle quattro da' errore quando si
+# rompe: si prende lo spezza-frasi sbagliato e basta, oppure torch rientra e il
+# pacchetto raddoppia, oppure il pacchetto viene su senza saper tradurre.
+
+
+def _chi_apre_argos(sorgente: str) -> list[str]:
+    """Chi importa `argostranslate` **senza aver aperto la porta prima**. Pura.
+
+    La porta e' `translate.locale`: e' li' che `ARGOS_CHUNK_TYPE` viene messo
+    nell'ambiente e che `stanza` prende il suo segnaposto, e tutti e due devono
+    succedere **prima** che `argostranslate.settings` e `argostranslate.sbd`
+    vengano importati. Metterli dopo non fa niente, e non da' errore — che e' la
+    forma peggiore: si continua a tradurre, con lo spezza-frasi che tira tre giga
+    di torch, e dentro l'eseguibile non si parte affatto.
+
+    Si guarda il **numero di riga**, non la presenza: `from translate.locale
+    import coppia` scritto sotto l'import di argos e' esattamente il difetto.
+
+    Torna l'elenco dei guai, vuoto se va bene. E' pura apposta: cosi' la si prova
+    su due sorgenti finti, uno buono e uno rotto, invece che solo sul repo — dove
+    oggi passa, e quindi da sola non potrebbe fallire.
+    """
+    import ast
+
+    albero = ast.parse(sorgente)
+    argos: set[int] = set()
+    porta: set[int] = set()
+    for nodo in ast.walk(albero):
+        if isinstance(nodo, ast.Import):
+            nomi = [a.name for a in nodo.names]
+        elif isinstance(nodo, ast.ImportFrom):
+            base = nodo.module or ""
+            nomi = [base] + [f"{base}.{a.name}" for a in nodo.names]
+        else:
+            continue
+        for nome in nomi:
+            if nome == "argostranslate" or nome.startswith("argostranslate."):
+                argos.add(nodo.lineno)
+            if nome == "translate.locale" or nome.startswith("translate.locale."):
+                porta.add(nodo.lineno)
+    if not argos:
+        return []
+    if not porta:
+        return [f"riga {min(argos)}: apre argostranslate e non importa mai "
+                f"`translate.locale`"]
+    prima = min(porta)
+    return [f"riga {r}: apre argostranslate prima della porta (riga {prima})"
+            for r in sorted(argos) if r < prima]
+
+
+def test_argos(c: Check) -> None:
+    """La traduzione offline: **una porta sola, MiniSBD, e niente torch**."""
+    c.group("argos")
+
+    import ast
+    import json
+    import os
+    import subprocess
+    from pathlib import Path as _P
+
+    radice = _P(__file__).resolve().parent.parent
+
+    # -- la regola, provata sui due casi che contano ------------------------
+    buono = ("from translate.locale import coppia\n"
+             "import argostranslate.package as ap\n")
+    rotto = ("import argostranslate.package as ap\n"
+             "from translate.locale import coppia\n")
+    muto = "import argostranslate.translate\n"
+    c.eq(_chi_apre_argos(buono), [],
+         "la porta prima del pacchetto: e' l'ordine giusto")
+    c.eq(len(_chi_apre_argos(rotto)), 1,
+         "lo stesso file con le due righe scambiate e' un difetto, e la regola "
+         "lo vede: se no non potrebbe fallire su niente")
+    c.eq(len(_chi_apre_argos(muto)), 1,
+         "e chi la porta non la nomina affatto pure")
+    c.eq(_chi_apre_argos("import os\n"), [],
+         "chi non tocca argostranslate non deve importare niente")
+
+    # -- e adesso sul repo vero ---------------------------------------------
+    guai: list[str] = []
+    quanti = 0
+    for percorso in sorted(radice.rglob("*.py")):
+        parti = percorso.relative_to(radice).parts
+        # I venv (`.venv`, `.venv-vecchio`, …) e le cartelle di lavoro non sono
+        # il repo: dentro c'e' argostranslate stesso, che ovviamente si importa
+        # da solo. Si saltano per **regola** — tutto cio' che comincia per punto
+        # — e non elencandone i nomi, che e' la tabella che poi non aggiorna
+        # nessuno.
+        if any(p.startswith(".") for p in parti[:-1]):
+            continue
+        if parti[0] in ("graphify-out", "build", "dist", "runs", "models"):
+            continue
+        if percorso.resolve() == (radice / "translate" / "locale.py").resolve():
+            continue  # la porta stessa
+        testo = percorso.read_text(encoding="utf-8", errors="replace")
+        if "argostranslate" not in testo:
+            continue
+        quanti += 1
+        guai += [f"{percorso.relative_to(radice)}: {g}"
+                 for g in _chi_apre_argos(testo)]
+    c.eq(guai, [], "nessun file apre argostranslate prima di `translate.locale`")
+    c.ok(quanti >= 3,
+         f"e i file che lo aprono sono {quanti}: la passeggiata li vede davvero")
+
+    # **Chi lo importa per nome non lo vede nessun `ast`.** `core/bloccati.py`
+    # prova il pezzo «argos» con `importlib.import_module` su una stringa: la
+    # porta li' si dichiara, e senza quella riga la prova aprirebbe argos dalla
+    # parte sbagliata e concluderebbe «non c'e'» dentro l'eseguibile.
+    from core import bloccati
+
+    c.eq(bloccati.PEZZI["argos"].get("prima"), "translate.locale",
+         "e il pezzo «argos» dichiara la sua porta, perche' lo importa per nome")
+
+    # -- lo spezza-frasi, e cosa succede senza la porta ---------------------
+    #
+    # Due processi nuovi con `stanza` **mascherato**, che e' la macchina di chi
+    # ha scaricato l'eseguibile: li' stanza non c'e' (`livedub.spec` lo esclude).
+    # `ARGOS_CHUNK_TYPE` si toglie dall'ambiente del figlio, se no erediterebbe
+    # quello che questa suite ha gia' messo importando `translate.locale` — una
+    # misura che non potrebbe esprimere la risposta.
+    maschera = (
+        "import sys, json\n"
+        "class B:\n"
+        "    def find_spec(self, n, p=None, t=None):\n"
+        "        if n == 'stanza' or n.startswith('stanza.'):\n"
+        # **`ModuleNotFoundError` e non `ImportError`**, se no la maschera non
+        # imita l'assenza: e' proprio quella la distinzione su cui `core.bloccati`
+        # decide fra «non installato» e «non si carica».
+        "            raise ModuleNotFoundError('No module named ' + repr(n), name=n)\n"
+        "        return None\n"
+        "sys.meta_path.insert(0, B())\n"
+        f"sys.path.insert(0, {str(radice)!r})\n"
+    )
+    ambiente = {k: v for k, v in os.environ.items() if k != "ARGOS_CHUNK_TYPE"}
+
+    def _figlio(codice: str) -> dict:
+        esito = subprocess.run([sys.executable, "-c", maschera + codice],
+                               capture_output=True, text=True, env=ambiente,
+                               cwd=str(radice))
+        righe = [r for r in (esito.stdout or "").splitlines() if r.startswith("{")]
+        return json.loads(righe[-1]) if righe else {"stdout": esito.stdout,
+                                                    "stderr": esito.stderr[-300:]}
+
+    con = _figlio(
+        "import translate.locale\n"
+        "try:\n"
+        "    import argostranslate.translate\n"
+        "    esito = 'importa'\n"
+        "except Exception as e:\n"
+        "    esito = type(e).__name__ + ':' + str(e)\n"
+        "from argostranslate import settings\n"
+        "finto = sys.modules.get('stanza')\n"
+        "print(json.dumps({'chunk': settings.chunk_type.name, 'esito': esito,\n"
+        "                  'finto': finto is not None and getattr(finto, '__file__', None) is None}))\n")
+    c.eq(con.get("chunk"), "MINISBD",
+         "passando dalla porta, lo spezza-frasi e' MiniSBD (178 KB) e non "
+         "Stanza (che tira 3037,5 MB di torch)")
+    c.eq(con.get("esito"), "importa",
+         "e argostranslate si importa anche senza stanza: e' il caso "
+         "dell'eseguibile, dove stanza non c'e' affatto")
+    c.eq(con.get("finto"), True,
+         "perche' al suo posto c'e' un segnaposto in `sys.modules`, e non un "
+         "file `stanza.py` nel repo che vincerebbe su quello vero")
+
+    senza = _figlio(
+        "try:\n"
+        "    import argostranslate.translate\n"
+        "    esito = 'importa'\n"
+        "except Exception as e:\n"
+        "    esito = type(e).__name__ + ':' + str(getattr(e, 'name', e))\n"
+        "from argostranslate import settings\n"
+        "print(json.dumps({'chunk': settings.chunk_type.name, 'esito': esito}))\n")
+    c.eq(senza.get("chunk"), "ARGOSTRANSLATE",
+         "**il caso a rovescio**: senza la porta lo spezza-frasi torna quello "
+         "di serie, che sceglie Stanza guardando il pacchetto della coppia")
+    c.eq(senza.get("esito"), "ModuleNotFoundError:stanza",
+         "e senza stanza non si importa affatto: e' esattamente cio' che "
+         "succederebbe a chi ha scaricato l'eseguibile")
+
+    # -- il segnaposto solleva, e non risponde `None` -----------------------
+    #
+    # Un attributo che manca in silenzio diventerebbe un `TypeError` lontanissimo
+    # da qui. I dunder invece devono dare `AttributeError`: li chiede
+    # l'importatore, e uno stub che solleva su `__path__` rompe `pkg_resources`
+    # — misurato, non dedotto.
+    import types
+
+    from translate.locale import prepara_argos
+
+    prepara_argos()  # idempotente: la seconda volta non deve fare niente
+    finto = types.ModuleType("prova")
+    import sys as _sys
+
+    salvato = _sys.modules.pop("stanza", None)
+    try:
+        prepara_argos()
+        messo = _sys.modules.get("stanza")
+        if salvato is not None and getattr(salvato, "__file__", None):
+            c.ok(getattr(messo, "__file__", None) is not None,
+                 "su questa macchina stanza c'e' davvero, e vince lui: uno stub "
+                 "che nasconde un pacchetto vero e' un difetto silenzioso")
+        else:
+            c.ok(messo is not None, "e il segnaposto c'e'")
+    finally:
+        if salvato is not None:
+            _sys.modules["stanza"] = salvato
+    del finto
+
+    import argostranslate.settings as _st
+
+    c.eq(_st.chunk_type.name, "MINISBD",
+         "e in questo processo, che la porta l'ha aperta, lo spezza-frasi e' "
+         "MiniSBD")
+    c.ok(not hasattr(_st, "stanza_available"),
+         "`ARGOS_STANZA_AVAILABLE` non esiste nella 1.11.0 — quella riga sta "
+         "dentro una stringa a tripli apici — quindi non la si scrive: sarebbe "
+         "la decima volta della forma «dichiarato e mai letto»")
+
+    # -- il pacchetto: torch fuori, i cinque dentro -------------------------
+    spec = ast.parse((radice / "livedub.spec").read_text(encoding="utf-8"))
+    elenchi: dict[str, list[str]] = {}
+    for nodo in ast.walk(spec):
+        if not isinstance(nodo, ast.Call):
+            continue
+        for kw in nodo.keywords:
+            if kw.arg in ("excludes", "hiddenimports") and isinstance(kw.value, ast.List):
+                elenchi[kw.arg] = [e.value for e in kw.value.elts
+                                   if isinstance(e, ast.Constant)]
+    esclusi = elenchi.get("excludes", [])
+    nascosti = elenchi.get("hiddenimports", [])
+    c.ok("torch" in esclusi,
+         "torch e' fra gli `excludes`: sono 3037,5 MB per una cosa che la "
+         "traduzione non usa mai — Argos gira su CTranslate2")
+    c.ok("stanza" in esclusi,
+         "e stanza pure, se no lo porterebbe dentro chiunque compili su un venv "
+         "di prima — e con lui torch, senza che nessuna riga lo dica")
+    c.ok("stanza" not in nascosti,
+         "e non e' rimasto fra gli `hiddenimports`: escluso e incluso insieme e' "
+         "una tabella che si contraddice")
+    for nome in ("argostranslate.translate", "argostranslate.package", "minisbd",
+                 "ctranslate2", "sentencepiece", "sacremoses", "pkg_resources"):
+        c.ok(nome in nascosti,
+             f"«{nome}» sta fra gli `hiddenimports`: nel pacchetto ci deve entrare")
+
+    # -- e l'ambiente da cui si compila e' lo stesso da qui e dalla CI ------
+    #
+    # Era il difetto: `dist\livedub` costruito qui pesava 1170 MB con argos e
+    # torch dentro, quello della CI 673 senza la traduzione affatto — perche' la
+    # CI installa i due `requirements` e argos non era in nessuno dei due.
+    def _requisiti(nome: str) -> set[str]:
+        fuori = set()
+        for riga in (radice / nome).read_text(encoding="utf-8").splitlines():
+            riga = riga.split("#")[0].strip()
+            if riga:
+                fuori.add(riga.split("=")[0].split("[")[0].split(">")[0].strip().lower())
+        return fuori
+
+    dichiarati = _requisiti("requirements.txt") | _requisiti("requirements-nodeps.txt")
+    for nome in ("argostranslate", "minisbd", "ctranslate2", "sentencepiece",
+                 "sacremoses"):
+        c.ok(nome in dichiarati,
+             f"«{nome}» sta nei due `requirements`: se no il pacchetto avrebbe "
+             f"la traduzione o no a seconda del venv di chi compila")
+    c.ok("argostranslate" in _requisiti("requirements-nodeps.txt"),
+         "e argostranslate sta fra quelli **senza dipendenze**, se no si "
+         "riporterebbe dietro spacy e stanza")
+    c.ok("torch" not in dichiarati and "stanza" not in dichiarati,
+         "mentre torch e stanza non sono piu' requisiti di niente")
+
+    # -- il preventivo, e la disfatta che toglie solo cio' che ha messo -----
+    from core import banco as B
+
+    c.eq(B.TRADUZIONE_MB, B.PEZZI["argos"].mb,
+         "il peso dichiarato e quello del pezzo sono lo stesso numero")
+    c.ok(B.TRADUZIONE_MB < 100,
+         f"e sono {B.TRADUZIONE_MB} MB e non 3100: i tremila erano torch "
+         "(3037,5 dei 3103 misurati), che la traduzione non usa")
+    c.ok("torch" not in B.PACCHETTI_ARGOS and "stanza" not in B.PACCHETTI_ARGOS,
+         "la disfatta non toglie torch ne' stanza: questa installazione non li "
+         "mette, e togliere cio' che non si e' messo rompe l'ambiente col rimedio")
+    c.eq(set(B.PACCHETTI_ARGOS), set(_requisiti("requirements-nodeps.txt")) & {
+        "argostranslate", "minisbd"} | {"ctranslate2", "sentencepiece", "sacremoses"},
+        "e toglie esattamente i cinque che lo script mette")
+    c.ok("non si installa" not in B.NON_DI_QUI["argos"],
+         "e il riquadro non dice piu' «da qui non si installa» per una cosa che "
+         "nel pacchetto c'e' gia'")
+
+    # -- la prova che viaggia dentro il pacchetto ---------------------------
+    from tools import autoprova
+
+    nomi = {n for n, _, _ in autoprova.PROVE}
+    c.ok("traduce-offline" in nomi,
+         "l'autoprova traduce davvero una riga: e' l'unica cosa che distingue "
+         "«il pacchetto la contiene» da «il pacchetto la sa fare»")
+    c.eq([r for n, _, r in autoprova.PROVE if n == "traduce-offline"], ["rete"],
+         "ed e' dichiarata «rete», perche' si prende la coppia di lingue (98 MB)")
+    c.eq(len(autoprova.esegui(solo=("versione",)).righe), 1,
+         "`--solo` toglie le altre invece di dichiararle saltate: una prova non "
+         "chiesta e una a cui si e' rinunciato non sono la stessa cosa")
+
+
 GROUPS = {
     "clock": test_clock,
     "session": test_session,
@@ -6452,6 +6756,12 @@ GROUPS = {
     "etichetta": test_etichetta,
     "correzione": test_correzione,
     "traduzione": test_traduzione,
+    # **La traduzione offline dentro l'eseguibile, e la porta da cui passa.**
+    # Sta subito dopo `traduzione` perche' e' l'altra meta' della stessa
+    # domanda: quello prova che si traduce, questo che si traduce **con lo
+    # spezza-frasi giusto** — e la differenza fra i due e' 3 GB di torch e un
+    # pacchetto che dal vivo non parte.
+    "argos": test_argos,
     "anticipo": test_anticipo,
     "template": test_template,
     "overlay": test_overlay,

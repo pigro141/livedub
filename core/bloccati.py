@@ -237,6 +237,14 @@ PEZZI: dict[str, dict] = {
     },
     "argos": {
         "modulo": "argostranslate.translate",
+        # **`prima` non e' una comodita': senza, questa prova risponde no.**
+        # `argostranslate/settings.py` legge `ARGOS_CHUNK_TYPE` all'import e
+        # `sbd.py` importa `stanza` in cima al modulo: chi apre quella porta
+        # senza passare da `translate.locale` prende lo spezza-frasi che tira
+        # torch, e dentro l'eseguibile — dove stanza non c'e' — non importa
+        # affatto. Una prova che dichiara «non c'e'» perche' l'ha aperta lei
+        # dalla porta sbagliata e' il verde falso girato al contrario.
+        "prima": "translate.locale",
         "serve_a": "la traduzione «locale»",
         "rimedio": "rilancia tools\\installa_traduzione.ps1, oppure usa «google»",
     },
@@ -255,8 +263,20 @@ PEZZI: dict[str, dict] = {
 
 
 def pezzo(chiave: str) -> Esito:
-    """L'esito di uno dei pezzi dichiarati in `PEZZI`."""
+    """L'esito di uno dei pezzi dichiarati in `PEZZI`.
+
+    `prima` — se c'e' — e' la **porta** da cui quel pezzo va aperto, e si importa
+    qui e non nei chiamanti: cosi' non e' una cosa da ricordarsi. Se la porta non
+    si apre non e' una notizia su *questo* pezzo, quindi non si conclude niente e
+    si prova lo stesso.
+    """
     dati = PEZZI[chiave]
+    prima = dati.get("prima")
+    if prima:
+        try:
+            importlib.import_module(prima)
+        except Exception:  # noqa: BLE001 — la porta non risponde di cio' che ci passa
+            pass
     return prova(dati["modulo"], nome=chiave, usa=dati.get("usa"))
 
 
@@ -281,8 +301,11 @@ SCELTE: dict[str, dict[str, str]] = {
 # Quanto si e' disposti ad aspettare per marcare una voce di menu. Non e' un
 # numero di prudenza: **una prova che riesce puo' costare piu' di una che
 # fallisce**. Qui un pacchetto bloccato risponde in 49-157 ms — la DLL non si
-# apre e basta — ma `argostranslate` che *funziona* tira dentro stanza e torch,
-# cioe' secondi. Pagarli mentre si disegna una scheda vorrebbe dire una finestra
+# apre e basta — mentre `argostranslate` che *funziona* apre CTranslate2, che a
+# sua volta importa torch se lo trova installato (`ctranslate2/specs/
+# model_spec.py`, dentro un `try`): sono secondi, e non e' piu' colpa di stanza.
+# Nel pacchetto congelato torch non c'e' e quel costo sparisce.
+# Pagarli mentre si disegna una scheda vorrebbe dire una finestra
 # che si apre lenta per scrivere un avviso che quasi sempre non serve.
 ENTRO_MS = 400.0
 

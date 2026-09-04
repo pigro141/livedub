@@ -344,18 +344,15 @@ ist eine globale Option, die nicht in derselben Datei wie der Rest stehen kann:
 .\.venv\Scripts\python.exe -m pip install -r requirements-nodeps.txt --no-deps
 ```
 
-**Die Installation ist mit Absicht leicht, und eine Sache bleibt mit Absicht
-draußen.** Die Offline-Übersetzung wird **nicht installiert**: sie kostet **3100
-MB**, fast alles davon `torch` — das die Übersetzung nie benutzt, ohne das ihr
-Satztrenner aber nicht einmal importiert. Das jedem aufzubürden, der das Programm
-installiert, für eine Funktion, die **standardmäßig aus** ist, ist das Gegenteil
-einer Entscheidung. Sie kommt, **wenn du sie brauchst**: der Prüfstand in der
-Anleitung schaut, was fehlt, **sagt, wie schwer es wiegt, bevor du entscheidest**,
-und reicht dir die Zeile zum Einfügen. Er reicht sie, statt sie auszuführen, denn
-das sind *Pakete*, und ein naives `pip install` ist dort genau das, was das
-CPU-Rad wieder hereinholt. Kommt sie nicht an, ist das ein **erklärter Verzicht**,
-kein stummer Notbehelf. Das Sprachpaar selbst ist ein Modell, 98 MB, und das lädt
-der Prüfstand von allein.
+**Die Installation ist mit Absicht leicht, und die Offline-Übersetzung steckt
+jetzt darin.** Sie kostete **3100 MB** und blieb draußen — fast alles davon
+`torch`, das die Übersetzung nie benutzt. Diese drei Gigabyte holte `stanza`
+herein, das Argos nur zum *Trennen von Sätzen* braucht: mit MiniSBD kostet diese
+Arbeit **178 KB**, und die ganze Maschine wiegt gemessene **66 MB**. Sie kommt
+jetzt mit den beiden Befehlen oben und reist **im Programm selbst** mit —
+derselbe Satz kommt aus dem Quellcode und aus dem Paket Zeichen für Zeichen
+gleich heraus. Das Sprachpaar bleibt ein Modell, 98 MB, und das lädt der
+Prüfstand von allein, wenn du auf Start drückst.
 
 ### Starten
 
@@ -715,8 +712,8 @@ ausprobiert.**
 
 ## Wie es gebaut ist, und warum man den Zahlen trauen kann
 
-Es gibt kein pytest: die Testreihe ist ein ausführbares Modul, **2302 Prüfungen**
-in 81 Gruppen.
+Es gibt kein pytest: die Testreihe ist ein ausführbares Modul, **2342 Prüfungen**
+in 82 Gruppen.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

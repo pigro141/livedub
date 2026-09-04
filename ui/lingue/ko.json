@@ -246,7 +246,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — Windows용, 더 정확함",
   "parla con la voce": "당신의 목소리로 말하세요",
   "passo {0} di {1}": "{1}단계 중 {0}단계",
-  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "번역하려면 다운로드하려면 {0}MB가 필요합니다(번역이 사용되지 않지만 번역이 없으면 시작되지 않는 토치). PowerShell에 붙여넣으려면 프로그램 폴더에: {1}",
+  "per tradurre servono {0} MB da scaricare. Da incollare in PowerShell, nella cartella del programma: {1}": "번역하려면 다운로드하려면 {0}MB가 필요합니다. PowerShell에 붙여넣으려면 프로그램 폴더에: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "«{0}»에 대한 카탈로그는 아직 없습니다. 이탈리아인은 남아 있습니다.",
   "piper — svelto, gira ovunque (consigliato)": "파이퍼 — 빠르며 어디든 갑니다(권장)",
   "ppocr — gira ovunque": "ppocr — 어디에서나 실행됩니다.",

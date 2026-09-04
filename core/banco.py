@@ -42,9 +42,15 @@ Ma la conclusione era sbagliata: chi apre il programma la prima volta non deve
 incollare niente in PowerShell. La cura non e' rinunciare, e' **non inventare le
 opzioni**: si esegue `tools/installa_traduzione.ps1`, che e' l'unico posto in cui
 sono scritte (`--no-deps` sui due che lo vogliono, le versioni che Smart App
-Control lascia caricare, `torch` chiesto esplicito), e **si verifica dopo** che la
-GPU sia ancora viva — in un processo nuovo, perche' ORT carica le sue DLL una
-volta sola e chiederlo qui direbbe «CUDA» anche dopo averla persa.
+Control lascia caricare), e **si verifica dopo** che la GPU sia ancora viva — in
+un processo nuovo, perche' ORT carica le sue DLL una volta sola e chiederlo qui
+direbbe «CUDA» anche dopo averla persa.
+
+**E dal 4 settembre quel passo quasi non serve piu'**: i cinque pacchetti stanno
+in `requirements.txt` e `requirements-nodeps.txt`, cioe' arrivano ricostruendo
+l'ambiente come tutto il resto, e stanno **dentro l'eseguibile**. Lo script resta
+per i venv costruiti prima, e perche' e' l'unico posto dove le opzioni sono
+scritte una volta sola.
 
 Se qualcosa va storto — l'installazione fallisce, o la CUDA e' caduta — si
 **torna allo stato di prima** e si dichiara: un ambiente lasciato a meta' e' la
@@ -98,26 +104,33 @@ TRADUZIONE_MAX_MS = 500.0
 # resta scritta qui perche' e' anche quella da consegnare a chi deve rifarla a
 # mano — quando l'installazione non e' riuscita, o quando si e' dovuta disfare.
 #
-# **Ed e' lo script, non `pip install -r requirements.txt`.** Quella riga stava
-# qui e dal 25 agosto non installa piu' la traduzione affatto: argostranslate non
-# e' in `requirements.txt` e non ci puo' stare, perche' va messo con `--no-deps`
-# — `pip install argostranslate` ingenuo tira dentro `minisbd` e con lui
-# `onnxruntime` (CPU), che accanto a `onnxruntime-gpu` spegne la CUDA in
-# silenzio. Consegnare la riga sbagliata e' peggio che non consegnarne nessuna:
-# chi la incolla ottiene un errore che non capisce, o peggio un successo che gli
-# rompe la sintesi.
+# **Ed e' lo script, non `pip install -r requirements.txt` da solo.** I due che
+# vogliono `--no-deps` — `argostranslate` e `minisbd` — stanno adesso in
+# `requirements-nodeps.txt`, quindi ricostruendo l'ambiente con **tutti e due** i
+# comandi la traduzione arriva; ma `-r requirements.txt` da solo no, e
+# `pip install argostranslate` ingenuo tira dentro `minisbd` con le sue
+# dipendenze e con loro `onnxruntime` (CPU), che accanto a `onnxruntime-gpu`
+# spegne la CUDA in silenzio. Consegnare la riga sbagliata e' peggio che non
+# consegnarne nessuna: chi la incolla ottiene un errore che non capisce, o peggio
+# un successo che gli rompe la sintesi. Lo script fa la sequenza giusta e la
+# verifica.
 RIGA_PIP = "powershell -ExecutionPolicy Bypass -File tools\\installa_traduzione.ps1"
 
 # **Quanto pesa, detto prima.** E' il numero su cui uno decide, quindi non puo'
-# arrivare a scaricamento iniziato: 3038 MB sono di **solo torch**, misurati sul
-# venv completo, e torch la traduzione non lo usa mai — Argos gira su
-# CTranslate2. Lo tira dentro `stanza`, che `argostranslate/sbd.py` importa in
-# cima al modulo in tutte e due le versioni utili.
+# arrivare a scaricamento iniziato.
+#
+# **Ed e' sceso da 3100 a 66, misurando invece di dedurre.** I tremila erano
+# **tutti** torch — 3037,5 MB dei 3103 misurati in `site-packages` — e torch la
+# traduzione non lo usa mai: Argos gira su CTranslate2. Lo tirava dentro
+# `stanza`, che serve solo allo spezza-frasi, e lo spezza-frasi adesso e' MiniSBD
+# (`translate.locale.prepara_argos`). Quello che resta, misurato pacchetto per
+# pacchetto: ctranslate2 61,8 + sentencepiece 2,0 + sacremoses 1,7 +
+# argostranslate 0,2 + minisbd 0,1 = **65,8 MB** sul disco.
 #
 # E' anche il peso del `Pezzo` «argos» (si veda `PEZZI`): il preventivo del passo
 # 6 somma i pezzi che mancano e lo scrive **sopra il bottone**, cioe' prima che
-# uno prema. Tre giga che compaiono dopo sarebbero un download a sorpresa.
-TRADUZIONE_MB = 3100
+# uno prema.
+TRADUZIONE_MB = 66
 
 # **I pezzi che da un pacchetto congelato non si possono prendere, e perche'.**
 #
@@ -132,9 +145,21 @@ TRADUZIONE_MB = 3100
 # (`non_di_qui`) e chi solleva se ci si arriva lo stesso. Due copie della stessa
 # rinuncia sarebbero l'ennesima tabella scritta due volte, e la seconda direbbe
 # un'altra cosa il giorno che cambia l'alternativa consigliata.
+#
+# **E la riga di «argos» diceva il falso da quando la traduzione e' entrata nel
+# pacchetto** (`livedub.spec`: argostranslate, ctranslate2, sentencepiece,
+# sacremoses e minisbd sono dentro). «Da qui non si installa» era vero e inutile:
+# non c'e' niente da installare. Se quel pezzo risulta mancante dentro
+# l'eseguibile la causa e' un'altra — Windows che rifiuta di caricare
+# `ctranslate2/_ext.pyd` — e mandare a «esegui da sorgente» chi ha quel problema
+# lo manderebbe a rifare la stessa strada con lo stesso esito. Resta la parola
+# «sorgente» perche' resta l'unica cosa da provare quando la copia impacchettata
+# e' quella bloccata: li' il file e' un altro, e il criterio guarda il file.
 NON_DI_QUI: dict[str, str] = {
-    "argos": "in questa versione impacchettata la traduzione offline non si "
-             "installa: si usa «google», oppure si esegue il programma da sorgente",
+    "argos": "la traduzione offline e' gia' dentro questa versione impacchettata: "
+             "non c'e' niente da installare. Se risulta mancante e' Windows che "
+             "ne blocca una libreria — si usa «google», oppure si prova il "
+             "programma da sorgente, dove i file sono altri",
     "llm": "in questa versione impacchettata il modello locale non si installa: "
            "si usa «ollama» o «google», oppure si esegue il programma da sorgente",
 }
@@ -163,9 +188,14 @@ def congelato() -> bool:
 # toglie. **Non c'e' `packaging`**, che lo script chiede senza versione perche'
 # gia' c'era: e' una dipendenza di pip stesso, e toglierla per disfare una cosa
 # andata storta vorrebbe dire rompere l'ambiente **con il rimedio**.
+#
+# **E non ci sono piu' `stanza` e `torch`**, per la stessa regola: lo script non
+# li mette, quindi la disfatta non li puo' togliere. Chi ha un venv di prima ce
+# li ha ancora, e disinstallarglieli «per rimettere com'era» sarebbe togliere una
+# cosa che questa installazione non ha messo — la forma di cura che questo
+# progetto ha gia' pagato una volta, copiando un oggetto condiviso.
 PACCHETTI_ARGOS: tuple[str, ...] = (
     "argostranslate", "minisbd", "ctranslate2", "sentencepiece", "sacremoses",
-    "stanza", "torch",
 )
 
 
@@ -533,9 +563,9 @@ def serve(scelta: Scelta, *, traduzione: bool = False,
     # **Il motore della traduzione, e la condizione non e' quella che sembra.**
     # `scelta.traduzione` e' vuota proprio quando il pacchetto **manca**, quindi
     # chiedere `== "locale"` non lo installerebbe mai. Vuoto vuol dire «non c'e'
-    # ne' Argos ne' llm»: li' i tre giga servono. Con `llm` invece no — la
-    # traduzione locale c'e' gia' per un'altra strada, e scaricare torch per
-    # rifarla sarebbe pagare due volte la stessa funzione.
+    # ne' Argos ne' llm»: li' i sessantasei megabyte servono. Con `llm` invece no
+    # — la traduzione locale c'e' gia' per un'altra strada, e installarla di
+    # nuovo sarebbe pagare due volte la stessa funzione.
     if traduzione and scelta.traduzione in ("", "locale"):
         fuori.append("argos")
     if traduzione and scelta.traduzione == "locale":
@@ -826,9 +856,13 @@ def presenti(cfg) -> frozenset[str]:
         return bloccati.pezzo("llm").ok and Path(MODELLO_DEFAULT).is_file()
 
     def _traduzione() -> bool:
-        import argostranslate.package as ap
-
+        # **`translate.locale` per primo, e non e' l'ordine alfabetico.** E' la
+        # porta che imposta lo spezza-frasi e il segnaposto di `stanza` prima che
+        # argostranslate venga importato: aprirla dopo non fa niente e non da'
+        # errore. La verifica `traduzione` legge il sorgente con `ast` apposta.
         from translate.locale import coppia
+
+        import argostranslate.package as ap
 
         da, a = coppia(cfg.translate.source, cfg.translate.target)
         return da == a or any(p.from_code == da and p.to_code == a
@@ -1359,11 +1393,13 @@ def installa_argos() -> None:
     import subprocess
     import sys
 
-    # **Nel pacchetto congelato non c'e' niente in cui installare**: non c'e' un
-    # venv, non c'e' `pip`, e `sys.executable` e' il programma stesso — cioe' i
-    # due processi figli qui sotto riaprirebbero la finestra invece di
-    # rispondere. Dirlo e' l'unica cosa vera; provarci sarebbe un guasto in un
-    # punto in cui nessuno lo collegherebbe alla traduzione.
+    # **Nel pacchetto congelato non c'e' niente in cui installare, e nemmeno
+    # niente da installare.** I cinque pacchetti ci sono gia' (`livedub.spec`),
+    # quindi arrivare qui vuol dire che uno di loro non si **carica**, non che
+    # manchi — e comunque non c'e' un venv, non c'e' `pip`, e `sys.executable` e'
+    # il programma stesso: i due processi figli qui sotto riaprirebbero la
+    # finestra invece di rispondere. Dirlo e' l'unica cosa vera; provarci sarebbe
+    # un guasto in un punto in cui nessuno lo collegherebbe alla traduzione.
     if congelato():
         # La frase sta in `NON_DI_QUI`, che e' anche quella che il riquadro
         # mostra **prima** di offrire un bottone. Scritta due volte, la seconda

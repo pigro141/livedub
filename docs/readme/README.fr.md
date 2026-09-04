@@ -342,18 +342,15 @@ fichier que le reste :
 .\.venv\Scripts\python.exe -m pip install -r requirements-nodeps.txt --no-deps
 ```
 
-**L'installation est légère exprès, et une chose en reste dehors exprès.** La
-traduction hors ligne **n'est pas installée** : elle coûte **3100 Mo**, presque
-entièrement `torch` — que la traduction n'utilise jamais, mais sans lequel son
-découpeur de phrases ne s'importe même pas. La faire payer à tous ceux qui
-installent le programme, pour une fonction **éteinte par défaut**, c'est le
-contraire d'un choix. Elle arrive **quand elle sert** : le banc du guide regarde
-ce qui manque, **déclare son poids avant** que vous ne décidiez, et vous donne la
-ligne à coller. Il la donne au lieu de l'exécuter parce que ce sont des *paquets*,
-et qu'un `pip install` naïf est là exactement ce qui fait revenir la roue
-processeur. Si elle n'arrive pas, c'est un **renoncement déclaré**, pas un repli
-muet. La paire de langues, elle, est un modèle de 98 Mo, et celui-là le banc le
-télécharge tout seul.
+**L'installation est légère exprès, et la traduction hors ligne y est désormais
+incluse.** Elle coûtait **3100 Mo** et restait dehors — presque entièrement
+`torch`, que la traduction n'utilise jamais. Ces trois gigaoctets, c'est `stanza`
+qui les amenait, et Argos ne s'en sert que pour *découper les phrases* : avec
+MiniSBD ce travail coûte **178 Ko**, et le moteur entier pèse **66 Mo** mesurés.
+Elle arrive maintenant avec les deux commandes ci-dessus et voyage **dans
+l'exécutable** — la même phrase sort identique caractère par caractère depuis les
+sources et depuis le paquet. La paire de langues, elle, reste un modèle de 98 Mo,
+et celui-là le banc le télécharge tout seul quand vous appuyez sur Démarrer.
 
 ### Le lancer
 
@@ -705,8 +702,8 @@ en silence. **Ce repli, personne ne l'a encore essayé sur GTA V lui-même.**
 
 ## Comment c'est fait, et pourquoi on peut croire les chiffres
 
-Il n'y a pas de pytest : la série est un module qu'on exécute, **2302
-vérifications** en 81 groupes.
+Il n'y a pas de pytest : la série est un module qu'on exécute, **2342
+vérifications** en 82 groupes.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

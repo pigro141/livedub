@@ -246,7 +246,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr - ونڈوز ون، زیادہ درست",
   "parla con la voce": "اپنی آواز سے بات کرو",
   "passo {0} di {1}": "مرحلہ {0} از {1}",
-  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "ترجمہ کرنے کے لیے آپ کو ڈاؤن لوڈ کرنے کے لیے {0} ایم بی کی ضرورت ہے (ٹارچ، جسے ترجمہ کبھی استعمال نہیں کرتا لیکن جس کے بغیر یہ شروع نہیں ہوتا)۔ پاور شیل میں پیسٹ کرنے کے لیے، پروگرام فولڈر میں: {1}",
+  "per tradurre servono {0} MB da scaricare. Da incollare in PowerShell, nella cartella del programma: {1}": "ترجمہ کرنے کے لیے آپ کو ڈاؤن لوڈ کرنے کے لیے {0} MB درکار ہے۔ پاور شیل میں پیسٹ کرنے کے لیے، پروگرام فولڈر میں: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "«{0}» کے لیے ابھی تک کوئی کیٹلاگ نہیں ہے: اطالوی باقی ہے۔",
   "piper — svelto, gira ovunque (consigliato)": "پائپر - جلدی، ہر جگہ جاتا ہے (تجویز کردہ)",
   "ppocr — gira ovunque": "ppocr - ہر جگہ چلتا ہے۔",

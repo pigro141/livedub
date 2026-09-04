@@ -246,7 +246,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr - விண்டோஸ் ஒன்று, மிகவும் துல்லியமானது",
   "parla con la voce": "உங்கள் குரலில் பேசுங்கள்",
   "passo {0} di {1}": "படி {0} / {1}",
-  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "மொழிபெயர்க்க, பதிவிறக்கம் செய்ய உங்களுக்கு {0} மெ.பை. தேவை (டார்ச், இது மொழிபெயர்ப்பு ஒருபோதும் பயன்படுத்தாது ஆனால் அது இல்லாமல் அது தொடங்காது). பவர்ஷெல்லில் ஒட்டுவதற்கு, நிரல் கோப்புறையில்: {1}",
+  "per tradurre servono {0} MB da scaricare. Da incollare in PowerShell, nella cartella del programma: {1}": "மொழிபெயர்க்க, பதிவிறக்குவதற்கு {0} மெ.பை. தேவை. பவர்ஷெல்லில் ஒட்டுவதற்கு, நிரல் கோப்புறையில்: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "«{0}» க்கான பட்டியல் இன்னும் இல்லை: இத்தாலியன் எஞ்சியுள்ளது",
   "piper — svelto, gira ovunque (consigliato)": "பைபர் - விரைவாக, எல்லா இடங்களிலும் செல்கிறது (பரிந்துரைக்கப்படுகிறது)",
   "ppocr — gira ovunque": "ppocr - எல்லா இடங்களிலும் ஓடுகிறது",

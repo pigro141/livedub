@@ -1,12 +1,13 @@
-# I pacchetti che vanno installati **senza le loro dipendenze**, e tutti per lo
-# stesso motivo: ognuno di loro chiede `onnxruntime` — la ruota CPU — che accanto
-# a `onnxruntime-gpu` **spegne la CUDA in silenzio**.
+# I pacchetti che vanno installati **senza le loro dipendenze**. Cinque su sei
+# per lo stesso motivo: chiedono `onnxruntime` — la ruota CPU — che accanto a
+# `onnxruntime-gpu` **spegne la CUDA in silenzio**. Il sesto e' argostranslate,
+# che ne ha uno tutto suo (tre giga di torch) ed e' scritto in fondo.
 #
 #   .\.venv\Scripts\python.exe -m pip install -r requirements-nodeps.txt --no-deps
 #
 # Va eseguito **dopo** `requirements.txt`, che porta `onnxruntime-gpu` e le vere
-# dipendenze di questi quattro. Da solo lascerebbe quattro pacchetti senza niente
-# sotto, e il guasto uscirebbe alla prima battuta invece che qui.
+# dipendenze di questi sei. Da solo lascerebbe sei pacchetti senza niente sotto,
+# e il guasto uscirebbe alla prima battuta invece che qui.
 #
 # ## La misura, e la cosa che non si sarebbe indovinata
 #
@@ -20,6 +21,7 @@
 # | `supertonic` | `onnxruntime>=1.19.0` | dieci voci native, CPU |
 # | `kokoro-onnx` | `onnxruntime>=1.20.1` | il motore su GPU |
 # | `rapidocr-onnxruntime` | `onnxruntime>=1.7.0` | `vision.ocr_backend` **di serie** |
+# | `minisbd` | `onnxruntime>=1.10.0` | spezza le frasi per la traduzione offline |
 #
 # Cioe' anche togliendo tutti e tre i motori di sintesi, il **lettore** di serie
 # da solo bastava a rimettere dentro la ruota CPU. Misurato il 25 agosto
@@ -72,3 +74,24 @@ kokoro-onnx==0.5.0
 # `--no-deps` perche' l'extra `[cv2]` tira `opencv-python`, che accanto alla
 # versione fissata qui e' un doppione con un'altra versione.
 oneocr==1.0.12
+
+# --- la traduzione offline ---------------------------------------------------
+#
+# **Sono sei e non piu' quattro, e i due nuovi ci stanno per due ragioni
+# diverse.** `minisbd` e' il quinto pacchetto che chiede `onnxruntime` (la ruota
+# CPU), cioe' il caso per cui questo file esiste; `argostranslate` no — lui
+# chiede `spacy` (~100 MB, e ad Argos serve solo con un altro spezza-frasi) e
+# `stanza==1.10.1`, che si porta dietro **3037,5 MB di torch** per una traduzione
+# che gira su CTranslate2 e torch non lo usa mai.
+#
+# Le dipendenze vere di tutti e due — `ctranslate2`, `sentencepiece`,
+# `sacremoses`, e `numpy`/`PyYAML`/`tqdm`/`filelock` che gia' c'erano — sono
+# elencate a mano in `requirements.txt`, come per gli altri quattro.
+#
+# **E stanza non serve nemmeno importarlo**: `argostranslate/sbd.py` lo importa
+# in cima al modulo anche quando non lo usa, e `translate/locale.py` gli mette
+# davanti un segnaposto. Su `master` di argos quell'import e' gia' dentro un
+# `try` (commit `17ed1a9b`, «Make Stanza an optional dep»): quando esce la
+# 1.11.1, il segnaposto si toglie e basta aggiornare il pin qui sotto.
+argostranslate==1.11.0
+minisbd==0.9.5

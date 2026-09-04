@@ -105,58 +105,51 @@ phonemizer-fork==3.3.2      # kokoro: il g2p italiano
 # «ollama» invece di consegnare quella riga — ed e' lo stesso modulo che dice
 # «assente» quando non lo si e' installato affatto, che e' il caso di serie.
 
-# --- la traduzione offline, e le sue due trappole ----------------------------
-# **Non la installa nessuno dei due comandi in testata, e non e' una
-# dimenticanza.** E' il default di `translate.backend`, ma costa ~3 GB — `stanza`
-# tira `torch`, che la traduzione non usa mai — e su GTA V in italiano non serve:
-# `translate.enabled` e' false di serie. Farli pagare a chiunque installi il
-# programma, per una cosa che quasi nessuno accende, e' il contrario di una
-# scelta.
+# --- la traduzione offline, e i tre giga che non c'erano ---------------------
+# **Adesso sta qui, e prima no.** Questo file ha dichiarato per settimane che la
+# traduzione offline costava ~3 GB e che per questo non poteva far parte
+# dell'ambiente di serie. Misurato pacchetto per pacchetto in `site-packages`:
 #
-# **Arriva quando serve, e dicendo prima quanto pesa.** Chi accende la traduzione
-# lo scopre al passo 6 della guida (`core/banco.py`), che e' lo stesso meccanismo
-# gia' usato per i 541 MB dei modelli: guarda cosa manca, **dichiara la
-# dimensione prima** che uno decida, e consegna la riga da incollare. La consegna
-# invece di eseguirla perche' questi sono **pacchetti** e il banco non fa `pip`:
-# un `pip install argostranslate` ingenuo tira dentro `onnxruntime` (CPU) e
-# spegne la CUDA in silenzio. Se non arriva, e' una **rinuncia dichiarata**
-# (`core.banco.AVVISI`), non un ripiego muto.
+#   torch          3037,5 MB   <- tutto qui
+#   ctranslate2      61,8 MB
+#   sentencepiece     2,0 MB
+#   sacremoses        1,7 MB
+#   argostranslate    0,2 MB
+#   minisbd           0,1 MB
 #
-# La **coppia di lingue** invece e' un modello, pesa 98 MB, e quella il banco la
-# scarica da solo — ma solo con la traduzione accesa.
+# cioe' **65,8 MB** di traduzione e tre giga di una cosa che non traduce niente.
+# Torch lo tirava dentro `stanza`, che ad Argos serve solo per **spezzare le
+# frasi**; con `ARGOS_CHUNK_TYPE=MINISBD` quel lavoro lo fa un `.onnx` da 178 KB
+# su un onnxruntime che c'e' gia'. La riga che lo imposta sta in
+# `translate/locale.py`, che e' la porta da cui argostranslate va importato, e il
+# caso nullo e' misurato li': **12 battute su 12 identiche** carattere per
+# carattere, e la prima costa 201 ms invece di 1422.
 #
-# Le righe qui sotto sembrano barocche e non lo sono. `pip install argostranslate`
-# e basta fa **due** danni, misurati con `--dry-run` prima di installare:
+# Da qui tre cose che prima non stavano in piedi. La traduzione **entra
+# nell'eseguibile** (`livedub.spec`), quindi chi scarica il programma ce l'ha; il
+# pacchetto **non dipende piu' da cosa ha nel venv chi compila**, che era un
+# divario da 500 MB che nessuna riga dichiarava; e `tools\installa_traduzione.ps1`
+# resta solo per i venv costruiti prima.
 #
-#  1. tira `minisbd`, che dipende da `onnxruntime` (CPU). Quel pacchetto e
-#     `onnxruntime-gpu` scrivono nella stessa cartella: installarlo spegne la
-#     CUDA di Kokoro **in silenzio** — 725 ms a battuta invece di 207, con i log
-#     verdi. Per questo `minisbd` va messo con `--no-deps`: `onnxruntime-gpu` e'
-#     gia' un superset e fornisce lo stesso modulo.
-#  2. tira `spacy` (~100 MB) che ad argos serve solo se si sceglie quel modo di
-#     spezzare le frasi: il default e' `ARGOSTRANSLATE`, e `sbd.py` importa spacy
-#     dentro un `try`. Con `--no-deps` sull'argostranslate e le dipendenze vere
-#     elencate a mano, resta fuori.
+# `argostranslate` e `minisbd` stanno in `requirements-nodeps.txt` — `minisbd`
+# chiede `onnxruntime` (CPU), che accanto a `onnxruntime-gpu` spegne la CUDA in
+# silenzio, e `argostranslate` chiede `spacy` (~100 MB) e `stanza`. Le loro
+# dipendenze vere sono queste tre righe, piu' `numpy`, `PyYAML` e `tqdm` che
+# stanno gia' sopra e `filelock`, che arriva con `huggingface_hub`.
 #
-# Quello che **non** si puo' evitare: `argostranslate/sbd.py` importa `stanza` in
-# cima al modulo, e stanza dipende da `torch`. Sono +712 MB di venv (misurati:
-# 3120 -> 3832 MB) per una traduzione che gira su CTranslate2 e non usa torch per
-# niente. E' il prezzo della traduzione offline, ed e' scritto qui perche' chi
-# ricostruisce l'ambiente lo sappia prima e non dopo.
+# Le versioni sono quelle che Smart App Control lascia caricare, provate in un
+# venv nuovo: `ctranslate2` 4.8.1 e 4.4.0 sono bloccate e la 4.6.0 no,
+# `sentencepiece` 0.2.2 e' bloccata e la 0.2.0 no. **Non si aggiornano perche'
+# «e' uscita la nuova»**: si aggiornano dopo averle importate in un venv nuovo.
+ctranslate2==4.6.0
+sentencepiece==0.2.0
+sacremoses==0.1.1
 #
-# **E per questo non stanno in questo file.** Un `requirements.txt` non sa dire
-# «questo pacchetto senza le sue dipendenze»: `--no-deps` esiste solo come
-# opzione globale, e globale spegnerebbe le dipendenze di *tutto* il resto.
-# Scriverli qui come righe normali vorrebbe dire che il prossimo `pip install -r`
-# reinstalla `onnxruntime` CPU e spegne la GPU — cioe' il file che serve a
-# rendere l'ambiente ricostruibile lo romperebbe. Stanno in uno script, che fa
-# la sequenza giusta ed e' rieseguibile:
-#
-#   powershell -ExecutionPolicy Bypass -File tools\installa_traduzione.ps1
-#
-# Le versioni installate e verificate: argostranslate 1.11.0, minisbd 0.9.5,
-# ctranslate2 4.8.1, sentencepiece 0.2.2, sacremoses 0.1.1, stanza 1.10.1
-# (+ torch 2.13.0, che si porta dietro stanza).
+# La **coppia di lingue** e' un'altra cosa e resta un download: 98 MB, un modello
+# come quelli di silero e di ECAPA, e il banco la prende da solo — ma solo con la
+# traduzione accesa. Con lei viaggiano i 178 KB dello spezza-frasi, presi nello
+# stesso posto (`translate.locale.prepara`) perche' senza rete la traduzione
+# morirebbe **dopo** aver dichiarato «pronta».
 
 # --- visione e riconoscimento ------------------------------------------------
 #

@@ -246,7 +246,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — Windows のもの、より正確には",
   "parla con la voce": "あなたの声で話してください",
   "passo {0} di {1}": "ステップ {0}/{1}",
-  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "翻訳するには、ダウンロードに {0} MB が必要です (トーチ。翻訳では使用されませんが、翻訳がないと開始されません)。 PowerShell に貼り付けるには、プログラム フォルダー: {1}",
+  "per tradurre servono {0} MB da scaricare. Da incollare in PowerShell, nella cartella del programma: {1}": "翻訳するには、ダウンロードに {0} MB が必要です。 PowerShell に貼り付けるには、プログラム フォルダー: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "«{0}» にはまだカタログがありません: イタリアの遺跡",
   "piper — svelto, gira ovunque (consigliato)": "パイパー — 素早く、どこにでも行きます (推奨)",
   "ppocr — gira ovunque": "ppocr — どこでも実行可能",

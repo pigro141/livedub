@@ -246,7 +246,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — el de Windows, más preciso",
   "parla con la voce": "habla con tu voz",
   "passo {0} di {1}": "paso {0} de {1}",
-  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "para traducir necesitas {0} MB para descargar (antorcha, que la traducción nunca usa pero sin la cual no comienza). Para pegar en PowerShell, en la carpeta del programa: {1}",
+  "per tradurre servono {0} MB da scaricare. Da incollare in PowerShell, nella cartella del programma: {1}": "Para traducir necesitas {0} MB para descargar. Para pegar en PowerShell, en la carpeta del programa: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "para «{0}» aún no hay catálogo: el italiano permanece",
   "piper — svelto, gira ovunque (consigliato)": "piper: rápido, va a todas partes (recomendado)",
   "ppocr — gira ovunque": "ppocr - corre por todas partes",

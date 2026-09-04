@@ -246,7 +246,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — ten pre Windows, presnejšie",
   "parla con la voce": "hovorte svojim hlasom",
   "passo {0} di {1}": "krok {0} z {1}",
-  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "na preklad potrebujete {0} MB na stiahnutie (pochodeň, ktorú preklad nikdy nepoužíva, ale bez ktorej sa nespustí). Ak chcete vložiť do prostredia PowerShell, v priečinku programu: {1}",
+  "per tradurre servono {0} MB da scaricare. Da incollare in PowerShell, nella cartella del programma: {1}": "Na preloženie potrebujete {0} MB na stiahnutie. Ak chcete vložiť do prostredia PowerShell, v priečinku programu: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "pre «{0}» ešte neexistuje katalóg: zostáva taliansky",
   "piper — svelto, gira ovunque (consigliato)": "Piper – rýchly, ide všade (odporúča sa)",
   "ppocr — gira ovunque": "ppocr — všade beží",

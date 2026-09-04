@@ -246,7 +246,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — Windows olanı, daha kesin",
   "parla con la voce": "sesinle konuş",
   "passo {0} di {1}": "{1} adımının {0}. adımı",
-  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "tercüme etmek için indirmeniz için {0} MB'a ihtiyacınız var (çevirinin asla kullanmadığı ancak onsuz başlamadığı meşale). PowerShell'e yapıştırmak için program klasöründe: {1}",
+  "per tradurre servono {0} MB da scaricare. Da incollare in PowerShell, nella cartella del programma: {1}": "Çevirmek için indirmeniz için {0} MB'a ihtiyacınız var. PowerShell'e yapıştırmak için program klasöründe: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "«{0}» için henüz bir katalog yok: İtalyan kalıntıları",
   "piper — svelto, gira ovunque (consigliato)": "piper — hızlı, her yere gider (önerilir)",
   "ppocr — gira ovunque": "ppocr — her yerde çalışır",

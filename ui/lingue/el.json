@@ -246,7 +246,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — το Windows, πιο ακριβές",
   "parla con la voce": "μίλα με τη φωνή σου",
   "passo {0} di {1}": "βήμα {0} από {1}",
-  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "για να μεταφράσετε χρειάζεστε {0} MB για λήψη (φακός, τον οποίο η μετάφραση δεν χρησιμοποιεί ποτέ, αλλά χωρίς τον οποίο δεν θα ξεκινήσει). Για επικόλληση στο PowerShell, στο φάκελο του προγράμματος: {1}",
+  "per tradurre servono {0} MB da scaricare. Da incollare in PowerShell, nella cartella del programma: {1}": "Για να μεταφράσετε χρειάζεστε {0} MB για λήψη. Για επικόλληση στο PowerShell, στο φάκελο του προγράμματος: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "για το «{0}» δεν υπάρχει ακόμη κατάλογος: ο Ιταλός παραμένει",
   "piper — svelto, gira ovunque (consigliato)": "piper — γρήγορο, πηγαίνει παντού (συνιστάται)",
   "ppocr — gira ovunque": "ppocr — τρέχει παντού",

@@ -80,10 +80,13 @@ jobs:
           }
           "solo il pacchetto GPU, com'e' giusto"
 
-      # **La suite qui dice un numero che sulla macchina di sviluppo non si puo'
-      # leggere.** Li' dodici verifiche cadono per Smart App Control (opencv,
-      # torch/shm.dll e con loro argostranslate), e il criterio e' «non
-      # aggiungerne». Su un runner senza quel criterio si vede quante ne cadono
+      # **La suite qui dice un numero che sulla macchina di sviluppo puo' essere
+      # falso.** Li' il verdetto di Smart App Control sta in cache **sulla copia
+      # del file**, quindi un `.venv` che ha quelle librerie da mesi non puo'
+      # esprimere la risposta alla domanda «cosa succede a chi installa adesso»:
+      # ci sono stati giorni in cui li' cadevano dodici verifiche (opencv,
+      # torch/shm.dll e con loro argostranslate) e giorni in cui il verde era
+      # pieno. Su un runner senza quel criterio si vede quante ne cadono
       # **davvero**. Non blocca l'artefatto: quello lo decide l'autoprova.
       - name: La suite, su una macchina senza Smart App Control
         continue-on-error: true
@@ -121,6 +124,21 @@ jobs:
           if (Test-Path "$dist\_internal\profiles\ultima.json") {
             throw "nel pacchetto c'e' ultima.json: la sessione di chi ha compilato"
           }
+          # **La traduzione offline c'e', e torch no.** Il contenuto del
+          # pacchetto dipendeva da cosa aveva nel venv chi compilava: il
+          # `dist\livedub` costruito in locale il 26 agosto pesava 1170 MB con
+          # dentro argos, stanza e 358 MB di torch, quello di qui 673 senza la
+          # traduzione affatto. Adesso i cinque pacchetti stanno nei due
+          # `requirements`, quindi le due strade partono dallo stesso ambiente —
+          # e queste righe lo verificano invece di fidarsene.
+          if (-not (Test-Path "$dist\_internal\ctranslate2\ctranslate2.dll")) {
+            throw "manca ctranslate2: il pacchetto non sa tradurre offline"
+          }
+          foreach ($vietato in @("$dist\_internal\torch", "$dist\_internal\stanza")) {
+            if (Test-Path $vietato) {
+              throw "nel pacchetto c'e' $vietato : sono 3037,5 MB per una cosa che la traduzione non usa (gira su CTranslate2)"
+            }
+          }
 
       # **`Start-Process -Wait`, e non una chiamata normale.** L'eseguibile e'
       # costruito con `console=False`: lanciato dalla shell torna subito e la
@@ -140,6 +158,33 @@ jobs:
           }
           Get-Content $rapporto -Raw | Write-Host
           if ($p.ExitCode -ne 0) { throw "l'autoprova ha trovato qualcosa di rotto" }
+
+      # **Il caso nullo della traduzione: la stessa frase, due ambienti.**
+      # Che il pacchetto traduca lo dice gia' l'autoprova qui sopra; questo passo
+      # risponde all'altra domanda — traduce **la stessa cosa** del sorgente? Il
+      # rischio non e' che non traduca, e' che traduca con un altro spezza-frasi
+      # e nessuno se ne accorga: MiniSBD e Stanza danno tutti e due un testo
+      # plausibile, e la differenza fra i due e' 3 GB di torch e un pacchetto che
+      # non parte. Si confronta la nota della prova, che porta il testo esatto.
+      - name: La stessa frase, tradotta da sorgente e dentro il pacchetto
+        shell: pwsh
+        run: |
+          python -m tools.autoprova rapporto-sorgente.json --solo traduce-offline
+          $sorgente = (Get-Content 'rapporto-sorgente.json' -Raw | ConvertFrom-Json)
+          $exe = (Get-Content 'rapporto-1.json' -Raw | ConvertFrom-Json)
+          if ($sorgente.congelato) { throw "il primo rapporto doveva venire dal sorgente" }
+          if (-not $exe.congelato) { throw "il secondo rapporto doveva venire dall'eseguibile" }
+          $a = ($sorgente.prove | Where-Object { $_.prova -eq 'traduce-offline' })
+          $b = ($exe.prove      | Where-Object { $_.prova -eq 'traduce-offline' })
+          if ($a.esito -ne 'ok' -or $b.esito -ne 'ok') {
+            throw "la traduzione offline non e' passata: sorgente $($a.esito), pacchetto $($b.esito)"
+          }
+          "sorgente: $($a.nota)"
+          "pacchetto: $($b.nota)"
+          if ($a.nota -cne $b.nota) {
+            throw "il pacchetto traduce un'altra cosa dal sorgente: non e' lo stesso modello ne' lo stesso spezza-frasi"
+          }
+          "identiche carattere per carattere"
 
       # **La stessa prova da un'altra cartella.** `models/` deve stare accanto
       # all'eseguibile e non dipendere da dove lo si lancia: se dipendesse,
@@ -216,6 +261,7 @@ jobs:
           name: rapporto-autoprova
           path: |
             rapporto-1.json
+            rapporto-sorgente.json
             ${{ runner.temp }}/altrove/rapporto-2.json
           if-no-files-found: warn
 

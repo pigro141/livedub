@@ -246,7 +246,7 @@
   "oneocr — quello di Windows, piu' preciso": "oneocr — Windows One, precīzāk",
   "parla con la voce": "runā ar savu balsi",
   "passo {0} di {1}": "{0}. darbība no {1}",
-  "per tradurre servono {0} MB da scaricare (torch, che la traduzione non usa mai ma senza cui non parte). Da incollare in PowerShell, nella cartella del programma: {1}": "lai tulkotu, lejupielādei ir nepieciešami {0} MB (lāpa, kuru tulkojums nekad neizmanto, bet bez kura tas nesāksies). Lai ielīmētu programmā PowerShell, programmas mapē: {1}",
+  "per tradurre servono {0} MB da scaricare. Da incollare in PowerShell, nella cartella del programma: {1}": "Lai tulkotu, lejupielādei nepieciešami {0} MB. Lai ielīmētu programmā PowerShell, programmas mapē: {1}",
   "per «{0}» non c'e' ancora un catalogo: resta l'italiano": "\"{0}\" vēl nav kataloga: itāļu paliekas",
   "piper — svelto, gira ovunque (consigliato)": "pīpētājs — ātrs, iet visur (ieteicams)",
   "ppocr — gira ovunque": "ppocr — skrien visur",

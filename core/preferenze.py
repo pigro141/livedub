@@ -86,7 +86,12 @@ def aggiorna(**valori: Any) -> dict[str, Any]:
 # visto quel passo, e senza questo scatto non lo vedrebbe mai: continuerebbe a
 # sentire il ripiego leggero senza sapere che c'e' di meglio, che e' il difetto
 # che quel passo esiste per chiudere.
-TUTORIAL = 2
+# **3 dal 4 settembre 2026**: la guida ha guadagnato l'ultimo passo, quello che
+# dice che il programma e' gratis, che e' GPL e dove sta la porta delle
+# donazioni. Chi la guida l'aveva gia' vista non ha mai letto quella riga da
+# nessuna parte — nel programma non c'era — e senza questo scatto non la
+# leggerebbe mai.
+TUTORIAL = 3
 
 # La chiave nel file. Sta qui e non scritta a mano nei due punti che la usano.
 _CHIAVE_TUTORIAL = "tutorial_visto"
@@ -121,6 +126,49 @@ def tutorial_visto() -> None:
     valore all'unica via d'uscita che gli si e' data.
     """
     aggiorna(**{_CHIAVE_TUTORIAL: TUTORIAL})
+
+
+# ------------------------------------------------ il riquadro delle donazioni --
+#
+# **Qui c'e' solo il disco.** Quanto si debba aver usato il programma prima di
+# poter chiedere qualcosa, e cosa valga come «ha gia' risposto», sono regole e
+# stanno in `core/dono.py`, dove si provano senza toccare `%LOCALAPPDATA%` e
+# senza aprire una finestra. Queste due funzioni sono la meta' che scrive.
+
+
+def dono_sessione_finita(battute: int) -> None:
+    """Segna una sessione finita, **se ha detto qualcosa**.
+
+    La chiama la finestra quando la catena si e' fermata, non mentre gira: e' la
+    stessa ragione per cui il riquadro non compare mai in mezzo a una sessione.
+    Con zero battute non scrive niente — si veda `core.dono.conta_sessione`.
+    """
+    from core import dono
+
+    dati = leggi()
+    nuovi = dono.conta_sessione(battute, dati)
+    if nuovi:
+        aggiorna(**nuovi)
+
+
+def dono_da_chiedere() -> bool:
+    """Il riquadro va aperto adesso? La regola sta in `core/dono.py`."""
+    from core import dono
+
+    return dono.da_chiedere(leggi())
+
+
+def dono_chiesto() -> None:
+    """«Chiesto»: e non si chiede piu', in nessun modo e per sempre.
+
+    **Un booleano e non un numero**, che e' il contrario di `TUTORIAL` e lo e'
+    apposta: sul bottone che chiude quel riquadro c'e' scritto «Non chiedermelo
+    piu'», e alzare un numero per farlo ricomparire vorrebbe dire rimangiarsi la
+    parola che il programma ha appena dato.
+    """
+    from core import dono
+
+    aggiorna(**{dono.CHIAVE_CHIESTO: True})
 
 
 # ------------------------------------------------- l'ultima configurazione --

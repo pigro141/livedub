@@ -118,6 +118,7 @@ from core.motore import (  # noqa: E402
 )
 from core.versione import NOME, VERSIONE, scheda  # noqa: E402
 from ui import lingua  # noqa: E402
+from ui import qt_dono  # noqa: E402  # >>> dono (ui/qt_dono.py)
 from ui import qt_tema as tema  # noqa: E402
 from ui import tutorial  # noqa: E402  # >>> tutorial (ui/tutorial.py)
 from ui.qt_audio import Audio  # noqa: E402
@@ -1014,6 +1015,12 @@ class Finestra(QMainWindow):
         # l'ordine di inserimento — quindi non c'e' niente da ordinare.
         self._conta: dict[str, int] = {}
         self._detta_qualcosa = False
+        # >>> dono (ui/qt_dono.py): quante battute ha detto **questa** sessione.
+        # Non si somma `_conta`, che dura quanto la finestra e non quanto la
+        # sessione: la domanda a cui serve rispondere e' «questa passata ha
+        # servito qualcuno?», e sommare due passate le farebbe contare come una.
+        self._battute_sessione = 0
+        # <<< dono
         # **Un passo e' fatto quando lo hai fatto tu.** Prima il secondo si
         # spuntava da solo perche' il profilo porta gia' una ROI: la finestra si
         # apriva dicendo «l'area l'hai tirata» a chi non aveva toccato niente, e
@@ -1121,8 +1128,16 @@ class Finestra(QMainWindow):
         # (`ui/lingua.py`), quindi un widget costruito dopo resterebbe in
         # italiano — e resterebbe in italiano **in silenzio**, che e' la forma
         # di difetto che questa finestra ha gia' pagato quattro volte.
-        self.vesti_lingua()
+        # **Il registro si apre prima di vestire la finestra**, e non e' un
+        # dettaglio d'ordine: `registro.scrivi` con il file ancora chiuso non
+        # solleva, torna e basta. Con le due righe scambiate, «lingua della
+        # finestra: …» — con dentro il numero di stringhe rimaste in italiano —
+        # finiva a schermo e **mai su file**, in tutti gli avvii. E' l'unica riga
+        # del registro che dica in che lingua e' partita la finestra: senza,
+        # rileggendo i registri per capire perche' la lingua cambiava sotto i
+        # piedi al primo uso di Piper, non c'era niente da leggere.
         registro.apri()
+        self.vesti_lingua()
         self.aggiorna_pronto()
         self.scrivi(scheda())
         self.scrivi("")
@@ -1503,7 +1518,16 @@ class Finestra(QMainWindow):
         # >>> tutorial (ui/tutorial.py): il modo esplicito di rivedere la guida.
         L.addWidget(tutorial.bottone(self, self.apri_tutorial))
         # <<< tutorial
-        # I due bottoni senza fondo di tutta la finestra.
+        # **Il cuore: la porta delle donazioni, e non se ne va mai.** Stesso
+        # cerchio da 28 px degli altri due (`#aiuto`), stesso colore, nessun
+        # fondo: un glifo e non una parola, se no la fila si romperebbe — sta
+        # scritto in `ui/tutorial.py` da quando i bottoni senza fondo erano due.
+        # Il riquadro che *chiede* e' un'altra cosa e compare una volta sola; qui
+        # non c'e' nessuna condizione, perche' un bottone che si nasconde a
+        # seconda di quanto hai usato il programma e' esattamente cio' che
+        # `ui/qt_dono.py` esiste per non fare.
+        L.addWidget(qt_dono.bottone(self))
+        # I tre bottoni senza fondo di tutta la finestra.
         info = QPushButton("ⓘ")
         info.setObjectName("aiuto")
         info.setCursor(Qt.PointingHandCursor)
@@ -2471,6 +2495,35 @@ class Finestra(QMainWindow):
         # che non e' mai partita.
         self.ora.pronto()
         self._mostra_attesa()
+        # >>> dono (ui/qt_dono.py): la sessione e' finita, quindi si puo' contare
+        # e — se e' il momento — chiedere. **Qui e non altrove**: e' l'unico
+        # istante in cui il programma ha appena finito di servire e non c'e'
+        # niente da interrompere. L'avvio fallito passa di qui con zero battute,
+        # e zero battute non contano niente (`core.dono.conta_sessione`).
+        dette, self._battute_sessione = self._battute_sessione, 0
+        preferenze.dono_sessione_finita(dette)
+        # **Non da dentro il giro della coda.** `_fine_thread` viene chiamata nel
+        # mezzo di `_svuota_coda`, e un `exec()` li' aprirebbe un ciclo di eventi
+        # annidato mentre quel ciclo sta ancora leggendo la coda. Un giro dopo
+        # non cambia niente per chi guarda e toglie la rientranza.
+        QTimer.singleShot(0, self._forse_dono)
+        # <<< dono
+
+    # >>> dono (ui/qt_dono.py)
+    def _forse_dono(self) -> None:
+        """Il riquadro delle donazioni, se e' il momento. La regola sta in `core/`.
+
+        Qui non si decide niente: `qt_dono.forse_chiedi` guarda `core.dono` e la
+        finestra. L'unica cosa che questa riga aggiunge e' **non chiederlo a
+        sessione riaccesa**: fra il `finito` e questo giro di eventi ci puo'
+        stare un Avvia — `_riprova` e `applica_in_attesa` ne fanno uno da soli —
+        e un modale sopra una catena appena ripartita e' esattamente la cosa che
+        non si deve fare.
+        """
+        if self.in_sessione:
+            return
+        qt_dono.forse_chiedi(self.cfg, self)
+    # <<< dono
 
     def _audio_guasto(self, dettaglio: str) -> None:
         """Il ciclo audio e' morto: si chiude la sessione come se fosse un Ferma.
@@ -2566,6 +2619,7 @@ class Finestra(QMainWindow):
                 if tipo == "riga":
                     sid, voce, testo, lat, t = dato
                     self._detta_qualcosa = True
+                    self._battute_sessione += 1
                     # **Separata dai punti, non dagli spazi.** Il riempimento a
                     # larghezza fissa (`{voce:<14}`) incolonna solo in
                     # monospazio: col carattere dell'interfaccia quelle colonne

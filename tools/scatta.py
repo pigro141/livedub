@@ -426,6 +426,31 @@ def _tutorial(app, f, fuori: Path, sigla: str) -> int:
     return scritti
 
 
+def _dono(app, f, fuori: Path, sigla: str) -> int:
+    """Il riquadro delle donazioni. Uno stato solo, e va guardato lo stesso.
+
+    Dal vivo compare **una volta in tutta la vita del programma**, dopo tre
+    sessioni che hanno parlato: aspettarlo per guardarlo vorrebbe dire non
+    guardarlo mai, e in questo progetto un pezzo che nessuno ha guardato non e'
+    «scritto», e' «supposto».
+
+    **Si chiude con `reject()` e non premendo un bottone**: premerlo segnerebbe
+    la domanda come fatta sulla macchina di chi scatta, e una fotografia non e'
+    una risposta. E' la stessa ragione per cui `_tutorial` non chiama `_chiudi`.
+    """
+    from ui.qt_dono import DialogoDono
+
+    d = DialogoDono(f.cfg, f)
+    d.setAttribute(Qt.WA_DontShowOnScreen, True)
+    d.show()
+    try:
+        app.processEvents()
+        d.grab().save(str(fuori / f"{sigla}-dono.png"))
+    finally:
+        d.reject()
+    return 1
+
+
 def _installa(app, f, fuori: Path, sigla: str) -> int:
     """Il riquadro che offre di installare, nei suoi tre stati.
 
@@ -490,6 +515,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="il riquadro che offre di installare una scelta")
     ap.add_argument("--tutorial", action="store_true",
                     help="fotografa i passi della guida iniziale invece delle schede")
+    ap.add_argument("--dono", action="store_true",
+                    help="il riquadro delle donazioni, che dal vivo compare una volta sola")
     # **La scena di vetrina risponde a un'altra domanda** e per questo e' un'altra
     # scena: si veda il commento sopra `_vetrina`. Una sola scena che serva sia a
     # guardare i guasti sia a mostrare il prodotto finisce per fare male tutte e
@@ -534,9 +561,10 @@ def main(argv: list[str] | None = None) -> int:
             f.setAttribute(Qt.WA_DontShowOnScreen, True)
             f.show()
             app.processEvents()
-            if args.tutorial or args.vetrina or args.installa:
+            if args.tutorial or args.vetrina or args.installa or args.dono:
                 scena = (_tutorial if args.tutorial
-                         else _installa if args.installa else _vetrina)
+                         else _installa if args.installa
+                         else _dono if args.dono else _vetrina)
                 try:
                     scritti += scena(app, f, fuori, f"{sigla}{nome}")
                 finally:

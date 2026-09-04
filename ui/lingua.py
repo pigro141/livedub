@@ -192,21 +192,24 @@ def fuori_dalla_passeggiata() -> tuple[str, ...]:
     - **`COMPOSTE`** — le parole con cui la finestra *unisce* una frase a
       runtime: a schermo esistono solo gia' unite, quindi la passeggiata vede la
       combinazione di quell'istante e nessun'altra;
-    - **i dialoghi** (`ui/tutorial.py`, `ui/qt_installa.py`) — finestre che **non
-      esistono** finche' non le si apre. Percorrendo la finestra principale non
-      c'e' niente da trovare, e le loro parole resterebbero in italiano in mezzo
-      a un programma tradotto — che e' peggio dell'italiano, perche' sembra una
-      parola che non si traduce invece di una che nessuno ha tradotto.
+    - **i dialoghi** (`ui/tutorial.py`, `ui/qt_installa.py`, `ui/qt_dono.py`) —
+      finestre che **non esistono** finche' non le si apre. Percorrendo la
+      finestra principale non c'e' niente da trovare, e le loro parole
+      resterebbero in italiano in mezzo a un programma tradotto — che e' peggio
+      dell'italiano, perche' sembra una parola che non si traduce invece di una
+      che nessuno ha tradotto.
 
     Il rischio di un elenco a mano e' che diverga da cio' che il codice dice
     davvero: per la prima famiglia lo prende la verifica `ui_lingua` leggendo il
     sorgente, per la seconda la verifica `tutorial`, che costruisce il dialogo e
     confronta le due liste.
     """
+    from ui.qt_dono import testi as testi_dono
     from ui.qt_installa import testi as testi_installa
     from ui.tutorial import testi
 
-    return tuple(dict.fromkeys([*COMPOSTE, *testi(), *testi_installa()]))
+    return tuple(dict.fromkeys([*COMPOSTE, *testi(), *testi_installa(),
+                                *testi_dono()]))
 
 
 def cambia(w, testo: str) -> None:

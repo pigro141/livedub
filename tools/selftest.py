@@ -6731,6 +6731,249 @@ def test_argos(c: Check) -> None:
          "chiesta e una a cui si e' rinunciato non sono la stessa cosa")
 
 
+def test_dono(c: Check) -> None:
+    """Le donazioni: **un indirizzo solo, e una domanda che si fa una volta**.
+
+    Tre domande, e due si rispondono senza aprire niente:
+
+    - **l'indirizzo e' scritto una volta sola?** E' la forma «scritta due volte e
+      la seconda non l'aggiorna nessuno», che qui e' gia' costata nove volte — e
+      un indirizzo di donazione sbagliato non da' errore: manda i soldi altrove.
+      Si confronta `core.dono.LINK` con `.github/FUNDING.yml`, che e' l'unico
+      altro file che lo dichiara **a una macchina**, e si pretende che nessun
+      altro sorgente lo contenga;
+    - **si chiede al momento giusto?** La regola e' pura, quindi si prova con i
+      casi limite che su questa macchina non capitano mai: mai usato, appena
+      installato, una sola sessione lunghissima, tre sessioni mute, chi ha gia'
+      risposto, e un file di preferenze ritoccato a mano;
+    - **le parole finiscono nei cataloghi?** Un riquadro che non esiste finche'
+      non lo si apre non lo trova nessuna passeggiata.
+    """
+    c.group("dono")
+
+    import os
+    import tempfile
+    from pathlib import Path
+
+    from core import dono as D
+
+    radice = Path(__file__).resolve().parent.parent
+
+    # -- l'indirizzo, e il fatto che sia scritto una volta sola --------------
+    funding = radice / ".github" / "FUNDING.yml"
+    c.ok(funding.is_file(), "`.github/FUNDING.yml` c'e': e' il bottone «Sponsor»")
+    testo_funding = funding.read_text(encoding="utf-8") if funding.is_file() else ""
+    c.ok(D.LINK in testo_funding,
+         f"e dichiara lo stesso indirizzo del codice ({D.LINK})")
+    # **A rovescio: dentro FUNDING non ci deve essere un secondo indirizzo.** Un
+    # `custom` con due voci passerebbe la riga qui sopra e manderebbe meta' della
+    # gente da un'altra parte senza che niente lo dica.
+    altri = [r for r in testo_funding.splitlines()
+             if "ko-fi.com" in r and D.LINK not in r]
+    c.eq(altri, [], "e non ne dichiara nessun altro")
+
+    # E nel **codice** l'indirizzo compare in un posto solo. I README e la
+    # vetrina sono testi, e li' e' giusto che ci sia scritto per esteso: quello
+    # che non deve succedere e' un secondo letterale in un sorgente, che nessuno
+    # aggiornerebbe il giorno che l'indirizzo cambia.
+    doppioni = []
+    for py in sorted(radice.glob("**/*.py")):
+        parti = set(py.parts)
+        if parti & {".venv", ".venv-vecchio", "build", "dist", "__pycache__"}:
+            continue
+        if py.name in ("dono.py", "selftest.py"):
+            continue
+        if "ko-fi.com" in py.read_text(encoding="utf-8", errors="ignore"):
+            doppioni.append(str(py.relative_to(radice)))
+    c.eq(doppioni, [],
+         "l'indirizzo sta solo in `core/dono.py`: chi lo vuole lo importa")
+
+    # E i testi pubblicati non sono ancora un'altra cosa: se uno dei sette
+    # README puntasse altrove, meta' di chi legge finirebbe su una pagina morta.
+    letture = [radice / "README.md", *sorted((radice / "docs" / "readme").glob("*.md"))]
+    storti = [p.name for p in letture if p.is_file()
+              and "ko-fi.com" in p.read_text(encoding="utf-8", errors="ignore")
+              and D.LINK not in p.read_text(encoding="utf-8", errors="ignore")]
+    c.eq(storti, [], f"e i {len(letture)} README puntano tutti li'")
+
+    # -- la regola, che e' pura ----------------------------------------------
+    def pref(sessioni=0, battute=0, chiesto=False):
+        return {D.CHIAVE_SESSIONI: sessioni, D.CHIAVE_BATTUTE: battute,
+                D.CHIAVE_CHIESTO: chiesto}
+
+    c.ok(not D.da_chiedere({}),
+         "a chi non l'ha mai aperto non si chiede niente")
+    c.ok(not D.da_chiedere(pref()),
+         "e nemmeno a chi l'ha appena installato")
+    c.ok(not D.da_chiedere(pref(sessioni=1, battute=500)),
+         "una sola sessione lunghissima non basta: e' un tentativo riuscito, "
+         "non uno che e' tornato")
+    c.ok(not D.da_chiedere(pref(sessioni=9, battute=12)),
+         "e nove sessioni che non hanno quasi parlato nemmeno: li' il programma "
+         "non ha ancora servito nessuno")
+    c.ok(D.da_chiedere(pref(sessioni=D.SESSIONI_MINIME, battute=D.BATTUTE_MINIME)),
+         f"con {D.SESSIONI_MINIME} sessioni e {D.BATTUTE_MINIME} battute si puo' chiedere")
+    c.ok(not D.da_chiedere(pref(sessioni=D.SESSIONI_MINIME - 1,
+                                battute=D.BATTUTE_MINIME * 10)),
+         "una sessione sotto la soglia e nessuna quantita' di battute la compra")
+    c.ok(not D.da_chiedere(pref(sessioni=D.SESSIONI_MINIME * 10,
+                                battute=D.BATTUTE_MINIME - 1)),
+         "e una battuta sotto la soglia nemmeno: le due meta' rispondono a due "
+         "domande diverse")
+    c.ok(not D.da_chiedere(pref(sessioni=100, battute=10000, chiesto=True)),
+         "a chi ha gia' risposto non si richiede mai, per quanto usi il programma")
+    # **Il ripiego e' il silenzio, ed e' il contrario del tutorial.** Li' un
+    # valore illeggibile vale «mai vista» perche' nasconderla e' il difetto; qui
+    # richiedere dei soldi a chi ha gia' detto di no e' molto peggio che tacere.
+    c.ok(not D.da_chiedere({D.CHIAVE_SESSIONI: "boh", D.CHIAVE_BATTUTE: "boh"}),
+         "un file di preferenze ritoccato a mano vale «non chiedere»")
+    c.ok(not D.da_chiedere({D.CHIAVE_SESSIONI: -5, D.CHIAVE_BATTUTE: -5}),
+         "e nemmeno dei numeri negativi aprono una strada")
+
+    # -- il conteggio, pura anche lui ----------------------------------------
+    c.eq(D.conta_sessione(0, {}), None,
+         "una sessione che non ha detto niente non si conta: contarla vorrebbe "
+         "dire avvicinare la richiesta a chi non e' ancora riuscito a sentire "
+         "una voce")
+    c.eq(D.conta_sessione(-3, {}), None, "e nemmeno un conteggio impossibile")
+    c.eq(D.conta_sessione("tante", {}), None, "ne' uno che non e' un numero")
+    c.eq(D.conta_sessione(7, {}),
+         {D.CHIAVE_SESSIONI: 1, D.CHIAVE_BATTUTE: 7},
+         "la prima sessione parte da zero")
+    c.eq(D.conta_sessione(3, pref(sessioni=2, battute=40)),
+         {D.CHIAVE_SESSIONI: 3, D.CHIAVE_BATTUTE: 43},
+         "e le successive si sommano")
+    c.eq(D.conta_sessione(3, {D.CHIAVE_SESSIONI: "boh"}),
+         {D.CHIAVE_SESSIONI: 1, D.CHIAVE_BATTUTE: 3},
+         "su un valore illeggibile si riparte invece di sollevare")
+
+    # -- e adesso il giro vero, su un disco finto ----------------------------
+    # Le preferenze vere non si toccano: `dono_chiesto()` scrive in
+    # `%LOCALAPPDATA%`, e una suite che lo chiamasse per davvero spegnerebbe la
+    # domanda sulla macchina di chi la lancia — cioe' proprio la cosa che sta
+    # verificando. E' la stessa cautela del gruppo `tutorial`.
+    vecchio = os.environ.get("LOCALAPPDATA")
+    tana = tempfile.mkdtemp(prefix="livedub-dono-")
+    os.environ["LOCALAPPDATA"] = tana
+    try:
+        from core import preferenze as P
+
+        c.ok(not P.dono_da_chiedere(), "sul disco pulito non si chiede niente")
+        P.dono_sessione_finita(0)
+        c.eq(P.leggi().get(D.CHIAVE_SESSIONI), None,
+             "una sessione muta non lascia nemmeno una riga nel file")
+        for _ in range(D.SESSIONI_MINIME):
+            P.dono_sessione_finita(D.BATTUTE_MINIME)
+        c.ok(P.dono_da_chiedere(),
+             "dopo tre sessioni che hanno parlato, si puo' chiedere")
+        P.dono_chiesto()
+        c.ok(not P.dono_da_chiedere(),
+             "e dopo aver chiesto non si chiede mai piu' — su disco, non solo "
+             "in memoria")
+        c.eq(P.leggi().get(D.CHIAVE_CHIESTO), True,
+             "e la risposta e' un booleano e non un numero: sul bottone c'e' "
+             "scritto «non chiedermelo piu'», e un numero da alzare sarebbe la "
+             "parola rimangiata")
+        for _ in range(20):
+            P.dono_sessione_finita(500)
+        c.ok(not P.dono_da_chiedere(),
+             "nemmeno continuando a usarlo per venti sessioni")
+
+        # -- le parole, e il riquadro costruito davvero ----------------------
+        from ui import lingua as L
+        from ui import qt_dono as QD
+
+        voci = QD.testi()
+        c.ok(len(voci) >= 5, f"il riquadro dichiara {len(voci)} stringhe")
+        c.eq(len(set(voci)), len(voci), "senza doppioni")
+        c.ok(all(L._traducibile(v) for v in voci),
+             "e sono tutte traducibili: niente glifi, percorsi o HTML")
+        fuori = set(L.fuori_dalla_passeggiata())
+        c.eq(sorted(set(voci) - fuori), [],
+             "tutto quello che dice passa da `fuori_dalla_passeggiata`")
+        c.eq(sorted(set(voci) - set(L.chiavi())), [],
+             "e sta nell'elenco delle chiavi: rilancia `tools/traduci_ui.py "
+             "--estrai` se questa diventa rossa")
+        # Il glifo del bottone in testata **non** e' una chiave: non ha lettere,
+        # quindi la passeggiata lo lascia stare — come `?` e `ⓘ`.
+        c.ok(not L._traducibile(QD.GLIFO),
+             "il cuore in testata e' un glifo, e un glifo non si traduce")
+        c.ok(L._traducibile(QD.SUGGERIMENTO),
+             "ma il suo suggerimento si': lo trova la passeggiata normale, "
+             "perche' quel bottone vive nella finestra")
+
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        from core.config import Config
+
+        QApplication.instance() or QApplication([])
+        cfg = Config()
+        cfg.ui.lingua = "it"
+
+        d = QD.DialogoDono(cfg, None)
+        try:
+            visto = set(L.raccogli(d))
+            c.eq(sorted(set(voci) - visto), [],
+                 "e non dichiara niente che non dica: una riga elencata e mai "
+                 "mostrata e' una chiave tradotta per niente")
+            c.eq(sorted(visto - set(voci)), [],
+                 "ne' dice niente che non abbia dichiarato")
+        finally:
+            d.reject()
+        c.ok(not d.risposto,
+             "chiuderlo da fuori con `reject()` non risponde al posto di "
+             "nessuno: e' cosi' che `tools/scatta.py` lo fotografa")
+
+        # E premendo un bottone, invece, si risponde — anche quello che apre la
+        # pagina, se no al ritorno dal browser il riquadro sarebbe ancora li'.
+        P.scrivi({})
+        d = QD.DialogoDono(cfg, None)
+        d._chiudi()
+        c.ok(d.risposto and P.leggi().get(D.CHIAVE_CHIESTO) is True,
+             "«Non chiedermelo piu'» e' la risposta, e finisce sul disco")
+
+        # -- e non si apre mai da solo quando non c'e' nessuno a guardare -----
+        # La condizione e' «e' davvero davanti a qualcuno» e non un attributo
+        # dichiarato: in questo progetto la guardia scritta come «costruita e
+        # dichiarata fuori schermo» non copriva «costruita e mai mostrata», e un
+        # modale ha tenuto la suite appesa dieci minuti senza stampare una riga.
+        c.ok(not QD.forse_chiedi(cfg, None),
+             "senza padre non si apre niente")
+
+        class _Finta:
+            def isVisible(self):
+                return False
+
+        c.ok(not QD.forse_chiedi(cfg, _Finta()),
+             "e con un padre che non e' a schermo nemmeno")
+        P.scrivi({})
+        c.ok(not QD.forse_chiedi(cfg, _Finta()),
+             "nemmeno con le preferenze pulite: la guardia viene prima della regola")
+    finally:
+        if vecchio is None:
+            os.environ.pop("LOCALAPPDATA", None)
+        else:
+            os.environ["LOCALAPPDATA"] = vecchio
+
+    # -- l'ultimo passo della guida, e il numero che lo fa rivedere ----------
+    from core import preferenze as P
+
+    from ui import qt_dono as QD
+    from ui import tutorial as T
+
+    c.eq(T.PASSI[-1].vivo, "dono",
+         "l'ultimo passo della guida e' quello che dice che e' gratis")
+    c.eq(T.DONA, QD.APRI,
+         "e il suo bottone e' **la stessa stringa** del riquadro: due frasi "
+         "uguali sono una chiave sola, riscritte sarebbero due")
+    c.ok(T.DONA in T.testi(),
+         "dichiarata anche dalla guida, se no uscirebbe in italiano li' dentro")
+    c.ok(P.TUTORIAL >= 3,
+         "e `TUTORIAL` e' salito: chi la guida l'aveva gia' vista non ha mai "
+         "visto quel passo, ed e' il caso per cui quel campo e' un numero")
+
+
 GROUPS = {
     "clock": test_clock,
     "session": test_session,
@@ -6866,6 +7109,7 @@ GROUPS = {
     # cerca e cio' che `livedub.spec` dichiara.
     "percorsi": test_percorsi,
     "tutorial": test_tutorial,
+    "dono": test_dono,
 }
 
 

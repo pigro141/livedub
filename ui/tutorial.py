@@ -2,7 +2,7 @@
 
 Non un carosello di schermate. Chi apre questo programma per la prima volta non
 sa cos'e' un loopback, non sa che il gioco deve stare in finestra, e non ha mai
-sentito nominare Voicemeeter — e se dopo sette schermate non riesce a sentire una
+sentito nominare Voicemeeter — e se dopo otto schermate non riesce a sentire una
 battuta doppiata, il tutorial ha fallito anche se e' bello.
 
 ## Dove puo', **controlla** invece di chiedere fiducia
@@ -223,6 +223,25 @@ PASSI: tuple[Passo, ...] = (
             "non e' un numero fuori norma: e' una battuta che non si e' sentita.",
         ),
     ),
+    # **L'ultimo passo dice per prima cosa che non costa niente**, e la richiesta
+    # viene dopo. E' l'ordine che rende la frase vera invece che gentile: chi
+    # legge la guida non ha ancora sentito una battuta, quindi qui non gli si sta
+    # chiedendo niente — gli si sta dicendo dov'e' la porta, che e' la stessa cosa
+    # che dice il cuore in testata. La domanda vera la fa `ui/qt_dono.py`, una
+    # volta sola, e solo a chi il programma ha gia' servito.
+    Passo(
+        "Adesso sei pronto, e non ti costa niente",
+        (
+            "Hai finito: chiudi questa guida e premi Avvia.",
+            "Il programma e' gratis e resta gratis. E' software libero (GPL): "
+            "puoi usarlo, copiarlo e cambiarlo. Non c'e' niente da sbloccare, "
+            "niente che scada, e nessuna funzione tenuta da parte per chi paga.",
+            "Se un giorno ti sara' servito e ti andra' di lasciare qualcosa a chi "
+            "lo scrive, la pagina e' qui sotto. Non serve adesso, e non serve mai: "
+            "il cuore in cima alla finestra ci porta quando vuoi tu.",
+        ),
+        vivo="dono",
+    ),
 )
 
 
@@ -280,6 +299,13 @@ MISURA = "Misura questo PC e scarica quello che manca"
 # bottone sembra rotto per i secondi in cui non succede niente.
 ANNULLA = "Annulla: si ferma dopo il file che sta scaricando"
 NIENTE_DA_FARE = "c'e' gia' tutto: non serve scaricare niente"
+# **La stessa identica stringa del riquadro delle donazioni, non una gemella.**
+# Un catalogo e' `{italiano -> tradotto}`, quindi due frasi uguali sono **una**
+# chiave: importarla invece di riscriverla vuol dire che il bottone si chiama
+# allo stesso modo nei due posti in cui compare, e che a tradurlo si paga una
+# volta. Riscritta anche solo con una virgola diversa sarebbero due chiavi, e la
+# seconda non la riguarderebbe piu' nessuno.
+from ui.qt_dono import APRI as DONA  # noqa: E402
 
 # **Perche' si e' scelto cosi'.** Le regole stanno in `core/banco.py` e parlano
 # per **codici** (`cuda_no`, `sintesi_lenta`); qui ci sono le frasi, che e'
@@ -430,7 +456,7 @@ def testi() -> tuple[str, ...]:
     senza questa dichiarazione le sue parole non finirebbero in nessun catalogo.
     """
     fuori: list[str] = [TITOLO, SOTTOTITOLO, SALTA, INDIETRO, AVANTI, FINE, SCARICA,
-                        MISURA, ANNULLA, NIENTE_DA_FARE]
+                        MISURA, ANNULLA, NIENTE_DA_FARE, DONA]
     for p in PASSI:
         fuori.append(p.titolo)
         fuori.extend(p.righe)
@@ -628,7 +654,7 @@ class _Lavoro(QThread):
 
 
 class Tutorial(QDialog):
-    """Sette passi, uno alla volta, e in fondo tre bottoni sempre uguali.
+    """Otto passi, uno alla volta, e in fondo tre bottoni sempre uguali.
 
     Uno alla volta e non una pagina sola da scorrere: una pagina lunga si legge
     in diagonale, e i due passi che qui contano davvero — l'audio e l'area — sono
@@ -813,7 +839,34 @@ class Tutorial(QDialog):
             return self._tabella_schede()
         if quale == "banco":
             return self._banco()
+        if quale == "dono":
+            return self._dono()
         return None
+
+    def _dono(self) -> QWidget:
+        """Il bottone dell'ultimo passo: la porta, non la domanda.
+
+        Un bottone solo e nessun riquadro di verifica: qui non c'e' niente da
+        verificare, e un riquadro vuoto in questo progetto e' gia' stato un
+        difetto — nella schermata in arabo si vedeva una barra grigia col nulla
+        dentro.
+        """
+        from ui.qt_dono import apri_pagina
+
+        w = QWidget()
+        w.setObjectName("gruppo")
+        R = QHBoxLayout(w)
+        R.setContentsMargins(0, 0, 0, 0)
+        R.setSpacing(tema.S3)
+        b = QPushButton(DONA)
+        # Contornato e non riempito: il riempimento menta e' di «Passo
+        # successivo», che qui e' l'azione principale — e resta l'unica.
+        b.setObjectName("accento")
+        b.setCursor(Qt.PointingHandCursor)
+        b.clicked.connect(apri_pagina)
+        R.addWidget(b)
+        R.addStretch(1)
+        return w
 
     # -- il banco ------------------------------------------------------------
 

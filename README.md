@@ -689,8 +689,8 @@ black. **Nobody has yet tried that fallback on GTA V itself.**
 
 ## How it is built, and why the numbers can be trusted
 
-There is no pytest: the suite is a runnable module, **2342
-checks** in 82 groups.
+There is no pytest: the suite is a runnable module, **2392
+checks** in 83 groups.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

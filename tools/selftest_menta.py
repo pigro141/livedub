@@ -558,6 +558,40 @@ def test_finestra_menta(c) -> None:
         c.eq(f.tessera_logo.accessibleDescription(), sereno,
              "e il personaggio torna sereno")
 
+        # -- i bottoni senza fondo della testata sono **tre**, e sono una fila --
+        # Il cuore delle donazioni si e' aggiunto al `?` e alla ⓘ, e la fila
+        # regge per una ragione sola: sono tutti e tre lo stesso oggetto
+        # (`#aiuto`, un cerchio da 28 px senza fondo, colore menta) con dentro
+        # un **glifo**. In `ui/tutorial.py` sta scritto da quando erano due che
+        # un terzo con dentro una parola la romperebbe: qui lo si misura, invece
+        # di ricordarselo. Un bottone con del testo dentro passerebbe
+        # `_traducibile`, e a schermo sarebbe una pillola larga in mezzo a due
+        # cerchi.
+        from PySide6.QtWidgets import QPushButton, QWidget
+
+        from ui import lingua as _lingua
+        from ui import qt_dono as QD
+
+        # **Solo quelli della testata.** `#aiuto` lo porta anche il `?` di ogni
+        # riga di parametro — sono 223 in tutta la finestra — e contarli tutti
+        # farebbe una verifica che non risponde alla domanda che si sta facendo.
+        testata = f.findChild(QWidget, "testata")
+        c.ok(testata is not None, "la testata si raggiunge per nome")
+        tondi = [b for b in testata.findChildren(QPushButton)
+                 if b.objectName() == "aiuto"]
+        c.eq(len(tondi), 3, "tre bottoni senza fondo: la guida, le informazioni, il cuore")
+        parlanti = sorted(b.text() for b in tondi if _lingua._traducibile(b.text()))
+        c.eq(parlanti, [],
+             "e dentro ognuno c'e' un glifo e non una parola: una parola li' "
+             "romperebbe la fila, ed e' anche l'unica cosa che il catalogo "
+             "tradurrebbe")
+        c.ok(QD.GLIFO in [b.text() for b in tondi],
+             "il cuore delle donazioni e' uno dei tre")
+        c.ok(all(b.isVisible() for b in tondi),
+             "e non se ne nasconde nessuno: la porta delle donazioni non dipende "
+             "da quanto hai usato il programma — quello che dipende dai contatori "
+             "e' il riquadro, che si apre una volta sola")
+
         # -- il tema cambia sotto i piedi, e il colore congelato va tradotto --
         # `rosso` e' `#ff6b5e` sullo scuro e `#cc372c` sul chiaro: e' il punto in
         # cui una condizione scritta su una stringa di colore vecchia smette di

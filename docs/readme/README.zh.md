@@ -594,7 +594,7 @@ CUDA 上是 213 毫秒，所以没有 CUDA 的机器绝不会被换到它上面�
 
 ## 它是怎么造的，以及为什么这些数字可信
 
-没有 pytest：测试套件是一个可以直接运行的模块，82 组里共 **2342 项检查**。
+没有 pytest：测试套件是一个可以直接运行的模块，83 组里共 **2392 项检查**。
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

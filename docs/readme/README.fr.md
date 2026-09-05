@@ -710,8 +710,8 @@ en silence. **Ce repli, personne ne l'a encore essayé sur GTA V lui-même.**
 
 ## Comment c'est fait, et pourquoi on peut croire les chiffres
 
-Il n'y a pas de pytest : la série est un module qu'on exécute, **2546
-vérifications** en 86 groupes.
+Il n'y a pas de pytest : la série est un module qu'on exécute, **2575
+vérifications** en 87 groupes.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

@@ -49,6 +49,15 @@ class CaptureConfig:
     # `wgc` non e' un vicolo cieco: se la libreria non c'e', si ripiega su
     # `finestra-gdi` **dicendolo** (`capture.screen.apri_finestra`).
     backend: str = "auto"  # auto | wgc | finestra-gdi | dxcam | mss
+    # **Quale schermo si cattura, e vale solo se non si e' scelta una finestra**.
+    # Con `wgc` o `finestra-gdi` la sorgente e' la finestra del gioco: questo
+    # numero non lo guarda nessuno.
+    #
+    # E l'indice non e' lo stesso per i due backend che catturano lo schermo:
+    # `mss` numera da 1 (lo 0 e' lo schermo virtuale che li unisce tutti),
+    # `dxcam` da 0. La traduzione si fa in un posto solo (`make_screen`), se no
+    # lo stesso numero qui vorrebbe dire due schermi diversi a seconda del
+    # backend — un errore che non da' errore, da' il monitor sbagliato.
     monitor: int = 1
     fps: float = 30.0  # ritmo del diff sulla ROI, non dell'OCR
     # **Prendere dallo schermo solo la fascia che si legge.** Di un fotogramma
@@ -88,11 +97,23 @@ class CaptureConfig:
 class VisionConfig:
     """Lettura dei sottotitoli.
 
-    `roi` e' normalizzata (x, y, w, h) sul frame, cosi' non dipende dalla
-    risoluzione. Le tre soglie di colore implementano la grammatica: satura =>
-    riga scartata, altrimenti bianco o grigio secondo la luminanza.
+    Le tre soglie di colore implementano la grammatica: satura => riga scartata,
+    altrimenti bianco o grigio secondo la luminanza.
     """
 
+    # **Dove sta il sottotitolo, in coordinate normalizzate (x, y, w, h)**.
+    # Normalizzata e non in pixel perche' deve sopravvivere a un cambio di
+    # risoluzione: lo stesso profilo di gioco vale a 1080p e a 1440p. Si tira col
+    # mouse nella scheda «Preparazione», e la conversione in pixel avviene in un
+    # posto solo (`vision.roi.roi_pixels`).
+    #
+    # **Un'area troppo alta non e' meno precisa: e' muta.** Il cancello che
+    # decide se rileggere lo schermo guarda la *frazione* di pixel cambiati, e
+    # quella frazione ha l'area al denominatore — lo stesso sottotitolo diluito
+    # in un'area grande non la supera piu'. Misurato a schermo intero, a
+    # telecamera ferma: quattordici fotogrammi guardati, quattordici fermati,
+    # zero chiamate all'OCR. Sopra 0,30 di altezza `vision.roi.troppo_grande` lo
+    # dichiara, sia mentre si tira il rettangolo sia all'avvio della catena.
     roi: tuple[float, float, float, float] = (0.15, 0.72, 0.70, 0.22)
     diff_threshold: float = 0.004  # frazione di pixel cambiati che sveglia l'OCR
     diff_stride: int = 4  # sottocampionamento del diff: costa 1/16 e basta
@@ -328,6 +349,15 @@ class VisionConfig:
     # Il corpo del glifo si misura su un percentile alto, non sulla mediana: il
     # testo e' antialiasato e bordato, e i pixel di bordo falserebbero la media.
     luma_percentile: int = 90
+    # **La saturazione di una riga e' un percentile alto, non il massimo vero**.
+    # Stessa ragione del percentile della luminanza, all'altro estremo: un solo
+    # pixel di scenario entrato nella banda basterebbe a dichiarare «satura» una
+    # riga tutta bianca.
+    #
+    # E' un numero da **leggere** (finisce in `OcrLine.sat`, che `tools/reads.py`
+    # scrive per battuta): a decidere se la riga e' dialogo sono `sat_max` con
+    # `sat_ink_max` e `min_color_word_frac`, non questo. Alzarlo o abbassarlo
+    # cambia quindi cosa si vede nella diagnosi, non cosa viene doppiato.
     sat_percentile: int = 98
     min_line_height: int = 8  # px: sotto e' rumore, non una riga
     min_line_fill: float = 0.01  # frazione minima di larghezza occupata da testo
@@ -355,19 +385,25 @@ class VisionConfig:
     # trenta. E' l'unico filtro del progetto che puo' scartare una battuta vera,
     # quindi si spegne da qui.
     use_lexicon: bool = True
+    # **Dove sta quell'elenco, ed e' un elenco di parole italiane**. Non e' un
+    # dettaglio di percorso: il lessico si accende solo se il gioco **scrive**
+    # in italiano (`translate.source`), perche' su un'altra lingua fa due danni
+    # e non li dichiara nessuno dei due. `scolla` spezza una parola sconosciuta
+    # in due parole *italiane* note — misurato sui sottotitoli spagnoli veri,
+    # `Cuidado.` -> `Cui dado.`, `Bueno` -> `Bue no`, `Quiere` -> `Qui ere`,
+    # `noche` -> `no che`, quattro riparazioni sbagliate in una riga sola e
+    # tutte pronunciabili — e il cancello `conta(text) == 0` butta le righe
+    # senza nessuna parola italiana, cioe' su un gioco spagnolo il dialogo.
     lexicon_dir: str = "models/lexicon"
     stable_reads: int = 2  # letture concordi prima di dare per buona una battuta
     # Quanto una battuta puo' non farsi leggere restando a schermo: **entrambe**
-    # le condizioni devono cadere prima di dichiararla chiusa.
+    # le condizioni — questa e `hold_seconds` — devono cadere prima di
+    # dichiararla chiusa.
     #
     # `hold_frames` conta le passate del tracker, e non e' un ripiego: una
     # passata avviene quando la scena cambia, e un sottotitolo che sparisce *e'*
     # un cambiamento — sostituire il conteggio col solo tempo e' stato provato e
     # peggiora (1105 aperture contro 1129 del migliore tempo puro).
-    # `hold_seconds` mette il pavimento che al conteggio manca nelle scene
-    # mosse, dove tre passate valgono un decimo di secondo. 0,6 s copre il
-    # novantesimo percentile delle raffiche di letture fallite misurate sui 27
-    # minuti (17 passate).
     #
     # Puo' essere generoso perche' la sparizione vera arriva dal diff
     # (`certain`), non dal silenzio dell'OCR: sbagliare per eccesso allunga una
@@ -379,6 +415,15 @@ class VisionConfig:
     # `continue_similarity`, ed e' il motivo per cui i due valori vanno tarati
     # insieme e non uno per volta.
     hold_frames: int = 3
+    # **Il pavimento in secondi, che al conteggio delle passate manca**. Nelle
+    # scene mosse tre passate valgono un decimo di secondo, e la battuta si
+    # chiuderebbe mentre e' ancora a schermo. 0,6 s copre il novantesimo
+    # percentile delle raffiche di letture fallite misurate sui 27 minuti (17
+    # passate).
+    #
+    # Non sostituisce `hold_frames`: si chiude solo quando **tutte e due** le
+    # tenute sono scadute, quindi alzare questo non allunga niente finche' e' il
+    # conteggio a cadere per primo.
     hold_seconds: float = 0.6
     # Quanto due letture possono differire restando "la stessa battuta". Si
     # confrontano le forme normalizzate (sole lettere e cifre), e il conto e' in
@@ -470,8 +515,27 @@ class AudioConfig:
     """Cattura dell'audio di gioco."""
 
     device: str = ""  # vuoto = device di loopback predefinito
+    # **Dichiarato, e dal vivo non lo legge nessuno**. La catena apre il
+    # loopback, l'anello e il mixer a 48000 con la costante `core.motore.SR`, e
+    # `DubPipeline` riceve la frequenza come argomento: cambiare questo campo
+    # non sposta un campione. Lo legge solo `tools/bench_speaker.py`.
+    #
+    # Sta scritto qui perche' un campo che sembra fare qualcosa e non la fa e'
+    # peggio di un campo che manca — e' la stessa forma di `mix.output_device`.
+    # Il numero vero e la sua ragione stanno accanto a `core.motore.SR`: 48 kHz
+    # e' quello che chiedono cattura e uscita, e cambiarlo vorrebbe dire
+    # ricampionare ovunque.
     samplerate: int = 48000
     blocksize: int = 480  # 10 ms
+    # **Quanto passato tiene l'anello, e non e' un tetto di memoria**: e' quanto
+    # indietro puo' guardare chi calcola l'impronta di chi parla. Il ritaglio si
+    # chiede per istante assoluto, e `RingBuffer.read_from` **tronca in
+    # silenzio** cio' che non c'e' piu': una finestra piu' corta dell'attesa non
+    # da' errore, da' un'impronta calcolata su meno parlato di quanto si crede —
+    # che e' il difetto gia' pagato una volta (150 ms creduti 700).
+    #
+    # Dieci secondi a 48000, mono, float32 sono 1,9 MB: il prezzo e' la memoria,
+    # e a questi valori non e' il prezzo che decide.
     ring_seconds: float = 10.0
     # **Estrazione mid/side per isolare il parlato che va all'impronta.** Sta
     # dalla parte della **cattura** e non dell'uscita: non ha niente a che fare
@@ -488,7 +552,20 @@ class VadConfig:
 
     backend: str = "energy"  # energy | silero (silero non ancora implementato)
     threshold: float = 0.5  # probabilita', per i backend a modello
+    # **Quanto suono continuo serve per chiamarlo parlato**, e cioe' per non
+    # chiamare parlato ogni colpo di clacson. Il tempo si spende *guardando
+    # indietro*: l'onset dichiarato e' quello del primo frame sopra soglia, non
+    # quello della conferma — un ancoraggio che si sposta di centocinquanta
+    # millisecondi a seconda di quanto ci si mette a confermarlo non e' un
+    # ancoraggio. Stessa regola del `t_on` dello stabilizzatore dei sottotitoli.
+    #
+    # Il meccanismo e' quello; il numero e' un **punto di partenza dichiarato**,
+    # non una misura — nessuna passata ne ha ancora confrontati due.
     min_speech_ms: int = 150
+    # E quanto silenzio continuo serve per dire che ha smesso. Sta piu' in alto
+    # del precedente perche' dentro una battuta ci sono le pause fra le parole e
+    # chiudere a ogni respiro spezzerebbe una presa di parola in tre, ma anche
+    # questo e' un **punto di partenza dichiarato**.
     min_silence_ms: int = 250
     frame_ms: int = 20  # risoluzione della decisione, e quindi dell'onset
     # Il parlato non si riconosce da quanto e' forte ma da quanto **stacca** dal
@@ -498,6 +575,15 @@ class VadConfig:
     # locale che trova i glifi.
     energy_margin_db: float = 9.0
     floor_window_ms: int = 3000  # su quanto passato si stima il fondo
+    # **Quale livello di quella finestra e' «il fondo»**. Non la mediana: la
+    # finestra si riempie mentre si tace, ma anche quando l'attivita' dura oltre
+    # `floor_hold_ms` — cioe' proprio quando la scena e' diventata rumorosa — e
+    # li' un percentile basso tiene il fondo dov'e' il silenzio invece di
+    # seguire il rumore che ce l'ha portato.
+    #
+    # Il primo quartile e' un **punto di partenza dichiarato**: piu' in basso si
+    # insegue il minimo, che e' rumoroso; piu' in alto si alza la soglia e si
+    # perde il parlato piano.
     floor_percentile: int = 25
     floor_db: float = -55.0  # sotto questo livello e' silenzio comunque
     # Il fondo si stima mentre si tace, altrimenti una battuta lunga si
@@ -685,6 +771,16 @@ class SpeakerConfig:
     # lo scambio che l'orecchio chiede: una battuta muta e' un'assenza, una
     # battuta con la voce di un altro e' un errore che si sente.
     name_min_score: float = 0.35
+    # **L'interruttore della fusione delle identita'**, cioe' della cura contro
+    # la frammentazione: due centroidi che si somigliano abbastanza diventano
+    # uno solo, e vince chi ha piu' battute — cosi' non cambia voce chi ha gia'
+    # parlato molto. Le due soglie che la governano sono `merge_maturo` e
+    # `merge_similarity`, qui sotto.
+    #
+    # Spegnerla non e' neutro: sulle tre passate della stessa scena le fusioni
+    # sono 2, 2 e 3, e senza restano 13, 13 e 11 identita' per tre personaggi
+    # veri invece di 11, 11 e 9. Una identita' in piu' e' una voce in piu' per
+    # la stessa persona.
     merge: bool = True
     # **Da quante battute un centroide e' una media invece che un campione.**
     # Sotto questo numero, confrontare due "centroidi" e' in realta' confrontare
@@ -766,20 +862,63 @@ class SpeakerConfig:
     # tratto di battibecchi, sedici identita' di cui dodici con una battuta
     # sola — piu' in alto non si riconosce meglio, si conta di piu'.
     max_speakers: int = 16
+    # **Dichiarato dal primo commit, e non lo legge nessuno.** Doveva accendere
+    # il vincolo che arriva dal video — due righe di luminanza diversa non
+    # possono finire nello stesso gruppo — e quella frase era la docstring della
+    # sezione in `810eeee` («F0: scheletro misurabile»); il codice che la
+    # applicasse non e' mai stato scritto, e la docstring e' stata riscritta
+    # sopra. Cambiarlo non sposta niente.
+    #
+    # Sta qui e non e' stato tolto perche' il vincolo e' vero — il colore della
+    # riga e' un'informazione che l'impronta non ha — ma finche' nessuno lo
+    # legge questa e' l'unica cosa onesta da scrivergli accanto.
     use_color_cue: bool = True
     use_alternation: bool = True  # isteresi conversazionale
 
 
 @dataclass
 class EmotionConfig:
-    """Tre segnali deboli fusi: modello audio, testo, livello dell'originale."""
+    """Quanto scaldare la voce.
+
+    **Di questa sezione non c'e' un solo campo che qualcuno legga**: si veda il
+    commento di `w_audio`, che vale per tutti e sette.
+    """
 
     backend: str = "emotion2vec"  # emotion2vec | level | none
+    # **Tre segnali deboli fusi — modello audio, testo, livello dell'originale —
+    # e nessuno dei tre e' mai stato collegato.** La sezione nasce nel primo
+    # commit (`810eeee`, «F0: scheletro misurabile»), che dichiarava di non
+    # doppiare ancora niente e di servire a rendere misurabile quello che
+    # sarebbe venuto dopo. L'emozione e' rimasta li': `core.types.Emotion`
+    # esiste e viaggia negli eventi, ma niente la calcola e **non lo legge
+    # nessuno**, questo campo come i cinque qui sotto. Cambiarli non sposta un
+    # campione.
+    #
+    # E' scritto qui perche' un campo che sembra fare qualcosa e non la fa e'
+    # peggio di un campo che manca — la stessa ragione per cui `mix.output_device`
+    # porta la sua riga. I numeri sono **punti di partenza dichiarati**: nessuna
+    # passata li ha mai confrontati, perche' non c'era niente da confrontare.
     w_audio: float = 0.5
+    # Quanto peserebbe il segnale preso dal **testo** della battuta. Come tutta
+    # la sezione, non lo legge nessuno: si veda `w_audio`.
     w_text: float = 0.2
+    # Quanto peserebbe il **livello dell'originale**, cioe' quanto forte parla
+    # il personaggio nel mix del gioco. Come tutta la sezione, non lo legge
+    # nessuno: si veda `w_audio`.
     w_level: float = 0.3
+    # Il tetto di quanto si potrebbe alzare il volume di una battuta scaldata.
+    # I tre tetti esistono perche' un'emozione stimata male non deve poter
+    # stravolgere la voce, ma non essendoci chi stima non c'e' chi limita: come
+    # tutta la sezione, non lo legge nessuno.
     max_gain_db: float = 4.0
+    # Il tetto della fretta chiesta all'emozione, in frazione. Da non confondere
+    # con `timing.rate_max`, che e' quello vero e morde davvero; questo, come
+    # tutta la sezione, non lo legge nessuno.
     max_rate_delta: float = 0.12
+    # Il tetto dello spostamento di intonazione dovuto all'emozione, in
+    # semitoni. I semitoni che si sentono oggi sono quelli con cui
+    # `tts.pool_size` fabbrica voci distinte e non passano di qui: anche questo,
+    # come tutta la sezione, non lo legge nessuno.
     max_semitones: float = 1.5
 
 
@@ -793,6 +932,17 @@ class TtsConfig:
     # restringere: la lista di Piper non ha senso per SuperTonic e viceversa.
     voices: tuple[str, ...] = ()
     pool_size: int = 6  # voci distinte ottenute variando pitch e velocita'
+    # **La frequenza di lavoro della voce, a cui ogni motore riporta la
+    # propria**. Nessuno dei tre esce a questa frequenza: Piper ha voci a 22050
+    # e a 16000, Kokoro un vocoder a 24000 fisso, e il ricampionamento in coda
+    # e' quello che permette al mixer di ricevere blocchi confrontabili.
+    #
+    # **Non e' un dettaglio, ed e' gia' costato una sessione**: il ramo in
+    # streaming quella riga non ce l'aveva, versava campioni a piu' del doppio
+    # della velocita' e il personaggio parlava da scoiattolo. Nessun contatore
+    # lo diceva e il WAV usciva; a smascherarlo e' stato il passo misurato del
+    # motore, **30 caratteri al secondo**, che non e' la velocita' di parlato di
+    # nessuno.
     samplerate: int = 22050
     # cpu | cuda | auto. **Lo legge solo Kokoro**, ed e' l'unico che ne ha
     # bisogno: Piper e SuperTonic girano su CPU per scelta, perche' cosi' non
@@ -984,12 +1134,19 @@ class RepeatConfig:
     battuta riletta e' comunque un'osservazione buona di *quanto* e' rimasta a
     schermo, e va conservata. Qui invece si decide solo se **pronunciarla**, e
     quella e' una domanda diversa.
-
-    Le battute soppresse si contano (`dub.repeated`): un cancello silenzioso che
-    per un difetto di soglia si mangiasse dialogo vero sarebbe peggio del
-    problema, e il contatore e' l'unica cosa che lo rende visibile.
     """
 
+    # **L'interruttore del cancello, e la sola manopola che spenga la cura.**
+    # Le battute soppresse si contano (`dub.repeated`): un cancello silenzioso
+    # che per un difetto di soglia si mangiasse dialogo vero sarebbe peggio del
+    # problema, e il contatore e' l'unica cosa che lo rende visibile — quindi si
+    # spegne questo campo **guardando quel numero**, non a sensazione.
+    #
+    # E quel contatore ha gia' detto una volta che il cancello non stava
+    # scattando affatto: con la traduzione accesa il confronto avveniva fra
+    # l'italiano appena letto e l'inglese gia' detto, cioe' fra `abbracciami` e
+    # `hug me`. Misurato sulla stessa scena, `dub.repeated` valeva **0** con due
+    # doppioni identici a schermo, e **6** dopo la cura.
     enabled: bool = True
     # Entro quanti secondi due letture quasi uguali sono la stessa battuta.
     # Sopra questo tempo si pronuncia: un personaggio che ripete davvero la
@@ -1045,23 +1202,44 @@ class RepeatConfig:
 
 @dataclass
 class TimingConfig:
-    """Aggancio al parlato originale.
+    """Aggancio al parlato originale."""
 
-    `predict_a` e `predict_b` sono i coefficienti di `D = a + b * n_caratteri`,
-    e si misurano con `tools/bench_timing.py --write profiles/<gioco>.json`.
-    I valori qui sotto sono **dichiarati, non misurati**: servono solo a far
-    partire una sessione su un gioco mai calibrato.
-    """
-
+    # **La parte fissa di `D = a + b * n_caratteri`**, cioe' di quanto resta a
+    # schermo un sottotitolo: da quella previsione esce il budget della battuta.
+    # Si misura con `tools/bench_timing.py --write profiles/<gioco>.json`, e il
+    # valore qui e' **dichiarato, non misurato** — serve solo a far partire una
+    # sessione su un gioco mai calibrato.
+    #
+    # La previsione e' debole per costruzione: la durata la decide il ritmo
+    # della conversazione, non la lunghezza del testo. Chi la usa deve essere
+    # pronto a essere smentito a meta' battuta, ed e' per questo che la
+    # correzione in volo con WSOLA e' la parte portante e non un ornamento.
     predict_a: float = 0.90
+    # E la parte che cresce col testo, in secondi per carattere. Attenzione
+    # all'unita': i caratteri sono quelli di `fuse.timing.spoken_length()`, che
+    # conta **solo lettere e cifre** — misurare `b` contandoli tutti e spenderlo
+    # qui e' l'errore che questo progetto ha gia' pagato su `chars_per_second`,
+    # un quarto di errore su ogni durata prevista senza che un solo numero fosse
+    # sbagliato. Anche questo e' **dichiarato, non misurato**.
     predict_b: float = 0.045
-    # Fascia di plausibilita' di una durata: fuori di qui non e' una battuta.
-    # Sotto, e' il frammento di una battuta riaperta a meta'; sopra, e' un
-    # sottotitolo rimasto a schermo perche' il gioco e' in pausa o in un filmato.
-    # Serve alla previsione (che non deve restituire assurdita') e
-    # all'apprendimento (che non deve impararle).
+    # **Il pavimento della fascia di plausibilita' di una durata**: sotto, non
+    # e' una battuta — e' il frammento di una battuta riaperta a meta'. Insieme
+    # a `max_duration` serve a due cose: la previsione non deve restituire
+    # assurdita', e l'apprendimento non deve impararle.
     min_duration: float = 0.6
+    # **Il soffitto della stessa fascia**: sopra, non e' una battuta — e' un
+    # sottotitolo rimasto a schermo perche' il gioco e' in pausa o in un
+    # filmato. `DurationModel.predict` ci taglia la previsione, e `observe`
+    # butta le osservazioni fuori fascia invece di impararle, contandole in
+    # `ignored`.
     max_duration: float = 8.0
+    # **Il pavimento della velocita', e in pratica non ci si arriva mai.** La
+    # catena accelera soltanto: rallentare per riempire il tempo disponibile
+    # farebbe parlare il doppiatore piu' lento del personaggio senza nessun
+    # guadagno, quindi `core/pipeline.py` parte da 1,0 e sale. Questo numero
+    # esiste come limite inferiore di sicurezza per quando la velocita' viene
+    # chiesta da qualcun altro, e `plan` chiude comunque con
+    # `min(rate_max, max(rate_min, voluto))`.
     rate_min: float = 0.85
     # Il tetto di **WSOLA**, misurato: con il puntatore di analisi corretto la
     # fine della battuta sopravvive fino a 1,25 (rapporto 55) e crolla da 1,30
@@ -1185,12 +1363,25 @@ class TimingConfig:
     # si sentiva "l'inizio e la fine, non tutta la frase". Il codice resta
     # perche' documenta il ragionamento e serve se qualcuno alza `search_ms`.
     keep_tail_seconds: float = 0.0
-    # Aggiornamento in linea dei coefficienti: `decay` e' quanto pesa il
-    # passato a ogni nuova battuta (0,97 ≈ una memoria di una trentina), e
-    # `max_drift` quanto la retta imparata puo' allontanarsi da quella del
-    # profilo — la guardia contro l'imparare bene una cosa sbagliata.
+    # Aggiornamento in linea dei coefficienti: quanto pesa il passato a ogni
+    # nuova battuta. 0,97 e' una memoria di una trentina, cioe' la retta segue
+    # la scena e non la sessione.
     learn_decay: float = 0.97
+    # **Da quante battute in poi la retta si riadatta.** Prima si accumulano
+    # soltanto le somme e si continua a usare i coefficienti del profilo: una
+    # retta ai minimi quadrati tirata su tre punti descrive il rumore invece
+    # della scena, e da li' in avanti la userebbero tutte le battute.
     learn_min_samples: int = 12
+    # **Quanto la retta imparata puo' allontanarsi da quella del profilo**: e'
+    # la guardia contro l'imparare bene una cosa sbagliata. Un filmato o una
+    # pausa portano qualche durata anomala, e senza freno la previsione ci
+    # andrebbe dietro.
+    #
+    # Attenzione, e' **un numero solo con due unita'** (`DurationModel._refit`):
+    # su `predict_a` vale assoluto, cioe' 0,35 secondi; su `predict_b` vale in
+    # proporzione, cioe' il 35%. Non e' una svista — `b` e' in secondi per
+    # carattere, e una fascia assoluta larga uguale per tutti e due sarebbe
+    # enorme per lei.
     learn_max_drift: float = 0.35
 
 
@@ -1292,8 +1483,33 @@ class MixConfig:
 
 @dataclass
 class UiConfig:
+    # **Dichiarato, scritto da `main.py --ui`, e non lo legge nessuno.** La
+    # finestra si apre perche' si e' lanciato `tools/ui_qt.py`, non perche'
+    # questo campo sia vero: metterlo a `true` da riga di comando non apre
+    # niente, e metterlo a `false` non chiude niente.
+    #
+    # Sta qui perche' un campo che sembra fare qualcosa e non la fa e' peggio di
+    # un campo che manca, come `mix.output_device`.
     enabled: bool = False
+    # **Anche questo e' dichiarato e non lo legge nessuno.** La cartella delle
+    # sessioni e' `runs/` scritta nel codice: cambiare questa stringa non sposta
+    # un file. Chi cerca la cartella vera la apre dal registro della finestra,
+    # che ne stampa il percorso all'avvio di ogni sessione.
     log_dir: str = "runs"
+    # **Registrare l'audio della sessione**, cioe' il WAV che poi si riapre con
+    # `tools/reopen`. Costa: misurato, ~11 MB al minuto su disco (int16) e ~22 MB
+    # al minuto in RAM (float32), con il tetto di mezz'ora che fa 330 MB di file
+    # e 660 MB di memoria. E' l'unico campo di questa sezione che qualcuno
+    # legga davvero (`core/motore.py`), e per un po' non lo era nemmeno lui.
+    #
+    # **Spegnendolo si perdeva anche l'orologio, ed e' la ragione per cui questa
+    # riga esiste.** Il ritorno anticipato stava **prima** della riga che prende
+    # l'origine del tempo, quindi `t0` restava `None` e ogni `t_wav` di
+    # `events.jsonl` usciva nullo: `tools/reopen runs\<data> <secondo>` filtra su
+    # quel campo e non trovava piu' niente. Cioe' spegnere la registrazione
+    # spegneva il metodo di lavoro di tutto il progetto — «vai al secondo in cui
+    # l'ho sentito» — e nessun numero lo diceva. Spegnere la registrazione deve
+    # togliere la lista dei blocchi, non l'orologio.
     save_mix: bool = True
     # **La lingua della finestra, che non e' la lingua del doppiaggio.**
     # `translate.source` e `translate.target` decidono cosa viene *detto*;
@@ -1362,13 +1578,30 @@ class LabelConfig:
     # Se vero, senza `names` non si etichetta nulla. Per chi preferisce non
     # correre alcun rischio di falso positivo.
     require_names: bool = False
+    # **Quanto puo' essere lungo un nome, ed e' una guardia e non un limite di
+    # comodo.** Entra due volte: costruisce la regex (`FORME[form] % {"max": …}`,
+    # quindi restringe gia' cosa puo' fare match) e riscarta il nome dopo. Serve
+    # al caso in cui il gioco scrive due punti in mezzo a una battuta — senza
+    # tetto, mezza riga di dialogo diventerebbe un personaggio nuovo con una voce
+    # del pool bruciata addosso.
+    #
+    # Ventiquattro caratteri sono un **punto di partenza dichiarato**: tengono i
+    # nomi lunghi di GTA V (`Lamar Davis`) e non una frase. La guardia forte
+    # resta `names`, l'elenco dichiarato.
     max_name_len: int = 24
     # Un colore per personaggio: `{"Franklin": "#5ac8fa"}`. Si confronta col
-    # colore medio dell'inchiostro della riga. Sopra `color_tolerance` (distanza
-    # euclidea in RGB 0-255) non si decide — senza soglia il piu' vicino c'e'
-    # sempre, e un sottotitolo bianco finirebbe al personaggio meno lontano dal
-    # bianco.
+    # colore medio dell'inchiostro della riga.
     colors: dict = field(default_factory=dict)
+    # **Quanto lontano puo' stare il colore letto da quello dichiarato**, in
+    # distanza euclidea RGB 0-255. Sopra, non si decide — e la soglia e' tutto
+    # il meccanismo: senza, il piu' vicino c'e' **sempre**, e un sottotitolo
+    # bianco finirebbe al personaggio meno lontano dal bianco. Dire «non lo so»
+    # qui costa mezzo secondo di attesa in piu'; dire il nome sbagliato costa una
+    # voce sbagliata per tutta la battuta.
+    #
+    # 60 su 441 (la diagonale del cubo RGB) e' un **punto di partenza
+    # dichiarato**: nessuna misura, perche' GTA V i colori dei personaggi non li
+    # scrive e questa sezione non e' mai stata provata su materiale vero.
     color_tolerance: float = 60.0
 
     # **Chi ha quale voce, deciso da te.** `{"Franklin": "riccardo"}`. Vince su
@@ -1414,12 +1647,33 @@ class CorrectConfig:
     # Sotto questa fiducia non si corregge. Alta di proposito: la domanda non e'
     # "e' probabile che sia questa" ma "sono disposto a farlo dire alla voce".
     min_confidence: float = 0.90
+    # **Quanto puo' essere lontana la parola corretta da quella letta**, in
+    # distanza di edit. E' la guardia che tiene la correzione dentro il
+    # territorio degli **artefatti dell'OCR**: `rapinato -> rovinato` e' distanza
+    # 2 e resta possibile, ma oltre non si sta piu' correggendo una lettura, si
+    # sta riscrivendo una parola.
+    #
+    # Il limite vero e' il piu' stretto dei due, e il secondo dipende dalla
+    # parola: `min(max_distance, max(1, len(parola) // 3))`. Su una di otto
+    # lettere restano 2, su una di quattro scende a 1 — perche' li' due
+    # sostituzioni sono meta' parola, i candidati diventano tanti e la scelta
+    # un sorteggio.
     max_distance: int = 2
     # Quante battute precedenti si danno al correttore. E' l'idea che rende
     # questo tentativo diverso da quello bocciato: senza contesto `farto` e'
     # vicino a `fatto`, `parto` e `tarto` e si sceglie a caso fra le vere.
     context_lines: int = 10
+    # Il modello del backend `llm`, e **vuoto e' il valore giusto**: cosi' si
+    # prende lo stesso Gemma che traduce, tramite `MotoreLlm.condiviso`. Un
+    # gigabyte in RAM e un'attesa di caricamento valgono per tutti e due i
+    # lavori, non uno ciascuno; scriverci un altro percorso vuol dire pagarli
+    # due volte.
     llm_model: str = ""
+    # **Dichiarato, e non lo legge nessuno.** `make_correttore` costruisce
+    # `CorrettoreLlm` con il modello e il tetto di tempo, e basta: il dispositivo
+    # lo decide la libreria. Non e' `tts.device`, che invece adesso qualcuno lo
+    # legge — questo no, ed e' scritto qui perche' un campo che sembra fare
+    # qualcosa e non la fa e' peggio di un campo che manca.
     llm_device: str = "cpu"
     # Oltre questo tempo si rinuncia e si lascia il testo com'e'. La correzione
     # sta sul thread video, dove il costo **si amplifica invece di sommarsi**.
@@ -1493,6 +1747,15 @@ class TranslateConfig:
     backend: str = "locale"  # locale | llm | ollama | google | nessuno
     llm_model: str = ""  # vuoto = `models/llm/gemma-3-1b-it-Q4_K_M.gguf`
     ollama_model: str = "translategemma:4b"  # 4b | 12b | 27b, o un altro modello
+    # **Dove risponde `ollama serve`**, che gira **fuori da questo venv**: e' la
+    # ragione per cui quel backend esiste (nessun modello dentro il nostro
+    # ambiente, nessun conflitto con `onnxruntime-gpu`) ed e' anche il suo
+    # prezzo — se quel processo non e' acceso non c'e' errore all'avvio, c'e' una
+    # battuta che resta in italiano ogni volta.
+    #
+    # Lo usa anche il correttore dell'OCR, che con `correct.ollama_host` vuoto
+    # ripiega su questo: un indirizzo scritto in due posti e' la forma
+    # «aggiornato una volta sola» che qui e' gia' costata piu' volte.
     ollama_host: str = "http://127.0.0.1:11434"
     # **Chiedere al modello di non ammorbidire le parolacce.** Su questo materiale
     # non e' una questione di gusto: un modello che riscrive «Get the fuck out of
@@ -1588,6 +1851,15 @@ class TranslateConfig:
     # questa chiamata sta: oltre, meglio la battuta in italiano che il lettore
     # di sottotitoli fermo.
     net_timeout_ms: float = 2000.0
+    # **Dichiarato, passato a `TraduttoreLocale` e non lo legge nessuno.** Doveva
+    # servire a pinzare un modello Argos preciso; il codice invece ricava sempre
+    # la coppia da `source` e `target` (`translate.locale.coppia`), e se il
+    # diretto non esiste passa dal perno inglese scaricando la sola gamba che
+    # manca. Scriverci qualcosa non cambia il modello che verra' usato.
+    #
+    # E' la stessa forma degli altri campi dichiarati e mai letti di questo
+    # albero: si scrive invece di toglierlo, perche' un campo che sembra fare
+    # qualcosa e non la fa e' peggio di un campo che manca.
     local_model: str = ""
 
     # -- come si vede a schermo -------------------------------------------
@@ -1753,6 +2025,14 @@ class TranslateConfig:
 
 @dataclass
 class Config:
+    # **Da quale `profiles/<nome>.json` arrivano i valori calibrati**. ROI,
+    # soglie di colore e coefficienti di durata non sono del gioco: sono del
+    # **setup di cattura** — risoluzione, finestra, scala — quindi si ricavano
+    # con `tools/calibrate.py` e si scrivono li', non qui.
+    #
+    # Chi vince su chi e' dichiarato in `core.preferenze.riprendi`: `--profile`
+    # batte l'ultima configurazione usata, `--set` batte tutti e due. Un profilo
+    # illeggibile fa ripartire dai default **dicendolo**.
     profile: str = "gtav"
     capture: CaptureConfig = field(default_factory=CaptureConfig)
     vision: VisionConfig = field(default_factory=VisionConfig)

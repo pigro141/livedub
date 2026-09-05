@@ -721,8 +721,8 @@ ausprobiert.**
 
 ## Wie es gebaut ist, und warum man den Zahlen trauen kann
 
-Es gibt kein pytest: die Testreihe ist ein ausführbares Modul, **2546 Prüfungen**
-in 86 Gruppen.
+Es gibt kein pytest: die Testreihe ist ein ausführbares Modul, **2575 Prüfungen**
+in 87 Gruppen.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

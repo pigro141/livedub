@@ -353,3 +353,134 @@ def test_limiti(c) -> None:
             if k.tipo in ("int", "float") and fuori_scala(k.percorso, k.valore)
         ]
         c.eq(rotti, [], f"il profilo {profilo.name} sta dentro i limiti")
+
+
+def test_spiegazioni(c) -> None:
+    """Ogni manopola deve dire cosa fa, e le deroghe sono un elenco chiuso.
+
+    **Un campo senza spiegazione non da' errore**: nel pannello restano il nome
+    e un cursore, e chi lo muove decide al buio. Erano trentasette su
+    centosettanta, e nessuna verifica poteva accorgersene perche' il cricchetto
+    di prima (`SENZA_AIUTO_MAX = 50`) teneva come tetto un numero piu' alto di
+    quanti ne mancavano davvero — cioe' era verde per costruzione.
+
+    Il criterio con cui si decide chi puo' restare senza frase sta scritto in
+    `core/schema.py`, sopra `SENZA_FRASE`, e **non qui**: e' una regola del
+    progetto, non un dettaglio della suite.
+
+    Ma l'elenco delle deroghe e' scritto **due volte apposta**, li' e qui. Se la
+    verifica leggesse solo `SENZA_FRASE` non potrebbe fallire: chi aggiunge un
+    campo senza spiegazione lo infilerebbe fra le deroghe e la suite resterebbe
+    verde. E' la stessa scelta di `_tutti_i_percorsi` qui sopra, che ripercorre
+    l'albero a mano invece di chiamare `campi()`.
+    """
+    from core.schema import SENZA_FRASE, _dice_qualcosa, senza_spiegazione
+
+    c.group("spiegazioni")
+
+    cfg = Config()
+    elenco = campi(cfg)
+
+    # -- la porta: ogni campo esposto ha la sua frase -------------------------
+    # Il pannello mostra **tutto** l'albero (`ui.qt_pannello` percorre `campi()`
+    # senza filtri), quindi "esposto" qui vuol dire "tutti".
+    c.eq(senza_spiegazione(cfg), [], "ogni campo del pannello dice cosa fa")
+    c.ok(len(elenco) >= 170, f"e i campi sono tutti li' ({len(elenco)})")
+
+    # -- e le deroghe non possono crescere da sole ----------------------------
+    # L'elenco e' ripetuto a mano: allungarlo in `core/schema.py` non basta a
+    # far tacere questa riga, e chi lo allunga deve dichiararlo anche qui.
+    DEROGHE: tuple[str, ...] = ()
+    c.eq(
+        sorted(SENZA_FRASE), sorted(DEROGHE),
+        "l'elenco delle deroghe e' quello dichiarato, e non e' cresciuto da solo",
+    )
+    c.ok(len(SENZA_FRASE) <= 4, f"e resta corto ({len(SENZA_FRASE)} deroghe)")
+    noti = {k.percorso for k in elenco}
+    c.eq(
+        [p for p in SENZA_FRASE if p not in noti], [],
+        "ogni deroga nomina un campo che esiste davvero",
+    )
+    # Il cricchetto vecchio non si puo' rialzare: era 50 con 37 campi muti, cioe'
+    # verde qualunque cosa succedesse.
+    c.eq(SENZA_AIUTO_MAX, len(SENZA_FRASE),
+         "il tetto dei campi senza aiuto e' chiuso sulle deroghe")
+
+    # -- una frase deve dire qualcosa -----------------------------------------
+    # Il pavimento e' due parole, ed e' misurato e non scelto: e' quanto ha il
+    # commento piu' corto gia' scritto in config (`audio.blocksize`, «10 ms»).
+    # Senza, `# x` basterebbe a far tacere la verifica.
+    c.ok(not _dice_qualcosa(""), "un commento vuoto non e' una frase")
+    c.ok(not _dice_qualcosa("#"), "ne' un carattere solo")
+    c.ok(not _dice_qualcosa("boh"), "ne' una parola sola")
+    c.ok(_dice_qualcosa("10 ms"), "ma il commento piu' corto gia' in config passa")
+
+    # -- la frase e' quella del sorgente, non una riscritta a mano ------------
+    # Le stesse tre forme che `test_schema` gia' pretende per i campi che una
+    # spiegazione ce l'avevano: qui si chiede ai campi appena riempiti, perche'
+    # e' su di loro che la tentazione di inventare era piu' forte.
+    per_nome = {k.percorso: k for k in elenco}
+
+    # **Il testo si normalizza prima di cercarci dentro.** `Campo.aiuto` tiene i
+    # capoversi del sorgente, quindi «novantesimo percentile» puo' essere spezzato
+    # da un a capo: cercarlo cosi' com'e' fallirebbe per l'andare a capo di un
+    # commento, che e' un modo di diventare rossi senza motivo.
+    def testo(percorso: str) -> str:
+        return " ".join(per_nome[percorso].aiuto.split())
+
+    c.ok(
+        "novantesimo percentile" in testo("vision.hold_seconds"),
+        "il pavimento della tenuta porta con se' la misura che l'ha deciso",
+    )
+    c.ok(
+        "Cuidado" in testo("vision.lexicon_dir"),
+        "e il lessico il caso spagnolo che dice perche' e' legato alla lingua",
+    )
+    c.ok(
+        "30 caratteri al secondo" in testo("tts.samplerate"),
+        "e la frequenza di lavoro il numero impossibile che scopri' il ramo rotto",
+    )
+    c.ok(
+        "t_wav" in testo("ui.save_mix"),
+        "e la registrazione dice cosa si spegne insieme a lei",
+    )
+
+    # -- i campi che non legge nessuno lo dicono, e con le stesse parole -------
+    # **E' la cosa piu' utile che quel pannello possa dirne.** Nove volte in
+    # questo progetto un campo dichiarato e mai letto ha fatto girare una
+    # manopola a vuoto — `max_ocr_hz`, `tts.device`, `background_mode`,
+    # `overlay.ritardo`, il `region` di `make_screen`, `profiles/ultima.json`,
+    # la `row_band` della calibrazione, `mix.output_device` e i sei di `mix.` —
+    # e ogni volta la scoperta e' costata una sessione. Questi dodici lo
+    # dichiarano prima che qualcuno li giri.
+    #
+    # La frase e' **una sola e sempre la stessa** apposta: chi la cerca nel
+    # pannello o con un grep la trova tutta, e un sinonimo scritto per varieta'
+    # nasconderebbe proprio il campo che si sta cercando. (`mix.output_device`
+    # resta fuori: dice la stessa cosa con parole sue da prima di questa regola,
+    # e riscrivergli il commento per far quadrare una verifica sarebbe il modo
+    # sbagliato di farla quadrare.)
+    FRASE = "non lo legge nessuno"
+    FINTI = (
+        "audio.samplerate", "ui.enabled", "ui.log_dir", "speaker.use_color_cue",
+        "correct.llm_device", "translate.local_model",
+        "emotion.w_audio", "emotion.w_text", "emotion.w_level",
+        "emotion.max_gain_db", "emotion.max_rate_delta", "emotion.max_semitones",
+    )
+    for percorso in FINTI:
+        c.ok(FRASE in testo(percorso), f"{percorso} dichiara che {FRASE}")
+    # E la stessa frase non deve comparire dove non e' vera: un campo caldo che
+    # si dichiarasse finto manderebbe a cercare altrove un difetto che e' li'.
+    detta = {k.percorso for k in elenco if FRASE in " ".join(k.aiuto.split())}
+    c.eq(sorted(detta), sorted(FINTI), "e la dice solo chi ha diritto di dirla")
+
+    # -- e nessuna frase nuova ha inventato un menu a tendina -----------------
+    # `_scelte` legge la prima e l'ultima riga del commento cercando `a | b | c`:
+    # una frase che ci finisse dentro darebbe al campo un menu al posto della
+    # sua manopola, senza errore. Il valore vero fa da guardia, ma la guardia si
+    # verifica.
+    fuori_menu = [
+        k.percorso for k in elenco if k.scelte and str(k.valore) not in k.scelte
+    ]
+    c.eq(fuori_menu, [], "nessun campo ha un menu che perderebbe il proprio valore")
+    c.eq(per_nome["vision.roi"].scelte, (), "e l'area resta una quaterna, non un elenco")

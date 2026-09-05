@@ -3685,7 +3685,12 @@ from tools.selftest_menta import (  # noqa: E402
     test_menta,
     test_regole_finestra,
 )
-from tools.selftest_schema import test_limiti, test_livelli, test_schema  # noqa: E402
+from tools.selftest_schema import (  # noqa: E402
+    test_limiti,
+    test_livelli,
+    test_schema,
+    test_spiegazioni,
+)
 from tools.selftest_aree import (  # noqa: E402
     test_memoria,
     test_sessione,
@@ -7817,6 +7822,11 @@ GROUPS = {
     "rilascio": test_rilascio,
     "livelli": test_livelli,
     "limiti": test_limiti,
+    # **Ogni manopola dice cosa fa, e le deroghe sono un elenco chiuso.** Sta
+    # accanto a `schema` perche' e' l'altra meta' della stessa domanda: quello
+    # verifica che il pannello copra tutto l'albero, questo che di ogni campo
+    # coperto si sappia cosa succede a girarlo.
+    "spiegazioni": test_spiegazioni,
     "memoria": test_memoria,
     "sessione_mix": test_sessione,
     "due_sessioni": test_due_sessioni,

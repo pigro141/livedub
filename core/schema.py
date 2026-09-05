@@ -408,11 +408,65 @@ TITOLI: dict[str, str] = {
     "ui": "Sessione — cosa si tiene di una passata",
 }
 
-# **Quanti campi non hanno ancora una spiegazione scritta.** E' un numero da far
-# scendere, mai salire: la verifica lo tiene come tetto, quindi un campo nuovo
-# senza commento rende la suite rossa e chi lo aggiunge deve dire cosa fa. Non e'
-# un difetto da correggere in blocco, e' un cricchetto.
-SENZA_AIUTO_MAX = 50
+# ------------------------------------------------- ogni campo dice cosa fa --
+#
+# **Il pannello mostra nome, percorso e una riga che dice cosa fa.** Dove quella
+# riga manca restano il nome e un cursore, e chi usa il programma decide al buio
+# — senza nessun errore, che e' la forma peggiore. Per trentasette campi su
+# centosettanta era cosi'.
+#
+# **Il criterio, dichiarato una volta sola perche' non si decida campo per
+# campo**: la frase si scrive quando dice qualcosa che il nome e la manopola non
+# dicono gia' — una misura, un accoppiamento con un altro campo, un prezzo, o il
+# fatto che il campo **non lo legga nessuno**. Non si scrive quando l'unica frase
+# possibile sarebbe la parafrasi dell'etichetta: li' non aggiunge informazione e
+# toglie attenzione a quelle che ne portano. Centosettanta frasi di cui trenta
+# vuote peggiorano le centoquaranta che servono.
+#
+# Applicato ai trentasette che erano muti, l'elenco delle deroghe e' **vuoto**.
+# Nessuno cadeva nel secondo caso, e **tredici cadevano nel quarto**:
+# `audio.samplerate`, `ui.enabled`, `ui.log_dir`, `speaker.use_color_cue`,
+# `correct.llm_device`, `translate.local_model` e i sei pesi e tetti di
+# `emotion.` non li legge nessuna riga di codice. Che un campo sia finto e' la
+# cosa piu' utile che quel pannello possa dirne, non un motivo per tacere — e'
+# la stessa scelta gia' fatta per `mix.output_device`.
+#
+# Una deroga qui dentro va scritta col percorso esatto e il perche' accanto. La
+# verifica `spiegazioni` di `tools/selftest_schema.py` porta lo **stesso elenco
+# scritto a mano**: allungarlo qui non basta a far tacere la suite, e quello e'
+# il punto — un elenco di deroghe che cresce da solo non e' un elenco, e' un
+# ripiego silenzioso.
+SENZA_FRASE: tuple[str, ...] = ()
+
+# Il cricchetto di prima, ora chiuso. Valeva 50 e serviva a far **scendere** il
+# numero senza pretendere di azzerarlo in blocco; adesso il numero e' sceso, e un
+# tetto che si puo' rialzare terrebbe la porta socchiusa.
+SENZA_AIUTO_MAX = len(SENZA_FRASE)
+
+
+def _dice_qualcosa(aiuto: str) -> bool:
+    """Se quel commento e' una frase e non un modo di far tacere la verifica.
+
+    Due parole e' il pavimento, e non e' inventato: e' quanto ha il commento piu'
+    corto gia' scritto in `core/config.py` (`audio.blocksize`, «10 ms»). Un
+    numero piu' alto dichiarerebbe rotto qualcosa che funziona, che e' il difetto
+    contro cui questo file esiste.
+    """
+    return len(re.findall(r"[^\W_]+", aiuto or "", re.UNICODE)) >= 2
+
+
+def senza_spiegazione(cfg: Any) -> list[str]:
+    """I campi esposti che non hanno una frase, tolte le deroghe dichiarate.
+
+    Torna **quali** e non quanti: una verifica che dica «ne manca uno» manda a
+    cercarlo a mano fra centosettanta campi, ed e' il modo in cui una regola
+    smette di essere usata.
+    """
+    return [
+        c.percorso
+        for c in campi(cfg)
+        if c.percorso not in SENZA_FRASE and not _dice_qualcosa(c.aiuto)
+    ]
 
 
 # ---------------------------------------------------------------- i livelli --

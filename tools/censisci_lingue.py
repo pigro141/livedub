@@ -6,7 +6,7 @@ succede davvero.
     python -m tools.censisci_lingue --fonemi        # fonemizza e conta cosa viene buttato
     python -m tools.censisci_lingue --sintesi       # sintetizza e misura car/s e picco
 
-Il programma dichiara 53 lingue parlate, 133 tradotte e 3 motori. Ogni
+Il programma dichiara 52 lingue parlate, 133 tradotte e 3 motori. Ogni
 combinazione che si puo' scegliere dalla finestra e' una promessa, e il difetto
 tipico di questo repo non e' un errore: e' una combinazione che **funziona a
 meta' e non lo dice**.

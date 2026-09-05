@@ -696,7 +696,7 @@ black. **Nobody has yet tried that fallback on GTA V itself.**
 
 ## How it is built, and why the numbers can be trusted
 
-There is no pytest: the suite is a runnable module, **2577
+There is no pytest: the suite is a runnable module, **2576
 checks** in 87 groups.
 
 ```powershell

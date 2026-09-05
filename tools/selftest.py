@@ -7159,8 +7159,17 @@ def test_rilascio(c) -> None:
                     modulo = nodo.names[0].name
                 if modulo in fuori:
                     sconfini.append(f"{nome}:{nodo.lineno} importa {modulo}")
-        c.ok(len(fuori) >= 5,
-             f"il laboratorio resta fuori dal repo ({len(fuori)} moduli)")
+        # **Quanti siano i moduli fuori dal repo non si puo' chiedere**, ed e'
+        # la lezione che questa riga ha imparato sul runner. Qui sul disco ce
+        # ne sono nove, e una riga che pretendeva di trovarne almeno cinque
+        # sembrava ragionevole; su un clone pulito ce ne sono **zero**, perche'
+        # non sono mai stati scaricati — cioe' la guardia diventava rossa
+        # esattamente dove il confine e' perfetto. Era una misura di *questa
+        # macchina* spacciata per una proprieta' del codice.
+        #
+        # Resta la sola domanda che si puo' fare in tutti e due i posti: che
+        # nessun file pubblicato importi qualcosa che nel repo non c'e'. Dove
+        # `fuori` e' vuoto la risposta e' vuota anche lei, ed e' quella giusta.
         c.eq(sconfini, [],
              "e nessun file pubblicato lo importa: su un clone pulito sarebbe "
              "un ModuleNotFoundError che questa suite non puo' vedere")

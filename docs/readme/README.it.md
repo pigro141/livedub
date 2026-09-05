@@ -698,7 +698,7 @@ non l'ha ancora provato nessuno proprio su GTA V.**
 
 ## Com'è fatto, e perché ai numeri si può credere
 
-Non c'è pytest: la suite è un modulo che si esegue, **2577 verifiche** in 87
+Non c'è pytest: la suite è un modulo che si esegue, **2576 verifiche** in 87
 gruppi.
 
 ```powershell

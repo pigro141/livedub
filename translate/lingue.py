@@ -394,7 +394,7 @@ def nota_per(backend: str, codice: str) -> str:
     return AUTO_DIVENTA + (f" {resto}" if resto else "")
 
 
-def copertura(backend: str) -> Copertura:
+def copertura(backend: str, sorgente: str = "", arrivo: str = "") -> Copertura:
     """Cosa dichiara di saper fare il backend scelto.
 
     **`auto` e' la parte certa e vale per tre backend su quattro.** Solo Google
@@ -402,6 +402,19 @@ def copertura(backend: str) -> Copertura:
     `translate/locale.py::coppia()` trasforma `auto` in `en` — cioe' chi lascia
     `auto` con un backend offline traduce **dall'inglese**, qualunque cosa ci sia
     scritto a schermo. E' scritto nel codice da sempre; qui si vede.
+
+    ## I due parametri in piu', e perche' sono due e non uno
+
+    Per Argos «quali lingue fa» non e' una domanda: la risposta e' una coppia.
+    Chi sceglie l'**arrivo** ha gia' fissato la partenza (`sorgente`), chi
+    sceglie la **partenza** ha gia' fissato l'arrivo (`arrivo`) — e i due insiemi
+    non si deducono l'uno dall'altro, perche' l'indice potrebbe pubblicare
+    `x->en` senza `en->x`. Un parametro solo avrebbe risposto alla domanda
+    sbagliata per una delle due caselle, che e' esattamente il modo in cui un
+    avviso comincia a mentire senza smettere di comparire.
+
+    Tutti e due vuoti vuol dire «partendo dall'inglese», che e' cio' che
+    `coppia()` fa di `auto` — cioe' il caso di serie, non un'invenzione.
     """
     nome = (backend or "").strip().lower()
     if nome in ("nessuno", "none", ""):
@@ -412,7 +425,20 @@ def copertura(backend: str) -> Copertura:
         # l'endpoint risponde con il testo non tradotto e nessuno lo direbbe.
         return Copertura(codici=TUTTE, auto=True, nota="")
     if nome in ("locale", "local", "argos"):
-        return Copertura(codici=None, auto=False, nota=_NOTE["locale"] + _SENZA_AUTO)
+        # **Anche questo e' un elenco chiuso, e prima era `None`.** L'indice dei
+        # pacchetti dice quali coppie esistono e `catena()` sa passare
+        # dall'inglese: da li' le lingue raggiungibili sono 45 su 133, e le altre
+        # 88 non si traducono. Dichiarare «non lo so» dove si sa e' la stessa
+        # rinuncia del ripiego silenzioso, girata dalla parte del menu.
+        from translate.argos_lingue import partenze_per, raggiungibili
+
+        arr = normalizza(arrivo)
+        if arr and arr != AUTO:
+            codici = partenze_per(arr)
+        else:
+            codici = raggiungibili(normalizza(sorgente))
+        return Copertura(codici=codici, auto=False,
+                         nota=_NOTE["locale"] + _SENZA_AUTO)
     if nome == "prova":
         # Il traduttore finto del banco rimanda il testo in maiuscolo: la lingua
         # non la guarda nemmeno, e dirlo evita di leggere una prova come una misura.

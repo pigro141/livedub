@@ -154,6 +154,35 @@ def coppia(da: str, a: str) -> tuple[str, str]:
     return ("en" if da == "auto" else da, (a or "it").strip())
 
 
+def catena(da: str, a: str, ha) -> list[tuple[str, str]] | None:
+    """I passaggi che servono per andare da `da` ad `a`, dato `ha(x, y)`.
+
+    **Argos non pubblica quasi nessuna coppia che non tocchi l'inglese.**
+    L'indice ha `it->en` e `en->es`, non ha `it->es` — e cercando solo il
+    diretto si concludeva «nessun modello it->es fra quelli pubblicati» per una
+    coppia che si traduce benissimo. Argos il perno lo sa gia' fare da solo
+    (`CompositeTranslation` in `translate.py`), ma **solo se le due gambe sono
+    installate**: la parte che mancava non era la traduzione, era lo scarico.
+
+    Funzione **pura** — `ha` e' «questa coppia c'e'?» — cosi' la si prova senza
+    rete e senza modelli, e la stessa regola vale per cio' che e' installato e
+    per cio' che e' pubblicato. Due regole diverse per la stessa domanda sono il
+    modo in cui si scarica un modello e se ne usa un altro.
+
+    Torna `[]` se non c'e' niente da fare, `None` se non c'e' nessuna via.
+    """
+    if da == a:
+        return []
+    if ha(da, a):
+        return [(da, a)]
+    # Il perno e' l'inglese e non una ricerca sul grafo: con l'indice vero ogni
+    # coppia utile passa di li', e un cammino piu' lungo vorrebbe dire tre
+    # traduzioni in fila su una battuta che ne ha 500 ms.
+    if da != "en" and a != "en" and ha(da, "en") and ha("en", a):
+        return [(da, "en"), ("en", a)]
+    return None
+
+
 class TraduttoreLocale:
     """Argos Translate: modelli offline, CPU, nessuna rete."""
 
@@ -190,21 +219,31 @@ class TraduttoreLocale:
             import argostranslate.package as ap
         except ImportError:
             return False
-        if any(p.from_code == da and p.to_code == a for p in ap.get_installed_packages()):
+        installati = {(p.from_code, p.to_code) for p in ap.get_installed_packages()}
+        if catena(da, a, lambda x, y: (x, y) in installati) is not None:
             return self._spezza_frasi(da)
         # 98 MB misurati per it->en: si dice, perche' un'attesa dichiarata e'
-        # un'attesa e un'attesa muta e' un blocco.
-        self.dillo(f"traduzione: scarico il modello {da}->{a} (una volta sola, "
-                   f"~100 MB) — resta in locale, non esce niente dal PC.")
+        # un'attesa e un'attesa muta e' un blocco. Col perno sono due modelli,
+        # e il conto lo si dice come viene invece di scrivere «~100» sempre.
+        self.dillo(f"traduzione: cerco il modello {da}->{a} "
+                   "— resta in locale, non esce niente dal PC.")
         try:
             ap.update_package_index()
-            scelto = next(
-                (p for p in ap.get_available_packages()
-                 if p.from_code == da and p.to_code == a), None)
-            if scelto is None:
-                self.dillo(f"! nessun modello {da}->{a} fra quelli pubblicati")
+            pubblicati = {(p.from_code, p.to_code): p for p in ap.get_available_packages()}
+            passi = catena(da, a, lambda x, y: (x, y) in pubblicati)
+            if passi is None:
+                self.dillo(f"! nessun modello {da}->{a} fra quelli pubblicati, "
+                           f"nemmeno passando dall'inglese")
                 return False
-            ap.install_from_path(scelto.download())
+            manca = [c for c in passi if c not in installati]
+            if len(manca) > 1:
+                # Perche' due: Argos non pubblica la coppia diretta, e il perno
+                # e' cio' che la rende possibile invece che impossibile.
+                self.dillo(f"traduzione: {da}->{a} non esiste diretto, passo "
+                           f"dall'inglese — sono due modelli, ~200 MB")
+            for x, y in manca:
+                self.dillo(f"traduzione: scarico {x}->{y} (una volta sola, ~100 MB)")
+                ap.install_from_path(pubblicati[(x, y)].download())
         except Exception as e:  # pragma: no cover - dipende dalla rete
             self.dillo(f"! non riesco a scaricare il modello {da}->{a}: {e}")
             return False
@@ -291,7 +330,17 @@ class TraduttoreLocale:
         # stessa domanda sono il modo in cui si scarica un modello e se ne usa
         # un altro.
         sorgente, arrivo = coppia(da, a)
-        fuori = self._motore()(testo, sorgente, arrivo)
+        try:
+            fuori = self._motore()(testo, sorgente, arrivo)
+        except AttributeError as e:
+            # Argos non controlla che la lingua d'arrivo sia installata: cerca
+            # `to_lang.code` su un `None` e solleva a cinque livelli da qui.
+            # `'NoneType' object has no attribute 'code'` non dice a nessuno che
+            # cosa manca — questa riga si'.
+            raise RuntimeError(
+                f"nessuna via da {sorgente} a {arrivo} fra i modelli installati: "
+                f"serve {sorgente}->{arrivo}, oppure {sorgente}->en piu' "
+                f"en->{arrivo}") from e
         fuori = (fuori or "").strip()
         return fuori or None
 

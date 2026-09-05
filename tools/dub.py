@@ -108,12 +108,17 @@ def main(argv: list[str] | None = None) -> int:
 
     from speak.base import make_tts
 
+    # **Prima il motore, poi il TTS.** Costruirlo e poi lasciare che la pipeline
+    # sposti il motore vuol dire costruire quello sbagliato: misurato, con
+    # `target=ja, backend=kokoro` si prendeva un `ValueError` qui invece di
+    # passare a SuperTonic. La lingua che si parlera' la dice la stessa
+    # funzione, cosi' non la si ricalcola in tre posti.
+    from core.motore import applica_lingua
+
+    lingua_voce = applica_lingua(cfg, print)
     sezione = replace(cfg.tts, backend="tone") if args.tone else cfg.tts
     print("carico le voci...")
-    # La lingua e' quella che si **parlera'**: se si traduce, quella di arrivo.
-    tts = make_tts(
-        sezione, lingua=cfg.translate.target if cfg.translate.enabled else "it"
-    )
+    tts = make_tts(sezione, lingua=lingua_voce)
 
     clock = VirtualClock()
     precedente = set_clock(clock)

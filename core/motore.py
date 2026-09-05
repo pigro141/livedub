@@ -39,6 +39,7 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass
+from functools import lru_cache
 
 from capture.audio import (
     Loopback,
@@ -452,6 +453,157 @@ def motore_per_lingua(lingua: str, motore_attuale: str, sonda=None) -> SceltaMot
     )
 
 
+# I tre stati in cui una lingua puo' trovarsi rispetto al motore montato, e i
+# due segni con cui si dicono. Codici e non frasi per la stessa ragione di
+# `INVARIATO`/`CAMBIATO`/`MUTA`: la verifica non deve dipendere da come e'
+# scritta una riga italiana, che cambia.
+VOCE_C_E = "voce_c_e"          # la dice il motore che c'e' gia'
+VOCE_ALTROVE = "voce_altrove"  # non lui, ma un altro che questa macchina regge
+VOCE_NESSUNA = "voce_nessuna"  # nessun motore utilizzabile qui la parla
+
+# **La freccia e' «si passa a», il triangolo e' «non si passa a nessuno».** Sono
+# due segni e non due colori perche' la voce di una tendina e' *testo*, e in
+# questa finestra il colore del testo appartiene alle sei tinte delle voci del
+# log: colorare di ambra una riga di menu romperebbe la regola dei canali, e la
+# romperebbe in silenzio — tutto continuerebbe a funzionare mentre il log smette
+# per gradi di rispondere alla sua unica domanda.
+FRECCIA = "→"
+SENZA_VOCE = "⚠ nessuna voce"
+
+
+@dataclass(frozen=True, slots=True)
+class EtichettaLingua:
+    """Come si presenta una lingua a chi la sta scegliendo, prima di sceglierla.
+
+    `marca` e' cio' che va **accanto** al nome nella tendina, ed e' vuota nel
+    caso normale: una lingua che il motore montato parla non ha niente da
+    dichiarare, e centotrentatre righe marcate sono centotrentatre righe che
+    nessuno legge. `spiega` e' la frase intera, per il suggerimento.
+
+    `motore` e' **chi la direbbe davvero**: quello che c'e' gia' quando la parla
+    lui, il suggerito quando no. E' la stessa risposta che dara'
+    `motore_per_lingua` al momento della scelta, perche' viene da li'.
+    """
+
+    stato: str
+    motore: str
+    marca: str = ""
+    spiega: str = ""
+
+
+def etichetta_lingua(lingua: str, motore_attuale: str, sonda=None) -> EtichettaLingua:
+    """Data una lingua e il motore montato, cosa si scrive accanto a quella lingua.
+
+    **Esiste per dirlo prima e non dopo.** L'avviso «questo motore non ha voci
+    in questa lingua» arrivava a scelta **fatta**, cioe' quando l'utente aveva
+    gia' deciso: la tendina offriva centotrentatre lingue con l'aria di essere
+    tutte uguali, e quale sarebbe stata detta da chi si scopriva solo dopo. Qui
+    la stessa risposta sta **sulla voce**, prima del clic.
+
+    **Non decide niente di nuovo.** Chiama `motore_per_lingua` e ne traduce i
+    tre codici in due segni: due posti che decidono la stessa cosa si separano
+    al primo cambiamento, e la tendina che promette «→ supertonic» mentre la
+    catena passa a un altro motore sarebbe esattamente quel difetto, visibile
+    solo a chi guarda tutti e due nello stesso secondo.
+
+    **La sonda va passata, e il giorno in cui e' diventata necessaria e' oggi.**
+    Per un giro questa riga diceva che non cambiava niente, ed era vero e
+    misurato: le lingue di Kokoro stavano tutte dentro le cinquanta di Piper,
+    quindi il ripiego non passava mai per lui. Rimettendo il giapponese quella
+    proprieta' e' caduta — `ja` e' l'**unica** lingua che Kokoro ha e Piper no —
+    e la misura rifatta su tutte e 133 le lingue per tutti e tre i motori
+    montabili trova esattamente **una** riga in cui il motore scelto cambia con
+    la macchina: `ja + piper`, `kokoro` con la CUDA e `supertonic` senza.
+
+    Chi chiama passa `core.motore.sonda_macchina()`, che e' la stessa per la
+    tendina e per `applica_lingua`: senza, la finestra promette un motore e la
+    catena ne monta un altro, ed e' un difetto che si vede solo guardando tutti
+    e due nello stesso secondo. Qui il parametro resta e il default resta
+    `None`, perche' **questa funzione deve restare pura**: i gruppi che la
+    provano girano senza GPU e senza modelli.
+    """
+    scelta = motore_per_lingua(lingua, motore_attuale, sonda)
+    if scelta.codice == INVARIATO:
+        # Niente marca e niente frase: e' il caso normale, ed e' quello che deve
+        # restare muto perche' gli altri due si vedano.
+        return EtichettaLingua(VOCE_C_E, scelta.motore)
+    if scelta.codice == CAMBIATO:
+        # Il suggerimento **e'** il motore che verra' preso, non un consiglio da
+        # eseguire a mano: chi sceglie questa lingua se lo trova gia' montato.
+        return EtichettaLingua(VOCE_ALTROVE, scelta.motore,
+                               f"{FRECCIA} {scelta.motore}", scelta.avviso)
+    return EtichettaLingua(VOCE_NESSUNA, scelta.motore, SENZA_VOCE, scelta.avviso)
+
+
+@lru_cache(maxsize=1)
+def sonda_macchina():
+    """La `Sonda` di **questa** macchina, chiesta una volta sola.
+
+    **`sonda=None` vuol dire «non lo so», e fino a ieri non cambiava niente.**
+    `motori_possibili(None)` risponde con tutti — giustamente: togliere una
+    scelta perche' non si e' misurato sarebbe l'avviso che nessuno puo'
+    soddisfare. E la clausola sulla macchina non mordeva mai, perche' **tutte**
+    le lingue di Kokoro stavano dentro le cinquanta di Piper: il ripiego non
+    passava mai per lui.
+
+    Il giapponese ha rotto quella proprieta'. E' l'**unica** lingua che Kokoro
+    ha e Piper no, ed e' quindi l'unico caso in cui la sonda cambia la risposta
+    — misurato su tutte e 133 le lingue per tutti e tre i motori montabili: una
+    riga sola, `ja + piper`, che con la CUDA da' `kokoro` e senza da'
+    `supertonic`. Senza sonda si sarebbe promesso Kokoro anche a chi non ha la
+    scheda, dove costa 725 ms a battuta contro 207 e non e' vivibile.
+
+    Sta qui e non dentro `etichetta_lingua` perche' quella deve restare
+    **pura**: i gruppi che la provano girano senza GPU e senza modelli, e una
+    sessione ONNX aperta dalla regola li porterebbe a toccare l'hardware. Chi ha
+    una macchina davanti — la finestra e `applica_lingua` — chiama questa.
+    """
+    from core.banco import Sonda
+    from core.onnx import cuda_ottenuta
+
+    try:
+        ottenuta, _perche = cuda_ottenuta("motore")
+    except Exception:  # pragma: no cover - dipende dall'ambiente
+        # Non sapere non e' sapere di no, ma qui l'alternativa e' promettere un
+        # motore che potrebbe non girare: si tiene la risposta prudente.
+        ottenuta = False
+    return Sonda(cuda=ottenuta)
+
+
+def applica_lingua(cfg, dillo=None) -> str:
+    """Sposta `cfg.tts.backend` sul motore che parla la lingua d'arrivo.
+
+    **Esiste perche' la regola giusta stava nel posto sbagliato.**
+    `motore_per_lingua` era chiamata da un punto solo — `_campo_cambiato` della
+    finestra — cioe' **quando l'utente muove la tendina**. Una configurazione che
+    arriva gia' con `target=ja` (da `--set`, dal profilo, da `ultima.json`
+    all'apertura) non passava di li' e non veniva spostata da nessuno.
+
+    Metterla dentro `DubPipeline.__init__` non bastava, e il motivo e' l'ordine:
+    `tools/dub.py` e `core/motore.py` costruiscono il **TTS prima** della
+    pipeline, quindi la cura arrivava dopo il paziente. Misurato: con
+    `target=ja, backend=kokoro` si prendeva `ValueError: kokoro non sa dire
+    «ja»` ad Avvia, invece di passare a SuperTonic.
+
+    Quindi una funzione sola che tutti chiamano **prima di costruire il TTS**,
+    ed e' idempotente: chiamarla due volte non cambia niente, perche' la seconda
+    volta il motore parla gia' la lingua e `motore_per_lingua` torna `INVARIATO`
+    senza avviso. Due posti che decidono la stessa cosa si separano al primo
+    cambiamento; uno solo no.
+
+    Torna la lingua che si parlera' — `translate.target` se si traduce, `it` se
+    no — perche' e' l'altra cosa che ogni chiamante ricalcolava per conto suo.
+    """
+    lingua = cfg.translate.target if cfg.translate.enabled else "it"
+    if not cfg.translate.enabled:
+        return lingua
+    scelta = motore_per_lingua(lingua, cfg.tts.backend, sonda_macchina())
+    if scelta.avviso and dillo is not None:
+        dillo(scelta.avviso)
+    cfg.tts.backend = scelta.motore
+    return lingua
+
+
 def righe_guasto_audio(dettaglio: str) -> list[str]:
     """Cosa si scrive quando il ciclo audio muore.
 
@@ -785,6 +937,10 @@ class Motore:
             # e la sessione hanno finito per dire due cose diverse.
             self._chiudi()
             return False
+        # Il motore segue la lingua **prima** che il TTS venga costruito: si
+        # veda `applica_lingua`. Al contrario, qui si costruiva Kokoro per una
+        # lingua che non sa dire e si moriva ad Avvia.
+        applica_lingua(self.cfg, lambda riga: self.manda("nota", riga))
         self.manda("nota", f"carico {self.cfg.tts.backend}...")
         from tools.live import costruisci_tts
 

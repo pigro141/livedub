@@ -33,6 +33,8 @@ migliori, e le varianti entrano solo quando servono davvero.
 
 from __future__ import annotations
 
+import sys
+
 from dataclasses import dataclass, field
 
 from core.types import VoiceSpec
@@ -363,7 +365,18 @@ def build_pool(
     """
     basi = tuple(voices) if voices else basi_per(backend, lingua)
     if not basi:
+        # **Il ripiego resta, ma non e' piu' muto.** Senza voci per la lingua
+        # chiesta si finiva a dare sei voci *inglesi* a una sessione giapponese
+        # e una voce *italiana* come neutra: tre lingue in una passata, nessun
+        # errore, e un modello fonemizzato con le regole sbagliate. Il ripiego
+        # e' comunque meglio del silenzio — una sessione muta e' un buco — ma
+        # chi guarda deve poter leggere che sta succedendo. Con
+        # `motore_per_lingua` chiamato all'avvio (`core/pipeline.py`) questa
+        # riga si vede solo quando **nessun** motore parla quella lingua.
         basi = FAMIGLIE.get(backend, FAMIGLIE["piper"])
+        print(f"voce: «{backend}» non ha voci per «{lingua}»: si usano quelle "
+              f"di serie ({', '.join(nome_corto(b) for b in basi)}), che "
+              f"pronunciano un'altra lingua.", file=sys.stderr)
     pool: list[VoiceSpec] = []
     for base, semitones, rate in varianti_per(basi):
         gender = genere(base)

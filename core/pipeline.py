@@ -37,6 +37,7 @@ from core.anticipa import Anticipo, Preparato
 from core.clock import Clock, VirtualClock, get_clock
 from core.config import Config
 from core.metrics import MetricsRegistry
+from core.testo import chiave as chiave_testo
 from core.types import Emotion, LineClass, SubtitleEvent, Utterance
 from core.ring import Overrun, RingBuffer
 from fuse.timing import DurationModel, spoken_length
@@ -54,16 +55,15 @@ from vision.reader import SubtitleReader
 from vision.subtitles import TrackerOutput, contenimento
 
 
-def _lettere(testo: str) -> str:
-    """Solo lettere e cifre, minuscole, accenti sciolti.
-
-    Fra due letture della stessa battuta cio' che cambia di piu' e' la
-    punteggiatura che l'OCR inventa sui bordi dei glifi: `'Via! Via!'` e
-    `'Via, Via.'` sono la stessa frase, e un confronto letterale direbbe di no.
-    Stessa normalizzazione di `NormalizeTextForHash` in RSTGameTranslation.
-    """
-    piatto = unicodedata.normalize("NFKD", testo.lower())
-    return re.sub(r"[^a-z0-9]", "", piatto)
+# **La chiave del confronto sta in `core/testo.py`, e non piu' qui.** Era scritta
+# due volte con la stessa riga — qui e in `vision/label.py::_normalizza` — e tutte
+# e due facevano `re.sub(r"[^a-z0-9]", "", ...)`: su `У меня нет времени` torna la
+# **stringa vuota**, e il chiamante fa giustamente `if not chiave: return False`.
+# Cioe' su un gioco a scrittura non latina il cancello anti-doppioni non si
+# spegne con un errore, si spegne e basta. Ottava volta della forma «una tabella
+# scritta due volte e la seconda non l'aggiorna nessuno», stavolta con dentro
+# un'assunzione sull'alfabeto.
+_lettere = chiave_testo
 
 
 def chiave_cast(backend: str, lingua: str) -> str:
@@ -388,7 +388,14 @@ class DubPipeline:
         # **La lingua del pool e' quella che si parlera'**: se si traduce, quella
         # di arrivo. Un pool italiano che dice battute inglesi non ha un accento,
         # ha i fonemi sbagliati.
-        lingua_voce = cfg.translate.target if cfg.translate.enabled else "it"
+        # **Il motore segue la lingua, e la regola sta in un posto solo**
+        # (`core.motore.applica_lingua`). Qui e' l'ultima rete: chi costruisce
+        # il TTS da se' — `tools/dub.py`, `core/motore.py` — l'ha gia' chiamata
+        # prima, e questa chiamata torna `INVARIATO` senza dire niente. Chi non
+        # l'ha chiamata ci arriva comunque.
+        from core.motore import applica_lingua
+
+        lingua_voce = applica_lingua(cfg, dillo)
         self.pool = VoicePool(
             build_pool(
                 cfg.tts.voices, cfg.tts.pool_size,

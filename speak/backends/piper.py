@@ -43,8 +43,9 @@ MODELS_DIR = percorsi.modelli("piper")
 REPO = "rhasspy/piper-voices"
 
 # Il catalogo ufficiale, scritto nel repo, con la regola che ricava il percorso
-# dalla chiave. Cinquantuno lingue nell'indice, cinquanta dicibili: si veda
-# `SPECIALI` per l'unica che cade e per il motivo.
+# dalla chiave. Cinquantuno lingue nell'indice, **quarantanove** dicibili: si
+# veda `FONEMI_OK` per le due che cadono (giapponese ed ebraico) e per il motivo,
+# che nei due casi e' lo stesso — un `phoneme_type` che `piper-tts` non ha.
 from speak.backends.piper_voci import (  # noqa: E402
     LINGUE, MULTI, VOCI, normale, parlante, sottopercorso, voci_per,
 )

@@ -5670,11 +5670,29 @@ def test_lingue_voci(c: Check) -> None:
     # -- i cataloghi ---------------------------------------------------------
     c.eq(len(PV.VOCI), 51, "l'indice ufficiale di piper ha 51 lingue")
     c.eq(sum(len(v) for v in PV.VOCI.values()), 175, "e 175 voci")
-    # **Cinquanta e non cinquantuno, e la differenza e' il punto.** La voce
-    # giapponese usa `phoneme_type: japanese`, che `piper-tts` non conosce: il
-    # modello si scarica e la prima sintesi solleva. Dichiarare 51 sarebbe vero
-    # sull'indice e falso in questo programma.
-    c.eq(len(PV.LINGUE), 50, "ma quelle che questo programma sa dire sono 50")
+    # **Quarantanove e non cinquantuno, e le due che cadono cadono nello stesso
+    # modo.** L'indice dichiara un `phoneme_type` per voce, e il `piper-tts`
+    # **installato e bloccato** (1.3.0, `requirements-nodeps.txt`) ne conosce
+    # due soli: `PhonemeType` vale `["espeak", "text"]`. Il giapponese chiede
+    # `japanese` e l'ebraico chiede `hebrew`: tutti e due i modelli si scaricano
+    # benissimo e sollevano al caricamento.
+    #
+    # **E per un giro questo file ha detto il falso, con tanto di misura.** C'era
+    # scritto che `piper-tts` conosce quattro tipi — espeak, text, pinyin,
+    # hebrew — e che l'ebraico «funziona senza nient'altro, misurato 9,14
+    # car/s». L'enum della versione bloccata dice altro, e una misura che la
+    # dipendenza fissata non puo' riprodurre non e' una misura: e' un ricordo di
+    # un'altra installazione. Il numero qui sotto si ricava, la frase no —
+    # quindi la frase e' quella che invecchia.
+    c.eq(len(PV.LINGUE), 49, "ma quelle che questo programma sa dire sono 49")
+    c.ok("he" in PV.VOCI and "he" not in PV.LINGUE,
+         "l'ebraico c'e' nell'indice e non fra le nostre: e' dichiarato")
+    c.eq(PV.voci_per("he", 4), (),
+         "e non se ne offre nessuna, invece di offrirne una che muore al caricamento")
+    from piper import PhonemeType
+
+    c.eq(sorted(e.value for e in PhonemeType), ["espeak", "text"],
+         "e il numero viene da qui: due tipi soli nel piper-tts bloccato")
     c.ok("ja" in PV.VOCI and "ja" not in PV.LINGUE,
          "il giapponese c'e' nell'indice e non fra le nostre: e' dichiarato")
     c.eq(PV.voci_per("ja", 4), (),

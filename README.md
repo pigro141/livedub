@@ -99,7 +99,7 @@ reads per second, lines, latency, compression, underruns, reading area.
 | **Mixes** | it ducks **only the centre channel** of the game, where the dialogue sits: music and effects stay where they are |
 | **Translates** *(off by default)* | several backends, most of them with no network at all |
 | **Rewrites the subtitle on screen** *(off by default)* | erases the original and draws the translated line |
-| **Says the line in 53 languages** | 50 with piper, 31 with supertonic, 8 with kokoro; pick the language and the engine follows it |
+| **Says the line in 52 languages** | 49 with piper, 31 with supertonic, 8 with kokoro; pick the language and the engine follows it |
 | **Speaks 42 languages** *(the interface)* | follows your Windows language, and changes without a restart |
 
 ---
@@ -109,8 +109,8 @@ reads per second, lines, latency, compression, underruns, reading area.
 There is nothing to configure first: you open it and follow along.
 
 **1. You open it.** The window is already in the language you use Windows in —
-42 languages, and every one of the 41 catalogs is complete: 258 strings out of
-258. Arabic, Hebrew, Persian and Urdu also flip the window the other way round.
+42 languages, and every one of the 41 catalogs is complete: 281 strings out of
+281. Arabic, Hebrew, Persian and Urdu also flip the window the other way round.
 
 **2. A guide takes you through it**, 7 steps, and it comes back
 with `?`. Wherever it can it **checks instead of telling**: it counts the audio
@@ -294,8 +294,8 @@ changed.
 **There is also an executable, and it has been launched.** Every push builds
 it on GitHub Actions and then *runs* it: inside the package it reads a drawn
 subtitle, synthesises a line and builds the window, and nothing is published
-unless all twelve of those checks pass. The tested package is on the
-[Releases page](https://github.com/pigro141/livedub/releases/latest) — a zip of about 400 MB with its
+unless all 13 of those checks pass. The tested package is on the
+[Releases page](https://github.com/pigro141/livedub/releases/latest) — a zip of about 420 MB with its
 SHA256 beside it, no GitHub account needed and no expiry date.
 
 **Two limits, stated rather than hidden.** With **Smart App Control** on — and it
@@ -457,7 +457,7 @@ does not have.
 |---|---|---|
 | what the **buttons** are written in | **42** | `ui.lingua`, in the Setup tab |
 | what it can **translate a subtitle into** | **133** with the online backend — the offline ones have no closed list | `translate.target`, in the Translation tab |
-| what it can **say out loud** | **53** — but not with every engine: 50 with piper, 31 with supertonic, 8 with kokoro | you pick the language, and the engine follows it |
+| what it can **say out loud** | **53** — but not with every engine: 49 with piper, 31 with supertonic, 8 with kokoro | you pick the language, and the engine follows it |
 
 > **Three lists, three questions.** The interface speaks 42 languages, the
 > translator reaches 133, and the mouth speaks 53. That last number is not one
@@ -473,11 +473,11 @@ does not have.
 
 | engine | languages | voices | runs on | how the voices work |
 |---|---|---|---|---|
-| **piper** *(default)* | **50** | 175 models in the official index | CPU | one model per voice, one download each (28–114 MB) |
+| **piper** *(default)* | **49** | 175 models in the official index | CPU | one model per voice, one download each (28–114 MB) |
 | **supertonic** | **31** | 10 speaker styles, valid in *every* language | CPU | one multilingual model; the language selects the phonemiser |
 | **kokoro** | **8** | 54, language and gender encoded in the name | CUDA | one model, one 510 KB style file per voice |
 | `tone`, `silent` | — | a beep has no language | — | — |
-| **union** | **53** | | | |
+| **union** | **52** | | | |
 
 **Which engine speaks which is the list below**, and it is not written by hand:
 it is regenerated from the engines' own catalogues by
@@ -490,7 +490,7 @@ told apart by shifting the pitch — that is what you hear in the first GIF:
 <!-- generato da `tools/tabella_lingue.py`, non si scrive a mano -->
 
 <details>
-<summary><b>All 53 languages, engine by engine</b> — ✓ means that engine has at least one voice of its own in that language.</summary>
+<summary><b>All 52 languages, engine by engine</b> — ✓ means that engine has at least one voice of its own in that language.</summary>
 
 | code | language | piper | supertonic | kokoro |
 |---|---|:---:|:---:|:---:|
@@ -513,7 +513,6 @@ told apart by shifting the pitch — that is what you hear in the first GIF:
 | `ka` | Georgian | ✓ |  |  |
 | `de` | German | ✓ | ✓ |  |
 | `el` | Greek | ✓ | ✓ |  |
-| `he` | Hebrew | ✓ |  |  |
 | `hi` | Hindi | ✓ | ✓ | ✓ |
 | `hu` | Hungarian | ✓ | ✓ |  |
 | `is` | Icelandic | ✓ |  |  |
@@ -548,7 +547,7 @@ told apart by shifting the pitch — that is what you hear in the first GIF:
 | `vi` | Vietnamese | ✓ | ✓ |  |
 | `cy` | Welsh | ✓ |  |  |
 
-Reading down a column gives that engine's catalogue. Spoken by one engine only: `piper` 21 · `supertonic` 2 (Croatian, Lithuanian) · `kokoro` 0. Spoken by all three: 6 — English, French, Hindi, Italian, Portuguese, Spanish.
+Reading down a column gives that engine's catalogue. Spoken by one engine only: `piper` 20 · `supertonic` 2 (Croatian, Lithuanian) · `kokoro` 0. Spoken by all three: 6 — English, French, Hindi, Italian, Portuguese, Spanish.
 
 </details>
 <!-- lingue: fine -->
@@ -586,12 +585,19 @@ The two engines that could not be measured are blocked by a **property of this
 machine**, not of the code. Their language lists are declared from the catalogue
 and **marked as unmeasured**, rather than presented as tested.
 
-> **One claim the check took away.** The piper index lists **51** languages and
-> this program offers **50**. Japanese is the difference: that voice needs a
-> phonemiser the installed `piper-tts` does not have, so the model downloads
-> happily and the *first synthesis* raises. Declaring 51 would have been true of
-> the index and false of this program. Japanese is still spoken — by kokoro, or
-> by supertonic.
+> **Two claims the check took away, and the second one was ours.** The piper
+> index lists **51** languages and this program offers **49**. The installed,
+> pinned `piper-tts` (1.3.0) knows exactly two phonemisers — `PhonemeType` is
+> `["espeak", "text"]` — and two voices ask for something else: Japanese wants
+> `japanese`, Hebrew wants `hebrew`. Both models download happily and raise when
+> they load.
+>
+> Hebrew is the one worth telling. This page used to claim `piper-tts` knew four
+> phonemisers and that Hebrew *worked, measured at 9.14 chars/s*. The enum of the
+> pinned version says otherwise, and a measurement the pinned dependency cannot
+> reproduce is not a measurement — it is a memory of some other install. The
+> count is now derived from that enum, so it cannot drift again. Japanese is
+> still spoken, by kokoro or supertonic; Hebrew, by supertonic.
 
 ### Pick a language, and the engine follows it
 
@@ -640,7 +646,7 @@ choices that do not, with the air of knowing.
 
 **The interface language** is a third thing again: **42** — 41 catalogs plus
 Italian, which is the language the source is written in. All 41 are **complete,
-258 strings out of 258**, with none half-translated; four of them run right to
+281 strings out of 281**, with none half-translated; four of them run right to
 left and turn the whole window round (Arabic, Hebrew, Persian, Urdu). They are
 generated once and committed into the repo — not asked from the network while
 the window opens, because a window that asks the network for its own text is a
@@ -662,7 +668,7 @@ using it. So here it is before you install.
 
 | | |
 |---|---|
-| **Nobody has listened to the 53 languages** | what is verified is that a voice exists, that it belongs to that language and — where it could be measured — that its speaking rate is plausible. The pronunciation is not verified, and Italian is the language this program was built in and listened to in. |
+| **Nobody has listened to the 52 languages** | what is verified is that a voice exists, that it belongs to that language and — where it could be measured — that its speaking rate is plausible. The pronunciation is not verified, and Italian is the language this program was built in and listened to in. |
 | **A language your engine does not speak is a switch, not an error** | the engine moves to one that speaks it and says so. If none of the engines this machine can run speaks it, that is stated too — instead of handing you a voice that pronounces a different language. |
 | **The first session in a new piper language downloads its voices** | one model per voice, 28–114 MB each, up to six of them, and the guide's bench does not yet declare that weight in advance the way it declares the others. Start can sit there for a few minutes without saying why. |
 | **One subtitle line at a time** | inside the box you drag: not the whole screen, not several areas at once. An earlier version promised several reading areas and it was removed, because the overlay draws one line at a time and the promise could not be kept live. |

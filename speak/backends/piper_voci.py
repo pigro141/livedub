@@ -333,10 +333,9 @@ MULTI: dict[str, int] = {
 # questo programma, che e' esattamente la forma di verde falso che questo file
 # esiste per togliere.
 #
-# `pinyin` invece funziona, ma solo con `g2pw` installato (non e' nei
-# requisiti): le due voci cinesi che lo usano vanno **in fondo**, dopo quelle
-# `espeak` della stessa lingua, cosi' chi doppia in cinese non ci inciampa.
-# `hebrew` funziona senza nient'altro — misurato, 9,14 car/s — e `text` pure.
+# `pinyin` invece esiste nell'indice ma non nel pacchetto: le due voci cinesi
+# che lo usano restano fuori dal pool, e il cinese ha comunque le sue voci
+# `espeak`. `text` fonemizza in codepoint e lo fa `PiperVoice.phonemize` da sola.
 SPECIALI: dict[str, str] = {
     "he_IL-saspeech-medium": "hebrew",
     "ja_JA-hi_fi_captain-medium": "japanese",
@@ -345,15 +344,42 @@ SPECIALI: dict[str, str] = {
     "zh_CN-xiao_ya-medium": "pinyin",
 }
 
-# I tipi che `piper-tts` sa fonemizzare da solo, e quelli che chiedono un
-# pacchetto in piu'. Una voce del primo gruppo si usa, una del secondo si tiene
-# in fondo, una fuori da tutti e due **non si offre**.
-FONEMI_OK: frozenset[str] = frozenset({"espeak", "text", "hebrew"})
+# I tipi che `piper-tts` sa fonemizzare da solo. Una voce fuori da qui **non si
+# offre**: il modello si scarica benissimo e muore al caricamento.
+#
+# **`hebrew` stava qui dentro, e non e' vero.** Il commento sopra diceva che
+# `piper-tts` conosce quattro tipi — espeak, text, pinyin, hebrew — e che
+# l'ebraico «funziona senza nient'altro, misurato 9,14 car/s». Nel `piper-tts`
+# **installato e bloccato in `requirements-nodeps.txt`** (1.3.0) l'enum ha due
+# soli valori:
+#
+#     >>> [e.value for e in piper.config.PhonemeType]
+#     ['espeak', 'text']
+#
+# quindi `PiperVoice.load` di `he_IL-saspeech-medium` solleva
+# `ValueError: 'hebrew' is not a valid PhonemeType` — e lo solleva dentro
+# `PiperTts.preload`, che non lo prende: la sessione muore ad Avvia. Era l'unica
+# voce ebraica del catalogo, quindi l'ebraico esce dalle lingue dicibili e le
+# lingue di Piper diventano **49**. E il numero misurato che quella riga citava
+# resta in `PASSO_LINGUA` marcato per quello che e': una misura fatta con un'altra
+# versione del pacchetto.
+#
+# Che le due copie non divergano di nuovo lo tiene la verifica `lingue_voci`, che
+# confronta questo insieme con l'enum del pacchetto **quando piper e'
+# importabile** — la stessa forma gia' usata per l'elenco delle lingue di
+# SuperTonic. Qui non si importa `piper`: questo modulo e' il catalogo, e la
+# domanda «che lingue parla?» deve poter essere fatta senza il motore installato.
+FONEMI_OK: frozenset[str] = frozenset({"espeak", "text"})
+
+# I tipi che l'indice dichiara e questo programma **non** sa eseguire, con il
+# perche'. `pinyin` avrebbe bisogno di `g2pw`, che non e' nei requisiti — ma
+# nemmeno bastandolo: nella 1.3.0 non e' un `PhonemeType` valido, quindi non e'
+# «manca un pacchetto», e' «non c'e' la strada».
 FONEMI_CON_EXTRA: dict[str, str] = {"pinyin": "g2pw"}
 
 # Le lingue con almeno una voce **utilizzabile**. Si ricava, non si scrive: un
 # secondo elenco e' un elenco che prima o poi non aggiorna nessuno. Il
-# giapponese cade qui, ed e' l'unica lingua dell'indice che cade.
+# giapponese e l'ebraico cadono qui, e sono le due lingue dell'indice che cadono.
 LINGUE: tuple[str, ...] = tuple(
     sorted(f for f, ks in VOCI.items()
            if any(SPECIALI.get(k, "espeak") in FONEMI_OK for k in ks))

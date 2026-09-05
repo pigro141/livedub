@@ -101,7 +101,7 @@ lecture.
 | **Mixe** | il baisse **seulement le canal central** du jeu, là où se trouve le dialogue : la musique et les effets restent où ils sont |
 | **Traduit** *(éteint par défaut)* | plusieurs moteurs, presque tous sans aucun réseau |
 | **Réécrit le sous-titre à l'écran** *(éteint par défaut)* | il efface l'original et dessine la réplique traduite |
-| **Dit la réplique en 53 langues** | 50 avec piper, 31 avec supertonic, 8 avec kokoro ; vous choisissez la langue et le moteur la suit |
+| **Dit la réplique en 52 langues** | 49 avec piper, 31 avec supertonic, 8 avec kokoro ; vous choisissez la langue et le moteur la suit |
 | **Parle 42 langues** *(l'interface)* | il suit la langue de votre Windows et change sans redémarrage |
 
 ---
@@ -111,8 +111,8 @@ lecture.
 Il n'y a rien à régler d'abord : vous l'ouvrez et vous suivez.
 
 **1. Vous l'ouvrez.** La fenêtre est déjà dans la langue dans laquelle vous
-utilisez Windows — 42 langues, et les 41 catalogues sont complets : 258 chaînes
-sur 258. L'arabe, l'hébreu, le persan et l'ourdou retournent en plus la fenêtre.
+utilisez Windows — 42 langues, et les 41 catalogues sont complets : 281 chaînes
+sur 281. L'arabe, l'hébreu, le persan et l'ourdou retournent en plus la fenêtre.
 
 **2. Un guide vous accompagne**, 7 étapes, et il revient avec `?`. Partout où il
 le peut, il **vérifie au lieu de raconter** : il compte les cartes son que vous
@@ -273,7 +273,7 @@ n'y a pas de serveur à nous.
 | disque | **1,6 Go** — l'environnement sans les bibliothèques CUDA, plus 225 Mo de modèles | **3,5 Go** — avec les bibliothèques CUDA et 543 Mo de modèles. La traduction hors ligne ajoute **3,2 Go** dans les deux cas |
 | Windows | **10** — la capture passe par `PrintWindow`, qui vit dans `user32.dll` et ne demande rien à installer | **11** — OneOCR n'existe que là, et il lit bien mieux le texte contouré d'un jeu |
 | Python | 3.11 | 3.11 |
-| **ce que vous obtenez** | **Piper sur le processeur.** 665 ms du sous-titre à la voix, aucun raté de son, aucune accélération de la parole. Le lecteur est PP-OCR, et 50 des 53 langues parlées sont déjà là. | **Kokoro sur CUDA** : meilleure articulation, et ses 54 voix en 8 langues. 1290 ms. |
+| **ce que vous obtenez** | **Piper sur le processeur.** 665 ms du sous-titre à la voix, aucun raté de son, aucune accélération de la parole. Le lecteur est PP-OCR, et 50 des 52 langues parlées sont déjà là. | **Kokoro sur CUDA** : meilleure articulation, et ses 54 voix en 8 langues. 1290 ms. |
 | **ce que le pas achète** | en dessous de 6 cœurs, la synthèse de Piper passe de 88 ms à **302 ms** — voir le tableau ci-dessus | la carte graphique achète **3,5× sur la synthèse** (de 741 ms à 213 ms), et elle est la seule chose qui permette à une langue de déplacer le moteur vers Kokoro : sur le processeur ce moteur coûte 741 ms par réplique, ce qui n'est pas vivable |
 
 **Un prérequis ne se lit pas sans la machine sur laquelle il a été mesuré**, la
@@ -297,9 +297,9 @@ n'a pas bougé.
 **Il y a aussi un exécutable, et il a vraiment été lancé.** Chaque push le
 construit sur GitHub Actions puis l'*exécute* : dans le paquet il lit un
 sous-titre dessiné, synthétise une réplique et construit la fenêtre, et rien
-n'est publié si l'une de ces douze vérifications ne passe pas. Le paquet
+n'est publié si l'une de ces 13 vérifications ne passe pas. Le paquet
 vérifié est sur la [page des releases](https://github.com/pigro141/livedub/releases/latest) — une archive
-d'environ 400 Mo avec son SHA256 à côté, sans compte GitHub et sans date
+d'environ 420 Mo avec son SHA256 à côté, sans compte GitHub et sans date
 d'expiration.
 
 **Deux limites, déclarées plutôt que cachées.** Avec **Smart App Control**
@@ -467,7 +467,7 @@ promettre ce qu'il n'a pas.
 |---|---|---|
 | la langue dans laquelle les **boutons** sont écrits | **42** | `ui.lingua`, dans l'onglet Préparation |
 | la langue vers laquelle il peut **traduire un sous-titre** | **133** avec le moteur en ligne — ceux qui travaillent hors ligne n'ont pas de liste fermée | `translate.target`, dans l'onglet Traduction |
-| ce qu'il peut **dire à voix haute** | **53** — mais pas avec n'importe quel moteur : 50 avec piper, 31 avec supertonic, 8 avec kokoro | vous choisissez la langue, et le moteur la suit |
+| ce qu'il peut **dire à voix haute** | **53** — mais pas avec n'importe quel moteur : 49 avec piper, 31 avec supertonic, 8 avec kokoro | vous choisissez la langue, et le moteur la suit |
 
 > **Trois listes, trois questions.** L'interface parle 42 langues, le traducteur en
 > atteint 133, et la bouche en parle 53. Ce dernier nombre n'est pas un nombre
@@ -483,11 +483,11 @@ promettre ce qu'il n'a pas.
 
 | moteur | langues | voix | tourne sur | comment fonctionnent les voix |
 |---|---|---|---|---|
-| **piper** *(par défaut)* | **50** | 175 modèles dans l'index officiel | processeur | un modèle par voix, un téléchargement chacune (28–114 Mo) |
+| **piper** *(par défaut)* | **49** | 175 modèles dans l'index officiel | processeur | un modèle par voix, un téléchargement chacune (28–114 Mo) |
 | **supertonic** | **31** | 10 styles de locuteur, valables dans *toutes* les langues | processeur | un seul modèle multilingue ; la langue choisit le phonémiseur |
 | **kokoro** | **8** | 54, la langue et le genre étant écrits dans le nom | CUDA | un seul modèle, un fichier de style de 510 Ko par voix |
 | `tone`, `silent` | — | un bip n'a pas de langue | — | — |
-| **union** | **53** | | | |
+| **union** | **52** | | | |
 
 **Quel moteur parle quelle langue, c'est la liste ci-dessous qui le dit**, et
 elle n'est pas écrite à la main : `tools/tabella_lingue.py` la régénère à partir
@@ -500,7 +500,7 @@ GIF : `[nicola]` et `[nicola-2_5]` sont une seule voix à deux hauteurs.
 <!-- generato da `tools/tabella_lingue.py`, non si scrive a mano -->
 
 <details>
-<summary><b>Les 53 langues, moteur par moteur</b> — ✓ signifie que ce moteur a au moins une voix à lui dans cette langue.</summary>
+<summary><b>Les 52 langues, moteur par moteur</b> — ✓ signifie que ce moteur a au moins une voix à lui dans cette langue.</summary>
 
 | code | langue | piper | supertonic | kokoro |
 |---|---|:---:|:---:|:---:|
@@ -523,7 +523,6 @@ GIF : `[nicola]` et `[nicola-2_5]` sont une seule voix à deux hauteurs.
 | `ka` | Georgian | ✓ |  |  |
 | `de` | German | ✓ | ✓ |  |
 | `el` | Greek | ✓ | ✓ |  |
-| `he` | Hebrew | ✓ |  |  |
 | `hi` | Hindi | ✓ | ✓ | ✓ |
 | `hu` | Hungarian | ✓ | ✓ |  |
 | `is` | Icelandic | ✓ |  |  |
@@ -558,7 +557,7 @@ GIF : `[nicola]` et `[nicola-2_5]` sont une seule voix à deux hauteurs.
 | `vi` | Vietnamese | ✓ | ✓ |  |
 | `cy` | Welsh | ✓ |  |  |
 
-Lire une colonne donne le catalogue de ce moteur. Parlées par un seul moteur : `piper` 21 · `supertonic` 2 (Croatian, Lithuanian) · `kokoro` 0. Parlées par les trois : 6 — English, French, Hindi, Italian, Portuguese, Spanish.
+Lire une colonne donne le catalogue de ce moteur. Parlées par un seul moteur : `piper` 20 · `supertonic` 2 (Croatian, Lithuanian) · `kokoro` 0. Parlées par les trois : 6 — English, French, Hindi, Italian, Portuguese, Spanish.
 
 </details>
 <!-- lingue: fine -->
@@ -652,7 +651,7 @@ marchent et laisserait passer des choix qui ne marchent pas, avec l'air de savoi
 
 **La langue de l'interface** est encore une troisième chose : **42** — 41
 catalogues plus l'italien, la langue dans laquelle le code source est écrit. Les
-41 sont **complets, 258 chaînes sur 258**, aucune traduite à moitié ; quatre se
+41 sont **complets, 281 chaînes sur 281**, aucune traduite à moitié ; quatre se
 lisent de droite à gauche et retournent toute la fenêtre (arabe, hébreu, persan,
 ourdou). Ils sont produits une fois et déposés dans le dépôt — pas demandés au
 réseau pendant que la fenêtre s'ouvre, car une fenêtre qui demande son propre
@@ -675,7 +674,7 @@ en s'en servant. La voici donc, avant l'installation.
 
 | | |
 |---|---|
-| **Personne n'a écouté les 53 langues** | ce qui est vérifié, c'est qu'une voix existe, qu'elle appartient à cette langue et — là où c'était mesurable — que son débit de parole est plausible. La prononciation, non, et l'italien est la langue dans laquelle ce programme a été construit et écouté. |
+| **Personne n'a écouté les 52 langues** | ce qui est vérifié, c'est qu'une voix existe, qu'elle appartient à cette langue et — là où c'était mesurable — que son débit de parole est plausible. La prononciation, non, et l'italien est la langue dans laquelle ce programme a été construit et écouté. |
 | **Une langue que votre moteur ne parle pas est un changement, pas une erreur** | le moteur passe à un moteur qui la parle et le dit. Si aucun des moteurs que cette machine peut faire tourner ne la parle, cela aussi est déclaré — au lieu de vous donner une voix qui en prononce une autre. |
 | **La première session dans une nouvelle langue de piper télécharge ses voix** | un modèle par voix, de 28 à 114 Mo chacun, jusqu'à six, et le banc du guide n'annonce pas encore ce poids à l'avance comme il le fait pour les autres. Démarrer peut rester bloqué quelques minutes sans dire pourquoi. |
 | **Une ligne de sous-titre à la fois** | dans le cadre que vous tracez : pas tout l'écran, pas plusieurs zones à la fois. Une version antérieure promettait plusieurs zones de lecture et elle a été retirée, parce que l'incrustation dessine une ligne à la fois et que la promesse ne tenait pas en direct. |

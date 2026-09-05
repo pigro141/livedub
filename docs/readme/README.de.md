@@ -101,7 +101,7 @@ Sekunde, Zeilen, Latenz, Stauchung, Aussetzer, Lesebereich.
 | **Mischt** | es senkt **nur den Mittenkanal** des Spiels, wo der Dialog sitzt: Musik und Effekte bleiben, wo sie sind |
 | **Übersetzt** *(standardmäßig aus)* | mehrere Backends, die meisten ganz ohne Netz |
 | **Schreibt den Untertitel auf dem Bildschirm neu** *(standardmäßig aus)* | löscht das Original und zeichnet die übersetzte Zeile |
-| **Sagt die Zeile in 53 Sprachen** | 50 mit piper, 31 mit supertonic, 8 mit kokoro; du wählst die Sprache, und der Motor folgt ihr |
+| **Sagt die Zeile in 52 Sprachen** | 49 mit piper, 31 mit supertonic, 8 mit kokoro; du wählst die Sprache, und der Motor folgt ihr |
 | **Spricht 42 Sprachen** *(die Oberfläche)* | folgt deiner Windows-Sprache und wechselt ohne Neustart |
 
 ---
@@ -111,7 +111,7 @@ Sekunde, Zeilen, Latenz, Stauchung, Aussetzer, Lesebereich.
 Vorher ist nichts einzustellen: du öffnest es und folgst mit.
 
 **1. Du öffnest es.** Das Fenster ist schon in der Sprache, in der du Windows
-benutzt — 42 Sprachen, und alle 41 Kataloge sind vollständig: 258 von 258
+benutzt — 42 Sprachen, und alle 41 Kataloge sind vollständig: 281 von 281
 Zeichenketten. Arabisch, Hebräisch, Persisch und Urdu drehen das Fenster
 außerdem herum.
 
@@ -300,9 +300,9 @@ ist unverändert geblieben.
 **Es gibt auch eine ausführbare Datei, und sie ist wirklich gestartet worden.**
 Jeder Push baut sie auf GitHub Actions und *führt sie dann aus*: im Paket liest
 sie einen gezeichneten Untertitel, synthetisiert eine Zeile und baut das
-Fenster, und veröffentlicht wird nur, wenn alle zwölf dieser Prüfungen
+Fenster, und veröffentlicht wird nur, wenn alle 13 dieser Prüfungen
 durchgehen. Das geprüfte Paket liegt auf der [Release-Seite](https://github.com/pigro141/livedub/releases/latest) — ein Zip
-von rund 400 MB mit seinem SHA256 daneben, ohne GitHub-Konto und ohne
+von rund 420 MB mit seinem SHA256 daneben, ohne GitHub-Konto und ohne
 Ablaufdatum.
 
 **Zwei Grenzen, erklärt statt versteckt.** Mit eingeschaltetem **Smart App
@@ -471,7 +471,7 @@ Ende verspricht, was es nicht hat.
 |---|---|---|
 | in welcher Sprache die **Schaltflächen** beschriftet sind | **42** | `ui.lingua`, im Reiter Vorbereitung |
 | in welche Sprache es einen **Untertitel übersetzen** kann | **133** mit dem Online-Backend — die Offline-Backends haben keine geschlossene Liste | `translate.target`, im Reiter Übersetzung |
-| was es **laut sagen** kann | **53** — aber nicht mit jedem Motor: 50 mit piper, 31 mit supertonic, 8 mit kokoro | du wählst die Sprache, und der Motor folgt ihr |
+| was es **laut sagen** kann | **53** — aber nicht mit jedem Motor: 49 mit piper, 31 mit supertonic, 8 mit kokoro | du wählst die Sprache, und der Motor folgt ihr |
 
 > **Drei Listen, drei Fragen.** Die Oberfläche spricht 42 Sprachen, der Übersetzer
 > erreicht 133, und der Mund spricht 53. Diese letzte Zahl ist nicht eine Zahl:
@@ -487,11 +487,11 @@ Ende verspricht, was es nicht hat.
 
 | Motor | Sprachen | Stimmen | läuft mit | wie die Stimmen funktionieren |
 |---|---|---|---|---|
-| **piper** *(Standard)* | **50** | 175 Modelle im offiziellen Verzeichnis | CPU | ein Modell je Stimme, jeweils ein eigener Download (28–114 MB) |
+| **piper** *(Standard)* | **49** | 175 Modelle im offiziellen Verzeichnis | CPU | ein Modell je Stimme, jeweils ein eigener Download (28–114 MB) |
 | **supertonic** | **31** | 10 Sprecherstile, gültig in *jeder* Sprache | CPU | ein einziges mehrsprachiges Modell; die Sprache wählt den Phonemisierer |
 | **kokoro** | **8** | 54, Sprache und Geschlecht stecken im Namen | CUDA | ein einziges Modell, eine Stildatei von 510 KB je Stimme |
 | `tone`, `silent` | — | ein Piepton hat keine Sprache | — | — |
-| **Vereinigung** | **53** | | | |
+| **Vereinigung** | **52** | | | |
 
 **Welche Engine welche Sprache spricht, sagt die Liste unten**, und sie ist
 nicht von Hand geschrieben: `tools/tabella_lingue.py` erzeugt sie neu aus den
@@ -504,7 +504,7 @@ Verschieben der Tonhöhe unterschieden — genau das hört man im ersten GIF:
 <!-- generato da `tools/tabella_lingue.py`, non si scrive a mano -->
 
 <details>
-<summary><b>Alle 53 Sprachen, Motor für Motor</b> — ✓ heißt, dass dieser Motor mindestens eine eigene Stimme in dieser Sprache hat.</summary>
+<summary><b>Alle 52 Sprachen, Motor für Motor</b> — ✓ heißt, dass dieser Motor mindestens eine eigene Stimme in dieser Sprache hat.</summary>
 
 | Code | Sprache | piper | supertonic | kokoro |
 |---|---|:---:|:---:|:---:|
@@ -527,7 +527,6 @@ Verschieben der Tonhöhe unterschieden — genau das hört man im ersten GIF:
 | `ka` | Georgian | ✓ |  |  |
 | `de` | German | ✓ | ✓ |  |
 | `el` | Greek | ✓ | ✓ |  |
-| `he` | Hebrew | ✓ |  |  |
 | `hi` | Hindi | ✓ | ✓ | ✓ |
 | `hu` | Hungarian | ✓ | ✓ |  |
 | `is` | Icelandic | ✓ |  |  |
@@ -562,7 +561,7 @@ Verschieben der Tonhöhe unterschieden — genau das hört man im ersten GIF:
 | `vi` | Vietnamese | ✓ | ✓ |  |
 | `cy` | Welsh | ✓ |  |  |
 
-Eine Spalte gelesen ergibt den Katalog dieses Motors. Nur von einem Motor gesprochen: `piper` 21 · `supertonic` 2 (Croatian, Lithuanian) · `kokoro` 0. Von allen dreien gesprochen: 6 — English, French, Hindi, Italian, Portuguese, Spanish.
+Eine Spalte gelesen ergibt den Katalog dieses Motors. Nur von einem Motor gesprochen: `piper` 20 · `supertonic` 2 (Croatian, Lithuanian) · `kokoro` 0. Von allen dreien gesprochen: 6 — English, French, Hindi, Italian, Portuguese, Spanish.
 
 </details>
 <!-- lingue: fine -->
@@ -582,7 +581,7 @@ dass sie *zu dieser Sprache gehört*. Jeder Motor veröffentlicht das — piper 
 Stimmnamens, supertonic in seiner Liste unterstützter Sprachen. Nichts davon ist
 geraten.
 
-> **Nicht behauptet: dass die Aussprache gut ist.** Niemand hat 53 Sprachen
+> **Nicht behauptet: dass die Aussprache gut ist.** Niemand hat 52 Sprachen
 > abgehört, und etwas anderes zu sagen wäre ein Versprechen, das keine Messung
 > deckt.
 
@@ -661,7 +660,7 @@ wissen.
 
 **Die Sprache der Oberfläche** ist noch einmal etwas Drittes: **42** — 41 Kataloge
 plus Italienisch, die Sprache, in der der Quelltext geschrieben ist. Alle 41 sind
-**vollständig, 258 von 258 Zeichenketten**, keine halb übersetzt; vier laufen von
+**vollständig, 281 von 281 Zeichenketten**, keine halb übersetzt; vier laufen von
 rechts nach links und drehen das ganze Fenster um (Arabisch, Hebräisch, Persisch,
 Urdu). Sie werden einmal erzeugt und ins Repo eingecheckt — nicht beim Öffnen des
 Fensters aus dem Netz geholt, denn ein Fenster, das seinen eigenen Text aus dem
@@ -684,7 +683,7 @@ beim Benutzen selbst herauszufinden. Also steht sie hier, vor der Installation.
 
 | | |
 |---|---|
-| **Niemand hat die 53 Sprachen abgehört** | geprüft ist, dass eine Stimme existiert, dass sie zu dieser Sprache gehört und — wo es messbar war — dass ihr Sprechtempo plausibel ist. Die Aussprache ist nicht geprüft, und Italienisch ist die Sprache, in der dieses Programm gebaut und abgehört wurde. |
+| **Niemand hat die 52 Sprachen abgehört** | geprüft ist, dass eine Stimme existiert, dass sie zu dieser Sprache gehört und — wo es messbar war — dass ihr Sprechtempo plausibel ist. Die Aussprache ist nicht geprüft, und Italienisch ist die Sprache, in der dieses Programm gebaut und abgehört wurde. |
 | **Eine Sprache, die dein Motor nicht spricht, ist ein Wechsel, kein Fehler** | der Motor wechselt zu einem, der sie spricht, und sagt es. Spricht sie keiner der Motoren, die dieser Rechner tragen kann, wird auch das ausgesprochen — statt dir eine Stimme zu geben, die eine andere Sprache ausspricht. |
 | **Die erste Sitzung in einer neuen piper-Sprache lädt deren Stimmen herunter** | ein Modell je Stimme, 28–114 MB pro Stück, bis zu sechs davon, und der Prüfstand der Anleitung nennt dieses Gewicht noch nicht im Voraus, wie er es sonst tut. Der Start kann ein paar Minuten stehen, ohne zu sagen, warum. |
 | **Eine Untertitelzeile nach der anderen** | innerhalb des Rahmens, den du ziehst: nicht der ganze Bildschirm, nicht mehrere Bereiche auf einmal. Eine frühere Fassung versprach mehrere Lesebereiche und sie wurde entfernt, weil das Overlay eine Zeile nach der anderen zeichnet und das Versprechen live nicht zu halten war. |

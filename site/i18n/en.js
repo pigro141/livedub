@@ -47,7 +47,7 @@
         "Python <b>3.11</b>",
         "the network is <b>not needed</b>",
         "the interface speaks <b>42 languages</b>",
-        "it speaks out loud in <b>53 languages</b>",
+        "it speaks out loud in <b>52 languages</b>",
         "NVIDIA GPU <b>optional</b>"
       ],
       bottoni: [
@@ -118,7 +118,7 @@
             voci: [
               {
                 b: "You open it.",
-                p: "The window is already in the language you use Windows in — 42 languages in total, and every one of the 41 catalogs is complete: 258 strings out of 258, none of them half-done. Arabic, Hebrew, Persian and Urdu also flip the window the other way round."
+                p: "The window is already in the language you use Windows in — 42 languages in total, and every one of the 41 catalogs is complete: 281 strings out of 281, none of them half-done. Arabic, Hebrew, Persian and Urdu also flip the window the other way round."
               },
               {
                 b: "A guide takes you through it, in 7 steps.",
@@ -294,7 +294,7 @@
           },
           {
             t: "p",
-            x: "<b>There is also an executable, and it has been launched.</b> Every push builds it on GitHub Actions and then <i>runs</i> it: inside the package it reads a drawn subtitle, synthesises a line and builds the window, and nothing is published unless all twelve of those checks pass. The tested package is on the <a href=\"https://github.com/pigro141/livedub/releases/latest\">Releases page</a> — a zip of about 400 MB with its SHA256 beside it, no GitHub account needed and no expiry date."
+            x: "<b>There is also an executable, and it has been launched.</b> Every push builds it on GitHub Actions and then <i>runs</i> it: inside the package it reads a drawn subtitle, synthesises a line and builds the window, and nothing is published unless all 13 of those checks pass. The tested package is on the <a href=\"https://github.com/pigro141/livedub/releases/latest\">Releases page</a> — a zip of about 420 MB with its SHA256 beside it, no GitHub account needed and no expiry date."
           },
           {
             t: "p",
@@ -310,7 +310,7 @@
               ["disk", "<b>1.6 GB</b> — the environment without the CUDA libraries, plus 225 MB of models", "<b>3.5 GB</b> — with the CUDA libraries and 543 MB of models. Offline translation adds <b>3.2 GB</b> on top of either"],
               ["Windows", "<b>10</b> — capture goes through <code>PrintWindow</code>, which lives in <code>user32.dll</code> and needs nothing installed", "<b>11</b> — OneOCR only exists there, and it reads the outlined text of a game far better"],
               ["Python", "3.11", "3.11"],
-              ["<b>what you get</b>", "<b>Piper on CPU.</b> 665 ms from subtitle to voice, no underruns, no speeding the speech up. The recogniser is PP-OCR, and 50 of the 53 spoken languages are already here.", "<b>Kokoro on CUDA</b>: better articulation, and its 54 voices across 8 languages. 1290 ms."],
+              ["<b>what you get</b>", "<b>Piper on CPU.</b> 665 ms from subtitle to voice, no underruns, no speeding the speech up. The recogniser is PP-OCR, and 49 of the 52 spoken languages are already here.", "<b>Kokoro on CUDA</b>: better articulation, and its 54 voices across 8 languages. 1290 ms."],
               ["<b>what the step buys</b>", "below 6 cores Piper's synthesis goes from 88 ms to <b>302 ms</b> — see the table above", "the graphics card buys <b>3.5× on synthesis</b> (741 ms down to 213 ms), and it is the only thing that lets a language move the engine onto kokoro: on the CPU that engine costs 741 ms a line, which is not liveable"]
             ]
           },
@@ -401,24 +401,24 @@
             righe: [
               ["what the <b>buttons</b> are written in", "<b>42</b>", "<code>ui.lingua</code>, in the Setup tab"],
               ["what it can <b>translate a subtitle into</b>", "<b>133</b> with the online backend — the offline ones have no closed list", "<code>translate.target</code>, in the Translation tab"],
-              ["what it can <b>say out loud</b>", "<b>53</b> — but not with every engine: 50 with piper, 31 with supertonic, 8 with kokoro", "you pick the language, and the engine follows it"]
+              ["what it can <b>say out loud</b>", "<b>53</b> — but not with every engine: 49 with piper, 31 with supertonic, 8 with kokoro", "you pick the language, and the engine follows it"]
             ]
           },
           {
             t: "nota",
             ambra: true,
-            x: "<b>Three lists, three questions, and merging them is how a program ends up promising what it does not have.</b> The interface speaks 42 languages, the translator reaches 133, and the mouth speaks 53. That last number is not one number: <b>the three engines have different catalogues</b>, and picking a language is really picking an engine. Before the change that made it 53, the mouth spoke <b>two</b> — and that was never a limit of the engines, it was the only thing the code declared: translating into Spanish and then reading it out with an Italian voice produced <b>no error at all</b>."
+            x: "<b>Three lists, three questions, and merging them is how a program ends up promising what it does not have.</b> The interface speaks 42 languages, the translator reaches 133, and the mouth speaks 52. That last number is not one number: <b>the three engines have different catalogues</b>, and picking a language is really picking an engine. Before the change that made it 52, the mouth spoke <b>two</b> — and that was never a limit of the engines, it was the only thing the code declared: translating into Spanish and then reading it out with an Italian voice produced <b>no error at all</b>."
           },
           { t: "h3", x: "What it can say" },
           {
             t: "tabella",
             testa: ["engine", "languages", "voices", "runs on", "how the voices work"],
             righe: [
-              ["<b>piper</b> <i>— default</i>", "<b>50</b>", "175 models in the official index", "CPU", "one model per voice, one download each (28–114 MB)"],
+              ["<b>piper</b> <i>— default</i>", "<b>49</b>", "175 models in the official index", "CPU", "one model per voice, one download each (28–114 MB)"],
               ["<b>supertonic</b>", "<b>31</b>", "10 speaker styles, valid in <i>every</i> language", "CPU", "one multilingual model; the language selects the phonemiser"],
               ["<b>kokoro</b>", "<b>8</b>", "54, language and gender encoded in the name", "CUDA", "one model, one 510 KB style file per voice"],
               ["<code>tone</code>, <code>silent</code>", "—", "a beep has no language", "—", "—"],
-              ["<b>union</b>", "<b>53</b>", "", "", ""]
+              ["<b>union</b>", "<b>52</b>", "", "", ""]
             ]
           },
           {
@@ -454,7 +454,6 @@
               ["ka", "Georgian", "✓", "", ""],
               ["de", "German", "✓", "✓", ""],
               ["el", "Greek", "✓", "✓", ""],
-              ["he", "Hebrew", "✓", "", ""],
               ["hi", "Hindi", "✓", "✓", "✓"],
               ["hu", "Hungarian", "✓", "✓", ""],
               ["is", "Icelandic", "✓", "", ""],
@@ -503,7 +502,7 @@
           {
             t: "nota",
             ambra: true,
-            x: "<b>Not claimed: that the pronunciation is good.</b> Nobody has listened to 53 languages, and saying otherwise would be a promise no measurement backs."
+            x: "<b>Not claimed: that the pronunciation is good.</b> Nobody has listened to 52 languages, and saying otherwise would be a promise no measurement backs."
           },
           {
             t: "p",
@@ -524,7 +523,7 @@
           },
           {
             t: "nota",
-            x: "<b>One claim the check took away.</b> The piper index lists <b>51</b> languages and this program offers <b>50</b>. Japanese is the difference: that voice needs a phonemiser the installed <code>piper-tts</code> does not have, so the model downloads happily and the <i>first synthesis</i> raises. Declaring 51 would have been true of the index and false of this program. Japanese is still spoken — by kokoro, or by supertonic."
+            x: "<b>Two claims the check took away, and the second one was ours.</b> The piper index lists <b>51</b> languages and this program offers <b>49</b>. The installed, pinned <code>piper-tts</code> (1.3.0) knows exactly two phonemisers — <code>PhonemeType</code> is <code>[\"espeak\", \"text\"]</code> — and two voices ask for something else: Japanese wants <code>japanese</code>, Hebrew wants <code>hebrew</code>. Both models download happily and raise when they load. Hebrew is the one worth telling: this page used to claim Hebrew <i>worked, measured at 9.14 chars/s</i>, and a measurement the pinned dependency cannot reproduce is not a measurement. The count is now derived from that enum, so it cannot drift again."
           },
           { t: "h3", x: "Pick a language, and the engine follows it" },
           {
@@ -571,7 +570,7 @@
           { t: "h3", x: "What the buttons are written in" },
           {
             t: "p",
-            x: "<b>42 languages</b>: 41 catalogs plus Italian, which is the language the source is written in. All 41 are <b>complete — 258 strings out of 258</b>, with none half-translated. Four of them run right to left and turn the whole window round: Arabic, Hebrew, Persian and Urdu."
+            x: "<b>42 languages</b>: 41 catalogs plus Italian, which is the language the source is written in. All 41 are <b>complete — 281 strings out of 281</b>, with none half-translated. Four of them run right to left and turn the whole window round: Arabic, Hebrew, Persian and Urdu."
           },
           {
             t: "p",
@@ -595,7 +594,7 @@
             t: "tabella",
             testa: ["", ""],
             righe: [
-              ["<b>Nobody has listened to the 53 languages</b>", "what is verified is that a voice exists, that it belongs to that language and — where it could be measured — that its speaking rate is plausible. The pronunciation is not verified, and Italian is the language this program was built in and listened to in."],
+              ["<b>Nobody has listened to the 52 languages</b>", "what is verified is that a voice exists, that it belongs to that language and — where it could be measured — that its speaking rate is plausible. The pronunciation is not verified, and Italian is the language this program was built in and listened to in."],
               ["<b>A language your engine does not speak is a switch, not an error</b>", "the engine moves to one that speaks it and says so. If none of the engines this machine can run speaks it, that is stated too — instead of handing you a voice that pronounces a different language."],
               ["<b>The first session in a new piper language downloads its voices</b>", "one model per voice, 28–114 MB each, up to six of them, and the guide's bench does not yet declare that weight in advance the way it declares the others. Start can sit there for a few minutes without saying why."],
               ["<b>One subtitle line at a time</b>", "inside the box you drag: not the whole screen, not several areas at once. An earlier version promised several reading areas and it was removed, because the overlay draws one line at a time and the promise could not be kept live."],

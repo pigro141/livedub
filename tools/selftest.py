@@ -566,6 +566,32 @@ def test_timing(c: Check) -> None:
 
     c.eq(fit(np.array([1.0]), np.array([1.0])), (0.0, 0.0), "un punto solo non definisce una retta")
 
+    # **La finestra e' del sottotitolo, il parlato e' della traduzione.**
+    # `plan(text, spoken)` ha due argomenti perche' rispondono a due domande, e
+    # a tutti e due arrivava il testo **tradotto**: `b = 0,045 s/carattere` e'
+    # misurato sui sottotitoli italiani, e un carattere giapponese vale tre
+    # caratteri italiani di tempo di schermo. La finestra si accorciava col
+    # testo mentre lo schermo non cambiava.
+    from core.pipeline import DubPipeline
+    from core.types import LineClass, SubtitleEvent
+
+    ev = SubtitleEvent(text="今天我们收回车辆", t_on=0.0, cls=LineClass.WHITE)
+    lungo = "Oggi recuperiamo veicoli acquistati da idioti a tassi d'interesse"
+    c.eq(DubPipeline._testo_finestra(ev, lungo), lungo,
+         "la finestra si chiede sull'originale, che e' cio' che sta a schermo")
+    c.eq(DubPipeline._testo_finestra(ev, ""), ev.text,
+         "e senza traduzione i due testi sono lo stesso: si torna a com'era")
+
+    # Il caso nullo che rende utile la riga di sopra: se le due domande dessero
+    # la stessa risposta non ci sarebbe niente da separare.
+    from core.config import Config
+    from fuse.timing import DurationModel
+
+    mod = DurationModel(Config().timing)
+    c.ok(mod.predict(lungo) > mod.predict(ev.text) * 1.5,
+         f"e le due danno numeri molto diversi ({mod.predict(lungo):.2f} s "
+         f"contro {mod.predict(ev.text):.2f}), che e' tutto il difetto")
+
 
 def test_replay_stats(c: Check) -> None:
     """Il banco misura anche se stesso, e va verificato come il resto."""
@@ -2394,6 +2420,87 @@ def test_traduzione(c: Check) -> None:
     p_en = DubPipeline(cfg_en, ToneTts(), clock=VirtualClock(), samplerate=48000)
     c.ok(all(v.base_voice in PER_LINGUA["en"] for v in p_en.pool.voices),
          "la catena che traduce in inglese costruisce un pool inglese")
+
+    # **Quando la traduzione ripiega, il testo torna nella lingua di partenza e
+    # la voce no.** Misurato con Ollama spento: dieci righe su ventuno dette da
+    # `alan`, `alba` e `cori` — cioe' il fonemizzatore inglese su parole
+    # italiane, con l'audio che esce e i contatori verdi.
+    from core.config import Config
+    from core.pipeline import DubPipeline
+    from speak.base import ToneTts
+    from translate.base import Traduzione, Traduzioni
+
+    class _Morto:
+        name = "morto"
+
+        def traduci(self, testo, da, a):
+            raise RuntimeError("connessione rifiutata")
+
+    class _Identico:
+        name = "identico"
+
+        def traduci(self, testo, da, a):
+            return testo
+
+    # **Il ripiego non si deduce dalle stringhe.** Una battuta che si traduce in
+    # se stessa ha `tradotto` falso ed e' nella lingua d'arrivo; il ripiego ha
+    # `tradotto` falso ed e' in quella di partenza. Senza il campo, a valle le
+    # due sono identiche — ed e' li' che nasceva il difetto.
+    caduta = Traduzioni(_Morto(), da="it", a="en")("Ciao.")
+    uguale = Traduzioni(_Identico(), da="it", a="en")("Ok.")
+    c.ok(caduta.ripiegata and not uguale.ripiegata,
+         "il ripiego si distingue da una traduzione che non cambia il testo")
+    c.eq((caduta.lingua_detta, uguale.lingua_detta), ("da", "a"),
+         "e dice in che lingua uscira' la battuta, che e' la domanda vera")
+    c.ok(not caduta.tradotto and not uguale.tradotto,
+         "il caso nullo: `tradotto` non li distingue, ed e' il motivo del campo")
+
+    cfg = Config()
+    cfg.vision.ocr_backend = "none"
+    cfg.speaker.backend = "none"
+    cfg.translate.enabled = True
+    cfg.translate.backend = "prova"
+    cfg.translate.source = "it"
+    cfg.translate.target = "en"
+    cfg.tts.backend = "piper"
+    pipe = DubPipeline(cfg, tts=ToneTts())
+    pipe.traduci = Traduzioni(_Morto(), da="it", a="en")
+    pipe._anticipo = None
+
+    c.ok(all(v.base_voice.startswith("en_") for v in pipe.pool.voices),
+         "il pool parla la lingua d'arrivo, che e' giusto finche' si traduce")
+    prep = pipe._prepara("Ma devo dare una svolta alla mia vita.")
+    c.ok(prep.ripiegata and prep.finale == prep.corretto,
+         "col traduttore morto il testo ripiega sull'originale, come deve")
+
+    voce = pipe._voce_non_tradotta()
+    c.ok(voce is not None and voce.base_voice.startswith("it_"),
+         f"e la voce ripiega con lui, invece di leggerlo con i fonemi d'arrivo "
+         f"({voce and voce.base_voice})")
+    c.ok(voce not in pipe.pool.voices,
+         "sta fuori dal pool: nessun personaggio se la tiene per un guasto di rete")
+    c.close(pipe._cps_ripiego, 14.8, "e il passo e' quello della lingua che si dice "
+            "davvero, non i 13,07 dell'inglese", tol=0.01)
+    c.ok(pipe._voce_non_tradotta() is voce,
+         "si costruisce una volta sola: riprovarla a ogni riga costerebbe un "
+         "download per battuta proprio quando ripiegano tutte")
+
+    # **E con `auto` non si indovina.** La lingua di partenza non si sa, quindi
+    # non c'e' nessun pool giusto da scegliere: si tiene quello che c'e' e lo si
+    # dichiara, invece di scambiare un fonemizzatore sbagliato con un altro.
+    dette = []
+    cfg2 = Config()
+    cfg2.vision.ocr_backend = "none"
+    cfg2.speaker.backend = "none"
+    cfg2.translate.enabled = True
+    cfg2.translate.backend = "prova"
+    cfg2.translate.source = "auto"
+    cfg2.translate.target = "en"
+    cfg2.tts.backend = "piper"
+    pipe2 = DubPipeline(cfg2, tts=ToneTts(), dillo=dette.append)
+    c.eq(pipe2._voce_non_tradotta(), None, "con `auto` non si sceglie una voce a caso")
+    c.ok(any("non tradotte" in x for x in dette),
+         "e lo si dice, invece di lasciare che sembri funzionare")
 
 
 def test_overlay(c: Check) -> None:
@@ -5587,6 +5694,22 @@ def test_banco(c: Check) -> None:
          "la guida ha un passo in piu' che installa roba: il numero di versione "
          "e' salito, quindi la rivede anche chi l'aveva gia' vista — e' "
          "esattamente il caso per cui e' un numero e non un «l'ho vista»")
+
+    # **Undicesima volta di «dichiarato e mai letto», e stavolta il tetto e'
+    # meccanico.** `Sonda.rete` esisteva, nessuno lo scriveva e nessuno lo
+    # leggeva: `scegli()` dava lo stesso risultato in tutte e quattro le
+    # combinazioni. Contarlo a mano vuol dire riaccorgersene fra sei mesi;
+    # questa riga lo prende il giorno che qualcuno aggiunge un campo e si
+    # dimentica il posto che lo usa. Legge il **sorgente** per la stessa ragione
+    # di `registro.banco()`: l'elenco non si scrive, si ricava.
+    import pathlib
+
+    from core.banco import Sonda
+
+    sorgente = pathlib.Path("core/banco.py").read_text(encoding="utf-8")
+    morti = sorted(x for x in Sonda.__dataclass_fields__ if f".{x}" not in sorgente)
+    c.eq(morti, [],
+         "ogni campo di `Sonda` viene letto da qualche parte in `core/banco.py`")
 
 
 def test_registro(c: Check) -> None:

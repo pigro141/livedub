@@ -55,10 +55,29 @@ class Traduzione:
     backend: str = "?"
     da_cache: bool = False
     ms: float = 0.0
+    # **Il ripiego, che senza questo campo non si distingue da una traduzione.**
+    # Quando il traduttore non risponde si tiene l'originale — ed e' giusto — ma
+    # il risultato e' identico, campo per campo, a una traduzione che ha reso il
+    # testo immutato. Da fuori le due erano la stessa cosa, e a valle la
+    # differenza e' la **lingua** in cui la battuta verra' pronunciata: nel primo
+    # caso quella di partenza, nel secondo quella d'arrivo. E' da li' che
+    # venivano dieci righe su ventuno dette da voci inglesi su testo italiano.
+    ripiegata: bool = False
 
     @property
     def tradotto(self) -> bool:
         return self.testo != self.originale
+
+    @property
+    def lingua_detta(self) -> str:
+        """`"da"` o `"a"`: in che lingua sara' il testo che esce di qui.
+
+        Non si deduce da `tradotto`. Con `source == target`, o con una battuta
+        che si traduce in se stessa («Ok.»), `tradotto` e' falso e la lingua e'
+        comunque quella d'arrivo. L'unica cosa che sposta la lingua e' il
+        **ripiego**, e per questo e' un campo e non un confronto fra stringhe.
+        """
+        return "da" if self.ripiegata else "a"
 
 
 class Traduttore(Protocol):
@@ -159,7 +178,8 @@ class Traduzioni:
             if self.n_falliti == 1 and self.dillo is not None:
                 self.dillo(f"! la traduzione non riesce ({self.traduttore.name}): {perche}"
                            f" — le battute escono **in lingua originale**")
-            return Traduzione(testo, testo, self.traduttore.name, ms=ms)
+            return Traduzione(testo, testo, self.traduttore.name, ms=ms,
+                              ripiegata=True)
 
         if ms > self.max_ms:
             # Riuscita ma tardi: si usa lo stesso (buttarla via sarebbe sprecare

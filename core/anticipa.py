@@ -80,6 +80,11 @@ class Preparato:
     corretto: str  # dopo il Revisore
     finale: str  # dopo la traduzione
     ms: float = 0.0  # quanto e' costato prepararlo, **a muro**
+    # **La traduzione ha ripiegato**, cioe' `finale` e' nella lingua di partenza
+    # e non in quella d'arrivo. Serve a chi sceglie la voce: il testo ripiega da
+    # solo, la voce no, e il risultato e' il fonemizzatore sbagliato su audio
+    # che esce regolarmente. Si veda `Traduzione.lingua_detta`.
+    ripiegata: bool = False
 
 
 class Anticipo:

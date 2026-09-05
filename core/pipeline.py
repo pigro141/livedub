@@ -48,7 +48,7 @@ from mix.mixer import Mixer
 from mix.stretch import fit_duration, fit_duration_keep_tail  # noqa: F401
 from speak.base import TtsBackend, sa_streaming
 from translate.base import Traduzioni, make_traduttore
-from speak.pool import VoicePool, build_pool, voce_neutra, voce_per
+from speak.pool import VoicePool, build_pool, ha_voce, voce_neutra, voce_per
 from vision.label import LabelReader
 from vision.ocr import OcrBackend, make_ocr
 from vision.reader import SubtitleReader
@@ -407,6 +407,16 @@ class DubPipeline:
         self._neutra = voce_neutra(
             self.pool.voices, backend=cfg.tts.backend, lingua=lingua_voce
         )
+        # La voce delle battute che la traduzione non e' riuscita a tradurre.
+        # `False` = non ancora cercata; `None` = cercata e non c'e'. Due stati
+        # diversi apposta: un `None` solo vorrebbe dire ricostruirla — cioe'
+        # riprovare un download — a ogni riga di una sessione in cui **tutte**
+        # le righe ripiegano. Si veda `_voce_non_tradotta`.
+        self._voce_ripiego = False
+        # Il passo della lingua di partenza, quando serve. `0.0` = si usa quello
+        # normale, che e' cio' che succede se la voce di ripiego non c'e'.
+        self._cps_ripiego = 0.0
+        self._dillo = dillo
         # Chi parla scritto dal gioco, se il gioco lo scrive. Spento di default:
         # si veda `LabelConfig`, dove sta anche il perche' non si indovina.
         self.label = LabelReader(cfg.label) if cfg.label.enabled else None
@@ -884,6 +894,111 @@ class DubPipeline:
         if self.max_spoken and len(self.closed) > self.max_spoken:
             del self.closed[: len(self.closed) - self.max_spoken]
 
+    def _voce_non_tradotta(self):
+        """La voce con cui si dice una battuta che **non** e' stata tradotta.
+
+        **Una sola, fuori dal pool, ed e' la stessa scelta di `voce_neutra`.**
+        Quella dichiara «non so ancora chi sia»; questa dichiara «questa riga non
+        e' stata tradotta», e in tutti e due i casi il punto e' che nessun
+        personaggio se la tenga: se venisse dal pool, la riga di ripiego
+        cambierebbe la voce di qualcuno per un guasto della rete.
+
+        **Una e non sei, e il motivo e' il costo.** Su Piper ogni voce e' un
+        modello suo (28-114 MB) e questo pool si costruisce **mentre la scena
+        gira**: sei download a meta' partita sono peggio del difetto che curano.
+        Una sola voce e' un file solo, e si prende alla prima riga che ripiega —
+        cioe' mai, nella sessione che funziona.
+
+        **Si costruisce una volta e il fallimento si ricorda.** Senza modelli o
+        senza rete non c'e' niente da fare: si tiene la voce del pool e si dice,
+        una volta, che quelle righe usciranno col fonemizzatore sbagliato. Un
+        ripiego del ripiego che riprovasse a ogni battuta pagherebbe un timeout
+        per riga, e il difetto che questo metodo cura e' proprio uno che si
+        presenta su **tutte** le righe insieme.
+
+        Torna `None` quando non c'e' niente di meglio della voce che c'e' gia'.
+        """
+        if self._voce_ripiego is not False:
+            return self._voce_ripiego
+        # `auto` non e' una lingua: con la lingua di partenza sconosciuta non si
+        # puo' scegliere un pool, e indovinare sarebbe lo stesso difetto girato.
+        from speak.pool import famiglia_lingua
+        from translate.lingue import AUTO, normalizza
+
+        sorgente = normalizza(self.cfg.translate.source)
+        self._voce_ripiego = None
+        if sorgente and sorgente != AUTO:
+            lingua = famiglia_lingua(sorgente)
+            try:
+                voci = build_pool(None, 1, backend=self.cfg.tts.backend, lingua=lingua)
+                # `build_pool` non solleva quando il motore non parla quella
+                # lingua: **ripiega sulle voci di serie e lo stampa**. Prenderla
+                # per buona vorrebbe dire scambiare il fonemizzatore sbagliato
+                # con un altro fonemizzatore sbagliato, quindi si controlla.
+                if voci and ha_voce(self.cfg.tts.backend, lingua):
+                    self._voce_ripiego = voci[0]
+                    # **E il passo ripiega con la voce.** `self._cps` e' quello
+                    # della lingua d'arrivo, e su un testo di partenza e' la
+                    # stessa unita' sbagliata di sempre: misurato su questa
+                    # scena, 13,07 car/s (l'inglese) applicati a righe italiane,
+                    # che ne fanno 14,8 — e con `target=ja` sarebbero 5,9 contro
+                    # 14,8, cioe' un fattore due e mezzo. Si chiede al backend
+                    # invece di leggere una tabella: e' lui che sa dichiararlo
+                    # come prodotto con `speed`, e costruirlo non carica niente.
+                    from speak.base import make_tts
+
+                    self._cps_ripiego = float(make_tts(
+                        self.cfg.tts, lingua=lingua, preload=False
+                    ).chars_per_second)
+            except Exception as e:  # pragma: no cover - dipende da rete e modelli
+                print(f"voce di ripiego non costruita: {e!r}", file=sys.stderr)
+        if self._voce_ripiego is None and self._dillo is not None:
+            self._dillo(
+                "! la traduzione non risponde e non c'e' una voce per "
+                f"«{self.cfg.translate.source}»: le battute non tradotte "
+                "escono con il fonemizzatore della lingua d'arrivo.")
+        return self._voce_ripiego
+
+    @staticmethod
+    def _testo_finestra(event: SubtitleEvent, originale: str = "") -> str:
+        """Il testo con cui si chiede **quanto restera' a schermo il sottotitolo**.
+
+        E' l'**originale**, e la differenza fra i due argomenti di
+        `DurationModel.plan` e' che rispondono a due domande diverse:
+
+        - `text` -> `D = a + b*n`, cioe' *per quanto il gioco terra' su la sua
+          riga*. Quella riga e' quella che il gioco ha scritto, e tradurla non
+          la fa sparire un istante prima;
+        - `spoken` -> quanto durera' **la nostra voce**, che invece si calcola
+          sul testo tradotto e col passo della lingua d'arrivo.
+
+        **Passando il tradotto anche al primo si applicava `b` a un'altra
+        distribuzione**, che e' la stessa unita' sbagliata gia' pagata sei volte
+        qui. `b = 0,045 s per carattere` e' misurato sui sottotitoli **italiani**
+        di GTA V, e un carattere giapponese vale tre caratteri italiani di tempo
+        di schermo: la finestra si accorciava insieme al testo mentre lo schermo
+        non cambiava.
+
+        Misurato su venti battute vere di `runs/` tradotte con Google, a
+        `elapsed` zero — cioe' nel caso piu' favorevole:
+
+            lingua   n_it  n_arrivo  D(tradotto)  D(originale)  parlato  al tetto
+            en         30        24      2,00 s        2,25 s   1,70 s   0% -> 0%
+            ja         30        14      1,55 s        2,25 s   2,46 s  80% -> 45%
+            zh         30        10      1,37 s        2,25 s   2,49 s  80% -> 20%
+
+        L'inglese non se ne accorge — accorcia poco — ed e' il motivo per cui il
+        difetto e' rimasto: e' l'unica coppia su cui erano state fatte le prove.
+        Il cinese invece passa da quattro battute su cinque schiacciate al tetto
+        a una su cinque, **senza toccare nessuna soglia**: era il `dub.rate_x1000`
+        inchiodato a 1250 su ogni percentile, che in questo progetto non e' mai
+        una coincidenza.
+
+        `originale` vuoto vuol dire «non si e' tradotto», e allora i due testi
+        sono lo stesso: si torna esattamente a com'era.
+        """
+        return originale or event.text
+
     def _testo_grezzo(self, event: SubtitleEvent) -> str:
         """Il testo su cui lavorano correttore e traduttore, tolta l'etichetta.
 
@@ -911,6 +1026,7 @@ class DubPipeline:
                 self._n_corrette.inc(len(r.cambi))
                 corretto = r.testo
         finale = corretto
+        ripiegata = False
         if self.traduci is not None:
             t0 = time.perf_counter()
             t = self.traduci(corretto)
@@ -927,6 +1043,11 @@ class DubPipeline:
                 self._t_traduci.add(ms)
             if t.tradotto:
                 finale = t.testo
+            # **Il ripiego non e' «non e' cambiato niente».** `tradotto` guarda
+            # le stringhe, e una battuta che si traduce in se stessa non e' un
+            # ripiego; qui interessa in che **lingua** uscira' il testo, ed e'
+            # una cosa che solo `Traduzioni` sa.
+            ripiegata = bool(getattr(t, "ripiegata", False))
             # I ripieghi del traduttore, portati nel rapporto. `Traduzioni` li
             # conta gia' ma non li pubblica: si legge il delta invece di
             # duplicare la logica.
@@ -938,7 +1059,7 @@ class DubPipeline:
                 if ora > getattr(self, visto):
                     contatore.inc(ora - getattr(self, visto))
                     setattr(self, visto, ora)
-        return Preparato(testo, corretto, finale)
+        return Preparato(testo, corretto, finale, ripiegata=ripiegata)
 
     def _preparato(self, testo: str) -> Preparato:
         """Il testo pronto: gia' fatto durante l'attesa, o fatto adesso.
@@ -1003,6 +1124,18 @@ class DubPipeline:
         # in una scena di tre uomini uno di loro parla con la voce di una donna.
         p = self.tracker.get(speaker_id) if self.tracker is not None else None
         voice = self._voce_per(speaker_id, p, event.t_on, anonima=decisione.anonima)
+        # **Se il testo ha ripiegato, la voce ripiega con lui.** Il pool parla
+        # `translate.target` perche' e' quella la lingua che si *sarebbe* detta;
+        # quando il traduttore non risponde si dice invece `translate.source`, e
+        # senza questa riga il fonemizzatore d'arrivo legge parole di partenza —
+        # misurato con Ollama spento, dieci righe su ventuno dette da `alan`,
+        # `alba` e `cori` su testo italiano. Non e' silenzio: e' audio che esce,
+        # coi contatori verdi.
+        voce_ripiego = self._voce_non_tradotta() if prep.ripiegata else None
+        cps = self._cps
+        if voce_ripiego is not None:
+            voice = voce_ripiego
+            cps = self._cps_ripiego or self._cps
 
         # **Chiedere al sintetizzatore di parlare svelto, invece di schiacciarlo
         # dopo.** Sono due cose diverse e all'ascolto non si somigliano affatto:
@@ -1019,7 +1152,7 @@ class DubPipeline:
         # e' nemmeno proporzionale.
         nativo = 1.0
         n = spoken_length(event.text)
-        stima = n / max(1e-6, self._cps)
+        stima = n / max(1e-6, cps)
         if self.cfg.tts.native_rate_max > 1.0:
             # **Si mira all'istante in cui la voce partira' davvero, non a
             # adesso.** I due `plan` di questa funzione usavano due `elapsed`
@@ -1038,7 +1171,8 @@ class DubPipeline:
             costo_sintesi = self._t_synth.mean / 1000.0 if self._t_synth.count else 0.0
             inizio_atteso = max(self.clock.now() + costo_sintesi, self._free_at)
             budget = self.timing.plan(
-                event.text, stima, elapsed=max(0.0, inizio_atteso - event.t_on)
+                self._testo_finestra(event, originale), stima,
+                elapsed=max(0.0, inizio_atteso - event.t_on),
             ).budget
             if budget <= 0.05:
                 # Finestra gia' finita: si e' comunque in ritardo, e allora tanto
@@ -1187,7 +1321,8 @@ class DubPipeline:
         rate = 1.0
         if audio.size:
             durata = len(audio) / self.samplerate
-            piano = self.timing.plan(event.text, durata, elapsed=t_start - event.t_on)
+            piano = self.timing.plan(self._testo_finestra(event, originale), durata,
+                                     elapsed=t_start - event.t_on)
             # Il bersaglio, non la velocita': quando il budget e' gia' finito
             # `plan` restituisce `rate` 1.0 — non perche' vada bene cosi', ma
             # perche' non c'e' piu' finestra da rispettare. Guardare `rate`
@@ -1329,8 +1464,13 @@ class DubPipeline:
                 "latenza_ms": round(line.latency_ms, 1),
                 "durata": round(line.duration, 3),
                 "durata_naturale": round(stima, 3),
-                "finestra_prevista": round(self.timing.predict(event.text), 3),
-                "cps": round(self._cps, 2),
+                # I due numeri **usati**, non quelli di serie. Prima qui
+                # finivano `predict(tradotto)` e il passo della lingua d'arrivo
+                # anche quando la battuta usciva nella lingua di partenza: la
+                # traccia confermava la decisione sbagliata invece di mostrarla.
+                "finestra_prevista": round(
+                    self.timing.predict(self._testo_finestra(event, originale)), 3),
+                "cps": round(cps, 2),
                 "guadagno_nativo": round(self._native_gain, 3),
             }
         )
@@ -1391,7 +1531,8 @@ class DubPipeline:
         self._t_backlog.add((t_start - now) * 1000.0)
 
         # Il budget, sulla durata **prevista**: e' l'unica che esista adesso.
-        piano = self.timing.plan(event.text, stima, elapsed=t_start - event.t_on)
+        piano = self.timing.plan(self._testo_finestra(event, originale), stima,
+                                 elapsed=t_start - event.t_on)
         bersaglio = max(piano.budget, stima / self.cfg.timing.rate_max)
         rate = 1.0
         if stima > bersaglio + 1e-3:
@@ -1610,8 +1751,12 @@ class DubPipeline:
                 "latenza_ms": round(line.latency_ms, 1),
                 "durata": round(line.duration, 3),
                 "durata_naturale": round(stima, 3),
-                "finestra_prevista": round(self.timing.predict(event.text), 3),
-                "cps": round(self._cps, 2),
+                "finestra_prevista": round(
+                    self.timing.predict(self._testo_finestra(event, originale)), 3),
+                # Ricavato da `stima`, che e' il numero con cui si e' davvero
+                # programmato: `self._cps` sarebbe quello della lingua d'arrivo
+                # anche su una battuta ripiegata nella lingua di partenza.
+                "cps": round(spoken_length(event.text) / stima, 2) if stima else 0.0,
                 "guadagno_nativo": round(self._native_gain, 3),
             }
         )

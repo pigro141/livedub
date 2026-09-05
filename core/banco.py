@@ -246,7 +246,23 @@ class Sonda:
     # **contenuti verificati**, non di file esistenti: la differenza e' costata
     # un `KeyError` dentro una libreria, lontanissimo da dove stava il difetto.
     presenti: frozenset[str] = frozenset()
-    rete: bool = True
+    # **`rete: bool = True` stava qui e non lo leggeva nessuno.** Undicesima
+    # volta della forma «dichiarato e mai letto», dopo `max_ocr_hz`,
+    # `tts.device`, `background_mode`, `overlay.ritardo`, il `region` di
+    # `make_screen`, `profiles/ultima.json`, la `row_band` della calibrazione,
+    # `mix.output_device` e i sei campi di `mix.`. Verificato prima di toglierlo:
+    # nessuno lo **scriveva** (`sonda()` non lo passa) e nessuno lo **leggeva**
+    # (`grep -c "\.rete\b" core/banco.py` da' 0), e `scegli()` rende lo stesso
+    # risultato in tutte e quattro le combinazioni di CUDA e traduzione.
+    #
+    # **Si toglie invece di dargli un uso**, che era l'altra strada. `scegli()`
+    # e' aritmetica pura e nessuno ha misurato che cosa dovrebbe cambiare senza
+    # rete: inventarci una politica vorrebbe dire scrivere una regola non
+    # misurata e chiamarla cura. Chi un giorno ne avra' bisogno lo rimetta
+    # **insieme al posto che lo legge** — e' l'unico modo in cui un campo nuovo
+    # non nasce gia' morto. Il tetto contro le prossime volte e' meccanico e sta
+    # nel gruppo `banco`: ogni campo di `Sonda` deve comparire almeno una volta
+    # come `.<nome>` nel sorgente di questo modulo.
 
 
 # ================================================================ il perche' ==

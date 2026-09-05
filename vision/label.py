@@ -54,8 +54,9 @@ Da qui tre guardie, in ordine di forza:
 from __future__ import annotations
 
 import re
-import unicodedata
 from dataclasses import dataclass
+
+from core.testo import chiave as chiave_testo
 
 # **Le forme pronte.** Sono i modi in cui i giochi scrivono chi parla: si sceglie
 # la propria con `label.form`, e se il gioco ne usa un'altra c'e' `label.regex`.
@@ -105,10 +106,15 @@ def _normalizza(s: str) -> str:
     e gli accenti prima di sbagliare le lettere, e un elenco dichiarato a mano non
     deve fallire perche' l'utente ha scritto «Michael» dove lo schermo dice
     «MICHAEL ».
+
+    **La regola sta in `core/testo.py` e non piu' qui.** Era scritta due volte —
+    l'altra copia e' `core/pipeline.py::_lettere` — e tutte e due tenevano solo
+    `[a-z0-9]`: su un gioco russo o giapponese la chiave veniva **vuota**, quindi
+    ogni nome cadeva nella stessa e tutto il cast diventava un personaggio solo,
+    con una voce sola. Il chiamante qui sotto scarta la chiave vuota, quindi
+    l'unico sintomo era che il riconoscimento del nome non partiva mai.
     """
-    piatto = unicodedata.normalize("NFKD", s)
-    piatto = "".join(c for c in piatto if not unicodedata.combining(c))
-    return re.sub(r"[^a-z0-9]", "", piatto.lower())
+    return chiave_testo(s)
 
 
 class LabelReader:

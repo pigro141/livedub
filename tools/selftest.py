@@ -6406,12 +6406,42 @@ def test_tabella_lingue(c: Check) -> None:
     # contando se stessa. Una verifica che non puo' esprimere la risposta e'
     # peggio di una che manca; il numero delle verifiche resta prosa, e questa
     # riga prende almeno l'altro — che e' quello che si muove insieme.
+    # **I posti sono quattordici, non otto.** Questo giro chiedeva i sette
+    # README piu' il solo `en.js`, mentre `conta_verifiche` il numero delle
+    # verifiche lo scrive in **tutti e quattordici** — nei sei cataloghi
+    # tradotti due volte, perche' la chiave e' la frase inglese e il valore la
+    # sua traduzione. I sei che restavano fuori non li guardava nessuno, ed e'
+    # cosi' che `site/i18n/ja.js` e' rimasto a 86 mentre gli altri passavano a
+    # 87: nessun errore, e il numero sbagliato solo in giapponese. Si chiede
+    # quindi lo stesso elenco a `conta_verifiche.posti()`, che e' l'unico che
+    # lo sa — due elenchi per la stessa domanda sono il modo in cui uno dei due
+    # smette di essere aggiornato.
+    #
+    # E fra il numero e la parola il giapponese mette una **particella**:
+    # «87 のグループ». Senza `の` nell'ancora questa riga non potrebbe esprimere
+    # la risposta proprio sul file che sbaglia. E' la stessa forma del `個の`
+    # gia' scritta in `conta_verifiche.DOVE`.
+    from tools.conta_verifiche import dichiarati, posti
+
+    # E non basta che il numero **ci sia**: nei sei cataloghi tradotti la frase
+    # compare due volte — la chiave e' l'inglese, il valore la traduzione — e
+    # una riga che si accontenta di trovarlo una volta passa sulla sola chiave,
+    # lasciando la traduzione libera di restare indietro. E' esattamente cosi'
+    # che `ja.js` aveva 86 nel giapponese e 87 nell'inglese sopra.
+    #
+    # Quante volte debba comparire **non si scrive a mano**: i due numeri stanno
+    # nella stessa frase, quindi il conteggio dei gruppi deve comparire tante
+    # volte quanto quello delle verifiche, che `conta_verifiche.dichiarati()`
+    # gia' conta file per file. Una tabella «uno qui, due li'» sarebbe il
+    # quindicesimo posto in cui scrivere la stessa cosa.
+    quante_volte = {n: len(v) for n, v in dichiarati().items()}
     quanti = len(GROUPS)
-    for nome, percorso in list(READMES.items()) + [("sito", SITO)]:
+    for nome, percorso in sorted(posti().items()):
         testo = percorso.read_text(encoding="utf-8")
-        c.ok(re.search(rf"(?<!\d){quanti}(?!\d)\s*\n?\s*"
-                       r"(groups|gruppi|Gruppen|grupos|groupes|グループ|组)", testo)
-             is not None,
+        trovati = re.findall(rf"(?<!\d){quanti}(?!\d)\s*(?:の)?\s*"
+                             r"(?:groups|gruppi|Gruppen|grupos|groupes|グループ|组)",
+                             testo)
+        c.eq(len(trovati), quante_volte[nome],
              f"{nome}: dichiara {quanti} gruppi, come `len(GROUPS)`")
 
     # **I nomi delle lingue non si traducono**, e non e' una dimenticanza: sono

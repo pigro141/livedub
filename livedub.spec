@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 from PyInstaller.utils.hooks import (collect_data_files, collect_dynamic_libs,
-                                     copy_metadata)
+                                     collect_submodules, copy_metadata)
 
 RADICE = Path(SPECPATH)
 
@@ -155,6 +155,53 @@ BINARI_LIBRERIE += collect_dynamic_libs("ctranslate2")
 # che quei file li aprono per percorso. Sono dati, quindi PyInstaller non li vede.
 DATI_LIBRERIE += collect_data_files("sacremoses")
 
+# **I due g2p che non sono espeak, e sono quasi tutti dati.** Sei delle otto
+# lingue di Kokoro si fonemizzano con espeak e non perdono niente; il giapponese
+# e il cinese si', e in silenzio — `Tokenizer.phonemize` filtra sul vocabolario
+# e butta cio' che non conosce. Al giapponese toglieva **tutte le «a»** (espeak
+# scrive /a/ come `ä`, che nei 114 simboli non c'e'), al cinese **le cifre dei
+# toni**: `妈`, `马` e `骂` uscivano tutte come `mˈɑ`. Si vedano
+# `speak/backends/kokoro_ja.py` e `kokoro_zh.py`, che portano le misure.
+#
+# Sono dizionari aperti **per percorso**, quindi PyInstaller non li vede
+# analizzando gli import — la stessa ragione di `sacremoses` qui sopra, e la
+# stessa forma di difetto: il pacchetto viene su verde e la prima battuta
+# giapponese muore dall'utente.
+#
+#   unidic-lite    260,5 MB   `sys.dic` 187,7 + `matrix.bin` 71,5
+#   pypinyin-dict  112,9 MB   `large_pinyin`, i termini polifonici
+#   jieba           43,1 MB   il segmentatore
+#   misaki          15,4 MB
+#
+# Sono 432 MB per due lingue su cinquantatre, e chi non doppia in giapponese o
+# cinese li scarica lo stesso: e' una scelta dichiarata, non una svista.
+for _pacchetto in ("misaki", "unidic_lite", "jieba", "pypinyin", "pypinyin_dict",
+                   "cn2an", "proces"):
+    DATI_LIBRERIE += collect_data_files(_pacchetto)
+
+# **E `pypinyin_dict` non ha nessun «dato»**: `collect_data_files` ne trova
+# **zero**, perche' i suoi 112,9 MB stanno dentro **moduli `.py`** spezzati in
+# pezzi (`large_pinyin_0.py`, `_1.py`, …) che un file indice importa uno per
+# uno. Sono import statici e l'analisi li seguirebbe, ma solo finche' la catena
+# che ci arriva resta intera: bastano un `importlib` in una versione nuova di
+# misaki, o `misaki.zh` che smette di essere raggiungibile, e i pezzi spariscono
+# **senza che il pacchetto se ne accorga**. Dichiararli costa una riga e toglie
+# la dipendenza da quella catena.
+#
+# **E si scartano due sottomoduli di misaki, per la stessa ragione per cui
+# `kokoro_ja.py` importa `misaki.cutlet` e non `misaki.ja`**: quello fa
+# `import pyopenjtalk` in cima, e su Windows `pyopenjtalk` non ha una ruota (pip
+# prova a compilarlo e muore su `CMAKE_C_COMPILER not set`). `vi_cleaner` vuole
+# `vietnam_number`, che non c'e' e non serve a nessuna delle otto lingue di
+# Kokoro. Dichiararli vorrebbe dire chiedere a PyInstaller un modulo che non si
+# importa: rumore in un registro da millecento righe, dove le righe che contano
+# si perdono — e' gia' successo con `speak.backends.tone`, che non esisteva.
+_FUORI = ("misaki.ja", "misaki.vi_cleaner", "misaki.vi")
+G2P_MODULI = [
+    m for m in collect_submodules("pypinyin_dict") + collect_submodules("misaki")
+    if not m.startswith(_FUORI)
+]
+
 a = Analysis(
     # **La finestra Qt, non quella Tk.** L'eseguibile impacchettava
     # `tools/ui.py`, cioe' il front-end vecchio: chi installava il pacchetto
@@ -209,6 +256,14 @@ a = Analysis(
         "speak.backends.piper",
         "speak.backends.supertonic",
         "speak.backends.kokoro",
+        # I due g2p si caricano con `import_module` da `G2P_ESTERNO`, cioe' per
+        # **stringa**: l'analisi statica non li vede, ed e' esattamente il caso
+        # che questo elenco esiste per coprire.
+        "speak.backends.kokoro_ja",
+        "speak.backends.kokoro_zh",
+        *G2P_MODULI,
+        "fugashi",
+        "unidic_lite",
         # `speak.backends.tone` stava qui e **non esiste**: `tone` e `silent`
         # vivono dentro `speak/base.py`. PyInstaller lo diceva
         # (`ERROR: Hidden import not found`) in mezzo a millecento righe di

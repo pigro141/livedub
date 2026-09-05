@@ -149,10 +149,57 @@ PREFERITE: dict[str, tuple[str, ...]] = {
 }
 
 
+# **Le lingue che il catalogo ha e che questo motore non sa dire.** E' vuoto, e
+# lo e' diventato: fino al 5 settembre 2026 conteneva `ja`, perche' `kokoro_onnx`
+# fonemizza tutto con espeak-ng ed espeak il giapponese lo sbaglia in due modi
+# che non sollevano mai — i kanji li **nomina** («Chinese letter» per ogni
+# ideogramma, 8,75 fonemi per carattere contro gli 0,94-1,46 delle altre) e sulle
+# sole kana perde **tutte le «a»**, perche' le scrive con simboli che il
+# vocabolario di Kokoro non ha e il tokenizzatore butta in silenzio.
+#
+# Adesso il giapponese non passa piu' da espeak: `speak/backends/kokoro_ja.py` lo
+# fonemizza con misaki (fugashi + UniDic), che e' la strada di Kokoro a monte. Le
+# due misure e il controllo contro un'implementazione indipendente stanno tutti
+# in quel file.
+#
+# **La tabella resta, e vuota vale piu' che piena.** Dice che oggi non c'e'
+# nessuna lingua dichiarata dal catalogo che questo motore non sappia dire; e la
+# guardia in `__init__` che la legge resta l'unico posto in cui una lingua nuova
+# in quelle condizioni si dichiara invece di consegnare un doppiaggio fatto con
+# la fonemizzazione sbagliata.
+SENZA_FONEMI: frozenset[str] = frozenset()
+
+# **Le lingue che non si fonemizzano con espeak, e chi le fonemizza al posto
+# suo.** Il valore e' una funzione `(testo, vocabolario) -> fonemi`; il modulo si
+# importa **pigramente** dentro `_fonemi`, perche' `misaki` e' un requisito di
+# questo motore e non di chi importa questo file per leggerne i cataloghi — il
+# selftest costruisce `KokoroTts` senza modelli e senza voler tirare dentro un
+# dizionario da 249 MB.
+G2P_ESTERNO: dict[str, str] = {
+    "ja": "speak.backends.kokoro_ja",
+    # **Il cinese e' arrivato dopo, e la ragione per cui era sfuggito vale piu'
+    # della riga.** Col metro che aveva preso il giapponese — il rapporto
+    # fonemi/carattere — il cinese risultava sano (4,00, nessuna commutazione di
+    # lingua) e la spiegazione era buona: un hanzi e' una sillaba. Col metro
+    # giusto, cioe' **quanti simboli il vocabolario butta via**, perde il 17,4%
+    # e quel che perde sono le cifre dei toni: `妈`, `马` e `骂` uscivano tutte
+    # come `mˈɑ`. Si veda `speak/backends/kokoro_zh.py`.
+    "zh": "speak.backends.kokoro_zh",
+}
+
+# La battuta con cui si scalda il modello, per le lingue che non si scrivono in
+# alfabeto latino: `preload` la fa passare dal g2p vero, e dare «Andiamo.» a
+# misaki vorrebbe dire scaldare su una stringa che quel g2p non incontrera' mai.
+FRASE_SCALDATA: dict[str, str] = {"ja": "行こう。", "zh": "我们走吧。"}
+
+
 def _per_lingua() -> dict[str, tuple[str, ...]]:
     fuori: dict[str, list[str]] = {}
     for chiave, (nome, _g) in VOICES.items():
-        fuori.setdefault(_PREFISSI[nome[0]][0], []).append(chiave)
+        lingua = _PREFISSI[nome[0]][0]
+        if lingua in SENZA_FONEMI:
+            continue
+        fuori.setdefault(lingua, []).append(chiave)
     ordinate: dict[str, tuple[str, ...]] = {}
     for lingua, voci in fuori.items():
         teste = [v for v in PREFERITE.get(lingua, ()) if v in voci]
@@ -182,15 +229,48 @@ LINGUA = "it"
 # questo file mentiva prima: `FONEMI_LINGUA` elencava gia' es/fr/de/pt e le voci
 # no, quindi la fonemizzazione era pronta per lingue che il pool non sapeva
 # parlare, e le voci di sette lingue restavano invisibili.
+# E chi non ha regole utilizzabili non compare qui nemmeno: una lingua con la
+# fonemizzazione pronta e nessuna voce era il difetto scritto qui sopra, e la
+# stessa tabella girata dall'altra parte — una voce con una fonemizzazione che
+# legge un'altra cosa — era il giapponese, che adesso ha la sua.
+#
+# **Il giapponese non e' qui, e la sua assenza e' l'unica cosa che impedisce di
+# chiederlo a espeak per sbaglio.** Questa tabella dice «con che codice espeak si
+# fonemizza questa lingua», e per il giapponese la risposta non e' un codice
+# espeak: e' `G2P_ESTERNO`. Tenercelo con dentro `"ja"` sarebbe stato un campo
+# vero, letto, e sbagliato — che e' esattamente com'era prima, quando
+# `SENZA_FONEMI` diceva «non lo so fare» e la riga sotto lo chiedeva lo stesso a
+# espeak. Insieme le due tabelle **partizionano** le lingue delle voci, e la
+# verifica `kokoro_ja` lo pretende: nessuna in tutte e due, nessuna in nessuna.
 FONEMI_LINGUA: dict[str, str] = {
     _PREFISSI[n[0]][0]: _PREFISSI[n[0]][1] for n in reversed(_NOMI)
+    if _PREFISSI[n[0]][0] not in SENZA_FONEMI
+    and _PREFISSI[n[0]][0] not in G2P_ESTERNO
 }
 
 # Quanti fonemi il modello accetta in un colpo. Le battute vere di GTA V ne
 # fanno un'ottantina, quindi il limite non si tocca mai — ma una battuta troncata
 # in silenzio sarebbe una frase mangiata senza nessun segnale, quindi lo
 # spezzettamento esiste lo stesso.
-MAX_FONEMI = 510
+#
+# **509 e non 510, e i due numeri non misurano la stessa cosa.** 510 e' la
+# lunghezza massima della stringa di fonemi che `kokoro_onnx` dichiara; ma il
+# vettore di stile si indicizza con `len(tok)` e ha **510 righe, cioe' 0..509**.
+# Un pezzo da esattamente 510 fonemi da' 510 token e `stile[510]` e' fuori —
+# misurato dal vivo in giapponese: `IndexError: index 510 is out of bounds for
+# axis 0 with size 510`, con la catena ferma e la finestra in guasto. Il limite
+# vero e' quello dell'indice, non quello dichiarato.
+MAX_FONEMI = 509
+
+# La punteggiatura su cui si spezza. **Non solo quella ASCII**: in giapponese la
+# frase finisce con `。` e la virgola e' `、`, quindi con il solo `.` una battuta
+# lunga non aveva **nessun** punto dove spezzarsi — un pezzo unico tagliato duro
+# al limite, che e' esattamente come si arrivava all'IndexError. Ci sono anche
+# l'arabo (`؟` `،`), il greco (`;` come punto interrogativo) e le forme a tutta
+# larghezza, perche' la lingua d'arrivo adesso puo' essere una qualunque delle
+# cinquantatre.
+FINE_FRASE = "。．！？；!?;⁇⁈⁉‼？！"
+PAUSA = "、，,،؛"
 
 # **Quanto il modello accetta, e cosa succede se glielo si chiede lo stesso.**
 # Fuori da questi due numeri `kokoro_onnx` solleva un `AssertionError`. La
@@ -304,10 +384,39 @@ PASSO_PER_UNITA = 12.9
 # quindi il suo 14,39 e' il passo di quella lingua per costruzione — non c'e'
 # una maschile da cui distinguerlo, e dire «il francese e' piu' svelto» sarebbe
 # dire una cosa che questa misura non puo' separare da «siwis e' svelta».
+#
+# ---------------------------------------------------------------------------
+#
+# **E il giapponese entra con il numero piu' lontano di tutti, che era
+# prevedibile e va comunque misurato.** 12 frasi vere, le due voci giapponesi,
+# `speed = 1,0`, durata **dopo** `taglia_silenzio`, fonemi da misaki:
+#
+#     lingua  voce               sesso   car/s (mediana)
+#     ja      kokoro-ja_alpha      f      5,95
+#     ja      kokoro-kumo          m      5,91
+#
+# Si dichiara **5,9**, il piu' basso dei due: una previsione corta si paga piu'
+# cara di una lunga. Le due voci distano lo 0,7%, cioe' molto sotto la soglia del
+# 10% con cui si e' deciso il francese — il passo resta una proprieta' del motore
+# piu' la lingua, non della voce, esattamente come per le altre.
+#
+# **Non e' un motore lento, e' una scrittura densa**: `spoken_length()` conta i
+# caratteri, e un ideogramma vale due o tre sillabe. E' la stessa ragione per cui
+# nella tabella di SuperTonic in fondo stanno giapponese, coreano, hindi e arabo.
+# Il caso nullo che rende questi numeri una misura e non due cifre: **rifacendo
+# l'italiano** con lo stesso codice e lo stesso protocollo torna 13,38 contro i
+# 12,93 e 13,01 archiviati, cioe' il 3,5%.
+#
+# La conseguenza sulla catena e' dichiarata: con 5,9 car/s una battuta giapponese
+# occupa **piu' del doppio** del tempo di scena della stessa battuta italiana, e
+# il budget si stringera' molto piu' spesso. E' il numero vero — usare i 12,9
+# dell'italiano sarebbe la sesta volta della stessa unita' sbagliata, e stavolta
+# con un fattore due invece che con un 11%.
 PASSO_LINGUA = {
     "it": 12.9,
     "en": 14.37,
     "fr": 14.39,
+    "ja": 5.9,
 }
 
 
@@ -410,22 +519,42 @@ def spezza_fonemi(fonemi: str, limite: int = MAX_FONEMI) -> list[str]:
     if len(fonemi) <= limite:
         return [fonemi] if fonemi else []
 
-    pezzi: list[str] = []
-    corrente = ""
-    for parte in fonemi.replace(";", ".").replace("!", ".").replace("?", ".").split("."):
-        parte = parte.strip()
-        if not parte:
-            continue
-        if corrente and len(corrente) + len(parte) + 1 > limite:
+    def a_pezzi(testo: str, segni: str) -> list[str]:
+        for c in segni[1:]:
+            testo = testo.replace(c, segni[0])
+        pezzi: list[str] = []
+        corrente = ""
+        for parte in testo.split(segni[0]):
+            parte = parte.strip()
+            if not parte:
+                continue
+            if corrente and len(corrente) + len(parte) + 1 > limite:
+                pezzi.append(corrente)
+                corrente = parte
+            else:
+                corrente = f"{corrente} {parte}".strip()
+        if corrente:
             pezzi.append(corrente)
-            corrente = parte
-        else:
-            corrente = f"{corrente} {parte}".strip()
-    if corrente:
-        pezzi.append(corrente)
-    # Se anche un pezzo solo sfora (una battuta senza punteggiatura), si taglia
-    # duro: meglio un pezzo in meno che un `AssertionError` a meta' scena.
-    return [p[:limite] for p in pezzi if p]
+        return pezzi
+
+    pezzi = a_pezzi(fonemi, "." + FINE_FRASE)
+    # **Chi sfora ancora si spezza sulle pause, non si taglia.** Una battuta
+    # senza fine frase — o in una lingua che la scrive in un modo che qui non e'
+    # elencato — arrivava intera al taglio duro, cioe' perdeva la seconda meta'
+    # in silenzio. La virgola e' un punto di respiro peggiore del punto, ed e'
+    # comunque meglio che in mezzo a una parola.
+    fine: list[str] = []
+    for pezzo in pezzi:
+        fine.extend(a_pezzi(pezzo, "," + PAUSA) if len(pezzo) > limite else [pezzo])
+    # E se anche cosi' non basta (nessun segno affatto), si taglia a finestre —
+    # **non si tiene solo la prima**. Era `p[:limite]`, cioe' la coda sparita in
+    # silenzio: la stessa mezza frase detta come se fosse tutta contro cui
+    # questo spezzettamento esiste. Tagliare male una parola si sente; perdere
+    # meta' battuta no.
+    duro: list[str] = []
+    for pezzo in fine:
+        duro.extend(pezzo[i:i + limite] for i in range(0, len(pezzo), limite))
+    return [p for p in duro if p]
 
 
 def velocita_effettiva(base: float, rate: float, carattere: float) -> float:
@@ -464,10 +593,25 @@ class KokoroTts:
         # italiane da' parlato comprensibile a meta' e sembra un difetto del
         # modello.
         self.lingua_base = (lingua or "it").split("-")[0]
+        # **E chi non ha regole si ferma qui, invece di ripiegare su se stesso.**
+        # Il ripiego era `lingua`, cioe' il codice chiesto: togliere `ja` da
+        # `FONEMI_LINGUA` non lo toglieva affatto a espeak — la tabella diceva
+        # «non lo so fare» e la riga sotto glielo chiedeva lo stesso. Una cura
+        # piu' stretta del difetto, con la suite verde; e per prenderla non basta
+        # chiedersi «il difetto e' sparito?», ci vuole «cosa faceva prima che
+        # adesso non fa piu'?». Solleva invece di ripiegare, perche' un ripiego
+        # muto qui vuol dire consegnare un doppiaggio fatto con la
+        # fonemizzazione sbagliata, e con i contatori verdi.
+        if self.lingua_base in SENZA_FONEMI:
+            raise ValueError(
+                f"kokoro non sa dire «{self.lingua_base}»: espeak i suoi segni "
+                "li nomina invece di leggerli (si veda SENZA_FONEMI). "
+                "Il motore va scelto con core.motore.motore_per_lingua.")
         self.lingua = FONEMI_LINGUA.get(self.lingua_base, lingua)
         self.download = download
         self._k = None
         self._provider = "?"
+        self._g2p = None
 
     @property
     def chars_per_second(self) -> float:
@@ -484,6 +628,32 @@ class KokoroTts:
         # **Per lingua**: si veda `PASSO_LINGUA`. Usare il numero italiano
         # sull'inglese faceva comprimere al tetto una scena piena a meta'.
         return PASSO_LINGUA.get(self.lingua_base, PASSO_PER_UNITA) * self.speed
+
+    # -- fonemizzazione ----------------------------------------------------
+
+    def _fonemi(self, text: str) -> str:
+        """I fonemi della battuta, da espeak o da chi lo sostituisce.
+
+        **Un posto solo**, perche' la strada del giapponese e quella delle altre
+        otto lingue devono restare la stessa strada: e' gia' costato due volte,
+        in questo progetto, aprire un ramo parallelo che poi non ereditava le
+        cure dell'altro (il ricampionamento e il taglio del silenzio, nella
+        stessa sessione). Qui a valle ci sono `spezza_fonemi`, il tetto
+        `MAX_FONEMI` e la guardia sull'indice dello stile, e le prendono tutte e
+        due allo stesso modo.
+
+        E chi non ha un g2p **solleva**, invece di ripiegare su espeak: un
+        ripiego muto qui vuol dire consegnare una battuta fonemizzata con le
+        regole di un'altra lingua, con l'audio che esce e i contatori verdi.
+        """
+        modulo = G2P_ESTERNO.get(self.lingua_base)
+        if modulo is None:
+            return self._engine().tokenizer.phonemize(text, lang=self.lingua)
+        if self._g2p is None:
+            from importlib import import_module
+
+            self._g2p = import_module(modulo)
+        return self._g2p.fonemi(text, self._engine().tokenizer.vocab)
 
     # -- caricamento -------------------------------------------------------
 
@@ -561,7 +731,13 @@ class KokoroTts:
                 continue
             try:
                 k = self._engine()
-                tok = k.tokenizer.tokenize(k.tokenizer.phonemize("Andiamo.", lang=self.lingua))
+                # **La frase di prova e' nella scrittura di questa lingua**, e
+                # non e' un vezzo: scaldare con «Andiamo.» in giapponese
+                # scalderebbe i kernel giusti passando pero' per un g2p che poi
+                # non e' quello del vivo. Qui la strada e' `_fonemi`, cioe'
+                # quella vera, e la prima battuta paga quello che pagherebbe.
+                tok = k.tokenizer.tokenize(self._fonemi(FRASE_SCALDATA.get(
+                    self.lingua_base, "Andiamo.")))
                 if tok:
                     k.sess.run(
                         None,
@@ -587,12 +763,20 @@ class KokoroTts:
         effective = velocita_effettiva(self.speed, rate, voice.rate)
 
         t0 = time.perf_counter()
-        fonemi = k.tokenizer.phonemize(text, lang=self.lingua)
+        fonemi = self._fonemi(text)
         pezzi: list[np.ndarray] = []
         for batch in spezza_fonemi(fonemi):
             tok = k.tokenizer.tokenize(batch)
             if not tok:
                 continue
+            # **La guardia sta dove sta l'indice.** `spezza_fonemi` conta i
+            # *fonemi* e qui si indicizza con i *token*: sono la stessa cosa
+            # finche' il tokenizzatore non decide altrimenti, e il giorno che
+            # non lo sono l'errore esce dentro `sess.run` con un numero e
+            # nessun nome. Una riga che non entra mai costa meno di una
+            # sessione persa.
+            if len(tok) >= len(stile):
+                tok = tok[:len(stile) - 1]
             uscita = k.sess.run(
                 None,
                 {

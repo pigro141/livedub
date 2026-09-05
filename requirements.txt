@@ -240,3 +240,40 @@ imageio-ffmpeg==0.6.0       # il montaggio degli MP4 di prova (tools/dub.py --mp
 # difetto che WGC non ha: su un gioco Direct3D puo' **riuscire e restituire
 # nero**. Anche quello e' dichiarato (`PrintWindowSource.nero`).
 windows-capture
+
+# **Il giapponese di Kokoro, che espeak non sa dire.** espeak-ng i kanji non li
+# legge: li **nomina** — `今` esce come `(en)tʃˈaɪniːz(ja)lˈetə`, cioe' il modello
+# pronuncia la frase inglese «Chinese letter» — e anche sulle sole kana perde
+# **tutte le «a»**, perche' scrive /a/ come `ä`, che non sta nei 114 simboli del
+# vocabolario di Kokoro, e `Tokenizer.phonemize` filtra via il resto in silenzio.
+# Si veda `speak/backends/kokoro_ja.py`, che porta le misure.
+#
+# `misaki` e' la stessa strada di Kokoro a monte, e si importa `misaki.cutlet` e
+# **non** `misaki.ja`: quello fa `import pyopenjtalk` in cima al modulo, e
+# `pyopenjtalk` su Windows non ha una ruota (pip prova a compilarlo e muore su
+# `CMAKE_C_COMPILER not set`). Il ramo che serve non lo usa; importarlo lo
+# pretenderebbe lo stesso.
+#
+# **Il prezzo e' il dizionario, e non e' piccolo**: `unidic-lite` sono 260,5 MB
+# (`sys.dic` 187,7 + `matrix.bin` 71,5), contro i 15,4 di `misaki` e gli 0,1 di
+# `fugashi`. Sono per **una** lingua su cinquantatre, e chi non doppia in
+# giapponese li paga lo stesso. Se manca, `kokoro_ja` **solleva** con la riga da
+# incollare invece di tornare a espeak di nascosto — che consegnerebbe di nuovo
+# «Chinese letter» con i contatori verdi.
+# **E il cinese e' lo stesso difetto con un'altra faccia.** Col metro del
+# rapporto fonemi/carattere sembrava sano; col metro giusto — quanti simboli il
+# vocabolario di Kokoro butta via — perde il **17,4%**, e quel che perde sono le
+# **cifre dei toni** che espeak-cmn scrive in coda alla sillaba. `妈` (mamma),
+# `马` (cavallo) e `骂` (insultare) uscivano tutte come `mˈɑ`: in una lingua
+# tonale non e' un accento, sono parole diverse. Con `misaki[zh]` i toni sono le
+# frecce `→ ↗ ↓ ↘`, che nel vocabolario ci sono, e non si perde niente.
+# Sei lingue su otto perdono **0,0%** e restano su espeak.
+#
+# Pesa 159,7 MB, e la parte grossa non e' il segmentatore: `pypinyin-dict` 112,9
+# e `jieba` 43,1. Non e' facoltativo — `misaki/zh_frontend.py` importa
+# `large_pinyin`, che e' cio' che disambigua i caratteri polifonici.
+misaki[zh]
+fugashi
+unidic-lite
+mojimoji
+jaconv

@@ -85,17 +85,80 @@ FONT_FILE = {
 }
 
 
+# **I sei font qui sopra sono tutti latini, e questo a schermo non da' errore.**
+# Arial non ha nessun glifo CJK: misurato rendendo ogni kanji da solo a 40 px,
+# tutti gli ideogrammi escono **identici fra loro** e identici a `.notdef`
+# (`￿`) — 86 pixel d'inchiostro l'uno contro i 409-558 di `A`, `B`, `C`.
+# Nessuna eccezione, nessun avviso: una fila di quadratini vuoti dove doveva
+# esserci il sottotitolo. E' la stessa forma di tutto il resto di questa
+# sessione — esce qualcosa, i contatori sono verdi, ed e' un'altra cosa.
+#
+# Da qui una tabella **per scrittura** e non per lingua: una scrittura la si
+# ricava dai caratteri (`scrittura()`), una lingua no — il serbo si scrive in
+# due alfabeti, e il codice ISO non dice quale ha davanti.
+FONT_SCRITTURA: dict[str, tuple[str, ...]] = {
+    # Yu Gothic e' il font giapponese di serie di Windows 11 e copre kana +
+    # kanji; MS Gothic e' il ripiego storico. Vale anche per il cinese, che
+    # condivide gli han (i semplificati mancanti cadono su SimSun).
+    "cjk": ("YuGothB.ttc", "YuGothM.ttc", "msgothic.ttc", "simsun.ttc"),
+    "hangul": ("malgunbd.ttf", "malgun.ttf"),
+    "devanagari": ("Nirmala.ttc", "mangal.ttf"),
+    "thai": ("LeelaUIb.ttf", "LeelawUI.ttf", "tahoma.ttf"),
+    # Arabo, ebraico, cirillico e greco Arial ce li ha: qui il ripiego di serie
+    # e' gia' quello giusto, e una riga in piu' sarebbe una tabella da tenere
+    # allineata per niente.
+}
+
+# Le scritture in cui **non si va a capo sulle parole**, perche' non ci sono
+# spazi. Si veda `_righe`.
+SENZA_SPAZI = frozenset({"cjk", "thai"})
+
+
+def scrittura(testo: str) -> str:
+    """In che scrittura e' questo testo. **Pura**, quindi si prova senza schermo.
+
+    Si guarda il **primo** carattere che appartenga a una scrittura riconosciuta
+    e non la maggioranza: un sottotitolo giapponese con dentro un nome proprio
+    in latino resta giapponese, e il font che serve e' quello che ha **tutti** i
+    glifi — Yu Gothic il latino ce l'ha, Arial i kanji no. La domanda non e'
+    «di che lingua e'», e' «quale font li disegna tutti».
+    """
+    for ch in testo:
+        o = ord(ch)
+        if 0x3040 <= o <= 0x30FF or 0x4E00 <= o <= 0x9FFF or 0x3400 <= o <= 0x4DBF                 or 0xF900 <= o <= 0xFAFF or 0x3000 <= o <= 0x303F:
+            return "cjk"
+        if 0xAC00 <= o <= 0xD7AF or 0x1100 <= o <= 0x11FF:
+            return "hangul"
+        if 0x0900 <= o <= 0x097F:
+            return "devanagari"
+        if 0x0E00 <= o <= 0x0E7F:
+            return "thai"
+    return "latino"
+
+
 @lru_cache(maxsize=64)
-def carica_font(nome: str, corpo: int):
+def carica_font(nome: str, corpo: int, scritt: str = "latino"):
     """Il font di sistema alla misura chiesta, con un ripiego che non esplode.
 
     In cache perche' `corpo_del_gioco` ne apre fino a otto per battuta cercando
     la misura giusta, e questo gira **nel thread video**: li' un costo si
     amplifica invece di sommarsi, che e' la lezione piu' cara di questo progetto.
+    La scrittura entra nella chiave e il **testo** no: cinquantatre lingue di
+    testo farebbero saltare la cache a ogni battuta, dieci scritture no.
+
+    **Il font della scrittura viene prima di quello chiesto**, ed e' voluto: chi
+    ha scritto `translate.font = Arial` chiedeva un carattere, non dei
+    quadratini vuoti. Se la scrittura e' latina non cambia niente.
     """
     from PIL import ImageFont
 
-    for candidato in (FONT_FILE.get((nome or "").lower().strip()), "arialbd.ttf", "arial.ttf"):
+    candidati = (
+        *FONT_SCRITTURA.get(scritt, ()),
+        FONT_FILE.get((nome or "").lower().strip()),
+        "arialbd.ttf",
+        "arial.ttf",
+    )
+    for candidato in candidati:
         if not candidato:
             continue
         try:
@@ -137,6 +200,9 @@ def corpo_del_gioco(bande, testo_originale: str, scala: float, nome_font: str) -
     # uguale — quindi la scelta si vede solo quando c'e' qualcosa da togliere.
     altezza = min(y1 - y0 for _, y0, _, y1 in bande) * scala
     testo = " ".join((testo_originale or "").split())
+    # La scrittura e' quella del testo **del gioco**: qui si misura il carattere
+    # che il gioco sta usando, non quello con cui si rispondera'.
+    scritt = scrittura(testo)
     if not testo or larghezza <= 0:
         import statistics
 
@@ -158,7 +224,7 @@ def corpo_del_gioco(bande, testo_originale: str, scala: float, nome_font: str) -
         perche' la larghezza e' misurata su una riga intera e l'altezza su un
         glifo — la prima e' la misura piu' affidabile delle due.
         """
-        f = carica_font(nome_font, corpo)
+        f = carica_font(nome_font, corpo, scritt)
         w = misura.textlength(testo, font=f)
         a, b, cx, d = f.getbbox("Ag")
         h = max(1, d - b)
@@ -168,7 +234,7 @@ def corpo_del_gioco(bande, testo_originale: str, scala: float, nome_font: str) -
     # e poi si cerca il minimo attorno, che e' dove i due lati si accordano.
     corpo = max(8, int(larghezza / max(1, len(testo)) * 2.0))
     for _ in range(10):
-        w = misura.textlength(testo, font=carica_font(nome_font, corpo))
+        w = misura.textlength(testo, font=carica_font(nome_font, corpo, scritt))
         if w <= 0:
             break
         if abs(w - larghezza) <= max(2.0, 0.01 * larghezza):
@@ -181,7 +247,7 @@ def corpo_del_gioco(bande, testo_originale: str, scala: float, nome_font: str) -
     # schermo si vede un sottotitolo gonfio, che e' il difetto da cui e' partito
     # tutto questo. Sopra la riga si puo' sconfinare di un filo, non di piu'.
     def sta_dentro(corpo: int) -> bool:
-        a, b, cc, d = carica_font(nome_font, corpo).getbbox("Ag")
+        a, b, cc, d = carica_font(nome_font, corpo, scritt).getbbox("Ag")
         return (d - b) <= altezza * 1.35
 
     candidati = [c for c in range(max(8, corpo - 8), corpo + 9) if sta_dentro(c)]
@@ -260,7 +326,8 @@ class MisuraCarattere:
         from PIL import Image, ImageDraw
 
         misura = ImageDraw.Draw(Image.new("L", (1, 1)))
-        atteso = misura.textlength(testo, font=carica_font(nome_font, self.corpo))
+        atteso = misura.textlength(
+            testo, font=carica_font(nome_font, self.corpo, scrittura(testo)))
         visto = sum(x1 - x0 for x0, _, x1, _ in bande) * scala
         if atteso <= 1 or visto <= 1:
             return False
@@ -658,10 +725,23 @@ def _peso_bordo(w: int, h: int, quota: float = 0.18):
 
 
 def _righe(disegno, testo: str, font, larghezza_max: int) -> list[str]:
-    """Il testo mandato a capo alla larghezza del sottotitolo del gioco."""
-    parole, righe, corrente = testo.split(), [], ""
-    for p in parole:
-        prova = f"{corrente} {p}".strip()
+    """Il testo mandato a capo alla larghezza del sottotitolo del gioco.
+
+    **Non tutte le scritture separano le parole con uno spazio.** `testo.split()`
+    su una riga giapponese torna **un token solo**, e il ramo che manda a capo
+    chiede `corrente` non vuoto: quindi non andava a capo mai. Misurato con un
+    limite di 800 px, la stessa battuta faceva 2 righe in italiano e **1 riga
+    larga 1230 px** in giapponese — il 54% fuori dal riquadro, senza nessun
+    errore. Li' si spezza per **carattere**, che e' come vanno a capo davvero.
+    """
+    senza_spazi = scrittura(testo) in SENZA_SPAZI
+    pezzi = list(testo) if senza_spazi else testo.split()
+    # Fra due caratteri di una scrittura senza spazi non ci va uno spazio, se no
+    # si allarga la riga e si sposta tutto: e' `unisci` a saperlo, una volta.
+    unisci = (lambda a, b: a + b) if senza_spazi else (lambda a, b: f"{a} {b}".strip())
+    righe, corrente = [], ""
+    for p in pezzi:
+        prova = unisci(corrente, p)
         if corrente and disegno.textlength(prova, font=font) > larghezza_max:
             righe.append(corrente)
             corrente = p
@@ -764,7 +844,8 @@ class Sostituzione:
         tetto = max(1, int(round(self.corpo * 1.3 / max(1e-6, scala))))
         self.alta = max(1, min(int(round(tipica)), tetto))
         self.colore = colore or colore_del_gioco(inchiostro_rgb or (255, 255, 255))
-        self.font = carica_font(nome_font, self.corpo)
+        self.scritt = scrittura(testo)
+        self.font = carica_font(nome_font, self.corpo, self.scritt)
         self.contorno = max(1, int(round(contorno * scala)))
 
         su = lambda v: int(round(v * scala))  # noqa: E731
@@ -825,8 +906,8 @@ class Sostituzione:
         def _sta(corpo: int, righe: list[str]) -> bool:
             """Il testo a questo corpo ci sta nel riquadro dell'originale?"""
             passo = corpo * 1.22
-            largo = max(misura.textlength(r, font=carica_font(nome_font, corpo))
-                        for r in righe)
+            largo = max(misura.textlength(
+                r, font=carica_font(nome_font, corpo, self.scritt)) for r in righe)
             # Il 5% di tolleranza su tutti e due i lati: il contorno e
             # l'antialiasing sbordano di un pixel o due, e inseguire quel pixel
             # costerebbe due punti di corpo per niente.
@@ -835,13 +916,13 @@ class Sostituzione:
         if self.stringi:
             while self.corpo > self.corpo_min and not _sta(self.corpo, self.righe):
                 self.corpo = max(self.corpo_min, int(self.corpo * 0.94))
-                self.font = carica_font(nome_font, self.corpo)
+                self.font = carica_font(nome_font, self.corpo, self.scritt)
                 self.righe = _righe(misura, testo, self.font, limite)
             self.stretto = not _sta(self.corpo, self.righe)
         else:
             while len(self.righe) > righe_max and self.corpo > 10:
                 self.corpo = max(10, int(self.corpo * 0.92))
-                self.font = carica_font(nome_font, self.corpo)
+                self.font = carica_font(nome_font, self.corpo, self.scritt)
                 self.righe = _righe(misura, testo, self.font, limite)
         self.passo = int(round(self.corpo * 1.22))
         largh = int(max(misura.textlength(r, font=self.font) for r in self.righe))

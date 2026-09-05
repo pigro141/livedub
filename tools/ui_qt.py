@@ -2490,6 +2490,57 @@ class Finestra(QMainWindow):
                 self.scrivi("! lingua in cui parlare: " + avviso)
         except Exception:  # pragma: no cover
             pass
+        self._avviso_traduttore_spento()
+
+    def _avviso_traduttore_spento(self) -> None:
+        """Ollama scelto e non acceso: il caso in cui la sessione **suona bene**.
+
+        E' la quarta cosa che questa finestra sa gia' e che a schermo non
+        darebbe errore, ed e' la peggiore delle quattro perche' non produce
+        silenzio: produce audio plausibile e sbagliato.
+
+        Misurato con `ollama serve` spento, 45 s di scena, `it -> en`:
+
+        | | |
+        |---|---|
+        | `translate.falliti` | **22 su 22** — nessuna riga tradotta |
+        | `translate.riga` | **2035 ms** al p50, 2046 al massimo |
+        | `translate.attesa` | 1745 ms p50, **3000 al massimo** |
+        | testo detto | l'originale **italiano** (il ripiego, che e' giusto) |
+        | voci usate | `alan`, `alba`, `cori` — cioe' **inglesi** |
+
+        Le due righe in fondo sono il difetto, e sono una sola: quando la
+        traduzione fallisce **il testo ripiega e la voce no**. Il pool parla
+        `translate.target` perche' e' quella la lingua che si sarebbe detta; ma
+        cio' che si dice davvero e' `translate.source`, quindi il fonemizzatore
+        inglese legge parole italiane. Esce audio, i contatori restano verdi, e
+        l'unico segno e' un `RuntimeError` ripetuto ventidue volte nel registro.
+
+        **La cura vera non sta in questa finestra** — il pool lo sceglie
+        `core/pipeline.py` e il ripiego `translate/` — quindi qui si fa l'unica
+        cosa che tocca a chi apre la sessione: **dirlo prima**, come si fa gia'
+        per l'OCR spento. La prova costa al massimo tre secondi
+        (`translate.ollama.modelli` ha il suo timeout e non solleva mai), si
+        paga una volta prima della sessione e non dentro, e si paga **solo** se
+        Ollama e' davvero la scelta.
+        """
+        t = self.cfg.translate
+        if (t.backend or "").strip().lower() != "ollama":
+            return
+        try:
+            from translate.ollama import modelli
+
+            if modelli(t.ollama_host):
+                return
+        except Exception:  # pragma: no cover - la prova non deve fermare l'avvio
+            return
+        # Niente asterischi: `_al_log` fa `html.escape`, quindi il grassetto del
+        # sorgente uscirebbe a schermo come due asterischi.
+        self.scrivi(
+            f"! Ollama non risponde su {t.ollama_host}: ogni riga aspettera' "
+            f"due secondi e poi verra' detta NON tradotta, in {t.source}, ma "
+            f"con le voci di {t.target}. Avvia «ollama serve», oppure cambia "
+            f"il traduttore nella scheda Traduzione.")
 
     def _offri_installazione(self) -> None:
         """Alle scelte di **adesso** manca qualcosa? Allora si offre di prenderla.

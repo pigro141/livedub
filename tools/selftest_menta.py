@@ -488,6 +488,49 @@ def test_finestra_menta(c) -> None:
     f.show()
     app.processEvents()
     try:
+        # -- Ollama spento si dice **prima** di partire ---------------------
+        # Misurato con il server morto: `translate.falliti` 22 su 22 e 2035 ms
+        # per riga, piatti — non c'e' nessun interruttore che si apra, quindi la
+        # ventiduesima riga aspetta quanto la prima. Il testo ripiega
+        # sull'originale, ed e' giusto; **la voce no**: dieci righe su ventuno
+        # dette da voci inglesi, cioe' l'italiano pronunciato col fonemizzatore
+        # sbagliato, con l'audio che esce e i contatori verdi.
+        #
+        # La cura vera sta a valle e non e' di questo pezzo; qui si chiude la
+        # meta' che si puo' chiudere — dirlo prima invece che dopo — e questa
+        # verifica esiste perche' un avviso che non scatta e' come non averlo.
+        # `modelli` si sostituisce apposta: senza, questa riga misurerebbe la
+        # macchina di chi la gira invece della regola.
+        import translate.ollama as _O
+
+        vero_modelli, dette = _O.modelli, []
+        f.scrivi, vera_scrivi = (lambda t, *a, **k: dette.append(str(t))), f.scrivi
+        try:
+            f.cfg.translate.enabled = True
+            f.cfg.translate.source, f.cfg.translate.target = "it", "en"
+
+            _O.modelli = lambda *a, **k: []
+            f.cfg.translate.backend = "google"
+            dette.clear(); f._avviso_traduttore_spento()
+            c.eq(len(dette), 0, "con un traduttore che non e' Ollama non si dice niente")
+
+            f.cfg.translate.backend = "ollama"
+            dette.clear(); f._avviso_traduttore_spento()
+            c.eq(len(dette), 1, "Ollama spento: la finestra lo dice prima di partire")
+            detto = dette[0] if dette else ""
+            c.ok("it" in detto and "en" in detto,
+                 "e dice **quali** due lingue si mescoleranno, non solo che c'e' un guasto")
+            c.ok("**" not in detto,
+                 "e il messaggio non porta grassetto che il log non sa rendere")
+
+            _O.modelli = lambda *a, **k: ["translategemma:4b"]
+            dette.clear(); f._avviso_traduttore_spento()
+            c.eq(len(dette), 0, "e con Ollama acceso torna a tacere")
+        finally:
+            _O.modelli, f.scrivi = vero_modelli, vera_scrivi
+            f.cfg.translate.enabled = False
+            f.cfg.translate.backend = "locale"
+
         # -- le schede si raggiungono per nome, non per numero --------------
         # `setCurrentIndex(3)` scritto a mano si scolla alla prima scheda
         # aggiunta in mezzo — **in silenzio**, portando l'utente altrove. E' gia'

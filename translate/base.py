@@ -185,6 +185,28 @@ def make_traduttore(cfg, dillo=None):
     """
     if not cfg.enabled:
         return NessunTraduttore()
+    # **Tradurre una lingua in se stessa: raggiungibile, e finora muto.**
+    # Le due caselle sono indipendenti — `source` e' la lingua **letta**,
+    # `target` quella **parlata** — quindi metterci due volte `it` e' un gesto
+    # solo, e sul prodotto di serie (GTA V, sottotitoli gia' italiani) e' anche
+    # la cosa piu' naturale da fare accendendo la traduzione «per provare».
+    # Non solleva e non si vede: la battuta torna identica, il doppiaggio suona
+    # come sempre, e ogni riga paga il costo intero del backend — con `google`
+    # un viaggio in rete sulla strada critica, misurato in questo progetto fra
+    # 98 e 763 ms di p50, per riavere indietro la stessa stringa.
+    #
+    # **Si dichiara e non si corregge.** Spegnere la traduzione di nascosto
+    # sarebbe far girare una sessione con una configurazione diversa da quella
+    # scritta nel pannello — la stessa ragione per cui `translate.lingue.normalizza`
+    # rende com'e' un codice che non conosce. `auto` non entra qui: non e' una
+    # lingua, e' «riconoscila tu», e puo' benissimo risolversi in un'altra.
+    from translate.lingue import AUTO, normalizza
+
+    da, a = normalizza(cfg.source), normalizza(cfg.target)
+    if da == a and da != AUTO and dillo is not None:
+        dillo(f"! partenza e arrivo sono la stessa lingua ({a}): ogni battuta "
+              f"passa dal traduttore e torna identica. Per non pagarla: "
+              f"`--set translate.enabled=false`.")
     nome = (cfg.backend or "").lower()
     if nome in ("nessuno", "none", ""):
         return NessunTraduttore()

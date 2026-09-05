@@ -849,7 +849,22 @@ class Tabella(Manopola):
 
         intestazione = QHBoxLayout()
         intestazione.setSpacing(tema.S2)
-        for testo, largo in (("chi", 150), (titolo_valore, 0)):
+        # **`Personaggio` e non `chi`, e la ragione e' una misura.** Quella
+        # colonna si intitolava `chi`, che a schermo si legge benissimo e in un
+        # catalogo non si traduce: e' una parola sola, minuscola, senza contesto.
+        # Due danni, tutti e due misurati. Primo, `ui.lingua` la scambiava per il
+        # nome di un campo (`^[a-z][a-z0-9_]*$`) e non la estraeva nemmeno,
+        # quindi restava italiana in tutte e quarantuno le lingue senza che
+        # `--controlla` la contasse fra le mancanti. Secondo, tolto quel
+        # cancello e mandata a tradurre, il traduttore ha risposto con
+        # l'**Organizzazione Mondiale della Sanita'**: `OMS` in francese e
+        # spagnolo, `ВОЗ` in russo, `WHO` in tedesco, tamil e cinese. E' la
+        # stessa forma del `uk — Ucraino` diventato «Regno Unito».
+        #
+        # Una parola sola non porta con se' il proprio contesto, e nessuna cura a
+        # valle glielo puo' dare. `Personaggio` dice la stessa cosa, si traduce
+        # da sola ed e' il nome che il bottone qui sotto usa gia'.
+        for testo, largo in (("Personaggio", 150), (titolo_valore, 0)):
             e = QLabel(testo)
             e.setObjectName("etichettaCampo")
             if largo:

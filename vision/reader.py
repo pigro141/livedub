@@ -40,8 +40,9 @@ from core.stage import Stage
 from core.types import OcrLine, merge_lines
 from vision.diff import Change, RoiDiff
 from vision.lines import classify_lines
-from vision.ocr import NullOcr, OcrBackend, italian_only
+from vision.ocr import NullOcr, OcrBackend, solo_alfabeti
 from vision.roi import crop
+from vision.scritture import alfabeti
 from vision.subtitles import SubtitleTracker, TrackerOutput
 
 
@@ -151,6 +152,17 @@ class SubtitleReader(Stage):
 
             lex = carica(cfg.lexicon_dir)
             self._lex = lex if lex else None
+        # **E lo stesso vale per l'alfabeto, un gradino prima del lessico.**
+        # Il filtro sui caratteri teneva le sole lettere latine qualunque cosa
+        # dicesse `translate.source`: con un OCR *perfetto* arrivava in fondo
+        # una scrittura su dieci (si veda `vision/ocr.py::solo_alfabeti`).
+        # Adesso la scrittura la decide la lingua **letta**.
+        #
+        # Si guarda `lingua` intera e non `self.lingua`, che e' troncata al
+        # trattino per il lessico: `zh-CN` diventerebbe `zh`, che nella tabella
+        # delle scritture non c'e' — e una lingua che non c'e' ripiega sul
+        # latino, cioe' proprio il difetto che questa riga ripara, in silenzio.
+        self._alfabeti = alfabeti(lingua or "it")
         self._n_opened = m.counter("vision.subtitles.opened")
         self._n_closed = m.counter("vision.subtitles.closed")
         self._n_gated = m.counter("vision.frames.gated")
@@ -260,11 +272,12 @@ class SubtitleReader(Stage):
             # costa niente e non deve rubare il turno alla battuta che comparira'
             # subito dopo.
             self._ultima_lettura = now
-            # Prima si toglie cio' che non e' italiano, poi si conta. Il
-            # riconoscitore e' addestrato su cinese e inglese e sullo scenario
-            # restituisce glifi CJK, che di caratteri alfanumerici contano come
-            # lettere e finivano dritti in bocca al sintetizzatore.
-            text = italian_only(text)
+            # Prima si toglie cio' che non e' della scrittura del gioco, poi si
+            # conta. Il riconoscitore di serie e' addestrato su cinese e inglese
+            # e sullo scenario restituisce glifi CJK, che di caratteri
+            # alfanumerici contano come lettere e finivano dritti in bocca al
+            # sintetizzatore.
+            text = solo_alfabeti(text, self._alfabeti)
             # **Lettere, non alfanumerici.** Una riga letta `'11'` di caratteri
             # alfanumerici ne ha due e di lingua nessuna: passava la soglia,
             # riceveva una voce e veniva detta. Le cifre nella ROI vengono dai

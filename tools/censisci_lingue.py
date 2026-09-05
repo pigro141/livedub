@@ -355,11 +355,32 @@ SCARTI_PER_MOTORE = {
 # ------------------------------------------------------------- la sintesi --
 
 
-def misura(motore: str, lingue: tuple[str, ...]) -> list[tuple]:
+def misura(motore: str, lingue: tuple[str, ...], tutte_le_voci: bool = False
+           ) -> list[tuple]:
     """Sintetizza davvero e misura car/s e picco, una lingua alla volta.
 
     **Un motore per lingua**, come `tools/censisci_voci.py`: la lingua non e' un
     argomento di `synthesize`, e' una cosa che il motore sa di se stesso.
+
+    ## Perche' si misurano **tutte** le voci del pool, e non la prima
+
+    La prima versione ne prendeva una — la prima che `build_pool` restituisce —
+    e da li' e' uscita una tabella di passi che sembrava una misura per lingua.
+    Non lo era: su Piper la stessa frase greca fa **8,56 car/s con `joy` e 15,59
+    con `rapunzelina`**, e il russo va da 7,98 (`irina`) a 14,77 (`dmitri`).
+    Cioe' fra due voci della **stessa** lingua ci sono l'ottanta per cento di
+    differenza, tanto quanto fra due lingue diverse — e quale voce sia la prima
+    dipende dall'ordine del catalogo, non da niente di misurato.
+
+    `chars_per_second` invece e' **uno per lingua** e vale per tutto il pool: la
+    quantita' che descrive e' quindi la mediana delle voci, non una di esse. E
+    l'escursione va stampata, se no una mediana su voci che non sono d'accordo
+    si legge come una taratura — che e' la forma «il numero non e' tarato, e'
+    vinto» gia' scritta in questo repo per le soglie.
+
+    Costa piu' tempo e piu' disco (su Piper ogni voce e' un modello suo), ma e'
+    la differenza fra un numero e un numero con un intervallo. Con `--prima` si
+    torna a una voce sola, per una passata veloce.
     """
     import numpy as np
 
@@ -373,27 +394,48 @@ def misura(motore: str, lingue: tuple[str, ...]) -> list[tuple]:
     for lingua in lingue:
         testo = frase(lingua)
         if not testo:
-            fuori.append((motore, lingua, None, None, None, "nessuna frase di prova"))
+            fuori.append((motore, lingua, None, None, None, 0, 0.0,
+                          "nessuna frase di prova"))
             _stampa(fuori[-1])
             continue
         cfg = Config()
         cfg.tts.backend = motore
         try:
             tts = make_tts(cfg.tts, lingua=lingua, preload=False)
-            voci = build_pool(None, 1, backend=motore, lingua=lingua)
-            t0 = time.perf_counter()
-            s = tts.synthesize(testo, voci[0])
-            ms = (time.perf_counter() - t0) * 1000.0
-            audio = taglia_silenzio(np.asarray(s.audio), s.samplerate)
-            secondi = len(audio) / float(s.samplerate)
-            passo = spoken_length(testo) / secondi if secondi else 0.0
-            picco = float(np.abs(audio).max()) if audio.size else 0.0
+            quante = 6 if tutte_le_voci else 1
+            voci = build_pool(None, quante, backend=motore, lingua=lingua)
+            # Il pool ripete le voci quando sono meno di `quante` (cambiando i
+            # semitoni): qui interessano le **basi**, che sono i modelli veri.
+            viste: set[str] = set()
+            passi: list[float] = []
+            picchi: list[float] = []
+            tempi: list[float] = []
+            for v in voci:
+                if v.base_voice in viste or v.semitones or v.rate != 1.0:
+                    continue
+                viste.add(v.base_voice)
+                t0 = time.perf_counter()
+                s = tts.synthesize(testo, v)
+                tempi.append((time.perf_counter() - t0) * 1000.0)
+                audio = taglia_silenzio(np.asarray(s.audio), s.samplerate)
+                secondi = len(audio) / float(s.samplerate)
+                passi.append(spoken_length(testo) / secondi if secondi else 0.0)
+                picchi.append(float(np.abs(audio).max()) if audio.size else 0.0)
+            passo = statistics.median(passi)
+            picco = max(picchi)
+            # L'escursione fra le voci, in percentuale della mediana. Sotto c'e'
+            # una lingua; sopra c'e' una lingua **e** delle voci che non sono
+            # d'accordo, e il numero solo non lo direbbe.
+            spread = 100.0 * (max(passi) - min(passi)) / passo if passo else 0.0
             nota = "" if 4.0 <= passo <= 20.0 else "PASSO FUORI FASCIA"
             if picco <= 0.001:
                 nota = (nota + " MUTO").strip()
-            fuori.append((motore, lingua, passo, picco, ms, nota))
+            if spread > 25.0:
+                nota = (nota + " VOCI IN DISACCORDO").strip()
+            fuori.append((motore, lingua, passo, picco,
+                          statistics.median(tempi), len(passi), spread, nota))
         except Exception as e:  # noqa: BLE001 - qui si censisce, non si corregge
-            fuori.append((motore, lingua, None, None, None,
+            fuori.append((motore, lingua, None, None, None, 0, 0.0,
                           f"{type(e).__name__}: {str(e).splitlines()[0][:70]}"))
         _stampa(fuori[-1])
     return fuori
@@ -403,7 +445,9 @@ def _stampa(r) -> None:
     passo = f"{r[2]:.2f} car/s" if r[2] else "—"
     picco = f"picco {r[3]:.3f}" if r[3] else ""
     ms = f"{r[4]:.0f} ms" if r[4] else ""
-    print(f"  {r[1]:4} {passo:>12}  {picco:>11}  {ms:>8}  {r[5]}", flush=True)
+    voci = f"{r[5]}v ±{r[6]:4.1f}%" if r[5] else ""
+    print(f"  {r[1]:4} {passo:>12}  {voci:>11}  {picco:>11}  {ms:>8}  {r[7]}",
+          flush=True)
 
 
 # ------------------------------------------------------------------ CLI --
@@ -441,6 +485,10 @@ def main(argv=None) -> int:
     ap.add_argument("--lingue", default="", help="separate da virgola")
     ap.add_argument("--scarica", action="store_true",
                     help="prende i .onnx.json di Piper che mancano (7 KB l'uno)")
+    ap.add_argument("--prima", action="store_true",
+                    help="con --sintesi, misura la sola prima voce del pool "
+                         "invece di tutte (veloce, ma il passo che ne esce e' "
+                         "di quella voce e non della lingua)")
     a = ap.parse_args(argv)
 
     solo = tuple(x.strip() for x in a.lingue.split(",") if x.strip())
@@ -481,7 +529,7 @@ def main(argv=None) -> int:
             lingue = tuple(x for x in lingue_con_voce(motore)
                            if not solo or x in solo)
             print(f"\n{motore}: {len(lingue)} lingue")
-            misura(motore, lingue)
+            misura(motore, lingue, tutte_le_voci=not a.prima)
         return 0
 
     righe = matrice(solo)

@@ -109,8 +109,8 @@ reads per second, lines, latency, compression, underruns, reading area.
 There is nothing to configure first: you open it and follow along.
 
 **1. You open it.** The window is already in the language you use Windows in —
-42 languages, and every one of the 41 catalogs is complete: 281 strings out of
-281. Arabic, Hebrew, Persian and Urdu also flip the window the other way round.
+42 languages, and every one of the 41 catalogs is complete: 282 strings out of
+282. Arabic, Hebrew, Persian and Urdu also flip the window the other way round.
 
 **2. A guide takes you through it**, 7 steps, and it comes back
 with `?`. Wherever it can it **checks instead of telling**: it counts the audio
@@ -270,7 +270,7 @@ ours.
 | disk | **1.6 GB** — the environment without the CUDA libraries, plus 225 MB of models | **3.5 GB** — with the CUDA libraries and 543 MB of models. Offline translation adds **3.2 GB** on top of either |
 | Windows | **10** — capture goes through `PrintWindow`, which lives in `user32.dll` and needs nothing installed | **11** — OneOCR only exists there, and it reads the outlined text of a game far better |
 | Python | 3.11 | 3.11 |
-| **what you get** | **Piper on CPU.** 665 ms from subtitle to voice, no underruns, no speeding the speech up. The recogniser is PP-OCR, and 50 of the 53 spoken languages are already here. | **Kokoro on CUDA**: better articulation, and its 54 voices across 8 languages. 1290 ms. |
+| **what you get** | **Piper on CPU.** 665 ms from subtitle to voice, no underruns, no speeding the speech up. The recogniser is PP-OCR, and 49 of the 52 spoken languages are already here. | **Kokoro on CUDA**: better articulation, and its 54 voices across 8 languages. 1290 ms. |
 | **what the step buys** | below 6 cores Piper's synthesis goes from 88 ms to **302 ms** — see the table above | the graphics card buys **3.5× on synthesis** (741 ms down to 213 ms), and it is the only thing that lets a language move the engine onto Kokoro: on the CPU that engine costs 741 ms a line, which is not liveable |
 
 **A requirement cannot be read without the machine it was measured on**, so here
@@ -457,12 +457,12 @@ does not have.
 |---|---|---|
 | what the **buttons** are written in | **42** | `ui.lingua`, in the Setup tab |
 | what it can **translate a subtitle into** | **133** with the online backend — the offline ones have no closed list | `translate.target`, in the Translation tab |
-| what it can **say out loud** | **53** — but not with every engine: 49 with piper, 31 with supertonic, 8 with kokoro | you pick the language, and the engine follows it |
+| what it can **say out loud** | **52** — but not with every engine: 49 with piper, 31 with supertonic, 8 with kokoro | you pick the language, and the engine follows it |
 
 > **Three lists, three questions.** The interface speaks 42 languages, the
-> translator reaches 133, and the mouth speaks 53. That last number is not one
+> translator reaches 133, and the mouth speaks 52. That last number is not one
 > number: **the three engines have different catalogues**, and picking a language
-> is really picking an engine. Before the change that made it 53, the mouth spoke **two** — and
+> is really picking an engine. Before the change that made it 52, the mouth spoke **two** — and
 > that was never a limit of the engines, it was the only thing the code declared:
 > translating into Spanish and then reading it out with an Italian voice produced
 > **no error at all**.
@@ -566,7 +566,7 @@ This matters more than the numbers.
 `rhasspy/piper-voices/voices.json`, kokoro in the first letter of every voice
 name, supertonic in its list of supported languages. Nothing there is guessed.
 
-> **Not claimed: that the pronunciation is good.** Nobody has listened to 53
+> **Not claimed: that the pronunciation is good.** Nobody has listened to 52
 > languages, and saying otherwise would be a promise no measurement backs.
 
 **Checked mechanically instead**: for a sample of languages, one sentence is
@@ -578,7 +578,7 @@ stays green, and an out-of-scale rate is the only trace it leaves.
 | engine | languages measured | outcome |
 |---|---|---|
 | **supertonic** | **31 of 31** | all plausible: 6.6–17.8 characters per second, the low end being Japanese, Korean, Chinese and Hindi, as their scripts lead you to expect |
-| **piper** | **1 of 50** | Hebrew, 9.14 char/s. The rest could not be measured *on this machine*: Smart App Control blocks `espeakbridge.pyd`, and every other piper language phonemises through espeak |
+| **piper** | **0 of 49** | none. Smart App Control blocks `espeakbridge.pyd` on this machine, and every piper voice but one phonemises through espeak. The single reading this table used to carry — Hebrew at 9.14 char/s — was withdrawn together with the language: the pinned `piper-tts` cannot phonemise Hebrew, so it is not among the 49 either |
 | **kokoro** | **0 of 8** | `kokoro-onnx` does not import here at all — Smart App Control blocks the native module of one of its dependencies |
 
 The two engines that could not be measured are blocked by a **property of this
@@ -597,7 +597,8 @@ and **marked as unmeasured**, rather than presented as tested.
 > pinned version says otherwise, and a measurement the pinned dependency cannot
 > reproduce is not a measurement — it is a memory of some other install. The
 > count is now derived from that enum, so it cannot drift again. Japanese is
-> still spoken, by kokoro or supertonic; Hebrew, by supertonic.
+> still spoken, by kokoro or supertonic; **Hebrew, here, is spoken by nothing** —
+> no engine in this program has a Hebrew voice.
 
 ### Pick a language, and the engine follows it
 
@@ -646,7 +647,7 @@ choices that do not, with the air of knowing.
 
 **The interface language** is a third thing again: **42** — 41 catalogs plus
 Italian, which is the language the source is written in. All 41 are **complete,
-281 strings out of 281**, with none half-translated; four of them run right to
+282 strings out of 282**, with none half-translated; four of them run right to
 left and turn the whole window round (Arabic, Hebrew, Persian, Urdu). They are
 generated once and committed into the repo — not asked from the network while
 the window opens, because a window that asks the network for its own text is a
@@ -695,8 +696,8 @@ black. **Nobody has yet tried that fallback on GTA V itself.**
 
 ## How it is built, and why the numbers can be trusted
 
-There is no pytest: the suite is a runnable module, **2460
-checks** in 85 groups.
+There is no pytest: the suite is a runnable module, **2519
+checks** in 86 groups.
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.selftest

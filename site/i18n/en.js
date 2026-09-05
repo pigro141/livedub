@@ -118,7 +118,7 @@
             voci: [
               {
                 b: "You open it.",
-                p: "The window is already in the language you use Windows in — 42 languages in total, and every one of the 41 catalogs is complete: 281 strings out of 281, none of them half-done. Arabic, Hebrew, Persian and Urdu also flip the window the other way round."
+                p: "The window is already in the language you use Windows in — 42 languages in total, and every one of the 41 catalogs is complete: 282 strings out of 282, none of them half-done. Arabic, Hebrew, Persian and Urdu also flip the window the other way round."
               },
               {
                 b: "A guide takes you through it, in 7 steps.",
@@ -352,7 +352,7 @@
           },
           {
             t: "p",
-            x: "<b>Why you can trust the numbers.</b> There is a test suite of <b>2460 checks</b> in 85 groups that runs without a game, without a GPU and without any model, and a bench that runs <b>the same chain</b> over a recording. The measurements that changed a decision are written <b>next to the parameter they decided</b>, inside <code>core/config.py</code> — which is the same text the window shows when you press <code>?</code>."
+            x: "<b>Why you can trust the numbers.</b> There is a test suite of <b>2519 checks</b> in 86 groups that runs without a game, without a GPU and without any model, and a bench that runs <b>the same chain</b> over a recording. The measurements that changed a decision are written <b>next to the parameter they decided</b>, inside <code>core/config.py</code> — which is the same text the window shows when you press <code>?</code>."
           }
         ]
       },
@@ -401,7 +401,7 @@
             righe: [
               ["what the <b>buttons</b> are written in", "<b>42</b>", "<code>ui.lingua</code>, in the Setup tab"],
               ["what it can <b>translate a subtitle into</b>", "<b>133</b> with the online backend — the offline ones have no closed list", "<code>translate.target</code>, in the Translation tab"],
-              ["what it can <b>say out loud</b>", "<b>53</b> — but not with every engine: 49 with piper, 31 with supertonic, 8 with kokoro", "you pick the language, and the engine follows it"]
+              ["what it can <b>say out loud</b>", "<b>52</b> — but not with every engine: 49 with piper, 31 with supertonic, 8 with kokoro", "you pick the language, and the engine follows it"]
             ]
           },
           {
@@ -513,7 +513,7 @@
             testa: ["engine", "languages measured", "outcome"],
             righe: [
               ["<b>supertonic</b>", "<b>31 of 31</b>", "all plausible: 6.6–17.8 characters per second, the low end being Japanese, Korean, Chinese and Hindi, as their scripts lead you to expect"],
-              ["<b>piper</b>", "<b>1 of 50</b>", "Hebrew, 9.14 char/s. The rest could not be measured <i>on this machine</i>: Smart App Control blocks <code>espeakbridge.pyd</code>, and every other piper language phonemises through espeak"],
+              ["<b>piper</b>", "<b>0 of 49</b>", "none. Smart App Control blocks <code>espeakbridge.pyd</code> on this machine, and every piper voice but one phonemises through espeak. The single reading this table used to carry — Hebrew at 9.14 char/s — was withdrawn together with the language: the pinned <code>piper-tts</code> cannot phonemise Hebrew, so it is not among the 49 either"],
               ["<b>kokoro</b>", "<b>0 of 8</b>", "<code>kokoro-onnx</code> does not import here at all — Smart App Control blocks the native module of one of its dependencies"]
             ]
           },
@@ -570,7 +570,7 @@
           { t: "h3", x: "What the buttons are written in" },
           {
             t: "p",
-            x: "<b>42 languages</b>: 41 catalogs plus Italian, which is the language the source is written in. All 41 are <b>complete — 281 strings out of 281</b>, with none half-translated. Four of them run right to left and turn the whole window round: Arabic, Hebrew, Persian and Urdu."
+            x: "<b>42 languages</b>: 41 catalogs plus Italian, which is the language the source is written in. All 41 are <b>complete — 282 strings out of 282</b>, with none half-translated. Four of them run right to left and turn the whole window round: Arabic, Hebrew, Persian and Urdu."
           },
           {
             t: "p",

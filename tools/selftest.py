@@ -2202,6 +2202,40 @@ def test_traduzione(c: Check) -> None:
     except ValueError:
         c.ok(True, "un backend sconosciuto solleva invece di ripiegare")
 
+    # -- tradurre una lingua in se stessa: si dice, non si corregge ----------
+    #
+    # E' un gesto solo — `source` e `target` sono due caselle indipendenti — ed
+    # e' anche il piu' naturale accendendo la traduzione «per provare» su un
+    # gioco gia' italiano. Non solleva, non si sente e non si vede: la battuta
+    # torna identica e ogni riga paga il costo intero del backend, che con
+    # `google` e' un viaggio in rete sulla strada critica.
+    #
+    # **Si dichiara**: spegnere la traduzione di nascosto farebbe girare una
+    # sessione con una configurazione diversa da quella scritta nel pannello.
+    dette: list[str] = []
+    make_traduttore(TranslateConfig(enabled=True, backend="prova",
+                                    source="it", target="it"), dette.append)
+    c.eq(len(dette), 1, "partenza uguale ad arrivo: una riga, e una sola")
+    c.ok("stessa lingua" in dette[0] and "identica" in dette[0],
+         f"e dice cosa succede davvero, non che e' vietato ({dette[0][:60]!r})")
+
+    # Lo stesso con i due codici scritti in modi diversi: `iw` e `he` sono
+    # l'ebraico, e confrontare le stringhe nude direbbe di no.
+    dette.clear()
+    make_traduttore(TranslateConfig(enabled=True, backend="prova",
+                                    source="iw", target="he"), dette.append)
+    c.eq(len(dette), 1, "e due nomi della stessa lingua sono la stessa lingua")
+
+    # **Il caso nullo, che e' quello che rende utile la riga di sopra.** `auto`
+    # non e' una lingua: con `source=auto, target=it` la partenza puo' benissimo
+    # essere un'altra, e un avviso li' sarebbe quello che si spegne da solo
+    # nella testa di chi lo legge.
+    for da, a in (("auto", "it"), ("en", "it"), ("auto", "auto")):
+        dette.clear()
+        make_traduttore(TranslateConfig(enabled=True, backend="prova",
+                                        source=da, target=a), dette.append)
+        c.eq(len(dette), 0, f"e su {da}->{a} non si dice niente")
+
     # -- l'ambiente della traduzione offline --------------------------------
     # **Il guardiano della GPU.** `pip install argostranslate` tira `minisbd`,
     # che dipende da `onnxruntime` (CPU): quel pacchetto scrive nella stessa
@@ -4174,6 +4208,44 @@ def test_lingue(c: Check) -> None:
     c.ok("Chinese (Simplified)" in prompt_translategemma("Ciao", "it", "zh-Hans"),
          "e un codice scritto in un altro modo si risolve lo stesso")
 
+    # -- e la stessa cura vale sulla **partenza**, che era rimasta fuori -----
+    #
+    # La cura sopra era stata data all'arrivo. Sulla partenza il caso non e'
+    # nemmeno di frontiera: `translate.source` nasce `auto`, quindi la
+    # configurazione **appena aperta** produceva «You are a professional auto
+    # (auto) to Italian translator … translate the following auto text».
+    # E il programma dichiarava gia' il contrario due schede piu' in la',
+    # con `AUTO_DIVENTA`: la verifica che lo pretendeva provava la **nota**, non
+    # il prompt — una misura che non poteva esprimere il difetto che nominava.
+    from translate.locale import coppia
+
+    p_auto = prompt_translategemma("Ciao", AUTO, "it")
+    c.ok("auto" not in p_auto,
+         "«auto» non e' una lingua e non finisce dentro il prompt come se lo fosse")
+    c.eq(p_auto, prompt_translategemma("Ciao", "en", "it"),
+         "e diventa «en» esattamente come dice la nota sotto la casella")
+    c.eq(coppia(AUTO, "it")[0], "en",
+         "che e' la stessa regola con cui si sceglie il modello Argos da "
+         "scaricare: risolverlo in due modi vorrebbe dire scaricarne uno e "
+         "usarne un altro")
+    c.ok("English" in p_auto,
+         "e nel prompt ci va il nome, non il codice, anche per la partenza")
+
+    # -- il traduttore in-process nomina la lingua d'arrivo -------------------
+    # Ottava volta della forma «tabella scritta due volte»: `translate/llm.py`
+    # aveva cinque nomi a mano su centotrentatre lingue scegliibili, e
+    # `.get(a, a)` ripiegava sul codice. «Traduci in ja la battuta di un
+    # videogioco» risponde lo stesso e risponde peggio. Si prova la stringa che
+    # il modello leggerebbe senza costruire il modello.
+    from translate.lingue import nome_it
+
+    c.eq(nome_it("it").lower(), "italiano",
+         "i cinque nomi che c'erano restano scritti identici")
+    for codice, atteso in (("ja", "giapponese"), ("zh-CN", "cinese semplificato"),
+                           ("ru", "russo")):
+        c.eq(nome_it(codice).lower(), atteso,
+             f"e adesso ci sono anche le altre ({codice})")
+
     # -- la scelta arriva davvero al traduttore ------------------------------
     # **Una manopola che scrive in config un valore che nessuno rilegge e' il
     # difetto tipico di questa codebase** (`max_ocr_hz`, `tts.device`,
@@ -5934,6 +6006,102 @@ def test_lingue_voci(c: Check) -> None:
     c.eq(sporche, [], "nessuna lingua del catalogo di piper porta una marca")
 
 
+def test_frasi(c: Check) -> None:
+    """Le frasi di prova, e i passi che ne sono usciti.
+
+    **Questo gruppo non c'era, e `speak/frasi.py` lo cita.** La sua testata
+    dice «la verifica `frasi` pretende che le due diano sempre la stessa
+    risposta» parlando di `famiglia` e `speak.pool.famiglia_lingua`: la riga era
+    scritta, la verifica no. E' la stessa forma gia' pagata nove volte qui —
+    dichiarato e mai letto — girata dalla parte della suite.
+
+    Gira senza rete, senza modelli e senza motori: sono tutte tabelle nel repo.
+    Quello che **non** puo' dire e' se un passo sia giusto; puo' dire che sia
+    ricavabile, che stia nella lingua che dichiara e che le scritture dense non
+    portino il numero italiano — che e' l'errore vero che ha trovato.
+    """
+    c.group("frasi")
+
+    from speak import frasi as F
+    from speak.backends.kokoro import PASSO_LINGUA as K_PASSO
+    from speak.backends.piper import PASSO_LINGUA as P_PASSO
+    from speak.backends.piper import PASSO_PER_DEFAULT
+    from speak.backends.supertonic import PASSO_LINGUA as S_PASSO
+    from speak.pool import famiglia_lingua, lingue_con_voce
+
+    # -- la riga che la testata prometteva -----------------------------------
+    # Due funzioni identiche in due moduli, apposta: una tabella di testo non
+    # deve dipendere dal modulo delle voci. Il prezzo e' che possono separarsi,
+    # e questo e' il cricchetto.
+    for x in ("it", "pt-BR", "zh_CN", "IT", "en-us", "", "auto", "iw"):
+        c.eq(F.famiglia(x), famiglia_lingua(x),
+             f"`frasi.famiglia` e `pool.famiglia_lingua` rispondono uguale su {x!r}")
+
+    # -- una frase e' misurabile o non c'e' ----------------------------------
+    # `frase()` torna `""` per «non misurabile», e chi la riceve deve dichiarare
+    # di non aver misurato invece di ripiegare sull'italiano: e' il ripiego che
+    # faceva uscire il passo italiano da una misura giapponese.
+    c.eq(F.frase("xx"), "", "una lingua senza frase risponde vuoto, non italiano")
+    c.eq(F.frase("pt-BR"), F.frase("pt"), "e la famiglia basta a trovarla")
+    c.ok(F.STORICHE < set(F.FRASI),
+         "le trentaquattro storiche sono un sottoinsieme, non un secondo elenco")
+
+    # -- **ogni numero scritto in un `PASSO_LINGUA` si puo' rimisurare** -----
+    # Un passo senza la frase da cui e' uscito non e' una misura: e' una cifra.
+    for nome, tabella in (("piper", P_PASSO), ("kokoro", K_PASSO),
+                          ("supertonic", S_PASSO)):
+        senza = sorted(x for x in tabella if not F.frase(x))
+        c.eq(senza, [],
+             f"ogni passo di {nome} ha la sua frase di prova, quindi si rimisura")
+        # E parla di una lingua che quel motore dice davvero. L'ebraico e'
+        # l'eccezione dichiarata: e' uscito dal catalogo di Piper con la 1.3.0 e
+        # il suo numero resta come reperto datato.
+        fuori = sorted(set(tabella) - set(lingue_con_voce(nome)) - {"he"})
+        c.eq(fuori, [], f"e nessun passo di {nome} parla di una lingua che non dice")
+
+    # -- e le scritture dense non portano piu' il numero italiano ------------
+    #
+    # Era il difetto che questo giro ha trovato, ed era grosso: Piper aveva
+    # **una riga sola** e quarantotto lingue prendevano i 14,8 dell'italiano.
+    # Misurato con `tools/censisci_lingue.py --sintesi`, il cinese fa 4,85 e il
+    # coreano 6,93: un `chars_per_second` tre volte troppo alto prevede la
+    # battuta corta, e la catena la comprime al tetto invece di lasciarle il
+    # tempo che aveva. La misura si ripete al centesimo nello stesso processo e
+    # varia del 4% fra processi diversi, cioe' venti volte meno dell'errore.
+    #
+    # Non si controlla il **valore** — una frase sola non e' una taratura — ma
+    # il verso: una scrittura in cui un carattere vale una sillaba non puo'
+    # correre come l'italiano.
+    # Le scritture in cui un carattere vale una sillaba o piu'. Il greco **non
+    # c'e'**, ed e' una correzione della prima stesura di questa riga: e'
+    # alfabetico, e infatti su SuperTonic fa 14,5 car/s. Ci era finito per un
+    # numero di Piper — 8,26 — che poi si e' rivelato di una **voce** e non
+    # della lingua: `joy` fa 8,56 e `rapunzelina` 15,59 sulla stessa frase.
+    DENSE = ("zh", "ja", "ko", "hi", "ar", "te", "ml", "mr", "ne", "bn")
+    for nome, tabella, difetto in (("piper", P_PASSO, PASSO_PER_DEFAULT),
+                                   ("kokoro", K_PASSO, 12.9),
+                                   ("supertonic", S_PASSO, 13.6)):
+        for lingua in DENSE:
+            if lingua not in tabella:
+                continue
+            c.ok(tabella[lingua] < difetto * 0.85,
+                 f"{nome}/{lingua}: {tabella[lingua]} car/s, cioe' non e' il "
+                 f"numero italiano ({difetto}) travestito")
+    # Il caso nullo: se il confronto passasse per chiunque, la riga di sopra non
+    # direbbe niente. Una lingua latina **deve** stare vicino all'italiano.
+    c.ok(P_PASSO["de"] > PASSO_PER_DEFAULT * 0.85,
+         "e il tedesco invece ci sta vicino, se no il criterio passerebbe sempre")
+
+    # -- le lingue **non** misurate si sanno contare -------------------------
+    # Ventinove delle quarantanove di Piper sono ancora sul ripiego, e sono
+    # quasi tutte latine o cirilliche. «Quasi» non e' misurato, e questa riga
+    # serve a non dimenticarlo il giorno che qualcuno legge la tabella come se
+    # fosse completa.
+    manca = [x for x in lingue_con_voce("piper") if x not in P_PASSO]
+    c.eq(len(manca), 29,
+         f"ventinove lingue di piper non sono mai state cronometrate: {manca}")
+
+
 def test_tendina_lingue(c: Check) -> None:
     """La marca arriva davvero **sulla voce del menu**, e l'elenco si riallarga.
 
@@ -7527,6 +7695,11 @@ GROUPS = {
     # voce) e quella della finestra (i cataloghi, e cosa resta in italiano).
     "lingue": test_lingue,
     "lingue_voci": test_lingue_voci,
+    # Le frasi di prova e i passi che ne escono. Sta accanto a `lingue_voci`
+    # perche' e' l'altra meta' della stessa domanda: quello dice **se** una
+    # lingua si parla, questo **quanto in fretta** — e il secondo numero era
+    # quello italiano per quarantotto lingue su quarantanove.
+    "frasi": test_frasi,
     "kokoro_g2p": test_kokoro_g2p,
     # La stessa risposta, ma **sulla voce del menu**: che la marca ci arrivi,
     # che segua il motore e che l'elenco si riallarghi per contenerla.

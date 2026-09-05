@@ -419,6 +419,62 @@ _HA_LETTERE = re.compile(r"[^\W\d_]", re.UNICODE)
 # parametro per il nome con cui compare nei comandi e nei rapporti.
 _IDENTIFICATORE = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*$")
 
+# ...**ma la forma non basta a riconoscerlo, e la parola che ci e' caduta dentro
+# stava a schermo.** `chi` — l'intestazione della colonna dei personaggi
+# (`ui/qt_controlli.py::Tabella`) — e' una parola italiana di tre lettere
+# minuscole, quindi quella regex la prende come se fosse un nome di campo:
+# l'estrattore non la metteva nei cataloghi e l'applicatore non la traduceva, in
+# **tutte e quarantuno** le lingue e senza un errore. E' la stessa forma gia'
+# pagata qui piu' volte — una regola misurata su una distribuzione (i percorsi
+# di `core/config.py`) applicata a un'altra (le parole dell'interfaccia).
+#
+# Censito sulla finestra vera: **277 scritte** fermate da quella regex, di cui
+# **275 sono nomi di campo veri** e due no — `chi`, che e' il difetto, e
+# `livedub`, che e' il nome del prodotto e va marcato `nontradurre` perche' non
+# si traduce *per scelta*, non perche' somiglia a un identificatore.
+#
+# Quindi un percorso puntato resta tale per la forma — `vision.sat_max` non puo'
+# essere una parola — mentre una parola sola e' un identificatore **solo se
+# nomina davvero un campo**. L'elenco non si scrive, si ricava da
+# `core/schema.py`: e' la stessa scelta per cui questi cataloghi esistono.
+
+
+@lru_cache(maxsize=1)
+def _parole_tecniche() -> frozenset[str]:
+    """Le parole di config che a schermo compaiono da sole: **nomi e valori**.
+
+    I nomi sono le etichette dei campi senza nome umano (`roi_margin`); i valori
+    sono le voci delle tendine — `cuda`, `int8`, `mss`, `ollama`, `nessuno`.
+    Prendere solo i nomi non basta, ed e' un errore che si vede solo
+    misurandolo: la prima stesura di questa regola faceva passare **diciotto**
+    valori di tendina, e un `cuda` tradotto in tedesco non e' una svista di
+    stile — e' una scelta tecnica riscritta sotto il dito di chi la legge.
+
+    Import ritardato di proposito: questo modulo lo carica anche chi non ha
+    aperto una finestra, e `core.schema` si porta dietro tutto l'albero della
+    configurazione.
+    """
+    try:
+        from core.config import Config
+        from core.schema import campi
+
+        fuori: set[str] = set()
+        for c in campi(Config()):
+            fuori.add(c.percorso.rsplit(".", 1)[-1])
+            fuori.update(str(s) for s in (c.scelte or ()))
+        return frozenset(fuori)
+    except Exception:  # pragma: no cover - un guasto qui non deve fermare la finestra
+        return frozenset()
+
+
+def _identificatore(testo: str) -> bool:
+    """Questa scritta e' una parola tecnica di config, e non va tradotta?"""
+    if not _IDENTIFICATORE.match(testo):
+        return False
+    if "." in testo:
+        return True
+    return testo in _parole_tecniche()
+
 
 def _traducibile(testo: str) -> bool:
     testo = (testo or "").strip()
@@ -426,7 +482,7 @@ def _traducibile(testo: str) -> bool:
         return False
     if "<" in testo and ">" in testo:   # HTML: il log e le tessere lo usano
         return False
-    if _IDENTIFICATORE.match(testo):
+    if _identificatore(testo):
         return False
     return bool(_HA_LETTERE.search(testo))
 

@@ -1499,6 +1499,14 @@ class Finestra(QMainWindow):
 
         nome = QLabel("livedub")
         nome.setObjectName("nomeApp")
+        # **Il nome del prodotto non si traduce, e deve non tradursi per
+        # scelta.** Finora restava italiano per un caso: `livedub` ha la forma di
+        # un identificatore e il guardiano di `ui.lingua` lo scartava insieme ai
+        # nomi dei campi. Da quando quel guardiano chiede a `core.schema` invece
+        # di guardare la forma, `livedub` non e' piu' un nome di campo — e senza
+        # questa riga finirebbe nei cataloghi, cioe' in mano a un traduttore
+        # automatico che non ha nessun motivo di lasciarlo stare.
+        nome.setProperty(lingua.MARCHIO, True)
         L.addWidget(nome)
 
         # **Lo stato non sta piu' qui.** C'era una pillola con dentro la stessa
@@ -2442,9 +2450,12 @@ class Finestra(QMainWindow):
     #   vuol dire «nella ROI non c'e' testo», che e' l'esatta descrizione di uno
     #   schermo senza sottotitoli. Il sintomo e' indistinguibile da una ROI
     #   tarata male;
-    # * la scrittura del gioco. `vision/ocr.py::italian_only` tiene **solo** le
-    #   lettere latine, sempre, e lo fa dopo l'OCR: una riga cirillica o CJK
-    #   esce vuota e finisce anch'essa in `vision.ocr.empty`. La frase esatta la
+    # * la scrittura del gioco. Il filtro dopo l'OCR
+    #   (`vision/ocr.py::solo_alfabeti`) tiene le lettere della scrittura
+    #   **dichiarata** piu' le latine; se `translate.source` dice una lingua che
+    #   il riconoscitore scelto non sa leggere, la riga esce vuota e finisce in
+    #   `vision.ocr.empty` — oppure, con `ppocr`, esce translitterata in lettere
+    #   latine che nessun filtro ferma. La frase esatta la
     #   dice `vision.scritture.nota_ocr`, che pero' fino a ieri aveva **un solo
     #   chiamante**: la nota sotto la tendina della scheda «Traduzione». Chi
     #   apre un profilo gia' fatto e preme Avvia quella tendina non la guarda

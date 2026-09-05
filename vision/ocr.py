@@ -38,7 +38,7 @@ La CPU basta e avanza, e la GPU resta libera per il gioco.
 from __future__ import annotations
 
 import unicodedata
-from typing import Protocol
+from typing import Protocol, Sequence
 
 import numpy as np
 
@@ -64,8 +64,8 @@ PAD = 4
 PUNTEGGIATURA = set(" .,;:!?'\"()[]-–—…«»‘’“”%€$")
 
 
-def italian_only(text: str) -> str:
-    """Toglie cio' che non puo' far parte di una battuta italiana.
+def solo_alfabeti(text: str, prefissi: Sequence[str] = ("LATIN",)) -> str:
+    """Toglie cio' che non puo' far parte di una battuta **in questa scrittura**.
 
     Il riconoscitore di default e' addestrato su **cinese e inglese**, e su una
     banda di scenario restituisce volentieri glifi CJK: `'冏一'`, `'一..uuA'`,
@@ -76,21 +76,43 @@ def italian_only(text: str) -> str:
     scritto per fermare esattamente questo e lo lasciava passare, che e' il tipo
     di difetto che sopravvive proprio perche' sembra gia' risolto.
 
-    Si tengono le lettere latine (accenti compresi: `NFD` separa il segno dalla
-    lettera, e si guarda la lettera), le cifre e la punteggiatura che serve alla
-    prosodia. Tutto il resto sparisce.
+    **Ma «non latino» non e' «non e' della lingua che il gioco scrive».** Fino
+    al 5 settembre 2026 questa funzione si chiamava `italian_only` e teneva solo
+    le lettere latine, sempre, qualunque fosse `translate.source`. Misurato con
+    un OCR *perfetto* (`EchoOcr`, cosi' l'unica cosa che puo' far sparire una
+    riga sta dopo il riconoscimento), una riga per scrittura attraverso il
+    lettore vero: **una battuta su dieci** arrivava in fondo, la latina. Le
+    altre nove uscivano vuote da qui e sparivano — mentre OneOCR le aveva lette
+    tutte e dieci a CER 0,00 (`vision/scritture.py`). Quindi il filtro giusto
+    non e' l'alfabeto latino, e' l'alfabeto **dichiarato**: chi chiama passa i
+    prefissi che vengono da `vision.scritture.alfabeti(translate.source)`.
+
+    Si tengono le lettere di quelle scritture, le cifre e la punteggiatura che
+    serve alla prosodia. Tutto il resto sparisce.
+
+    **Segni compresi, e non e' un dettaglio.** Il vecchio codice chiedeva
+    `ch.isalpha()`, e i segni vocalici del devanagari, del thai, dell'arabo e
+    dell'ebraico sono `Mn`, cioe' `isalpha()` falso: tenere le sole consonanti
+    di una riga thai non e' leggerla peggio, e' consegnare al sintetizzatore
+    delle sillabe senza vocale. Quindi si accettano le categorie `L*` **e**
+    `M*`, e a decidere e' il nome Unicode del carattere.
     """
     fuori = []
     for ch in text:
         if ch in PUNTEGGIATURA or ch.isdigit():
             fuori.append(ch)
             continue
-        if not ch.isalpha():
+        if unicodedata.category(ch)[0] not in ("L", "M"):
             continue
-        base = unicodedata.normalize("NFD", ch)[0]
-        if "a" <= base.lower() <= "z":
+        nome = unicodedata.name(ch, "")
+        if any(nome.startswith(p) for p in prefissi):
             fuori.append(ch)
     return _senza_bordi(" ".join("".join(fuori).split()))
+
+
+def italian_only(text: str) -> str:
+    """Il caso latino di `solo_alfabeti`, che e' il default della catena."""
+    return solo_alfabeti(text)
 
 
 def _senza_bordi(text: str) -> str:

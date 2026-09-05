@@ -47,11 +47,47 @@ tradotta}`, quindi:
   succedere e' che un numero della chiave **sparisca o cambi**: e' li' che sta il
   difetto, ed e' li' che questo guarda.
 
+## La terza meta', ed e' quella che le prime due non potevano vedere
+
+Le due sopra guardano **le cifre che qualcuno ha ancorato**. Restava fuori tutto
+il resto della prosa, e li' e' successo: correggendo il conteggio di piper da 50
+a 49, il paragrafo che lo racconta e' stato riscritto **nella vetrina e non nei
+sette README**, che hanno continuato a dire «l'indice ne elenca 51 e questo
+programma ne offre 50, la differenza e' il giapponese» — un numero vecchio e una
+frase falsa (le differenze sono due), senza che niente diventasse rosso.
+
+Tre regole nuove, e nessuna delle tre ha bisogno di un'ancora scritta a mano.
+
+**`allineamento`** — `README.md` e `site/i18n/en.js` sono **due impaginazioni
+delle stesse frasi**, e lo stesso vale per ognuna delle altre sei lingue. Quindi
+si prendono le frasi che contengono una cifra, si toglie la cifra, e le due
+meta' si accoppiano da sole: dove la frase **senza numeri** e' identica e i
+numeri no, uno dei due file e' rimasto indietro. Non serve sapere di che numero
+si tratta ne' in che lingua e' scritta la frase — oggi accoppia 54 frasi in
+inglese e da 10 a 55 nelle altre sei, e questa e' la regola che avrebbe preso il
+paragrafo.
+
+**`unione_in_prosa`** — un pezzo di testo che nomina **tutti e tre** i motori con
+i **tre conteggi** sta dichiarando l'elenco delle lingue parlate, e in quel pezzo
+l'unione deve esserci. Il nome di un motore non si traduce, e nemmeno una cifra:
+la stessa regola vale sui quattordici file senza una riga di lingua. E' il caso
+che `tools/tabella_lingue.py` non copriva, perche' li' l'unione si controlla
+nella **cella** della tabella e non nella frase — che infatti diceva 53 mentre la
+cella diceva 52, nello stesso file.
+
+**`misurate`** — la riga di una tabella che comincia con il nome di un motore
+parla di **quel** motore: il numero piu' grande della cella accanto e' il suo
+conteggio di lingue. Prende sia `| **piper** | **49** |` sia il «N su M» della
+tabella delle lingue misurate, che diceva `1 su 50` — cioe' una misura fatta su
+una lingua (l'ebraico) che il programma non offre piu', contraddetta dal
+paragrafo tre righe sotto.
+
 ## Cosa questo strumento **non** dice
 
 Che il numero sia giusto *nel codice*: dice che quello pubblicato e' lo stesso
-che il codice produce adesso. E non guarda la prosa attorno — se una frase
-descrive male cio' che il numero conta, qui passa.
+che il codice produce adesso. E `allineamento` dice che le due impaginazioni
+concordano, non che abbiano ragione: se il numero e' sbagliato in tutti e due,
+qui passa — e' per questo che le altre regole partono dal codice.
 """
 
 from __future__ import annotations
@@ -66,7 +102,7 @@ from pathlib import Path
 RADICE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RADICE))
 
-from tools.tabella_lingue import READMES, SITO  # noqa: E402
+from tools.tabella_lingue import READMES, SITO, leggi_disco, scrivi_disco  # noqa: E402
 
 #: I quattordici posti in cui un numero pubblicato e' scritto: i sette README e i
 #: **sette** cataloghi della vetrina. Sette e non uno: nei sei tradotti la cifra
@@ -184,7 +220,7 @@ def numeri_scollati() -> list[str]:
         atteso = ricava()
         trovato_da_qualche_parte = False
         for dove, percorso in posti().items():
-            testo = percorso.read_text(encoding="utf-8")
+            testo, _ = leggi_disco(percorso)
             for r in regex:
                 for m in re.finditer(r, testo):
                     trovato_da_qualche_parte = True
@@ -209,12 +245,12 @@ def riscrivi_numeri() -> list[str]:
     for _nome, ricava, regex in NUMERI:
         nuovo = str(ricava())
         for dove, percorso in posti().items():
-            testo = percorso.read_text(encoding="utf-8")
+            testo, _ = leggi_disco(percorso)
             dopo = testo
             for r in regex:
                 dopo = _rifai(dopo, re.compile(r), nuovo)
             if dopo != testo:
-                percorso.write_text(dopo, encoding="utf-8", newline="")
+                scrivi_disco(percorso, dopo)
                 cambiati.append(dove)
     return sorted(set(cambiati))
 
@@ -258,7 +294,7 @@ def _stringhe_di(percorso: Path) -> list[str]:
     falsi allarmi — puo' solo lasciar passare una chiave che nessuno usa.
     """
     return [_dis(m.group(1))
-            for m in _STRINGA.finditer(percorso.read_text(encoding="utf-8"))]
+            for m in _STRINGA.finditer(leggi_disco(percorso)[0])]
 
 
 def _coppie(percorso: Path) -> list[tuple[str, str]]:
@@ -270,7 +306,7 @@ def _coppie(percorso: Path) -> list[tuple[str, str]]:
     Una riga che non ha quella forma non e' una voce e non interessa.
     """
     coppie: list[tuple[str, str]] = []
-    for riga in percorso.read_text(encoding="utf-8").splitlines():
+    for riga in leggi_disco(percorso)[0].splitlines():
         riga = riga.strip()
         if not riga.startswith('"'):
             continue
@@ -316,9 +352,175 @@ def vetrina() -> list[str]:
     return guai
 
 
+# ======================================= le due impaginazioni della stessa cosa =====
+#
+# `README.md` e `site/i18n/en.js` raccontano le stesse cose con la stessa prosa,
+# e cosi' ognuna delle altre sei coppie. Da qui un confronto che **non ha bisogno
+# di ancore**: si toglie la cifra da una frase e quello che resta e' la chiave con
+# cui la frase si ritrova nell'altro file. Dove le due frasi senza numeri sono
+# identiche e i numeri no, uno dei due e' rimasto indietro.
+
+_TAG = re.compile(r"<[^>]+>")
+_SEGNI = re.compile(r"[`*_>#—– «»’']")
+_UN_NUMERO = re.compile(r"\d+(?:[.,]\d+)*")
+
+
+def _liscia(s: str) -> str:
+    """Il testo senza il vestito: niente tag, niente asterischi, spazi normali."""
+    s = _TAG.sub(" ", s).replace('\\"', '"').replace("\\n", " ")
+    return re.sub(r"\s+", " ", _SEGNI.sub(" ", s)).strip()
+
+
+def _frasi(pezzo: str):
+    """Le frasi di un pezzo che hanno una cifra dentro e almeno sette parole.
+
+    Sette e non una: una frase corta («52 lingue») si ripete uguale in posti che
+    non c'entrano niente fra loro, e accoppiarli darebbe allarmi falsi. Sul
+    giapponese e sul cinese, che non spaziano le parole, questa soglia lascia
+    passare poche frasi — dieci invece di cinquanta — e va bene cosi': meglio
+    dieci accoppiamenti veri che cinquanta accostamenti a caso.
+    """
+    for f in re.split(r"(?<=[.:;!?])\s+", _liscia(pezzo)):
+        f = f.strip()
+        if len(f.split()) >= 7 and _UN_NUMERO.search(f):
+            yield f
+
+
+def _pezzi_markdown(testo: str) -> list[str]:
+    """Le celle delle tabelle una per una, i paragrafi ricuciti.
+
+    Ricucire le righe e' la parte che decide: il Markdown va a capo a settanta
+    colonne e la vetrina no, quindi una frase spezzata non somiglia a nessuna
+    frase della vetrina. Senza questa riga si accoppiano otto frasi invece di
+    cinquantaquattro, e le altre quarantasei non le guarda nessuno.
+    """
+    testo = re.sub(r"```.*?```", " ", testo, flags=re.S)
+    fuori: list[str] = []
+    for blocco in re.split(r"\n\s*\n", testo):
+        righe = [r.strip().lstrip("> ").strip() for r in blocco.splitlines()]
+        if any(r.startswith("|") for r in righe):
+            for r in righe:
+                fuori.extend(r.split("|"))
+        else:
+            fuori.append(" ".join(righe))
+    return fuori
+
+
+def _per_frase(pezzi) -> dict[str, set[str]]:
+    d: dict[str, set[str]] = {}
+    for p in pezzi:
+        for f in _frasi(p):
+            d.setdefault(_UN_NUMERO.sub("•", f).lower(), set()).add(f)
+    return d
+
+
+def _cifre(f: str) -> tuple[str, ...]:
+    return tuple(_pulisci(_UN_NUMERO.findall(f)))
+
+
+def allineamento() -> list[str]:
+    """Le stesse frasi nel README e nella vetrina, con dentro numeri diversi."""
+    guai: list[str] = []
+    for sigla, readme in READMES.items():
+        catalogo = SITO.parent / f"{sigla}.js"
+        if not catalogo.exists():
+            guai.append(f"{sigla}: manca il catalogo della vetrina {catalogo.name}")
+            continue
+        a = _per_frase(_stringhe_di(catalogo))
+        b = _per_frase(_pezzi_markdown(leggi_disco(readme)[0]))
+        for chiave in sorted(set(a) & set(b)):
+            if {_cifre(x) for x in a[chiave]} != {_cifre(x) for x in b[chiave]}:
+                guai.append(
+                    f"{sigla}: la stessa frase dice due cose — "
+                    f"vetrina «{sorted(a[chiave])[0][:90]}» / "
+                    f"README «{sorted(b[chiave])[0][:90]}»")
+    return guai
+
+
+# ============================ i motori nominati, e i numeri che gli stanno accanto =====
+
+MOTORI = ("piper", "supertonic", "kokoro")
+
+
+def _quante_lingue() -> tuple[dict[str, int], int]:
+    """Quante lingue parla ogni motore, e quante ne parla l'unione dei tre."""
+    from speak.pool import lingue_con_voce
+
+    per_motore = {m: set(lingue_con_voce(m)) for m in MOTORI}
+    unione = set().union(*per_motore.values())
+    return {m: len(v) for m, v in per_motore.items()}, len(unione)
+
+
+def _righe_di_tutti(percorso: Path):
+    return enumerate(leggi_disco(percorso)[0].splitlines(), 1)
+
+
+def unione_in_prosa() -> list[str]:
+    """Dove si nominano i tre motori con i tre conteggi, ci va anche l'unione.
+
+    Il pezzo si riconosce **dai dati e non dalla lingua**: i nomi dei motori non
+    si traducono e le cifre nemmeno. La seconda guardia — nessun numero
+    nell'intervallo in cui un'unione puo' stare che non sia l'unione — serve al
+    caso in cui il numero vecchio e quello nuovo convivano: un 53 accanto a un 52
+    e' un residuo, non una seconda quantita'.
+    """
+    per_motore, unione = _quante_lingue()
+    conti = set(per_motore.values())
+    minima, massima = max(conti), sum(conti)
+    guai: list[str] = []
+    for dove, percorso in posti().items():
+        for n, riga in _righe_di_tutti(percorso):
+            if not all(m in riga for m in MOTORI):
+                continue
+            numeri = {int(x) for x in re.findall(r"\d+", riga)}
+            if not conti <= numeri:
+                continue  # non e' la frase dei tre cataloghi
+            if unione not in numeri:
+                guai.append(
+                    f"{dove}:{n}: la frase elenca {sorted(conti)} lingue per i tre "
+                    f"motori e non dice l'unione, che il codice conta {unione}")
+            for x in sorted(numeri - conti - {unione}):
+                if minima < x <= massima:
+                    guai.append(
+                        f"{dove}:{n}: accanto ai tre conteggi c'e' {x}, che ha la "
+                        f"forma di un'unione ma l'unione e' {unione}")
+    return guai
+
+
+#: Una riga di tabella che comincia con il nome di un motore. Il nome puo' avere
+#: una parola dietro (`**piper** (default)`), e la cella che interessa e' quella
+#: subito dopo: `**49**` nella tabella dei motori, `**0 su 49**` in quella delle
+#: lingue misurate — e in giapponese `**49 中 0**`, che e' il motivo per cui si
+#: guarda il numero **piu' grande** della cella e non il primo.
+_RIGA_MOTORE = re.compile(
+    r"\|\s*\*\*(" + "|".join(MOTORI) + r")\*\*[^|]*\|([^|]*)\|")
+
+
+def misurate() -> list[str]:
+    """Il numero accanto al nome di un motore e' il suo conteggio di lingue."""
+    per_motore, _ = _quante_lingue()
+    guai: list[str] = []
+    for sigla, readme in READMES.items():
+        for n, riga in _righe_di_tutti(readme):
+            m = _RIGA_MOTORE.match(riga.strip())
+            if not m:
+                continue
+            motore, cella = m.group(1), m.group(2)
+            numeri = [int(x) for x in re.findall(r"\d+", cella)]
+            if not numeri:
+                continue  # una cella senza cifre non dichiara niente
+            if max(numeri) != per_motore[motore]:
+                guai.append(
+                    f"{sigla}:{n}: la riga «{motore}» dichiara {max(numeri)} "
+                    f"lingue e il codice ne conta {per_motore[motore]} "
+                    f"(cella: «{cella.strip()[:40]}»)")
+    return guai
+
+
 def controlla() -> list[str]:
     """Tutto insieme. Elenco vuoto = cio' che e' pubblicato dice il vero."""
-    return numeri_scollati() + vetrina()
+    return (numeri_scollati() + vetrina() + allineamento()
+            + unione_in_prosa() + misurate())
 
 
 def main(argv: list[str] | None = None) -> int:

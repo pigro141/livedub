@@ -919,3 +919,74 @@ def test_reader(c) -> None:
     reader4 = SubtitleReader(cfg, EchoOcr(["x"]), enabled=False)
     c.eq(len(reader4.run(con_testo).opened), 0, "lo stadio spento non produce battute")
     c.eq(len(reader4.run(None).opened), 0, "un frame assente non e' un errore")
+
+    # ------------------------------------------------------------------
+    # **La scrittura che il gioco usa, fino in fondo alla catena.**
+    #
+    # Il filtro sui caratteri teneva le sole lettere latine *sempre*, qualunque
+    # cosa dicesse `translate.source`. Misurato con un OCR che legge
+    # perfettamente — cosi' l'unica cosa che possa far sparire una riga sta
+    # dopo di lui — arrivava in fondo **una scrittura su dieci**.
+    #
+    # **La banda si disegna in latino apposta, e il perche' vale la riga.** Il
+    # carattere di `tools/frames` non ha i glifi CJK: misurato, 2064 pixel di
+    # inchiostro per una riga giapponese contro i 12711 di una cirillica, e la
+    # banda veniva scartata dal classificatore *prima* di chiamare l'OCR.
+    # Disegnare la scrittura vera misurerebbe il carattere del banco invece
+    # della catena — una misura che non puo' esprimere la risposta va cambiata,
+    # non interpretata.
+    scritte = {
+        "it": "Non ho tempo per queste cose",
+        "ru": "У меня нет времени на это",
+        "el": "Δεν έχω χρόνο για αυτό",
+        "ja": "そんな時間はない",
+        "zh-CN": "我没有时间做这件事",
+        "ko": "그럴 시간 없어",
+        "ar": "ليس لدي وقت لهذا",
+        "iw": "אין לי זמן לזה",
+        "th": "ฉันไม่มีเวลาสำหรับเรื่องนี้",
+        "hi": "मेरे पास इसके लिए समय नहीं है",
+    }
+
+    def esce(riga: str, lingua: str) -> str:
+        """Il testo della battuta che esce dal lettore, o vuoto."""
+        conf = VisionConfig()
+        conf.stable_reads = 2
+        conf.hold_frames = 0
+        conf.roi = ROI
+        oro = VirtualClock()
+        r = SubtitleReader(conf, EchoOcr([riga]), clock=oro, lingua=lingua)
+        t = 0.0
+        for k in range(14):
+            t += 0.2
+            oro.set(t)
+            for ev in r.run(vuoto if k < 4 else con_testo).opened:
+                return ev.text
+        return ""
+
+    intatte = [cod for cod, riga in scritte.items() if esce(riga, cod) == riga]
+    c.eq(len(intatte), len(scritte),
+         "dieci scritture su dieci arrivano intatte in fondo al lettore")
+
+    # **E il caso nullo, che e' quello che rende questa una misura.** La regola
+    # vecchia e' esattamente «la lingua e' sempre l'italiano»: sullo stesso
+    # banco deve tenerne una sola. Senza questa riga la verifica sopra potrebbe
+    # essere verde perche' il filtro e' stato spento, che e' il difetto opposto
+    # e altrettanto silenzioso.
+    con_latino = [cod for cod, riga in scritte.items() if esce(riga, "it") == riga]
+    c.eq(len(con_latino), 1,
+         "e col filtro latino di prima ne sopravviveva una, la latina")
+
+    # `zh-CN` non e' `zh`: il lettore tronca la lingua al trattino per il
+    # lessico, e usare quella troncata qui farebbe ripiegare il cinese sul
+    # latino **in silenzio** — cioe' il difetto che questo blocco ripara.
+    c.eq(esce(scritte["zh-CN"], "zh-CN"), scritte["zh-CN"],
+         "il codice con la regione non si tronca prima di scegliere la scrittura")
+
+    # I glifi CJK dallo scenario continuano a sparire su un gioco italiano, che
+    # e' il motivo per cui il filtro esiste.
+    c.eq(esce("Sali in 冏一 macchina", "it"), "Sali in macchina",
+         "su un gioco italiano i glifi CJK dello scenario spariscono ancora")
+    # ...e su un gioco giapponese quegli stessi glifi sono la battuta. E' il
+    # prezzo dichiarato: la scrittura la dichiara l'utente, non il filtro.
+    c.eq(esce("冏一", "ja"), "冏一", "mentre su un gioco giapponese sono il dialogo")

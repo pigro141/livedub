@@ -37,7 +37,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from tools.tabella_lingue import READMES, SITO
+from tools.tabella_lingue import READMES, SITO, leggi_disco, scrivi_disco
 
 
 def posti() -> dict[str, Path]:
@@ -108,7 +108,7 @@ def dichiarati() -> dict[str, list[int]]:
     """I numeri scritti adesso in ognuno dei quattordici posti."""
     fuori: dict[str, list[int]] = {}
     for nome, percorso in posti().items():
-        testo = percorso.read_text(encoding="utf-8")
+        testo, _ = leggi_disco(percorso)
         fuori[nome] = [int(m) for r in DOVE for m in r.findall(testo)]
     return fuori
 
@@ -120,15 +120,20 @@ def scrivi(quante: int) -> list[str]:
     fatte una volta e non devono ripassare da un traduttore per un numero. E' la
     stessa regola di `tools/tabella_lingue.py` — si rigenera il dato, si lascia
     stare la prosa.
+
+    E si legge e si scrive **senza tradurre gli a-capo** (`leggi_disco`): i file
+    di questo repo sono CRLF, e leggerli in modo universale per riscriverli con
+    `newline=""` li appiattisce in LF. Il diff che ne esce e' il file intero per
+    una cifra, cioe' una revisione impossibile da fare.
     """
     cambiati: list[str] = []
     for nome, percorso in posti().items():
-        testo = percorso.read_text(encoding="utf-8")
+        testo, _ = leggi_disco(percorso)
         nuovo = testo
         for r in DOVE:
             nuovo = r.sub(str(quante), nuovo)
         if nuovo != testo:
-            percorso.write_text(nuovo, encoding="utf-8", newline="")
+            scrivi_disco(percorso, nuovo)
             cambiati.append(nome)
     return cambiati
 

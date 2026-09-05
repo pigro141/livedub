@@ -53,6 +53,7 @@ import urllib.request
 
 from translate.lingue import LINGUE as _TABELLA
 from translate.lingue import nome_en
+from translate.locale import coppia
 
 # Le lingue che il template nomina per esteso. TranslateGemma vuole **il nome e
 # il codice**, non solo il codice.
@@ -87,6 +88,21 @@ def prompt_translategemma(testo: str, da: str, a: str, registro: bool = True) ->
     materiale una traduzione un po' peggiore e fedele vale piu' di una elegante
     che dice un'altra cosa.
     """
+    # **`auto` non e' una lingua, ed e' il valore di serie di `translate.source`.**
+    # La cura scritta qui sotto era stata applicata all'arrivo e non alla
+    # partenza: con la configurazione appena aperta il prompt diceva «You are a
+    # professional **auto (auto)** to Italian translator … translate the
+    # following **auto** text», cioe' la stessa forma di difetto per cui questo
+    # commento esiste, sull'altro lato della freccia. E il programma **dichiarava
+    # gia' il contrario**: `translate.lingue.AUTO_DIVENTA` scrive sotto la
+    # casella «"auto" diventa "en"», e la verifica che lo pretende passava —
+    # perche' provava la nota, non il prompt.
+    #
+    # Si risolve con `translate.locale.coppia`, che e' la stessa regola che
+    # decide **quale modello Argos scaricare**: risolvere `auto` in un posto e
+    # non nell'altro e' letteralmente scritto li' come il modo in cui si scarica
+    # un modello e se ne usa un altro.
+    da, a = coppia(da, a)
     # `nome_en` e non `LINGUE.get`: risolve anche i codici scritti in un altro
     # modo (`zh-Hans`, `he`, `it_IT`), che con la ricerca secca sarebbero
     # ripiegati sul codice nudo dentro il prompt.

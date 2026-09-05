@@ -54,23 +54,33 @@ vuol dire **non misurato** e non «non funziona» — dedurre da «ppocr e' adde
 su cinese e inglese» che non legge il tamil sarebbe plausibile e non sarebbe una
 misura.
 
-## E c'e' uno stadio dopo, che oggi butta tutto cio' che non e' latino
+## Lo stadio dopo buttava tutto cio' che non era latino, e adesso no
 
-Anche dove il riconoscitore legge benissimo, `vision/ocr.py::italian_only` —
-che `vision/reader.py` applica a **ogni** riga, qualunque sia `translate.source`
-— tiene solo lettere latine, cifre e punteggiatura. Misurato sulle stesse dieci
-righe:
+Anche dove il riconoscitore leggeva benissimo, `vision/ocr.py::italian_only` —
+che `vision/reader.py` applicava a **ogni** riga, qualunque fosse
+`translate.source` — teneva solo lettere latine, cifre e punteggiatura. Quindi
+la catena intera leggeva **una** scrittura, e la tabella qui sopra descriveva un
+riconoscitore i cui risultati non arrivavano da nessuna parte.
 
-| | righe che sopravvivono al filtro |
+Misurato attraverso il lettore vero, con un `EchoOcr` che legge perfettamente
+(cosi' l'unica cosa che possa far sparire una riga sta *dopo* il
+riconoscimento), una riga per scrittura:
+
+| | battute che arrivano in fondo |
 |---|---|
-| oneocr | **1 su 10** (la latina), dopo averle lette tutte e dieci a CER 0,00 |
-| ppocr | 6 su 10 — e cinque delle sei sono la **translitterazione** |
+| filtro latino sempre (com'era) | **1 su 10** — la latina |
+| alfabeto dalla lingua dichiarata (com'e') | **10 su 10**, intatte |
 
-Le due righe dicono la stessa cosa da due parti opposte: con OneOCR si butta
-nove volte su dieci del testo letto bene, con ppocr si tiene cinque volte su
-dieci del testo che non e' quello scritto. Quindi oggi la catena intera legge
-**una** scrittura, la latina, e questo modulo lo dichiara invece di lasciarlo
-scoprire a sessione accesa: si veda `NOTA_FILTRO_LATINO`.
+La cura non e' spegnere il filtro: e' legarlo a `translate.source` invece che
+all'alfabeto latino, esattamente come si fa un gradino dopo per il lessico
+italiano. Il filtro serviva e serve — l'OCR di serie e' addestrato su cinese e
+inglese e sullo scenario inventa glifi CJK, che finivano in bocca al
+sintetizzatore — ma «non e' latino» non e' «non e' della lingua che il gioco
+scrive». Si veda `ALFABETI` qui sotto e `vision/ocr.py::solo_alfabeti`.
+
+**Il prezzo e' dichiarato**: su un gioco *giapponese* quei glifi CJK dello
+scenario tornano a passare, perche' li' sono indistinguibili dal dialogo. La
+scrittura la dichiara l'utente, e nessun filtro puo' saperne di piu' di lui.
 """
 
 from __future__ import annotations
@@ -187,10 +197,66 @@ NON_LATINE: dict[str, str] = {
 
 LATINA = "latina"
 
-NOTA_FILTRO_LATINO = (
-    "e comunque la catena tiene solo le lettere latine "
-    "(`vision/ocr.py::italian_only`): oggi il doppiaggio dal vivo legge una "
-    "scrittura sola."
+# **Quali lettere puo' contenere una battuta scritta in questa scrittura.**
+#
+# I valori sono prefissi del *nome Unicode* del carattere, non intervalli di
+# codici: `unicodedata.name('ж')` e' `'CYRILLIC SMALL LETTER ZHE'`. Il nome e'
+# gia' la tabella — scriverne una seconda con gli intervalli vorrebbe dire
+# tenerne allineate due, che qui e' gia' costato sette volte, e sbagliare un
+# intervallo non da' errore: fa sparire una lettera su venti.
+#
+# Il prefisso si confronta col nome **intero**, non col primo pezzo: `ー`, il
+# segno di allungamento che in giapponese sta dappertutto, si chiama
+# `KATAKANA-HIRAGANA PROLONGED SOUND MARK`, e un confronto sul primo pezzo lo
+# butterebbe.
+#
+# **Il latino sta in tutte.** In un sottotitolo russo o giapponese ci sono nomi
+# propri, sigle e marchi scritti in latino, e toglierli sarebbe la stessa forma
+# di danno che questa tabella esiste per riparare, girata dall'altra parte.
+ALFABETI: dict[str, tuple[str, ...]] = {
+    LATINA: ("LATIN",),
+    "cirillica": ("CYRILLIC", "LATIN"),
+    "greca": ("GREEK", "LATIN"),
+    "araba": ("ARABIC", "LATIN"),
+    "ebraica": ("HEBREW", "LATIN"),
+    "thaana": ("THAANA", "LATIN"),
+    "armena": ("ARMENIAN", "LATIN"),
+    "georgiana": ("GEORGIAN", "LATIN"),
+    "etiopica": ("ETHIOPIC", "LATIN"),
+    # Il cinese ha gli ideogrammi; il giapponese gli stessi ideogrammi **piu'**
+    # i due sillabari; il coreano l'hangul piu' gli ideogrammi, che restano nei
+    # nomi propri.
+    "cinese": ("CJK", "LATIN"),
+    "giapponese": ("CJK", "HIRAGANA", "KATAKANA", "LATIN"),
+    "coreana": ("HANGUL", "CJK", "LATIN"),
+    "devanagari": ("DEVANAGARI", "LATIN"),
+    "bengalese": ("BENGALI", "LATIN"),
+    "gujarati": ("GUJARATI", "LATIN"),
+    "gurmukhi": ("GURMUKHI", "LATIN"),
+    "kannada": ("KANNADA", "LATIN"),
+    "malayalam": ("MALAYALAM", "LATIN"),
+    "oriya": ("ORIYA", "LATIN"),
+    "tamil": ("TAMIL", "LATIN"),
+    "telugu": ("TELUGU", "LATIN"),
+    "sinhala": ("SINHALA", "LATIN"),
+    "meitei": ("MEETEI", "LATIN"),
+    "thai": ("THAI", "LATIN"),
+    "lao": ("LAO", "LATIN"),
+    "khmer": ("KHMER", "LATIN"),
+    "birmana": ("MYANMAR", "LATIN"),
+}
+
+# Due forme della stessa cosa: una mezza frase che segue una virgola, e una che
+# sta in piedi da sola dopo un punto. Ce n'era una sola, e usciva «potrebbe non
+# leggersi affatto. e comunque la catena…» — una nota che si legge male e' una
+# nota che non si legge.
+NOTA_FILTRO = (
+    "e la catena tiene le lettere di quella scrittura piu' le latine, "
+    "perche' `translate.source` dice quale"
+)
+NOTA_FILTRO_SOLA = (
+    "La catena tiene le lettere di quella scrittura piu' le latine, "
+    "perche' `translate.source` dice quale."
 )
 
 
@@ -199,6 +265,17 @@ def scrittura(codice: str) -> str:
     from translate.lingue import normalizza
 
     return NON_LATINE.get(normalizza(codice), LATINA)
+
+
+def alfabeti(codice: str) -> tuple[str, ...]:
+    """Che lettere tenere in una riga letta con il gioco scritto in `codice`.
+
+    **Il ripiego e' il latino, e non e' un ripiego prudente per caso.** Una
+    lingua che non si riconosce — `auto` compreso, che non e' una lingua ma
+    «chiedilo al traduttore» — torna al filtro con cui questa catena e' stata
+    misurata per intero: nessun comportamento nuovo dove non c'e' una risposta.
+    """
+    return ALFABETI.get(scrittura(codice), ALFABETI[LATINA])
 
 
 def esito(backend: str, codice: str) -> Esito:
@@ -228,10 +305,10 @@ def nota_ocr(backend: str, codice: str) -> str:
     nome = (backend or "?").strip() or "?"
     if not e.misurato:
         return (f"La scrittura {s} con «{nome}» non e' stata misurata: "
-                f"potrebbe non leggersi affatto. {NOTA_FILTRO_LATINO}")
+                f"potrebbe non leggersi affatto. {NOTA_FILTRO_SOLA}")
     if e.buono:
         return (f"«{nome}» legge la scrittura {s} (CER {e.cer:.2f} sul banco), "
-                f"{NOTA_FILTRO_LATINO}")
+                f"{NOTA_FILTRO}.")
     if e.modo == TRANSLITTERA:
         return (f"«{nome}» non legge la scrittura {s}: ne tira fuori lettere "
                 f"latine plausibili (CER {e.cer:.2f}), che nessun filtro ferma "

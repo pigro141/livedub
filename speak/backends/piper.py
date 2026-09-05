@@ -65,14 +65,91 @@ from speak.backends.piper_voci import (  # noqa: E402
 # e' esattamente il difetto che questa tabella esiste per chiudere: con i 12,9
 # dell'italiano applicati all'inglese, Kokoro comprimeva ogni battuta al tetto
 # in una scena piena al 49%.
+#
+# **E il ripiego costava un fattore tre, non uno scarto.** Fino a oggi questa
+# tabella aveva una riga sola, e quarantotto lingue prendevano il numero
+# italiano. Sulle scritture dense e' sbagliato nel verso caro: un
+# `chars_per_second` troppo alto rende `stima = n / cps` piu' corta del vero,
+# quindi la catena chiede poca fretta al motore, l'audio esce piu' lungo del
+# budget e **tutto il residuo cade su WSOLA** — cioe' il `dub.rate_x1000`
+# inchiodato al tetto su ogni percentile, gia' visto due volte qui.
+#
+# ## Come sono stati fatti, e le due volte che la misura ha cambiato risposta
+#
+# **Prima versione: una voce per lingua. Sbagliata.** Il passo di Piper non e'
+# una proprieta' della lingua sola: sulla stessa frase greca `joy` fa 8,56 car/s
+# e `rapunzelina` 15,59; in russo `irina` fa 7,98 e `dmitri` 14,77. Fra due voci
+# della **stessa** lingua c'e' l'ottanta per cento, quanto fra due lingue — e
+# quale sia la prima del pool lo decide l'ordine del catalogo, non una misura.
+# `chars_per_second` invece e' **uno per lingua** e vale per tutto il pool:
+# la quantita' che descrive e' la mediana delle voci. Le righe sotto vengono da
+# tutte e sessantacinque le voci di queste venti lingue, e l'escursione fra voci
+# e' scritta accanto perche' su meta' di esse **e' il termine piu' grosso**.
+#
+# **Seconda: una frase non e' una scena, e di quanto si misura.** Le battute
+# vere hanno virgole, sospensioni e stacchi; una frase pulita no, e corre. Il
+# fattore non si e' indovinato: si e' rifatto l'italiano nei due modi con le
+# **stesse** voci, nello stesso processo — dodici battute vere delle sessioni
+# in `runs/` contro la frase di `speak/frasi.py` — e su Piper la frase esce
+# **+18,5%** (18,79 contro 15,86 car/s). Su Kokoro e' +14,4%, su SuperTonic
+# -3,0%: e' del motore, non della lingua, quindi si applica quello di Piper.
+# Le righe qui sotto sono percio' `mediana(frase) / 1,185`, cioe' riportate
+# sulla scala di scena su cui sta il 14,8 e con cui e' tarato tutto il resto
+# della catena.
+#
+# **E il controllo che rende leggibile tutto il resto**: rifacendo l'ancora
+# archiviata — `riccardo` sulle battute vere — oggi torna **15,37 car/s** contro
+# i 14,8 di allora, cioe' il 3,9%. La misura riproduce se stessa; quello che
+# cambia in queste righe non e' rumore.
+#
+# ## Cosa **non** dicono
+#
+# Una frase sola per lingua resta una frase sola: e' un ordine di grandezza, non
+# una taratura, e su una lingua con `±40%` fra le voci il numero e' una mediana
+# di voci che non sono d'accordo. Chi doppia sul serio in una di queste lingue
+# rimisuri la sua su una scena, come e' stato fatto per l'italiano.
 PASSO_PER_DEFAULT = 14.8
 PASSO_LINGUA: dict[str, float] = {
+    # L'ancora: dodici battute vere con `riccardo`, e riprodotta a +3,9%.
     "it": 14.8,
-    # **Una sola, e c'e' un motivo che vale la pena scrivere.** Su questa
-    # macchina Smart App Control blocca `espeakbridge.pyd`, e tutte le altre
-    # cinquanta lingue di Piper passano da espeak: non sono misurabili qui. L'
-    # ebraico e' l'unica che non ci passa (`phoneme_type: hebrew`), quindi e'
-    # l'unica che si e' potuta cronometrare — una frase, 9,14 car/s.
+    # Le diciannove di `tools/censisci_lingue.py --sintesi` (2026-09-05), tutte
+    # le voci del pool, riportate sulla scala di scena. Accanto: la mediana
+    # grezza sulla frase e l'escursione fra le voci, che e' l'incertezza vera.
+    #                       frase   voci
+    "ar": 5.83,   # 1v       6.91    ±0%
+    "bn": 6.85,   # 6v       8.12   ±29%
+    "de": 12.63,  # 6v      14.97   ±31%
+    "el": 10.08,  # 2v      11.94   ±60%
+    "en": 13.07,  # 6v      15.49   ±37%
+    "fa": 8.26,   # 5v       9.79   ±40%
+    "hi": 5.34,   # 3v       6.33   ±32%
+    "hy": 12.78,  # 1v      15.14    ±0%
+    "ka": 11.88,  # 1v      14.08    ±0%
+    "ko": 5.85,   # 1v       6.93    ±0%
+    "ml": 5.85,   # 2v       6.93   ±18%
+    "mr": 5.29,   # 6v       6.27   ±14%
+    "ne": 5.00,   # 6v       5.92   ±47%
+    "ru": 11.63,  # 4v      13.78   ±43%
+    "te": 5.92,   # 3v       7.02   ±40%
+    "tr": 11.17,  # 1v      13.24    ±0%
+    "ur": 10.36,  # 2v      12.28   ±10%
+    "vi": 9.64,   # 6v      11.42   ±74%
+    "zh": 3.79,   # 1v       4.49    ±0%
+    # **Le altre ventinove lingue di Piper non sono mai state cronometrate** e
+    # restano su `PASSO_PER_DEFAULT`. Sono quasi tutte latine o cirilliche, dove
+    # il numero italiano e' vicino — ma «vicino» li' non e' misurato, e il
+    # gruppo `frasi` conta quelle ventinove apposta perche' nessuno legga questa
+    # tabella come completa.
+    #
+    # **L'ebraico e' un reperto, e la riga che stava qui diceva il falso.**
+    # C'era scritto che era l'unica lingua misurabile su questa macchina, perche'
+    # Smart App Control bloccava `espeakbridge.pyd` e tutte le altre ci passano.
+    # **Non e' piu' vero**: oggi `EspeakPhonemizer` fonemizza tutte e
+    # quarantanove le lingue e la sintesi si misura — e' cosi' che e' nata la
+    # tabella qui sopra. L'ebraico e' uscito dal catalogo per un'altra ragione
+    # (`phoneme_type: hebrew`, che `piper-tts` 1.3.0 non conosce), quindi questo
+    # numero non lo chiedera' mai nessuno: si tiene perche' e' l'unico misurato
+    # con un'altra versione del pacchetto, e buttarlo perderebbe la data.
     "he": 9.1,
 }
 

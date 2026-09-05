@@ -114,6 +114,24 @@ jobs:
               "$dist\_internal\LICENZE.md")) {
             if (-not (Test-Path $atteso)) { throw "manca dal pacchetto: $atteso" }
           }
+          # **I dizionari del giapponese e del cinese**, che sono il pezzo piu'
+          # pesante del pacchetto (362 MB di file, ~80 MB una volta zippati) e
+          # quello che PyInstaller lascia a casa piu' facilmente: si aprono **per
+          # percorso**, quindi nessun import li nomina e l'analisi statica non li
+          # vede. Il guasto che ne verrebbe non e' un pacchetto che non parte —
+          # e' un pacchetto verde che muore sulla prima battuta giapponese
+          # dall'utente, che e' esattamente il difetto del 20 agosto con
+          # un'altra faccia. `--autoprova` qui non arriva: importa i moduli, e
+          # `speak.backends.kokoro_ja` importa misaki **pigramente**.
+          foreach ($dizionario in @(
+              "$dist\_internal\unidic_lite\dicdir\sys.dic",
+              "$dist\_internal\unidic_lite\dicdir\matrix.bin",
+              "$dist\_internal\misaki\data\us_gold.json",
+              "$dist\_internal\jieba\dict.txt")) {
+            if (-not (Test-Path $dizionario)) {
+              throw "manca dal pacchetto: $dizionario — kokoro direbbe il giapponese o il cinese con espeak, cioe' nominando i kanji e mangiando i toni"
+            }
+          }
           $cataloghi = (Get-ChildItem "$dist\_internal\ui\lingue" -Filter *.json).Count
           "cataloghi della lingua: $cataloghi"
           if ($cataloghi -lt 41) { throw "solo $cataloghi cataloghi: la finestra sarebbe quasi solo in italiano" }

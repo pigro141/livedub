@@ -412,11 +412,34 @@ PASSO_PER_UNITA = 12.9
 # il budget si stringera' molto piu' spesso. E' il numero vero — usare i 12,9
 # dell'italiano sarebbe la sesta volta della stessa unita' sbagliata, e stavolta
 # con un fattore due invece che con un 11%.
+#
+# **E le altre due scritture dense stavano ancora sull'italiano.** Kokoro parla
+# otto lingue e questa tabella ne aveva quattro: spagnolo e portoghese sono
+# **misurati e deliberatamente non scritti** (+2,6% e -3,9%, sotto la soglia del
+# 10%), ma cinese e hindi no — prendevano i 12,9 dell'italiano, cioe' due volte
+# e mezzo e due volte troppo, nel verso che fa comprimere. Sono le stesse due
+# scritture che in fondo alla tabella di SuperTonic stanno a 6,3 e 8,4.
+#
+# **Misurate come le altre, con le due correzioni che il giro ha imposto**
+# (`tools/censisci_lingue.py --sintesi`, 2026-09-05). Prima: **tutte le voci del
+# pool**, non la prima — su Piper due voci della stessa lingua distano l'ottanta
+# per cento, e qui il cinese va da 4,15 a 5,43 su sei voci. Seconda: la frase di
+# `speak/frasi.py` corre piu' delle battute vere, e di quanto si e' misurato
+# invece di stimarlo — rifacendo l'italiano nei due modi con le stesse voci,
+# **15,26 sulla frase contro 13,34 su dodici battute di scena, +14,4%**. Quindi
+# le due righe nuove sono `mediana(frase) / 1,144`, sulla stessa scala del 12,9.
+#
+# Il controllo che le rende una misura: quel 13,34 e' l'ancora archiviata
+# (12,9) riprodotta al **3,4%**. E resta una frase sola per lingua, come le
+# trenta di SuperTonic e non come il francese (sedici-venti battute vere): un
+# ordine di grandezza, non una taratura.
 PASSO_LINGUA = {
     "it": 12.9,
     "en": 14.37,
     "fr": 14.39,
+    "hi": 5.28,   # 4 voci, frase 6.04 (5.92-7.48)
     "ja": 5.9,
+    "zh": 4.21,   # 6 voci, frase 4.81 (4.15-5.43)
 }
 
 

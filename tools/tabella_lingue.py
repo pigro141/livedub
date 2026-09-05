@@ -388,7 +388,7 @@ def _pezzi(d: Dati) -> list[tuple[Path, str, str, list[str]]]:
 # ============================================== leggere e riscrivere =======
 
 
-def _leggi(p: Path) -> tuple[str, str]:
+def leggi_disco(p: Path) -> tuple[str, str]:
     """Il testo com'e' sul disco, e il suo a-capo. I file di questo repo sono
     CRLF: riscriverli in LF farebbe apparire modificato tutto il file."""
     with open(p, encoding="utf-8", newline="") as f:
@@ -396,7 +396,7 @@ def _leggi(p: Path) -> tuple[str, str]:
     return testo, ("\r\n" if "\r\n" in testo else "\n")
 
 
-def _scrivi(p: Path, testo: str) -> None:
+def scrivi_disco(p: Path, testo: str) -> None:
     with open(p, "w", encoding="utf-8", newline="") as f:
         f.write(testo)
 
@@ -424,10 +424,10 @@ def scrivi(d: Dati | None = None) -> list[str]:
     d = d or dati()
     cambiati: list[str] = []
     for percorso, inizio, fine, righe in _pezzi(d):
-        testo, acapo = _leggi(percorso)
+        testo, acapo = leggi_disco(percorso)
         nuovo = sostituisci(testo, inizio, fine, righe, acapo)
         if nuovo != testo:
-            _scrivi(percorso, nuovo)
+            scrivi_disco(percorso, nuovo)
             cambiati.append(percorso.name)
     return cambiati
 
@@ -439,7 +439,7 @@ def controlla(d: Dati | None = None) -> list[str]:
 
     for percorso, inizio, fine, righe in _pezzi(d):
         try:
-            testo, acapo = _leggi(percorso)
+            testo, acapo = leggi_disco(percorso)
             atteso = acapo + acapo.join(righe) + acapo
             trovato = dentro(testo, inizio, fine)
         except (OSError, ValueError) as e:
@@ -453,7 +453,7 @@ def controlla(d: Dati | None = None) -> list[str]:
 
     for percorso, cosa, regex, atteso in dichiarazioni(d):
         try:
-            testo, _ = _leggi(percorso)
+            testo, _ = leggi_disco(percorso)
         except OSError as e:
             guai.append(f"{percorso.name}: {e}")
             continue

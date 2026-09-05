@@ -109,7 +109,7 @@ letture al secondo, battute, latenza, compressione, underrun, area di lettura.
 Non c'è niente da configurare prima: lo apri e segui.
 
 **1. Lo apri.** La finestra è già nella lingua in cui usi Windows — 42 lingue, e
-tutti e 41 i cataloghi sono completi: 281 stringhe su 281. Arabo, ebraico,
+tutti e 41 i cataloghi sono completi: 282 stringhe su 282. Arabo, ebraico,
 persiano e urdu girano anche la finestra dall'altra parte.
 
 **2. Una guida ti accompagna**, 7 passi, e si rivede con `?`. Dove può,
@@ -269,7 +269,7 @@ nostro server non esiste.
 | disco | **1,6 GB** — l'ambiente senza le librerie CUDA, più 225 MB di modelli | **3,5 GB** — con le librerie CUDA e 543 MB di modelli. La traduzione offline aggiunge **3,2 GB** in entrambi i casi |
 | Windows | **10** — la cattura passa da `PrintWindow`, che sta in `user32.dll` e non chiede di installare niente | **11** — OneOCR esiste solo lì, e legge molto meglio il testo contornato di un gioco |
 | Python | 3.11 | 3.11 |
-| **cosa ottieni** | **Piper su CPU.** 665 ms dal sottotitolo alla voce, nessun underrun, nessuna fretta sul parlato. Il lettore è PP-OCR, e 50 delle 52 lingue parlate sono già qui. | **Kokoro su CUDA**: articola meglio, e ha 54 voci in 8 lingue. 1290 ms. |
+| **cosa ottieni** | **Piper su CPU.** 665 ms dal sottotitolo alla voce, nessun underrun, nessuna fretta sul parlato. Il lettore è PP-OCR, e 49 delle 52 lingue parlate sono già qui. | **Kokoro su CUDA**: articola meglio, e ha 54 voci in 8 lingue. 1290 ms. |
 | **cosa compra il gradino** | sotto i 6 core la sintesi di Piper passa da 88 ms a **302 ms** — vedi la tabella qui sopra | la scheda video compra **3,5× sulla sintesi** (da 741 ms a 213) ed è l'unica cosa che permette a una lingua di spostare il motore su Kokoro: su CPU quel motore costa 741 ms a battuta, che non è vivibile |
 
 **Un requisito non si può leggere senza la macchina su cui è stato misurato**,
@@ -458,12 +458,12 @@ Qui tre cose diverse si chiamano *lingua*, si impostano in tre posti diversi, ed
 |---|---|---|
 | in che lingua sono scritti i **bottoni** | **42** | `ui.lingua`, nella scheda Preparazione |
 | in che lingua può **tradurre un sottotitolo** | **133** col backend online — quelli offline non hanno un elenco chiuso | `translate.target`, nella scheda Traduzione |
-| cosa può **dire ad alta voce** | **53** — ma non con ogni motore: 49 con piper, 31 con supertonic, 8 con kokoro | scegli la lingua, e il motore la segue |
+| cosa può **dire ad alta voce** | **52** — ma non con ogni motore: 49 con piper, 31 con supertonic, 8 con kokoro | scegli la lingua, e il motore la segue |
 
 > **Tre elenchi, tre domande.** L'interfaccia parla 42 lingue, il traduttore ne
-> raggiunge 133, e la bocca ne parla 53. Quell'ultimo numero non è un numero
+> raggiunge 133, e la bocca ne parla 52. Quell'ultimo numero non è un numero
 > solo: **i tre motori hanno cataloghi diversi**, e scegliere una lingua vuol dire
-> in realtà scegliere un motore. Prima del cambiamento che l'ha portato a 53, la
+> in realtà scegliere un motore. Prima del cambiamento che l'ha portato a 52, la
 > bocca ne parlava **due** — e non era un limite dei motori, era l'unica cosa che
 > il codice dichiarava: tradurre in spagnolo e poi farlo leggere a una voce
 > italiana non dava **nessun errore**.
@@ -579,7 +579,7 @@ e un passo fuori scala è l'unica traccia che lascia.
 | motore | lingue misurate | esito |
 |---|---|---|
 | **supertonic** | **31 su 31** | tutte plausibili: da 6,6 a 17,8 caratteri al secondo, con in fondo giapponese, coreano, cinese e hindi, come le loro scritture lasciano prevedere |
-| **piper** | **1 su 50** | ebraico, 9,14 car/s. Le altre non si sono potute misurare *su questa macchina*: Smart App Control blocca `espeakbridge.pyd`, e ogni altra lingua di piper fonemizza attraverso espeak |
+| **piper** | **0 su 49** | nessuna. Smart App Control blocca `espeakbridge.pyd` su questa macchina, e ogni voce di piper tranne una fonemizza attraverso espeak. L'unica misura che c'era — l'ebraico a 9,14 car/s — è stata ritirata insieme alla lingua: il `piper-tts` bloccato non sa fonemizzare l'ebraico, quindi non è nemmeno fra le 49 |
 | **kokoro** | **0 su 8** | `kokoro-onnx` qui non si importa affatto — Smart App Control blocca il modulo nativo di una delle sue dipendenze |
 
 I due motori che non si sono potuti misurare sono bloccati da una **proprietà di
@@ -587,12 +587,21 @@ questa macchina**, non del codice. I loro elenchi di lingue sono dichiarati dal
 catalogo e **marcati come non misurati**, invece di essere presentati come
 provati.
 
-> **Una dichiarazione che il controllo ha tolto.** L'indice di piper elenca **51**
-> lingue e questo programma ne offre **50**. La differenza è il giapponese: quella
-> voce vuole un fonemizzatore che il `piper-tts` installato non ha, quindi il
-> modello si scarica tranquillamente e la *prima sintesi* solleva. Dichiarare 51
-> sarebbe stato vero dell'indice e falso di questo programma. Il giapponese lo si
-> parla lo stesso — con kokoro, o con supertonic.
+> **Due dichiarazioni che il controllo ha tolto, e la seconda era nostra.**
+> L'indice di piper elenca **51** lingue e questo programma ne offre **49**. Il
+> `piper-tts` installato e bloccato (1.3.0) conosce esattamente due fonemizzatori
+> — `PhonemeType` è `["espeak", "text"]` — e due voci ne chiedono un altro: il
+> giapponese vuole `japanese`, l'ebraico vuole `hebrew`. Tutti e due i modelli si
+> scaricano tranquillamente e sollevano quando si caricano.
+>
+> È l'ebraico quello che vale la pena raccontare. Questa pagina dichiarava che
+> `piper-tts` conoscesse quattro fonemizzatori e che l'ebraico *funzionasse,
+> misurato a 9,14 car/s*. L'enumerazione della versione bloccata dice un'altra
+> cosa, e una misura che la dipendenza bloccata non può riprodurre non è una
+> misura — è il ricordo di un'altra installazione. Il conteggio adesso si ricava
+> da quell'enumerazione, quindi non può più scollarsi. Il giapponese lo si parla
+> lo stesso, con kokoro o con supertonic; **l'ebraico, qui, non lo parla
+> nessuno** — nessun motore di questo programma ha una voce ebraica.
 
 ### Scegli una lingua, e il motore la segue
 
@@ -640,7 +649,7 @@ e lascerebbe passare scelte che non funzionano, con l'aria di sapere.
 
 **La lingua dell'interfaccia** è una terza cosa ancora: **42** — 41 cataloghi più
 l'italiano, che è la lingua in cui è scritto il sorgente. Tutti e 41 sono
-**completi, 281 stringhe su 281**, nessuna tradotta a metà; quattro girano da
+**completi, 282 stringhe su 282**, nessuna tradotta a metà; quattro girano da
 destra a sinistra e voltano tutta la finestra (arabo, ebraico, persiano, urdu).
 Si generano una volta e si committano nel repo — non si chiedono alla rete mentre
 la finestra si apre, perché una finestra che chiede alla rete il proprio testo è
@@ -689,7 +698,7 @@ non l'ha ancora provato nessuno proprio su GTA V.**
 
 ## Com'è fatto, e perché ai numeri si può credere
 
-Non c'è pytest: la suite è un modulo che si esegue, **2460 verifiche** in 85
+Non c'è pytest: la suite è un modulo che si esegue, **2519 verifiche** in 86
 gruppi.
 
 ```powershell

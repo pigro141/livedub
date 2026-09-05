@@ -63,6 +63,7 @@ import time
 from pathlib import Path
 
 from core import percorsi
+from translate.lingue import nome_it
 
 MODELLO_DEFAULT = str(percorsi.modelli("llm", "gemma-3-1b-it-Q4_K_M.gguf"))
 REPO_DEFAULT = ("ggml-org/gemma-3-1b-it-GGUF", "gemma-3-1b-it-Q4_K_M.gguf")
@@ -187,8 +188,19 @@ class TraduttoreLlm:
         self._prima: list[str] = []
 
     def traduci(self, testo: str, da: str, a: str) -> str | None:
-        lingua = {"it": "italiano", "en": "inglese", "es": "spagnolo",
-                  "fr": "francese", "de": "tedesco"}.get(a, a)
+        # **Cinque nomi scritti a mano su centotrentatre lingue scegliibili.**
+        # E' la stessa tabella-scritta-due-volte gia' tolta da `translate/ollama.py`,
+        # rimasta qui: `.get(a, a)` ripiegava sul codice, quindi con
+        # `translate.target=ja` l'istruzione era «Traduci in ja la battuta di un
+        # videogioco». Il modello risponde lo stesso, risponde peggio o in
+        # un'altra lingua, e niente lo dichiara. I nomi vengono ora dall'unico
+        # elenco che riempie anche il menu, quindi una lingua scegliibile e'
+        # anche una lingua nominabile.
+        #
+        # `.lower()` perche' qui il nome sta **dentro una frase italiana** («in
+        # giapponese»), non a inizio riga come nel menu: e' anche cio' che
+        # rende questa riga identica a prima per le cinque che c'erano.
+        lingua = nome_it(a).lower()
         prima = "\n".join(self._prima[-self.contesto:])
         contesto = f"\nBattute precedenti (per il contesto):\n{prima}\n" if prima else ""
         istruzione = (

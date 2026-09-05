@@ -650,7 +650,7 @@ powershell -ExecutionPolicy Bypass -File installa.ps1 -SenzaGpu
 
 ## どう作られているか、そしてなぜ数字を信じてよいか
 
-pytest はありません。テスト一式は実行できるモジュールで、86 グループに **2519 個の
+pytest はありません。テスト一式は実行できるモジュールで、86 グループに **2520 個の
 検査**があります。
 
 ```powershell

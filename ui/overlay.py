@@ -202,7 +202,7 @@ def carica_font(nome: str, corpo: int, scritt: str = "latino"):
     In cache perche' `corpo_del_gioco` ne apre fino a otto per battuta cercando
     la misura giusta, e questo gira **nel thread video**: li' un costo si
     amplifica invece di sommarsi, che e' la lezione piu' cara di questo progetto.
-    La scrittura entra nella chiave e il **testo** no: cinquantatre lingue di
+    La scrittura entra nella chiave e il **testo** no: cinquantadue lingue di
     testo farebbero saltare la cache a ogni battuta, dieci scritture no.
 
     **Il font della scrittura viene prima di quello chiesto**, ed e' voluto: chi

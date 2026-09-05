@@ -41,7 +41,7 @@ applicata a un'altra distribuzione. Qui «ripiego» e' scritto, non dedotto.
 
 ## Cosa questo strumento non fa
 
-Non giudica la **pronuncia**: nessuno ha ascoltato cinquantatre lingue, e dirlo
+Non giudica la **pronuncia**: nessuno ha ascoltato cinquantadue lingue, e dirlo
 sarebbe una promessa che nessuna misura regge. Dichiara che una voce esiste, che
 il suo g2p e' quello dichiarato e che nulla viene buttato per strada — tre cose
 meccaniche. Una fonemizzazione fatta con le regole giuste puo' ancora suonare

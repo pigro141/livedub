@@ -5,7 +5,7 @@ Esiste per una ragione sola, ed e' la stessa contro cui e' scritto mezzo
 nessuno**. In questo repo quella forma e' gia' costata sette volte — le tredici
 lingue a mano nel prompt di `translate/ollama.py`, il percorso HF di una voce
 Piper, le voci di Kokoro in cache che non sapevano di essere scadute. Un elenco
-di cinquantatre lingue in **otto** file di vetrina — sette README e la pagina —
+di cinquantadue lingue in **otto** file di vetrina — sette README e la pagina —
 e' il candidato perfetto per la ottava.
 
 Quindi l'elenco **non si scrive**: si ricava da `speak.pool.lingue_con_voce`,
@@ -22,7 +22,7 @@ niente: rilancia lo strumento, e se non lo fa la suite lo dice.
 I **sette** README (`README.md` piu' `docs/readme/README.<sigla>.md`) sono
 Markdown e li legge GitHub: il blocco e' una tabella dentro un `<details>`, fra
 due commenti HTML. Ci sono tutti e sette perche' un lettore tedesco legge il
-suo: dichiarargli cinquantatre lingue e non elencargliele mai vorrebbe dire
+suo: dichiarargli cinquantadue lingue e non elencargliele mai vorrebbe dire
 consegnare la risposta a chi legge l'inglese e basta. Della cornice cambia solo
 il sommario, le due intestazioni e la riga di riepilogo — stanno in `TESTI`, qui
 sotto, che e' l'unico posto dove questo file scrive prosa.
@@ -48,8 +48,8 @@ ucraino» dentro la finestra.
 
 Dichiara che una voce **esiste** e che e' **di quella lingua**, che e' cio' che
 i cataloghi dei motori pubblicano. Non dice niente sulla pronuncia: nessuno ha
-ascoltato cinquantatre lingue, e le misure meccaniche fatte davvero (supertonic
-31 su 31, piper 1 su 50, kokoro 0 su 8) stanno scritte accanto alla tabella e
+ascoltato cinquantadue lingue, e le misure meccaniche fatte davvero (supertonic
+31 su 31, piper 0 su 49, kokoro 0 su 8) stanno scritte accanto alla tabella e
 non le produce questo file.
 
 E i numeri dichiarati nella prosa attorno — «50 with piper, 31 with supertonic,
@@ -79,7 +79,7 @@ SITO = RADICE / "site" / "i18n" / "en.js"
 
 #: I sette README, per sigla. Quello inglese sta in radice, gli altri sotto
 #: `docs/readme/`. Ci sono tutti e sette perche' un lettore tedesco legge il
-#: **suo**: dichiarargli 53 lingue e non elencargliele mai vorrebbe dire che la
+#: **suo**: dichiarargli 52 lingue e non elencargliele mai vorrebbe dire che la
 #: consegna vale per una lingua sola.
 READMES: dict[str, Path] = {
     "en": README,

@@ -168,13 +168,28 @@ DATI_LIBRERIE += collect_data_files("sacremoses")
 # stessa forma di difetto: il pacchetto viene su verde e la prima battuta
 # giapponese muore dall'utente.
 #
-#   unidic-lite    260,5 MB   `sys.dic` 187,7 + `matrix.bin` 71,5
-#   pypinyin-dict  112,9 MB   `large_pinyin`, i termini polifonici
-#   jieba           43,1 MB   il segmentatore
-#   misaki          15,4 MB
+# **E i due pesi sono due quantita' diverse, che qui erano una sola.** Il numero
+# di `requirements.txt` — 432 MB — e' quello che costa il **venv**, e li' e'
+# giusto: pip installa i `.py` e li compila, quindi `pypinyin-dict` occupa
+# davvero 112,9 MB su quel disco. Ma di quei 112,9 il **sorgente** e' 44,9 e il
+# resto e' `__pycache__`, che nel pacchetto non entra: qui i moduli finiscono
+# nella PYZ come bytecode compresso. Scrivere 432 in questo file voleva dire
+# preventivare l'eseguibile con il conto del venv.
 #
-# Sono 432 MB per due lingue su cinquantatre, e chi non doppia in giapponese o
-# cinese li scarica lo stesso: e' una scelta dichiarata, non una svista.
+#                    nel venv    nel pacchetto   nello zip
+#   unidic-lite      260,5 MB       260,5 MB       47,4 MB   `sys.dic` + `matrix.bin`
+#   jieba             43,1 MB        38,3 MB       19,2 MB   il segmentatore
+#   misaki            15,4 MB        15,0 MB        3,6 MB
+#   pypinyin-dict    112,9 MB    (44,9 in PYZ)      9,3 MB   `large_pinyin`
+#   pypinyin           3,5 MB         3,5 MB        0,8 MB
+#                    -------------------------------------
+#                      432 MB         362 MB       80,3 MB
+#
+# Sono per due lingue su cinquantadue, e chi non doppia in giapponese o cinese
+# le scarica lo stesso: e' una scelta dichiarata, non una svista. Sullo zip
+# della release vuol dire **da 445 a ~525 MB**, cioe' +18%: misurato zippando i
+# pacchetti uno per uno, non stimato — ma il pacchetto **con** i dizionari non
+# e' ancora passato dal runner, quindi il numero vero lo dira' il primo tag.
 for _pacchetto in ("misaki", "unidic_lite", "jieba", "pypinyin", "pypinyin_dict",
                    "cn2an", "proces"):
     DATI_LIBRERIE += collect_data_files(_pacchetto)

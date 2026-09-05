@@ -302,6 +302,30 @@ jobs:
       # file che nessuno ha mai aperto — che e' la cosa per cui questo workflow
       # e' nato.
 
+      # **Il tag e la versione nel codice sono due sorgenti, e nessuno le
+      # confrontava.** `core/versione.py` e' l'unico posto in cui la versione e'
+      # scritta — i sette README e la vetrina non la nominano affatto, puntano a
+      # `releases/latest` — ma il **nome della release** viene dal tag, che e'
+      # una seconda dichiarazione della stessa cosa. Taggare `v0.9.2` senza
+      # toccare quella riga pubblica una pagina che dice 0.9.2 e un programma che
+      # nella sua scheda dice 0.9.1: e' la forma «scritta due volte e la seconda
+      # non l'aggiorna nessuno», qui con il difetto che finisce **nella pagina di
+      # download**, dove chi segnala un guasto legge il numero sbagliato.
+      #
+      # Il confronto non costa una misura nuova: `rapporto-1.json` porta gia'
+      # `versione`, presa dall'eseguibile appena provato — cioe' dal programma
+      # vero e non dal sorgente di questo runner.
+      - name: Il tag dice la versione che dice il programma
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $detta = (Get-Content 'rapporto-1.json' -Raw | ConvertFrom-Json).versione
+          "tag: $tag | il programma dice: $detta"
+          if ($tag -ne "v$detta") {
+            throw "il tag e' $tag e l'eseguibile dichiara $detta: aggiorna VERSIONE in core/versione.py, oppure il tag"
+          }
+
       - name: Lo zip da scaricare
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh

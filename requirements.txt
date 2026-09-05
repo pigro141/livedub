@@ -256,7 +256,7 @@ windows-capture
 #
 # **Il prezzo e' il dizionario, e non e' piccolo**: `unidic-lite` sono 260,5 MB
 # (`sys.dic` 187,7 + `matrix.bin` 71,5), contro i 15,4 di `misaki` e gli 0,1 di
-# `fugashi`. Sono per **una** lingua su cinquantatre, e chi non doppia in
+# `fugashi`. Sono per **una** lingua su cinquantadue, e chi non doppia in
 # giapponese li paga lo stesso. Se manca, `kokoro_ja` **solleva** con la riga da
 # incollare invece di tornare a espeak di nascosto — che consegnerebbe di nuovo
 # «Chinese letter» con i contatori verdi.

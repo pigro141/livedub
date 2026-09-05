@@ -268,7 +268,7 @@ MAX_FONEMI = 509
 # al limite, che e' esattamente come si arrivava all'IndexError. Ci sono anche
 # l'arabo (`؟` `،`), il greco (`;` come punto interrogativo) e le forme a tutta
 # larghezza, perche' la lingua d'arrivo adesso puo' essere una qualunque delle
-# cinquantatre.
+# cinquantadue.
 FINE_FRASE = "。．！？；!?;⁇⁈⁉‼？！"
 PAUSA = "、，,،؛"
 

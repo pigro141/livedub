@@ -517,10 +517,117 @@ def misurate() -> list[str]:
     return guai
 
 
+# ============================== l'indirizzo delle donazioni, e dove non si guardava =====
+#
+# La verifica `dono` della suite confronta `core.dono.LINK` con
+# `.github/FUNDING.yml`, pretende che l'indirizzo non stia scritto in nessun
+# altro `.py`, e che i **sette README** puntino li'. La vetrina no — e li'
+# l'indirizzo compare due volte, il bottone della donazione e la riga in fondo,
+# cioe' nei due punti che vede **chiunque apra la pagina**: molti piu' di quanti
+# aprano un README. Un indirizzo sbagliato non da' errore: da' la pagina di
+# qualcun altro, o un 404, e i soldi non arrivano senza che niente lo dica.
+
+#: **Il nome del sito non si scrive nemmeno qui**, e non e' scrupolo: scritto a
+#: mano in questo file, la suite e' diventata rossa su `dono` — quella verifica
+#: pretende che l'indirizzo non compaia in nessun `.py` che non sia
+#: `core/dono.py`, e ha ragione, perche' questa regola nasce proprio contro
+#: «scritto due volte e la seconda non l'aggiorna nessuno». Quindi l'ospite si
+#: **ricava** da `core.dono.LINK`, e resta un posto solo.
+def _indirizzo_atteso() -> tuple[str, re.Pattern]:
+    from urllib.parse import urlsplit
+
+    from core.dono import LINK
+
+    ospite = urlsplit(LINK).netloc.removeprefix("www.")
+    return LINK, re.compile(r"https?://(?:www\.)?" + re.escape(ospite) + r"/[\w-]+")
+
+
+def donazioni() -> list[str]:
+    """Ogni indirizzo di donazione della vetrina e' quello che il codice dichiara."""
+    dichiarato, forma = _indirizzo_atteso()
+
+    guai: list[str] = []
+    dove = {"index.html": RADICE / "index.html",
+            "sito/livedub.js": SITO.parent.parent / "livedub.js"}
+    for catalogo in sorted(SITO.parent.glob("*.js")):
+        dove[f"sito/{catalogo.stem}"] = catalogo
+
+    trovato = False
+    for nome, percorso in dove.items():
+        if not percorso.exists():
+            guai.append(f"{nome}: il file non c'e' piu'")
+            continue
+        for n, riga in _righe_di_tutti(percorso):
+            for m in forma.finditer(riga):
+                trovato = True
+                if m.group(0) != dichiarato:
+                    guai.append(
+                        f"{nome}:{n}: l'indirizzo delle donazioni e' "
+                        f"«{m.group(0)}» e il codice dichiara «{dichiarato}»")
+    if not trovato:
+        # **Zero trovati e' un guasto**, come per le ancore dei numeri: se il
+        # bottone sparisse dalla vetrina questa regola tacerebbe per sempre.
+        guai.append(
+            "nella vetrina non c'e' nessun indirizzo di donazione: o il bottone e' "
+            "sparito, o l'indirizzo e' passato a un altro sito")
+    return guai
+
+
+# ================================= i comandi che la pagina dice di incollare =====
+#
+# **Un comando che non esiste piu' e' peggio di un comando che manca**: chi lo
+# incolla riceve `No module named tools.x` e conclude che il programma e' rotto.
+# E la strada per cui succede e' gia' passata di qui — il commit «Il repo
+# pubblicava anche il laboratorio» ha tolto dall'indice sette strumenti con una
+# riga di `.gitignore`, e nessuna verifica lega quell'elenco a cio' che i sette
+# README dicono di lanciare.
+#
+# Quindi non basta che il file **ci sia**: sul disco di chi sviluppa ci sono
+# anche quelli non versionati, e leggere li' e' esattamente la misura che non
+# puo' esprimere la risposta alla domanda «cosa trova chi scarica». Si chiede a
+# `git ls-files`, che e' l'elenco di cio' che e' **pubblicato**.
+
+_COMANDO = re.compile(r"-m\s+(tools\.[\w]+)")
+
+
+def _pubblicati() -> set[str] | None:
+    """I file che il repo pubblica. `None` se qui non c'e' git (uno zip)."""
+    import subprocess
+
+    try:
+        fuori = subprocess.run(
+            ["git", "ls-files"], cwd=RADICE, capture_output=True, text=True,
+            timeout=30, check=True)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return {r.strip() for r in fuori.stdout.splitlines() if r.strip()}
+
+
+def comandi() -> list[str]:
+    """Ogni `python -m tools.x` che i README e la vetrina dicono di incollare."""
+    pubblicati = _pubblicati()
+    guai: list[str] = []
+    for dove, percorso in posti().items():
+        for n, riga in _righe_di_tutti(percorso):
+            for m in _COMANDO.finditer(riga):
+                modulo = m.group(1)
+                rel = modulo.replace(".", "/") + ".py"
+                if pubblicati is None:
+                    if not (RADICE / rel).exists():
+                        guai.append(f"{dove}:{n}: «{modulo}» non c'e' su questo disco")
+                elif rel not in pubblicati:
+                    guai.append(
+                        f"{dove}:{n}: la pagina dice di lanciare «{modulo}», e "
+                        f"{rel} non e' fra i file che il repo pubblica"
+                        + (" (c'e' solo su questo disco, quindi qui sembra a posto)"
+                           if (RADICE / rel).exists() else ""))
+    return guai
+
+
 def controlla() -> list[str]:
     """Tutto insieme. Elenco vuoto = cio' che e' pubblicato dice il vero."""
     return (numeri_scollati() + vetrina() + allineamento()
-            + unione_in_prosa() + misurate())
+            + unione_in_prosa() + misurate() + donazioni() + comandi())
 
 
 def main(argv: list[str] | None = None) -> int:

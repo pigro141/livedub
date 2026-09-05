@@ -6208,7 +6208,7 @@ def test_tabella_lingue(c: Check) -> None:
 
     Esiste per prendere l'ottava occorrenza della forma piu' cara di questo
     repo — **una tabella scritta due volte, e la seconda non l'aggiorna
-    nessuno**. Il README e la vetrina dichiarano cinquantatre lingue a chi
+    nessuno**. Il README e la vetrina dichiarano cinquantadue lingue a chi
     decide se installare: il giorno che un motore ne guadagna o ne perde una,
     quei due file continuerebbero a dire il numero di ieri senza dare errore, e
     l'unico modo di accorgersene sarebbe che qualcuno vada a contare.
@@ -6937,6 +6937,27 @@ def test_rilascio(c) -> None:
     c.eq(len(tutti), 1,
          f"e dicono tutti lo stesso ({tutti}): rilancia "
          f"`python -m tools.conta_verifiche` se questa diventa rossa")
+
+    # **E cio' che la vetrina e i sette README raccontano in prosa**, che e' la
+    # meta' che nessuna ancora numerica poteva vedere: le stesse frasi con
+    # numeri diversi fra README e vetrina, l'unione dichiarata accanto ai tre
+    # conteggi, la tabella delle lingue misurate, l'indirizzo delle donazioni
+    # nella vetrina e i comandi che la pagina dice di incollare.
+    #
+    # **Lo strumento c'era e non lo eseguiva nessuno**, che e' la stessa forma
+    # gia' pagata dieci volte in questo progetto — «dichiarato e mai letto» —
+    # solo spostata di un piano: non un campo di config che nessuno legge, ma
+    # una verifica che nessuno lancia. Girava solo se qualcuno si ricordava di
+    # battere il comando a mano, cioe' mai.
+    #
+    # Gira senza rete, senza modelli e senza Qt: legge i cataloghi dei motori e
+    # dei file di testo, e `git ls-files` degrada da solo dove git non c'e'.
+    from tools.controlla_pubblicato import controlla as controlla_pubblicato
+
+    guai = controlla_pubblicato()
+    c.ok(not guai, "il pubblicato dice quello che dice il codice: " + (
+        "; ".join(guai)[:400] if guai else
+        "rilancia `python -m tools.controlla_pubblicato` se questa fallisce"))
 
 
 # ============================================================== la traduzione =

@@ -2425,11 +2425,60 @@ class Finestra(QMainWindow):
                 + ("il tradotto si disegna sopra il gioco" if self.overlay is not None
                    else "! solo voce, niente a schermo (translate.overlay e' spento)")
             )
+        self._avvisi_di_avvio()
         # I bottoni si dipingono **dopo**, leggendo lo stato che `avvia()` ha
         # appena messo: metterli prima vorrebbe dire scriverli a mano una
         # seconda volta, e sono le copie a divergere.
         self.motore.avvia()
         self._dipingi_bottoni()
+
+    # **Le tre cose che rendono la catena muta o sbagliata, dette qui.** Sono
+    # gia' tutte e tre *sapute* dal programma prima di partire, e fino a ieri
+    # nessuna delle tre arrivava a chi preme Avvia:
+    #
+    # * `vision.ocr_backend = none` e' una voce vera della tendina, e sceglierla
+    #   vuol dire zero righe lette per sempre. Misurato sul banco, 35 secondi di
+    #   scena: `dub.lines 0` e `vision.ocr.empty 420` — cioe' il contatore che
+    #   vuol dire «nella ROI non c'e' testo», che e' l'esatta descrizione di uno
+    #   schermo senza sottotitoli. Il sintomo e' indistinguibile da una ROI
+    #   tarata male;
+    # * la scrittura del gioco. `vision/ocr.py::italian_only` tiene **solo** le
+    #   lettere latine, sempre, e lo fa dopo l'OCR: una riga cirillica o CJK
+    #   esce vuota e finisce anch'essa in `vision.ocr.empty`. La frase esatta la
+    #   dice `vision.scritture.nota_ocr`, che pero' fino a ieri aveva **un solo
+    #   chiamante**: la nota sotto la tendina della scheda «Traduzione». Chi
+    #   apre un profilo gia' fatto e preme Avvia quella tendina non la guarda
+    #   mai, e la sessione parte muta senza una riga;
+    # * la scrittura in cui si parla. `ui.overlay.nota_scrittura` dice quali si
+    #   disegnano rovesciate.
+    #
+    # E' la stessa forma gia' scelta per la ROI troppo alta, che si dichiara
+    # **sia** mentre si tira il rettangolo **sia** all'avvio: un avviso che vive
+    # solo accanto al widget che lo produce non lo legge chi quel widget non lo
+    # tocca.
+    def _avvisi_di_avvio(self) -> None:
+        """Quello che il programma sa gia' e che a schermo non darebbe errore."""
+        if self.cfg.vision.ocr_backend in ("none", "null"):
+            self.scrivi("! il lettore di testo e' spento "
+                        "(«Come leggere» -> none): non verra' letta nessuna riga")
+        if not self.cfg.translate.enabled:
+            return
+        try:
+            from vision.scritture import nota_ocr
+
+            avviso = nota_ocr(self.cfg.vision.ocr_backend, self.cfg.translate.source)
+            if avviso:
+                self.scrivi("! lingua del gioco: " + avviso)
+        except Exception:  # pragma: no cover - la regola non deve fermare l'avvio
+            pass
+        try:
+            from ui.overlay import nota_scrittura
+
+            avviso = nota_scrittura(self.cfg.translate.target)
+            if avviso and self.overlay is not None:
+                self.scrivi("! lingua in cui parlare: " + avviso)
+        except Exception:  # pragma: no cover
+            pass
 
     def _offri_installazione(self) -> None:
         """Alle scelte di **adesso** manca qualcosa? Allora si offre di prenderla.

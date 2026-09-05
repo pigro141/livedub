@@ -114,6 +114,65 @@ FONT_SCRITTURA: dict[str, tuple[str, ...]] = {
 SENZA_SPAZI = frozenset({"cjk", "thai"})
 
 
+# **Le lingue che questo disegno non sa comporre, e non e' una questione di
+# font.** Pillow compone il testo con `libraqm`, e questo ambiente non ce l'ha
+# (`PIL.features.check("raqm")` -> `False`): senza, ogni codepoint viene
+# disegnato per conto suo, nell'ordine in cui sta nella stringa. Per il latino,
+# il cirillico, il greco, il CJK e l'hangul non cambia niente — non c'e' niente
+# da comporre. Per le scritture **da destra a sinistra** cambia tutto, e sono
+# due difetti in uno:
+#
+# * l'ordine. Misurato: disegnando `اب` e poi la sola `ا`, il primo glifo della
+#   stringa sta a **sinistra** in tutti e due i casi — cioe' la riga esce
+#   ribaltata. Stesso esito su ebraico e persiano;
+# * le legature. Misurato: la parola araba `مرحبا` e' larga **107 px**, e la
+#   somma delle sue cinque lettere disegnate da sole e' **107 px** — cioe' non
+#   ne e' stata legata nessuna, e ogni lettera esce nella forma isolata.
+#
+# Non solleva, non lascia contatori: a schermo esce del testo, i pixel ci sono,
+# e chi non legge quella scrittura non se ne accorge. Quindi si **dichiara**,
+# che e' la stessa risposta gia' data a `speak.pool.ha_voce` e a
+# `vision.scritture.nota_ocr` — mostrare la scelta e dire cosa costa, invece di
+# toglierla o di lasciarla mentire.
+#
+# **Sono elencate le sole rovesciate, ed e' una scelta di onesta'.** Di
+# devanagari, tamil, thai e khmer si e' misurato che la composizione non c'e'
+# (stessa prova sulla larghezza), ma non si e' misurato **come si vedono**: una
+# matra fuori posto e una riga ribaltata non sono la stessa notizia, e
+# dichiarare la seconda per tutte e due vorrebbe dire spegnere l'avviso a forza
+# di farlo scattare — la stessa regola gia' scritta per la ROI e per il motore
+# che segue la lingua.
+LINGUE_ROVESCIATE: frozenset[str] = frozenset({
+    "ar",    # arabo
+    "he", "iw",  # ebraico (`iw` e' il codice storico, e Google usa ancora quello)
+    "fa",    # persiano
+    "ur",    # urdu
+    "ps",    # pashto
+    "sd",    # sindhi
+    "ug",    # uiguro
+    "yi",    # yiddish
+    "ckb",   # curdo sorani
+    "dv",    # divehi
+})
+
+
+def nota_scrittura(lingua: str) -> str:
+    """Cosa c'e' da sapere prima di disegnare in questa lingua. **Pura.**
+
+    Torna una frase per l'utente, o la stringa vuota se non c'e' niente da
+    dire. Sta qui e non nella finestra per la ragione di sempre: e' una regola,
+    si prova senza aprire Qt e senza aprire una tela.
+    """
+    codice = (lingua or "").replace("_", "-").split("-")[0].lower()
+    if codice in LINGUE_ROVESCIATE:
+        return ("questa scrittura va da destra a sinistra e il disegno sopra il "
+                "gioco non la sa comporre: a schermo la riga esce rovesciata e "
+                "con le lettere slegate. La voce invece e' giusta — si puo' "
+                "spegnere «Disegna il tradotto sopra il gioco» e tenere il "
+                "doppiaggio.")
+    return ""
+
+
 def scrittura(testo: str) -> str:
     """In che scrittura e' questo testo. **Pura**, quindi si prova senza schermo.
 

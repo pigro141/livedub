@@ -7117,6 +7117,54 @@ def test_rilascio(c) -> None:
         "; ".join(guai)[:400] if guai else
         "rilancia `python -m tools.controlla_pubblicato` se questa fallisce"))
 
+    # -- e niente di pubblicato importa il laboratorio ------------------------
+    #
+    # **Un import dentro un ramo non lo incontra nessuno finche' non ci si
+    # passa.** `tools/bench_timing.py` e' pubblicato e importava
+    # `tools.retrack`, che non lo e': su un clone pulito quel ramo dava
+    # `ModuleNotFoundError`, e la suite restava verde perche' non ci passa mai.
+    # Nove strumenti di laboratorio restano fuori dal repo di proposito (il
+    # commit «Il repo pubblicava anche il laboratorio»), e questa riga tiene il
+    # confine invece di fidarsi che chi scrive se lo ricordi.
+    #
+    # **Si legge l'albero sintattico e non si esegue niente**: importare per
+    # provare vorrebbe dire far girare la meta' del repo, e comunque non
+    # direbbe niente sugli import annidati, che sono proprio quelli che
+    # sfuggono. Se git non c'e', l'elenco del pubblicato e' vuoto e la riga si
+    # toglie di mezzo invece di dichiarare rotto tutto.
+    import ast as _ast
+    import subprocess as _sp
+
+    try:
+        elencati = _sp.run(["git", "ls-files", "*.py"], cwd=str(radice),
+                           capture_output=True, text=True, timeout=30).stdout.split()
+    except Exception:
+        elencati = []
+    if elencati:
+        pubblicati = {x.replace(chr(92), "/") for x in elencati}
+        sul_disco = {str(x.relative_to(radice)).replace(chr(92), "/")
+                     for x in radice.rglob("*.py") if ".venv" not in str(x)}
+        fuori = {x[:-3].replace("/", ".") for x in sul_disco - pubblicati}
+        sconfini = []
+        for nome in sorted(pubblicati):
+            try:
+                albero = _ast.parse((radice / nome).read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            for nodo in _ast.walk(albero):
+                modulo = None
+                if isinstance(nodo, _ast.ImportFrom) and nodo.module:
+                    modulo = nodo.module
+                elif isinstance(nodo, _ast.Import):
+                    modulo = nodo.names[0].name
+                if modulo in fuori:
+                    sconfini.append(f"{nome}:{nodo.lineno} importa {modulo}")
+        c.ok(len(fuori) >= 5,
+             f"il laboratorio resta fuori dal repo ({len(fuori)} moduli)")
+        c.eq(sconfini, [],
+             "e nessun file pubblicato lo importa: su un clone pulito sarebbe "
+             "un ModuleNotFoundError che questa suite non puo' vedere")
+
 
 # ============================================================== la traduzione =
 #

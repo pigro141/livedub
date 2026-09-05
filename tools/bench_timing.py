@@ -1,6 +1,5 @@
 """Quanto resta a schermo una battuta, e quanto lo si puo' prevedere.
 
-    python -m tools.bench_timing runs\\reads_full.jsonl --profile gtav
     python -m tools.bench_timing gameplay.mp4 --profile gtav      # ripaga l'OCR
 
 E' la misura su cui poggia tutta F2. Il sottotitolo compare a `T` e la sua
@@ -52,13 +51,21 @@ from fuse.timing import spoken_length as letters  # noqa: E402
 
 
 def collect(path: str, cfg: Config) -> list[SubtitleEvent]:
-    """Le battute chiuse, da un file di letture o dal video."""
-    if path.lower().endswith(".jsonl"):
-        from tools.reads import load
-        from tools.retrack import retrack
+    """Le battute chiuse, dal video. **Non piu' da un JSONL di letture.**
 
-        return retrack(load(path), cfg.vision)
+    C'era un secondo ramo che su un `.jsonl` rigiocava il tracker con
+    `tools.retrack`, ed era **morto in un clone pulito**: `retrack.py` e' uno
+    dei nove strumenti di laboratorio che il repo non pubblica, e l'import,
+    essendo dentro il ramo, non lo incontrava nessuno finche' qualcuno non gli
+    passava un JSONL — e allora prendeva `ModuleNotFoundError`. La suite di qui
+    non ci passa mai, quindi restava verde: non e' il codice che non funziona,
+    e' l'unico modo di accorgersene che non gira.
 
+    Tolto, e non pubblicato: e' la direzione gia' presa dal commit «Il repo
+    pubblicava anche il laboratorio». La strada dal video c'e' e da' lo stesso
+    risultato pagando l'OCR, mentre pubblicare `retrack.py` vorrebbe dire
+    rimettere fuori del laboratorio per una scorciatoia.
+    """
     from tools.replay import Replay
     from tools.sources import VideoSource
 
@@ -223,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="tools.bench_timing",
         description="Durata reale del sottotitolo contro numero di caratteri.",
     )
-    ap.add_argument("input", help="JSONL di tools.replay --dump-reads, oppure un video")
+    ap.add_argument("input", help="il video da cui misurare")
     ap.add_argument("--profile", default=None, help="profilo del gioco")
     ap.add_argument("--set", action="append", dest="overrides", metavar="CHIAVE=VALORE")
     ap.add_argument(

@@ -992,13 +992,24 @@ class SceltaLingua(Manopola):
     menu che offre centotrentatre lingue a un traduttore che ne fa due consegna
     una battuta muta o non tradotta senza dire perche'.
 
-    **E dichiara quando quella lingua non ha una voce.** I tre motori hanno
-    cataloghi diversi — Piper 50 lingue, SuperTonic 31, Kokoro 8 — e tradurre
-    verso una che quello montato non parla non da' errore: esce una voce che ne
-    pronuncia un'altra, cioe' un modello fonemizzato con le regole sbagliate.
-    La regola sta in `speak.pool.ha_voce`, fuori da Qt; e da quando il motore
-    **segue la lingua** (`core.motore.motore_per_lingua`) questa frase compare
-    solo nel caso che resta: nessun motore la parla.
+    **E dichiara chi la sapra' dire, sulla voce e prima del clic.** I tre motori
+    hanno cataloghi diversi e tradurre verso una lingua che quello montato non
+    parla non da' errore: esce una voce che ne pronuncia un'altra, cioe' un
+    modello fonemizzato con le regole sbagliate. Prima lo si diceva **dopo**,
+    cioe' a scelta fatta; adesso la voce porta la sua marca — `→ supertonic` se
+    il motore si spostera' da solo, `⚠ nessuna voce` se non la parla nessuno, e
+    **niente** nel caso normale, che e' quello che deve restare muto perche' gli
+    altri due si vedano.
+
+    La regola non sta qui: e' `core.motore.etichetta_lingua`, che chiama la
+    stessa `motore_per_lingua` che poi sposta il motore davvero. Due posti che
+    decidono la stessa cosa si separano al primo cambiamento, e una tendina che
+    promette un motore mentre la catena ne prende un altro sarebbe quel difetto
+    esatto — visibile solo a chi guarda tutti e due nello stesso secondo.
+
+    **Le marche sono segni e non colori**, ed e' la regola dei canali: il colore
+    del testo in questa finestra appartiene alle sei tinte delle voci del log, e
+    tingere di ambra una riga di menu la romperebbe in silenzio.
 
     Le due frasi stanno in un'etichetta **elidibile** sotto la casella: i nomi
     lunghi («Cinese semplificato», «Creolo haitiano») e una spiegazione da
@@ -1014,12 +1025,16 @@ class SceltaLingua(Manopola):
 
     def __init__(self, con_auto: bool, cfg=None) -> None:
         super().__init__()
-        from translate.lingue import AUTO, LINGUE, copertura, etichetta
+        from translate.lingue import AUTO, LINGUE, etichetta
 
         self._cfg = cfg
         self._con_auto = con_auto
-        self._copertura = copertura(
-            getattr(getattr(cfg, "translate", None), "backend", "") if cfg else "")
+        self._copertura = self._chiedi_copertura()
+        # Il motore montato **adesso**: le marche `→ …` dipendono da lui, e
+        # cambia sotto i piedi di questa casella (dalla scheda Voce, o da questa
+        # stessa quando la lingua se lo porta dietro). Si tiene per poter dire
+        # «e' cambiato» invece di riscrivere centotrentatre voci a ogni giro.
+        self._motore = self._motore_ora()
 
         L = QVBoxLayout(self)
         L.setContentsMargins(0, 0, 0, 0)
@@ -1033,6 +1048,10 @@ class SceltaLingua(Manopola):
         # c'e' gia' scritto a mano.
         self.combo.setProperty(MARCHIO, True)
         self.codici: list[str] = []
+        # Il testo **senza** il `⚠`: il marchio si mette e si toglie a ogni
+        # cambio di backend, e ricavarlo togliendo un prefisso dalla stringa
+        # visibile vorrebbe dire che al secondo giro si mangia una lettera.
+        self.etichette: list[str] = []
         if con_auto:
             self._aggiungi(AUTO, etichetta(AUTO))
         for x in LINGUE:
@@ -1078,15 +1097,99 @@ class SceltaLingua(Manopola):
         self.nota.setVisible(False)
         L.addWidget(self.nota)
 
+    def _motore_ora(self) -> str:
+        """Il `tts.backend` di adesso, o `""` se non c'e' una config da guardare."""
+        tts = getattr(self._cfg, "tts", None) if self._cfg is not None else None
+        return getattr(tts, "backend", "") or "" if tts is not None else ""
+
+    def _marca_voce(self, codice: str) -> tuple[str, str]:
+        """Che marca va accanto a questa lingua, e perche'. La regola sta fuori da Qt.
+
+        **Solo sulla casella d'arrivo.** La lingua che si parla e' quella, e
+        marcare anche la partenza vorrebbe dire centotrentatre avvisi su una
+        scelta che non c'entra niente con le voci — la stessa ragione per cui la
+        frase sotto la casella non compare mai su `source`.
+        """
+        if self._con_auto or not self._motore:
+            return "", ""
+        from core.motore import etichetta_lingua, sonda_macchina
+
+        # **La stessa sonda che usera' `applica_lingua`.** Senza, la tendina
+        # promette il motore che si prenderebbe su una macchina qualunque e la
+        # catena ne monta un altro: il giapponese e' l'unica lingua in cui i due
+        # divergono, e basta lei.
+        e = etichetta_lingua(codice, self._motore, sonda_macchina())
+        return e.marca, e.spiega
+
+    def _voce(self, i: int) -> tuple[str, str]:
+        """Il testo intero di una voce del menu, e il suo suggerimento.
+
+        Due marche in due posti, ed e' voluto: il `⚠` **davanti** parla del
+        traduttore («questa lingua non la fa»), la marca **in coda** parla della
+        voce («la dira' un altro motore», «non la dice nessuno»). Sono due
+        domande diverse e possono essere vere insieme; metterle allo stesso capo
+        della riga vorrebbe dire scegliere quale delle due sparisce.
+        """
+        codice = self.codici[i]
+        testo = self.etichette[i]
+        aiuti: list[str] = []
+        if not self._copertura.sa_fare(codice):
+            testo = f"⚠ {testo}"
+            aiuti.append("Il traduttore scelto non fa questa lingua.")
+        marca, spiega = self._marca_voce(codice)
+        if marca:
+            testo = f"{testo}  {marca}"
+            aiuti.append(spiega)
+        return testo, "  ".join(aiuti)
+
     def _aggiungi(self, codice: str, testo: str) -> None:
-        """Una voce, col `⚠` davanti se questo backend **certamente** non la fa."""
-        avvisa = not self._copertura.sa_fare(codice)
-        self.combo.addItem(f"⚠ {testo}" if avvisa else testo)
-        if avvisa:
-            self.combo.setItemData(
-                self.combo.count() - 1,
-                "Il traduttore scelto non fa questa lingua.", Qt.ToolTipRole)
+        """Una voce, con le sue marche: il traduttore davanti, la voce in coda."""
+        self.etichette.append(testo)
+        self.combo.addItem(testo)
         self.codici.append(codice)
+        self._rimarca_voce(self.combo.count() - 1)
+
+    def _rimarca_voce(self, i: int) -> None:
+        """Rifa' il testo di **una** voce secondo la copertura e il motore di adesso."""
+        testo, aiuto = self._voce(i)
+        self.combo.setItemText(i, testo)
+        self.combo.setItemData(i, aiuto or None, Qt.ToolTipRole)
+
+    def _rimarca(self) -> None:
+        """Rifa' le marche di tutte le voci quando qualcosa a monte e' cambiato.
+
+        **Serve da quando `locale` ha un elenco chiuso** (45 lingue su 133,
+        `translate/argos_lingue.py`). Prima nessun backend marcava niente nel
+        menu — Google le fa tutte e gli altri tornavano `None` — quindi che i
+        `⚠` fossero decisi una volta alla costruzione non si vedeva. Adesso si':
+        aprendo con Argos e passando a Google resterebbero ottantotto avvisi
+        addosso a lingue che Google fa benissimo, cioe' un avviso che dice il
+        falso ma continua a comparire. E' la forma peggiore, perche' chi lo legge
+        smette di leggere anche quelli veri. Col motore vale lo stesso: passando
+        da Piper a Kokoro, ventuno lingue smettono di essere parlate da chi c'e'
+        e nessuna marca lo direbbe.
+
+        Si tocca solo cio' che e' cambiato: con centotrentaquattro voci
+        riscrivere tutto a ogni `imposta` costa, e `setItemText` fa ridisegnare.
+        **E se qualcosa e' cambiato la tendina si rimisura**, perche' le marche
+        allungano le voci: `→ supertonic` sono dodici caratteri in piu' su una
+        riga, e senza questa chiamata l'elenco resterebbe largo quanto era prima
+        e li taglierebbe **senza puntini** (`ElideNone`), cioe' finendo a meta'
+        parola con l'aria di essere scritto cosi'.
+
+        L'elenco si ferma a `etichette`, non a `codici`: `imposta` aggiunge in
+        coda la voce «non e' fra le lingue note» per un codice sconosciuto, che
+        di etichetta propria non ne ha.
+        """
+        toccate = 0
+        for i in range(len(self.etichette)):
+            testo, aiuto = self._voce(i)
+            if testo != self.combo.itemText(i):
+                toccate += 1
+                self.combo.setItemText(i, testo)
+                self.combo.setItemData(i, aiuto or None, Qt.ToolTipRole)
+        if toccate:
+            allarga_tendina(self.combo)
 
     # -- il valore -----------------------------------------------------------
 
@@ -1175,24 +1278,61 @@ class SceltaLingua(Manopola):
 
     # -- quello che il menu da solo non direbbe -------------------------------
 
+    def _chiedi_copertura(self):
+        """La copertura del backend di adesso, **per la casella che si sta usando**.
+
+        Le due caselle fanno due domande diverse: quella dell'arrivo chiede «da
+        `translate.source`, dove si arriva?», quella della partenza chiede «per
+        arrivare a `translate.target`, da dove si parte?». Con Google non
+        cambiava niente — le fa tutte — ma Argos traduce **coppie**, e una
+        domanda sola avrebbe risposto quella sbagliata a una delle due caselle.
+        """
+        from translate.lingue import copertura
+
+        tr = getattr(self._cfg, "translate", None) if self._cfg is not None else None
+        backend = getattr(tr, "backend", "") if tr else ""
+        if self._con_auto:
+            # Questa e' la casella della **partenza**: l'arrivo e' gia' fissato.
+            return copertura(backend, arrivo=getattr(tr, "target", "") if tr else "")
+        return copertura(backend, sorgente=getattr(tr, "source", "") if tr else "")
+
     def _nota(self) -> None:
-        """Le due frasi: cosa non fa il traduttore, e se manca la voce.
+        """Le tre frasi: cosa non legge l'OCR, cosa non fa il traduttore, e se manca la voce.
 
         Si ricalcola a ogni `imposta`, e `imposta` la chiama anche il pannello
         quando cambia **un altro** campo (`Pannello.aggiorna` da `_riallinea`):
         cosi' cambiando `translate.backend` o `tts.backend` la frase si aggiorna
         invece di restare quella del backend di ieri.
+
+        **La terza e' l'OCR, ed e' arrivata per ultima perche' era lo stadio che
+        non dichiarava niente.** Le altre due riguardano la lingua che si
+        *parla*; questa riguarda la lingua che si *legge*, cioe' `source`, e
+        senza di lei mettere `ru` dava una ROI muta che sembrava tarata male.
         """
-        from speak.pool import ha_voce, lingue_con_voce
-        from translate.lingue import AUTO, copertura, nota_per
+        from translate.lingue import AUTO, nota_per
+        from vision.scritture import nota_ocr
 
         cfg = self._cfg
         tr = getattr(cfg, "translate", None) if cfg is not None else None
         backend = getattr(tr, "backend", "") if tr else ""
-        self._copertura = copertura(backend)
+        self._copertura = self._chiedi_copertura()
+        # Le marche del menu si rifanno qui e non alla costruzione: decise una
+        # volta sola direbbero il falso dal primo cambio di backend — quello del
+        # traduttore, che ha un elenco chiuso, e quello della voce, che con
+        # cinquanta lingue contro sette cambia molto piu' di lui.
+        self._motore = self._motore_ora()
+        self._rimarca()
         codice = self.valore()
 
         pezzi: list[str] = []
+        # **L'OCR per primo**, perche' e' il primo stadio della catena: se la
+        # riga non si legge, quello che il traduttore e il sintetizzatore sanno
+        # fare non conta. E solo sulla casella della lingua **letta**.
+        if self._con_auto and codice != AUTO:
+            ocr = getattr(getattr(cfg, "vision", None), "ocr_backend", "") if cfg else ""
+            avviso = nota_ocr(ocr, codice)
+            if avviso:
+                pezzi.append("⚠ " + avviso)
         if not self._copertura.sa_fare(codice):
             # Su `auto` la nota del backend **e' gia'** la spiegazione giusta —
             # dice che diventa `en` — e sostituirla con «non fa questa lingua»
@@ -1210,18 +1350,16 @@ class SceltaLingua(Manopola):
         # La voce riguarda **la lingua che si parla**, cioe' quella d'arrivo:
         # su `source` non c'e' niente da dire, e dirlo lo stesso sarebbe un
         # avviso in piu' su una scelta che non lo merita.
+        #
+        # **E la frase e' la stessa che sta sulla voce del menu**, presa da
+        # `core.motore.etichetta_lingua`: qui per esteso, li' in due caratteri.
+        # Riscriverla a mano era la copia numero due, e la copia numero due si
+        # scolla dalla prima al primo ritocco — in questo repo e' gia' costato
+        # nove volte.
         if not self._con_auto and codice != AUTO:
-            motore = getattr(getattr(cfg, "tts", None), "backend", "") if cfg else ""
-            if motore and not ha_voce(motore, codice):
-                # **Non si elencano piu' le lingue che il motore parla.** Con due
-                # erano un'informazione («solo italiano e inglese»); con
-                # cinquanta sono una riga che nessuno legge, e che sfora la
-                # scheda. Si dice quante sono e si lascia il come all'utente.
-                quante = len(lingue_con_voce(motore))
-                pezzi.append(
-                    f"⚠ «{motore}» non ha voci in questa lingua (ne parla "
-                    f"{quante}): la battuta uscirebbe con una voce che ne "
-                    f"pronuncia un'altra.")
+            _marca, spiega = self._marca_voce(codice)
+            if spiega:
+                pezzi.append("⚠ " + spiega)
 
         testo = " ".join(p.replace("**", "").replace("`", "") for p in pezzi)
         self.nota.setToolTip(testo)

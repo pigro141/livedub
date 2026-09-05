@@ -2248,19 +2248,37 @@ class Finestra(QMainWindow):
         rileggendo a freddo stavano dentro Qt, l'unica parte senza verifiche.
 
         **Non si dice niente quando non e' successo niente.** L'avviso compare
-        solo se la scelta dell'utente e' stata scavalcata, o se nessun motore
-        parla quella lingua; a ogni altro cambio il registro tace.
+        solo se nessun motore parla quella lingua; a ogni altro cambio il
+        registro tace.
+
+        **E l'avviso sullo scavalcamento e' stato tolto da qui, non
+        dimenticato.** Da quando la voce del menu porta la sua marca
+        (`core.motore.etichetta_lingua`, «→ supertonic» accanto alla lingua),
+        quel `!` scattava un istante dopo il clic su una riga che dichiarava
+        gia' cosa sarebbe successo: e' il `!` speso dove non e' successo niente
+        di inatteso, cioe' quello che insegna a non leggere piu' gli altri — lo
+        stesso difetto gia' pagato con `auto` dichiarato guasto mentre
+        funzionava. Resta la riga **di fatto**, `tts.backend = …`, che ha la
+        forma di ogni altro campo che cambia e dice che il cambio e' avvenuto
+        per davvero.
+
+        Il `!` non e' sparito dal programma: sta ancora in
+        `core.motore.applica_lingua`, cioe' sulla strada che questa tendina non
+        puo' aver dichiarato — una lingua arrivata da `--set`, da un profilo o
+        da `ultima.json`, dove nessuno ha letto niente prima di scegliere.
         """
         from core.motore import motore_per_lingua
 
         scelta = motore_per_lingua(lingua, self.cfg.tts.backend, self._sonda())
         if scelta.codice == "muta":
+            # Questo resta: la marca dice «⚠ nessuna voce», che e' il fatto, e
+            # non ha spazio per dire la conseguenza — una scena intera detta con
+            # i fonemi di un'altra lingua, che nessun contatore mostrera'.
             self.scrivi(f"! {scelta.avviso}")
             return
         if not scelta.cambiato:
             return
         self.cfg.tts.backend = scelta.motore
-        self.scrivi(f"! {scelta.avviso}")
         self.scrivi(f"tts.backend = {scelta.motore}   (si legge solo all'avvio)")
         if self.in_sessione:
             self._segna_in_attesa("tts.backend")

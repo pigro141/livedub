@@ -2224,6 +2224,25 @@ def test_traduzione(c: Check) -> None:
     c.eq(TraduttoreLocale(da="auto", a="fr").coppia(), ("en", "fr"),
          "la stessa regola per il modello da scaricare e per la battuta")
 
+    # **Il perno dall'inglese, che e' cio' che rendeva it->es impossibile.**
+    # Argos non pubblica quasi nessuna coppia che non tocchi l'inglese: cercando
+    # solo il diretto si diceva «nessun modello it->es fra quelli pubblicati»
+    # per una coppia che si traduce benissimo in due gambe. `catena` e' pura, e
+    # la stessa regola serve cio' che e' installato e cio' che e' pubblicato —
+    # due regole diverse per la stessa domanda sono il modo in cui si scarica un
+    # modello e se ne usa un altro.
+    from translate.locale import catena
+
+    indice = {("it", "en"), ("en", "it"), ("en", "es"), ("en", "ja")}
+    ha = lambda x, y: (x, y) in indice  # noqa: E731
+    c.eq(catena("it", "es", ha), [("it", "en"), ("en", "es")],
+         "it->es non esiste diretto: si passa dall'inglese")
+    c.eq(catena("it", "en", ha), [("it", "en")], "e il diretto, quando c'e', vince")
+    c.eq(catena("it", "it", ha), [], "stessa lingua: non c'e' niente da scaricare")
+    c.eq(catena("it", "zz", ha), None, "e una lingua che non c'e' si dichiara, non si finge")
+    c.eq(catena("es", "ja", ha), None,
+         "manca la prima gamba (es->en): meta' via non e' una via")
+
     # -- tradurre, e la cache ----------------------------------------------
     finto = _Finto({"Hello there": "Ciao"})
     t = Traduzioni(finto, da="en", a="it")
@@ -2300,6 +2319,35 @@ def test_traduzione(c: Check) -> None:
     k_en = KokoroTts(lingua="en", download=False)
     c.close(k_it.chars_per_second, PASSO_LINGUA["it"], "il motore dichiara il passo italiano", tol=1e-6)
     c.close(k_en.chars_per_second, PASSO_LINGUA["en"], "e quello inglese quando parla inglese", tol=1e-6)
+    # **Lo spezzettamento dei fonemi, e il difetto che ha fermato una sessione
+    # giapponese.** `spezza_fonemi` contava fino a 510, ma il vettore di stile si
+    # indicizza con `len(tok)` e ha 510 righe (0..509): un pezzo da esattamente
+    # 510 dava `IndexError: index 510 is out of bounds for axis 0 with size 510`,
+    # con la catena in guasto. E il pezzo da 510 nasceva perche' il taglio
+    # cercava il `.` mentre il giapponese chiude con `。` — nessun punto dove
+    # spezzare, un pezzo unico tagliato duro al limite.
+    from speak.backends.kokoro import MAX_FONEMI, spezza_fonemi
+
+    c.ok(MAX_FONEMI <= 509,
+         "il limite e' quello dell'indice dello stile (0..509), non i 510 dichiarati")
+    lungo = ("koɲitɕiwa" * 80)
+    c.ok(len(lungo) > MAX_FONEMI, "il caso di prova sfora davvero")
+    jp = spezza_fonemi("。".join([lungo[:300], lungo[:300], lungo[:300]]))
+    c.ok(all(len(x) <= MAX_FONEMI for x in jp),
+         "il giapponese si spezza sul suo punto fermo e nessun pezzo sfora")
+    c.ok(len(jp) > 1, "e si spezza davvero, invece di tagliare")
+    virgole = spezza_fonemi("、".join([lungo[:300]] * 3))
+    c.ok(all(len(x) <= MAX_FONEMI for x in virgole) and len(virgole) > 1,
+         "e senza fine frase si respira sulla virgola, anche quella a tutta larghezza")
+    # **E chi non ha nessun segno non perde la coda.** Era `p[:limite]`, cioe'
+    # meta' battuta detta come se fosse tutta — il difetto che lo spezzettamento
+    # esiste per non fare.
+    duro = spezza_fonemi("a" * (MAX_FONEMI * 2 + 7))
+    c.eq(sum(len(x) for x in duro), MAX_FONEMI * 2 + 7,
+         "senza punteggiatura si taglia a finestre e non si butta niente")
+    c.ok(all(len(x) <= MAX_FONEMI for x in duro), "e nessuna finestra sfora")
+    c.eq(spezza_fonemi("  "), [], "e il vuoto resta vuoto")
+
     c.eq(KokoroTts(lingua="en-us", download=False).lingua_base, "en",
          "un codice regionale ricade sulla lingua base")
 
@@ -2332,9 +2380,66 @@ def test_overlay(c: Check) -> None:
     from PIL import Image, ImageDraw
 
     from ui.overlay import (
-        CHIAVE_RGB, MisuraCarattere, Sostituzione, _fascia, carica_font,
-        colore_del_gioco, corpo_del_gioco, dipingi, inchiostro, su_chiave,
+        CHIAVE_RGB, SENZA_SPAZI, MisuraCarattere, Sostituzione, _fascia,
+        _righe, carica_font, colore_del_gioco, corpo_del_gioco, dipingi,
+        inchiostro, scrittura, su_chiave,
     )
+
+    # -- la scrittura decide il font, e a schermo non dava nessun errore ----
+    # `translate.font` vale «Arial» di serie, e Arial non ha **nessun** glifo
+    # CJK: misurato rendendo ogni kanji da solo a 40 px, tutti gli ideogrammi
+    # uscivano identici fra loro e identici a `.notdef` — 86 pixel d'inchiostro
+    # l'uno contro i 409-558 di A, B, C. Una fila di quadratini vuoti dove
+    # doveva esserci il sottotitolo, senza un errore e con la suite verde.
+    c.eq(scrittura("Ciao, Lamar!"), "latino", "il latino e' il caso normale")
+    c.eq(scrittura("Привет"), "latino",
+         "cirillico e greco stanno in Arial: non serve una riga per loro")
+    c.eq(scrittura("一緒に働きましょう"), "cjk", "kanji e kana sono la stessa scrittura")
+    c.eq(scrittura("안녕하세요"), "hangul", "il coreano no: vuole Malgun")
+    c.eq(scrittura("नमस्ते"), "devanagari", "e il devanagari vuole Nirmala")
+    c.eq(scrittura("สวัสดี"), "thai", "e il thai Leelawadee")
+    # **Il primo carattere riconosciuto, non la maggioranza**: un sottotitolo
+    # giapponese con dentro un nome latino resta giapponese, perche' la domanda
+    # non e' «di che lingua e'» ma «quale font li disegna tutti».
+    c.eq(scrittura("Franklin 一緒"), "cjk",
+         "un nome latino dentro una riga giapponese non la fa diventare latina")
+
+    # E il font scelto disegna davvero glifi diversi. E' la misura che prende il
+    # `.notdef`: se il font non ha la scrittura, ogni carattere accende gli
+    # stessi pixel.
+    def _inchiostri(testo: str) -> list[int]:
+        f = carica_font("Arial", 40, scrittura(testo))
+        fuori = []
+        for ch in testo:
+            im = Image.new("L", (60, 60), 0)
+            ImageDraw.Draw(im).text((5, 5), ch, font=f, fill=255)
+            fuori.append(sum(1 for px in im.getdata() if px > 32))
+        return fuori
+
+    for prova in ("一緒に働", "안녕하세", "नमस्ते"):
+        c.ok(len(set(_inchiostri(prova))) > 1,
+             f"«{prova}» non e' una fila di quadratini tutti uguali")
+
+    # -- e chi non ha spazi va a capo lo stesso ----------------------------
+    # `testo.split()` su una riga giapponese torna **un token solo**, e il ramo
+    # che manda a capo chiede `corrente` non vuoto: non andava a capo mai.
+    # Misurato con limite 800 px, la stessa battuta faceva 2 righe in italiano e
+    # una riga larga 1230 px in giapponese, il 54% fuori dal riquadro.
+    misura_righe = ImageDraw.Draw(Image.new("L", (1, 1)))
+    jp = "一緒に働きましょう、フランクリン。もう時間がありません。"
+    f_jp = carica_font("Arial", 40, "cjk")
+    righe_jp = _righe(misura_righe, jp, f_jp, 300)
+    c.ok(len(righe_jp) > 1, "il giapponese va a capo, spezzandosi per carattere")
+    c.ok(all(misura_righe.textlength(r, font=f_jp) <= 300 * 1.05 for r in righe_jp),
+         "e nessuna riga sfora la larghezza chiesta")
+    c.eq("".join(righe_jp), jp, "e non si perde ne' si aggiunge un carattere")
+    # Il latino non cambia: le parole restano intere e separate da uno spazio.
+    f_it = carica_font("Arial", 40, "latino")
+    righe_it = _righe(misura_righe, "Lavoriamo insieme, Franklin.", f_it, 300)
+    c.eq(" ".join(righe_it), "Lavoriamo insieme, Franklin.",
+         "e sul latino non e' cambiato niente: parole intere, spazi al posto giusto")
+    c.ok("cjk" in SENZA_SPAZI and "latino" not in SENZA_SPAZI,
+         "l'elenco di chi non ha spazi dice quello che si vede")
 
     # -- il colore si prende dal gioco, e si rialza ------------------------
     # La media sui pixel mascherati comprende i bordi scuri dei glifi: un bianco
@@ -3962,10 +4067,19 @@ def test_lingue(c: Check) -> None:
     c.ok(g.sa_fare("ja") and not g.sa_fare("xx"),
          "quindi un codice inventato viene marcato anche con google")
 
-    for nome in ("locale", "llm", "ollama"):
+    # **`locale` adesso un elenco chiuso ce l'ha, e non e' una deroga alla
+    # regola: e' che la domanda ha una risposta.** L'indice Argos dice quali
+    # coppie esistono, e col perno dall'inglese la copertura da una sorgente e'
+    # «tutte le `y` per cui esistono `x->en` e `en->y`». `llm` e `ollama`
+    # restano `None` perche' li' dipende dal modello, e `None` continua a voler
+    # dire «non lo so», mai «tutte».
+    c.ok(copertura("locale").codici is not None,
+         "«locale» dichiara le coppie che Argos pubblica davvero")
+    for nome in ("llm", "ollama"):
         cop = copertura(nome)
         c.ok(cop.codici is None,
              f"«{nome}» non ha un elenco chiuso, e `None` non vuol dire «tutte»")
+        c.ok(cop.nota, f"e «{nome}» dice da cosa dipende, invece di tacere")
         c.ok(not cop.auto and not cop.sa_fare(AUTO),
              f"«{nome}» non capisce `auto`: la coppia gli arriva gia' risolta")
         c.ok("en" in cop.nota,
@@ -5566,8 +5680,19 @@ def test_lingue_voci(c: Check) -> None:
     c.eq(PV.voci_per("ja", 4), (),
          "e non se ne offre nessuna, invece di offrirne una che muore alla sintesi")
     c.eq(len(ST.LINGUE), 31, "supertonic-3 ne parla 31 con le stesse dieci voci")
-    c.eq(len(K.PER_LINGUA), 8, "kokoro ne ha 8, scritte nel nome delle voci")
+    # **Otto, e il giapponese ci e' tornato con un g2p suo.** Per un giro questa
+    # riga ha detto sette: espeak legge `今` come «(en)Chinese letter(ja)» —
+    # 8,75 fonemi per carattere contro gli 0,94-1,46 delle altre — e, peggio,
+    # sulle sole kana perdeva **tutte le «a»**, perche' scrive /a/ come `ä` e
+    # `Tokenizer.phonemize` filtra via i simboli fuori dai 114 del vocabolario
+    # **in silenzio**. La cura non e' stata dichiarare meno lingue, e' stato
+    # `speak/backends/kokoro_ja.py` (misaki/cutlet + fugashi su UniDic).
+    c.eq(len(K.PER_LINGUA), 8, "kokoro le dice tutte e otto quelle del catalogo")
     c.eq(len(K.VOICES), 54, "e 54 voci in tutto")
+    c.ok("ja" in K.PER_LINGUA and any(n.startswith("j") for n, _ in K.VOICES.values()),
+         "le voci giapponesi ci sono e si offrono")
+    c.eq(K.SENZA_FONEMI, frozenset(),
+         "e non c'e' piu' nessuna lingua che il catalogo ha e il motore non dice")
 
     # **Il percorso si ricava dalla chiave, e su tutte e 175.** E' l'unica cosa
     # che tiene questo catalogo senza una seconda tabella da aggiornare: se la
@@ -5594,8 +5719,17 @@ def test_lingue_voci(c: Check) -> None:
     # cui viene questa riga: `FONEMI_LINGUA` elencava gia' es/fr/de/pt e le voci
     # no — la fonemizzazione era pronta per lingue che il pool non sapeva
     # parlare, e le voci di sette lingue restavano invisibili.
-    c.eq(sorted(K.FONEMI_LINGUA), sorted(K.PER_LINGUA),
-         "le lingue di kokoro e le loro regole di fonemizzazione coincidono")
+    # **Le regole sono in due tabelle e insieme partizionano.** `FONEMI_LINGUA`
+    # dice con che codice **espeak** si fonemizza una lingua; `G2P_ESTERNO` dice
+    # quali hanno invece un g2p tutto loro (il giapponese, che espeak non sa
+    # leggere). Confrontare solo la prima direbbe che al giapponese mancano le
+    # regole proprio adesso che ne ha di sue — e la partizione e' cio' che
+    # impedisce di chiederlo a espeak per sbaglio: nessuna lingua in tutte e
+    # due, nessuna in nessuna.
+    c.eq(sorted({*K.FONEMI_LINGUA, *K.G2P_ESTERNO}), sorted(K.PER_LINGUA),
+         "ogni lingua di kokoro ha le sue regole, espeak o g2p proprio")
+    c.eq(set(K.FONEMI_LINGUA) & set(K.G2P_ESTERNO), set(),
+         "e nessuna ne ha due, che vorrebbe dire due risposte alla stessa domanda")
 
     # -- il pool, lingua per lingua ------------------------------------------
     # **Nessun `voice_id` doppio, in nessuna lingua di nessun motore.** Due voci
@@ -5656,12 +5790,36 @@ def test_lingue_voci(c: Check) -> None:
     c.eq(motore_per_lingua("de", "piper", gpu).codice, INVARIATO,
          "piper parla tedesco, quindi non si cambia motore per il tedesco")
     # Il giapponese e' il caso che fa vedere tutto il meccanismo: Piper ha la
-    # voce e non la sa dire, Kokoro ne ha cinque ma vuole la CUDA, SuperTonic la
-    # parla su CPU. La risposta cambia con la macchina, ed e' giusto cosi'.
+    # voce e non la sa dire (`phoneme_type: japanese`, che `piper-tts` non
+    # conosce), Kokoro la dice ma vuole la CUDA, SuperTonic la fa su CPU. La
+    # risposta cambia con la macchina, ed e' giusto cosi'.
     c.eq(motore_per_lingua("ja", "piper", gpu).motore, "kokoro",
          "il giapponese con la CUDA va a kokoro")
     c.eq(motore_per_lingua("ja", "piper", cpu).motore, "supertonic",
          "e senza, a supertonic: non si passa a kokoro su una macchina senza GPU")
+
+    # **E il giapponese e' l'unica lingua in cui la macchina cambia la
+    # risposta.** Vale la pena fissarlo con un numero e non con un esempio: per
+    # un giro la sonda non serviva a niente — le lingue di Kokoro stavano tutte
+    # dentro le cinquanta di Piper, quindi il ripiego non passava mai per lui e
+    # `sonda=None` (che vuol dire «tutti i motori») dava sempre la risposta
+    # giusta. Rimettendo il giapponese quella proprieta' e' caduta, e senza
+    # sonda la tendina prometterebbe Kokoro a chi non ha la scheda video, dove
+    # costa 725 ms a battuta contro 207. Se un domani ne cadesse un'altra,
+    # questa riga lo dice invece di lasciarlo scoprire a chi non ha la GPU.
+    from translate.lingue import TUTTE as TUTTE_LINGUE
+
+    diverse = sorted({
+        lingua for lingua in TUTTE_LINGUE for m in ORDINE_MOTORI
+        if motore_per_lingua(lingua, m, gpu).motore
+        != motore_per_lingua(lingua, m, cpu).motore
+    })
+    c.eq(diverse, ["ja"],
+         "la macchina cambia il motore scelto per il solo giapponese")
+    from speak.pool import lingue_con_voce
+
+    c.eq(sorted(set(lingue_con_voce("kokoro")) - set(lingue_con_voce("piper"))), ["ja"],
+         "ed e' esattamente l'unica lingua che kokoro ha e piper no: e' la stessa cosa")
 
     croato = motore_per_lingua("hr", "piper", gpu)
     c.eq((croato.motore, croato.codice), ("supertonic", CAMBIATO),
@@ -5690,6 +5848,173 @@ def test_lingue_voci(c: Check) -> None:
     lenta = Sonda(cuda=True, provider="CUDAExecutionProvider", sintesi_ms=900.0)
     c.ok("kokoro" not in motori_possibili(lenta),
          "una CUDA che va come una CPU retrocede, ed e' la stessa riga del banco")
+
+    # -- e come la stessa risposta si scrive **sulla voce del menu** ----------
+    # La marca esiste per dirlo prima del clic invece che dopo; qui si prova che
+    # dica la stessa cosa che la catena poi fara', perche' una tendina che
+    # promette un motore mentre la catena ne monta un altro e' un difetto che si
+    # vede solo guardando i due nello stesso secondo.
+    from core.motore import (
+        FRECCIA, SENZA_VOCE, VOCE_ALTROVE, VOCE_C_E, VOCE_NESSUNA,
+        etichetta_lingua,
+    )
+    from translate.lingue import LINGUE
+
+    a_posto = etichetta_lingua("it", "piper", gpu)
+    c.eq((a_posto.stato, a_posto.marca, a_posto.spiega), (VOCE_C_E, "", ""),
+         "una lingua che il motore parla non porta nessuna marca")
+    croata = etichetta_lingua("hr", "piper", gpu)
+    c.eq((croata.stato, croata.motore, croata.marca),
+         (VOCE_ALTROVE, "supertonic", f"{FRECCIA} supertonic"),
+         "il croato dichiara chi lo dira', e quel nome e' il motore che verra' montato")
+    amarica = etichetta_lingua("am", "piper", gpu)
+    c.eq((amarica.stato, amarica.marca), (VOCE_NESSUNA, SENZA_VOCE),
+         "l'amarico dichiara che non lo dice nessuno")
+    c.ok(amarica.spiega,
+         "e la conseguenza sta per esteso nel suggerimento: la marca non ci sta")
+
+    # **Non e' una seconda decisione, ed e' la riga che lo tiene.** Su tutte e
+    # centotrentatre le lingue, tutti e tre i motori montabili e tutte e tre le
+    # risposte della macchina, la marca e' una traduzione di `motore_per_lingua`
+    # e non un secondo giudizio scritto accanto.
+    storte = [
+        (x.codice, m, quale)
+        for x in LINGUE
+        for m in ORDINE_MOTORI
+        for quale, sonda in (("gpu", gpu), ("cpu", cpu), ("ignota", None))
+        for e, s in [(etichetta_lingua(x.codice, m, sonda),
+                      motore_per_lingua(x.codice, m, sonda))]
+        if e.motore != s.motore or (e.marca == "") != (s.codice == INVARIATO)
+    ]
+    c.eq(storte, [], "la marca dice sempre quello che la catena poi fara'")
+
+    # **Una lingua che nessuno parla non dipende da chi e' montato.** E' la
+    # definizione stessa di «nessuna voce»: se cambiasse col motore vorrebbe
+    # dire che la marca sta rispondendo a un'altra domanda.
+    mute = {m: {x.codice for x in LINGUE
+                if etichetta_lingua(x.codice, m, gpu).stato == VOCE_NESSUNA}
+            for m in ORDINE_MOTORI}
+    c.eq(len(set(map(frozenset, mute.values()))), 1,
+         "chi non ha voce non ha voce con nessuno dei tre motori montati")
+    # E il conto e' l'altra faccia delle lingue parlate dichiarate altrove: si
+    # ricava, non si scrive: `133 - mute` deve essere l'unione dei cataloghi.
+    parlate = len(LINGUE) - len(mute["piper"])
+    unione = len(set().union(*(set(lingue_con_voce(m)) for m in ORDINE_MOTORI)))
+    c.ok(abs(parlate - unione) <= 2,
+         f"le lingue senza marca sono quelle dei cataloghi ({parlate} contro "
+         f"{unione}: la differenza sono le grafie, `zh-CN`/`zh-TW` per `zh`)")
+
+    # **E chi non ha lingua non marca niente.** Un bip con centotrentatre `⚠`
+    # accanto sarebbe l'avviso che scatta sempre, cioe' quello che si spegne da
+    # solo nella testa di chi lo legge.
+    c.eq([x.codice for x in LINGUE if etichetta_lingua(x.codice, "tone", gpu).marca],
+         [], "un bip non fa comparire una marca su nessuna lingua")
+    # Le cinquanta di Piper restano tutte pulite: se una marca comparisse li',
+    # il menu direbbe il falso proprio nel caso normale.
+    sporche = [c2 for c2 in lingue_con_voce("piper")
+               if etichetta_lingua(c2, "piper", gpu).marca]
+    c.eq(sporche, [], "nessuna lingua del catalogo di piper porta una marca")
+
+
+def test_tendina_lingue(c: Check) -> None:
+    """La marca arriva davvero **sulla voce del menu**, e l'elenco si riallarga.
+
+    La regola sta in `core/motore.py` e si prova nel gruppo `lingue_voci`, senza
+    aprire niente. Qui c'e' la sola meta' che Qt puo' sbagliare da sola, e sono
+    le due cose che a schermo non danno errore: che il testo della voce non sia
+    mai stato riscritto (un menu che dice il vero solo alla costruzione dice il
+    falso dal primo cambio di motore in poi) e che la tendina si **rimisuri**
+    quando le voci si allungano — con `ElideNone` un elenco rimasto stretto
+    taglia a meta' parola senza nemmeno i puntini che dicono che manca qualcosa.
+    """
+    c.group("tendina_lingue")
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.instance() or QApplication([])
+    from core.motore import FRECCIA, SENZA_VOCE
+    from ui import qt_tema as tema
+    from ui.qt_controlli import SceltaLingua
+
+    cfg = Config()
+    cfg.translate.backend = "google"     # le fa tutte: nessun `⚠` del traduttore
+    cfg.tts.backend = "piper"
+    w = SceltaLingua(con_auto=False, cfg=cfg)
+    w.imposta("it")
+
+    def voce(codice: str) -> str:
+        return w.combo.itemText(w.codici.index(codice))
+
+    def leggibile(s: str) -> str:
+        """Il testo senza i glifi che una console cp1252 non sa stampare.
+
+        La freccia e il triangolo **sono** cio' che si sta provando, quindi
+        finiscono in ogni riga di questo gruppo: stampati com'è, il primo
+        `print` fa esplodere il gruppo su un terminale Windows e il difetto
+        sembra della verifica invece che del terminale.
+        """
+        return s.encode("ascii", "backslashreplace").decode("ascii")
+
+    c.ok(FRECCIA + " supertonic" in voce("hr"),
+         f"il croato porta il suggerimento nel menu: {leggibile(voce('hr'))}")
+    c.ok(SENZA_VOCE in voce("am"),
+         f"l'amarico dichiara che non lo dice nessuno: {leggibile(voce('am'))}")
+    c.ok(FRECCIA not in voce("it") and "⚠" not in voce("it"),
+         f"e l'italiano resta com'era, senza marche: {leggibile(voce('it'))}")
+    c.ok(w.combo.itemData(w.codici.index("hr"), Qt.ToolTipRole),
+         "la ragione per esteso sta nel suggerimento della voce, dove c'e' posto")
+
+    # **Le marche seguono il motore**, che e' la meta' che una tendina riempita
+    # una volta sola non fa: `_nota` le rifa' a ogni `imposta`, e `imposta` la
+    # chiama il pannello a ogni campo cambiato.
+    cfg.tts.backend = "supertonic"
+    w.imposta("it")
+    c.ok(FRECCIA not in voce("hr"),
+         f"montato supertonic il croato non ha piu' niente da dire: "
+         f"{leggibile(voce('hr'))}")
+    # **Il tedesco non e' l'esempio giusto, e la misura lo dice**: SuperTonic lo
+    # parla (e' una delle sue 31), quindi montato lui non c'e' niente da
+    # suggerire. L'esempio deve essere una lingua che il motore montato **non**
+    # ha: `eu`, `fa`, `he` e altre nove stanno in Piper e non in SuperTonic.
+    c.ok(FRECCIA not in voce("de"),
+         f"il tedesco supertonic lo parla, quindi tace: {leggibile(voce('de'))}")
+    c.ok(FRECCIA + " piper" in voce("eu"),
+         f"il basco invece rimanda a piper: {leggibile(voce('eu'))}")
+
+    # **La tendina si riallarga.** Con un bip non c'e' nessuna marca: e' il caso
+    # nullo giusto, perche' cambia solo la lunghezza delle voci e lascia identico
+    # tutto il resto — stesse lingue, stesso ordine, stesso carattere.
+    cfg.tts.backend = "tone"
+    w.imposta("it")
+    stretta = w.combo.view().minimumWidth()
+    cfg.tts.backend = "kokoro"
+    w.imposta("it")
+    larga = w.combo.view().minimumWidth()
+    c.ok(larga > stretta,
+         f"marcando le voci l'elenco si riallarga ({stretta} -> {larga} px)")
+    c.eq(w.combo.maxVisibleItems(), tema.VOCI_TENDINA,
+         "e resta alto sedici voci, che e' il numero misurato in `qt_tema`")
+
+    # **Si cerca ancora scrivendo.** Le marche allungano il testo su cui il
+    # filtro lavora: un `MatchContains` che di colpo trovasse due righe per
+    # «Croato» rimetterebbe la lingua di prima **in silenzio**, che e' il modo in
+    # cui una casella modificabile smette di funzionare senza dare errore.
+    w.combo.setEditText("Croato")
+    w._digitato()
+    c.eq(w.valore(), "hr", "scrivendo «Croato» si sceglie ancora il croato")
+    w.combo.setEditText("hr")
+    w._digitato()
+    c.eq(w.valore(), "hr", "e anche digitando il codice")
+
+    # La casella della **partenza** non parla di voci: li' la lingua si legge,
+    # non si dice, e centotrentatre marche sarebbero centotrentatre avvisi su
+    # una scelta che non c'entra niente con il sintetizzatore.
+    cfg.tts.backend = "piper"
+    s = SceltaLingua(con_auto=True, cfg=cfg)
+    s.imposta("it")
+    c.ok(FRECCIA not in s.combo.itemText(s.codici.index("hr")),
+         "la casella della lingua letta non porta nessuna marca di voce")
 
 
 def test_tabella_lingue(c: Check) -> None:
@@ -5725,13 +6050,14 @@ def test_tabella_lingue(c: Check) -> None:
     c.ok(all(r.inglese and r.inglese != r.codice for r in d.righe),
          "ogni codice ha un nome per esteso in translate/lingue.py")
 
-    # Le due esclusioni **dichiarate** nel README, che sono la ragione per cui
-    # questa tabella non e' l'indice ufficiale di Piper: il giapponese cade
-    # (`phoneme_type: japanese`, che `piper-tts` non conosce) e il cinese resta
+    # Le esclusioni **dichiarate** nel README, che sono la ragione per cui questa
+    # tabella non e' l'unione dei tre cataloghi: il giapponese cade da Piper
+    # (`phoneme_type: japanese`, che `piper-tts` non conosce) **e da Kokoro**
+    # (espeak nomina i kanji invece di leggerli, `SENZA_FONEMI`); il cinese resta
     # perche' ha comunque voci `espeak`, sono le due `pinyin` a restare fuori.
     c.ok("ja" not in d.per_motore["piper"],
          "il giapponese non e' fra le lingue di piper, ed e' voluto")
-    c.ok("ja" in d.per_motore["supertonic"] and "ja" in d.per_motore["kokoro"],
+    c.ok("ja" in d.per_motore["kokoro"] and "ja" in d.per_motore["supertonic"],
          "ma si parla lo stesso, con gli altri due")
     c.ok("zh" in d.per_motore["piper"],
          "il cinese invece resta: fuori vanno le due voci pinyin, non la lingua")
@@ -6974,6 +7300,94 @@ def test_dono(c: Check) -> None:
          "visto quel passo, ed e' il caso per cui quel campo e' un numero")
 
 
+def test_kokoro_g2p(c: Check) -> None:
+    """**I due g2p che non sono espeak, e il filtro che li rendeva invisibili.**
+
+    Sei delle otto lingue di Kokoro si fonemizzano con espeak e non perdono
+    niente. Le altre due perdevano, e nessuna delle due lo diceva: la riga
+    colpevole e' `Tokenizer.phonemize`, che filtra l'uscita con
+    `filter(lambda p: p in self.vocab, ...)` — cioe' butta quello che non
+    conosce **in silenzio**.
+
+    Il vocabolario di Kokoro sono 114 simboli e sta nel pacchetto, non nel
+    modello: quindi tutto questo gruppo gira **senza rete, senza GPU e senza
+    scaricare i pesi**, che e' il motivo per cui puo' stare nella suite.
+    """
+    import inspect
+    from importlib import import_module
+
+    from kokoro_onnx.tokenizer import Tokenizer
+
+    from speak.backends import kokoro as K
+
+    vocab = Tokenizer().vocab
+    c.eq(len(vocab), 114, "il vocabolario di Kokoro sono 114 simboli")
+
+    # -- le due tabelle partizionano ---------------------------------------
+    # E' la sola cosa che impedisce di chiedere a espeak una lingua che non sa
+    # leggere: prima una tabella diceva «non lo so fare» e la riga sotto gliela
+    # chiedeva lo stesso, perche' il ripiego era la lingua stessa.
+    c.eq(set(K.FONEMI_LINGUA) & set(K.G2P_ESTERNO), set(),
+         "nessuna lingua ha due risposte alla domanda «come si fonemizza»")
+    c.eq(sorted({*K.FONEMI_LINGUA, *K.G2P_ESTERNO}), sorted(K.PER_LINGUA),
+         "e nessuna resta senza")
+    c.eq(sorted(K.G2P_ESTERNO), ["ja", "zh"],
+         "le due che espeak non sa dire sono il giapponese e il cinese")
+
+    # -- i moduli esistono e hanno la stessa porta -------------------------
+    for lingua, percorso in sorted(K.G2P_ESTERNO.items()):
+        m = import_module(percorso)
+        c.ok(callable(getattr(m, "fonemi", None))
+             and callable(getattr(m, "disponibile", None)),
+             f"«{lingua}» ha un modulo con la stessa porta degli altri")
+        c.ok("pip install" in m.RIGA_PIP,
+             f"«{lingua}»: se manca si consegna la riga da incollare")
+        # **Il ripiego non c'e', ed e' voluto.** Tornare a espeak di nascosto
+        # vorrebbe dire riconsegnare «Chinese letter» e i toni mangiati con i
+        # contatori verdi: chi deve parlare si prende l'errore.
+        # Si guarda il **codice** e non la docstring: quei moduli espeak lo
+        # nominano apposta, per spiegare da cosa scappano. Una verifica che
+        # legge la prosa risponde alla domanda sbagliata.
+        corpo = inspect.getsource(m.fonemi)
+        if (m.fonemi.__doc__ or "") in corpo:
+            corpo = corpo.replace(m.fonemi.__doc__, "")
+        c.ok("espeak" not in corpo and "phonemizer" not in corpo,
+             f"«{lingua}» non ripiega su espeak dentro `fonemi`")
+
+    # -- e l'alfabeto che producono sta nel vocabolario --------------------
+    # **E' la verifica che i due moduli promettono nei loro commenti**, ed e'
+    # quella che si accorgera' di una versione nuova di misaki: `tokenize()`
+    # butterebbe un simbolo nuovo senza dire niente, esattamente come faceva
+    # coi toni. Qui il confronto e' esplicito, e `FUORI_VOCABOLARIO` di ogni
+    # modulo dev'essere **completa**.
+    frasi = {"ja": "ありがとうございます。今日はいい天気ですね。",
+             "zh": "你好，我们现在应该离开这里。"}
+    for lingua, frase in sorted(frasi.items()):
+        m = import_module(K.G2P_ESTERNO[lingua])
+        if not m.disponibile():
+            c.ok(False, f"«{lingua}»: il g2p non c'e', e `requirements.txt` lo mette")
+            continue
+        crudi, _ = m._motore()(frase)
+        fuori = {ch for ch in crudi if ch not in vocab}
+        c.eq(fuori, set(m.FUORI_VOCABOLARIO) & fuori,
+             f"«{lingua}»: quello che il vocabolario non ha e' gia' dichiarato "
+             f"in FUORI_VOCABOLARIO (trovato {sorted(fuori)})")
+        uscita = m.fonemi(frase, vocab)
+        c.ok(uscita and all(ch in vocab for ch in uscita),
+             f"«{lingua}»: quello che esce dal modulo e' tutto nel vocabolario")
+
+    # -- il cinese: i toni, che sono la ragione del modulo -----------------
+    # Quattro parole che si scrivono diverse e si dicono diverse. Con espeak
+    # tre uscivano **identiche** (`mˈɑ`), perche' il tono e' una cifra e le
+    # cifre il vocabolario non le ha. E' il difetto piu' silenzioso di tutti:
+    # non toglie una battuta, ne cambia il significato.
+    zh = import_module(K.G2P_ESTERNO["zh"])
+    if zh.disponibile():
+        rese = [zh.fonemi(w, vocab) for w in ("妈", "麻", "马", "骂")]
+        c.eq(len(set(rese)), 4,
+             f"in cinese quattro toni sono quattro parole, e restano quattro: {rese}")
+
+
 GROUPS = {
     "clock": test_clock,
     "session": test_session,
@@ -7095,6 +7509,10 @@ GROUPS = {
     # voce) e quella della finestra (i cataloghi, e cosa resta in italiano).
     "lingue": test_lingue,
     "lingue_voci": test_lingue_voci,
+    "kokoro_g2p": test_kokoro_g2p,
+    # La stessa risposta, ma **sulla voce del menu**: che la marca ci arrivi,
+    # che segua il motore e che l'elenco si riallarghi per contenerla.
+    "tendina_lingue": test_tendina_lingue,
     # **Cio' che il README e la vetrina dichiarano contro cio' che il codice
     # sa fare.** Un numero pubblicato invecchia in silenzio: e' l'unico posto
     # del progetto dove un difetto lo legge chi decide se installare.

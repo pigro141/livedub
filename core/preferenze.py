@@ -175,7 +175,43 @@ def dono_chiesto() -> None:
 
 
 def ultima() -> Path:
-    """Il profilo in cui finisce la configurazione all'uscita."""
+    """Il profilo in cui finisce la configurazione all'uscita.
+
+    **Sta in `%LOCALAPPDATA%` con le preferenze, e non in `profiles/`.** E' la
+    stessa distinzione dichiarata in cima a questo file: `profiles/` tiene i
+    profili, cioe' file che si leggono, si diffano e si mandano a qualcuno;
+    `ultima.json` non e' un profilo, e' lo stato dell'ultimo avvio di *questa*
+    macchina — gitignorato, e escluso a mano dal pacchetto (`livedub.spec`)
+    proprio perche' non e' materiale del progetto.
+
+    **Ed e' il posto sbagliato che si vede solo nell'eseguibile**, cioe' la
+    trappola che `core/percorsi.py` descrive nella propria testata. Stava a
+    `PROFILES_DIR / "ultima.json"`, e `PROFILES_DIR` nasce da
+    `Path(__file__).parent.parent`: da sorgente e' la radice del repo, ma
+    impacchettato i `.py` finiscono in `_internal\\`, quindi la configurazione
+    dell'utente veniva scritta dentro la cartella privata di PyInstaller —
+    verificato sulla `dist/` di questo repo, dove i profili stanno in
+    `livedub/_internal/profiles`. Due prezzi, tutti e due muti: in una
+    cartella dove Windows non lascia scrivere il salvataggio solleva e
+    `tools/ui_qt.py` lo ingoia (`except Exception: pass`), e un aggiornamento
+    che rimpiazza `_internal\\` porta via le regolazioni. In tutti e due i casi
+    il sintomo e' «le impostazioni si perdono chiudendo», che e' esattamente il
+    difetto che `riprendi()` esiste per chiudere.
+
+    `%LOCALAPPDATA%` invece e' scrivibile per costruzione e sopravvive agli
+    aggiornamenti: e' gia' dove stanno `preferenze.json` e il registro.
+    """
+    return cartella() / "ultima.json"
+
+
+def _ultima_vecchia() -> Path:
+    """Dove `ultima.json` stava prima. Si legge, non si scrive.
+
+    Chi aggiorna da una versione precedente ha le sue regolazioni li': non
+    ritrovarle sarebbe la stessa perdita che questa cura toglie, solo una volta
+    sola. Si legge finche' la nuova non esiste, e alla prima uscita la nuova
+    viene scritta e questa non la guarda piu' nessuno.
+    """
     from core.config import PROFILES_DIR
 
     return PROFILES_DIR / "ultima.json"
@@ -209,7 +245,11 @@ def riprendi(profilo: str | None = None, overrides: Any = None):
 
     if profilo:
         return load_profile(profilo, overrides), f"profilo {profilo}"
+    # La nuova posizione vince; la vecchia si legge solo finche' la nuova non
+    # c'e', cioe' al primo avvio dopo l'aggiornamento. Si veda `ultima()`.
     f = ultima()
+    if not f.exists() and _ultima_vecchia().exists():
+        f = _ultima_vecchia()
     if f.exists():
         try:
             cfg = Config.load(f)

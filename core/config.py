@@ -760,6 +760,11 @@ class SpeakerConfig:
     # In una scena con personaggi femminili si mette "f", o si rifa' la taratura
     # delle soglie in `listen/speaker.py` su una registrazione che ne contenga.
     gender_fallback: str = "m"
+    # Quante identita' distinte si possono iscrivere in una sessione. Non e' un
+    # tetto di comodo: e' il freno alla frammentazione, cioe' al caso in cui
+    # ritagli corti creano un personaggio nuovo a ogni battuta. Misurato su un
+    # tratto di battibecchi, sedici identita' di cui dodici con una battuta
+    # sola — piu' in alto non si riconosce meglio, si conta di piu'.
     max_speakers: int = 16
     use_color_cue: bool = True
     use_alternation: bool = True  # isteresi conversazionale
@@ -1337,6 +1342,11 @@ class LabelConfig:
     cosa da guardare quando arriva la registrazione di un altro gioco.
     """
 
+    # Leggere il nome di chi parla dal sottotitolo stesso, invece di dedurlo
+    # dalla voce. Su GTA V va lasciato spento — i nomi non li scrive — e su un
+    # gioco che li scrive vale mezzo secondo di latenza in meno per battuta.
+    # Il prezzo di accenderlo a vuoto e' un falso positivo: ogni nome inventato
+    # **crea un personaggio** e gli brucia addosso una voce del pool.
     enabled: bool = False
     # Come il gioco scrive il nome. `nome:` -> «Franklin: come va»;
     # `[nome]` -> «[Franklin] come va»; `nome-` -> «Franklin - come va».
@@ -1430,6 +1440,16 @@ class TranslateConfig:
     dichiara su stderr quando parte.
     """
 
+    # **L'interruttore di tutta la scheda, e il campo di serie della vista
+    # essenziale.** Spento — il default — il programma legge e doppia nella
+    # lingua che trova, che e' il caso di GTA V in italiano; acceso, il
+    # sottotitolo passa dal traduttore **prima** che se ne stimino i tempi,
+    # perche' `chars_per_second` va applicato al testo che verra' *detto*.
+    #
+    # Non e' gratis e va detto qui: si paga la traduzione di ogni riga
+    # (misurato, 98-498 ms con google e 778-852 con ollama), e la si paga
+    # **dentro** l'attesa di `speaker.decide_after_ms` invece che dopo — quindi
+    # fino a ~545 ms sono coperti e il resto si somma alla latenza.
     enabled: bool = False
     # **Tre livelli, dal piu' leggero al piu' pesante**, piu' il servizio esterno:
     #
@@ -1640,6 +1660,17 @@ class TranslateConfig:
     # Diverso da zero: altezza come **frazione dell'altezza dello schermo**, in
     # frazione e non in punti, cosi' vale a 1080p e a 1440p.
     font_frac: float = 0.0
+    # Il nome del carattere con cui si disegna il tradotto. **Vale solo per le
+    # scritture latine**: fuori di li' comanda la scrittura del testo, non
+    # questo campo — Arial i kanji non li ha, e chiedere Arial per il giapponese
+    # darebbe una fila di quadratini invece del sottotitolo. Si veda
+    # `ui.overlay.FONT_SCRITTURA`.
+    #
+    # E c'e' un limite dichiarato che nessun carattere risolve: il disegno non
+    # applica ne' legature ne' bidi (Pillow senza `libraqm`, misurato — la
+    # parola araba e' larga quanto la somma delle sue lettere isolate). Latino,
+    # cirillico, greco, CJK e hangul si disegnano bene; **arabo ed ebraico
+    # escono al contrario e slegati**.
     font: str = "Arial"
     # **Vuoto vuol dire «come il gioco»**, per la stessa ragione della misura: si
     # usa il colore medio dei glifi originali, riportato alla sua luminosita'
@@ -1663,7 +1694,15 @@ class TranslateConfig:
     # a ogni rinfresco: la toppa e' del colore di cio' che c'era, si aggiorna
     # come il blur e non puo' sembrare vecchia. Un `#rrggbb` esplicito vince.
     background: str = ""
+    # Quanto e' coprente il riquadro dietro il tradotto: 1 = tinta piena,
+    # 0 = niente riquadro. Serve solo a `background_mode="riquadro"`, dove la
+    # tinta e' una mediana dei pixel coperti; sotto 1 si rivede l'originale
+    # sotto, che e' proprio cio' che il riquadro esiste per togliere.
     background_opacity: float = 1.0
+    # Il contorno scuro attorno alle lettere, in pixel. Non e' un ornamento:
+    # e' cio' che tiene leggibile una riga chiara su una scena chiara, ed e' lo
+    # stesso mestiere che fa il contorno dei sottotitoli del gioco. A zero il
+    # testo sparisce sui fondi della sua stessa tinta.
     outline: float = 2.0
     # **Il pavimento del carattere, in punti.** Serve alla modalita' `schermo`,
     # dove il riquadro comanda e il corpo si adatta: una traduzione piu' lunga

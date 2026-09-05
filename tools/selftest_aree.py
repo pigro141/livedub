@@ -165,9 +165,19 @@ def test_ripresa(c) -> None:
     c.group("memoria")
 
     vero = preferenze.ultima
+    vecchia_vera = preferenze._ultima_vecchia
     with tempfile.TemporaryDirectory() as tmp:
         finto = Path(tmp) / "ultima.json"
+        vecchio = Path(tmp) / "vecchia" / "ultima.json"
+        vecchio.parent.mkdir(parents=True, exist_ok=True)
         preferenze.ultima = lambda: finto
+        # **Si isola anche la posizione vecchia**, e senza questa riga la
+        # verifica leggeva il `profiles/ultima.json` di chi la stava girando:
+        # su una macchina di sviluppo quel file c'e', quindi «senza file
+        # salvato» era falso e la verifica falliva per il posto sbagliato.
+        # Il ripiego di transizione ha allargato cio' che questo gruppo tocca,
+        # e l'isolamento non era stato allargato con lui.
+        preferenze._ultima_vecchia = lambda: vecchio
         try:
             # -- niente da riprendere: si parte dai default, e si dice ---------
             cfg, da_dove = preferenze.riprendi(None, None)
@@ -182,6 +192,33 @@ def test_ripresa(c) -> None:
             c.eq(cfg.vision.sat_max, 77, "riaprendo si ritrova quello che si era regolato")
             c.close(cfg.mix.duck_db, -12.5, "anche i decimali, non solo gli interi")
             c.ok("ultima" in da_dove, f"e la finestra puo' dire da dove viene ({da_dove})")
+
+            # -- e chi aggiorna ritrova le sue regolazioni --------------------
+            # `ultima.json` si e' spostato in `%LOCALAPPDATA%` perche' dove
+            # stava prima — accanto ai `.py`, cioe' dentro `_internal\` una
+            # volta impacchettato — Windows puo' rifiutare la scrittura e un
+            # aggiornamento porta via la cartella. Il sintomo era «le
+            # impostazioni si perdono chiudendo», cioe' esattamente il difetto
+            # che `riprendi()` esiste per chiudere: spostarlo senza leggere la
+            # posizione vecchia lo avrebbe rifatto una volta sola, all'update.
+            finto.unlink()
+            vecchia = Config()
+            vecchia.vision.sat_max = 55
+            vecchia.save(vecchio)
+            cfg, da_dove = preferenze.riprendi(None, None)
+            c.eq(cfg.vision.sat_max, 55,
+                 "aggiornando si ritrova cio' che si era regolato prima")
+            # E la nuova vince appena c'e': se no si continuerebbe a leggere una
+            # posizione che nessuno scrive piu', e le regolazioni di oggi
+            # sarebbero invisibili da domani.
+            nuova = Config()
+            nuova.vision.sat_max = 66
+            nuova.save(finto)
+            cfg, _ = preferenze.riprendi(None, None)
+            c.eq(cfg.vision.sat_max, 66,
+                 "ma appena la nuova esiste e' lei a comandare, non la vecchia")
+            vecchio.unlink()
+            salvata.save(finto)
 
             # -- ma `--set` resta sopra ---------------------------------------
             cfg, _ = preferenze.riprendi(None, ["vision.sat_max=33"])
@@ -202,6 +239,7 @@ def test_ripresa(c) -> None:
                  "**dicendolo**: aprirsi diversi da ieri senza spiegare e' peggio")
         finally:
             preferenze.ultima = vero
+        preferenze._ultima_vecchia = vecchia_vera
 
 
 def test_guasto_audio(c) -> None:

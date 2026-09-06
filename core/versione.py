@@ -17,12 +17,23 @@ import subprocess
 import sys
 from pathlib import Path
 
-# 0.9.1: la traduzione offline e' entrata nel pacchetto, e il motore di serie
-# non risulta piu' da installare su ogni macchina. Sono correzioni di cose
-# che chi ha scaricato la 0.9.0 ha trovato rotte, quindi cambia la terza
-# cifra: la 1.0 e' un'altra domanda, e l'elenco di cosa le manca sta nelle
-# note di sviluppo.
-VERSIONE = "0.9.1"
+# 0.9.2: le lingue diverse dall'italiano. Kokoro diceva il giapponese e il
+# cinese con il fonemizzatore sbagliato — espeak i kanji li **nomina**, e il
+# filtro sul vocabolario buttava in silenzio tutte le «a» giapponesi e le
+# cifre dei toni cinesi; l'ebraico Piper non lo fa affatto, e questo repo
+# dichiarava il contrario **con una misura**; a schermo il giapponese era una
+# fila di quadratini; e quando la traduzione ripiegava, la voce non ripiegava
+# con lei, cioe' dieci righe su ventuno lette nella lingua sbagliata.
+#
+# Piu' due cose che si vedono senza cambiare lingua: le impostazioni si
+# perdevano chiudendo, e **solo dentro l'eseguibile**; e la finestra dice ora
+# cosa fa ognuna delle sue centosettanta manopole, che prima per trentasette
+# di esse era un cursore senza spiegazione.
+#
+# Cambia la terza cifra perche' sono correzioni di cose trovate rotte, non
+# funzioni nuove: la 1.0 e' un'altra domanda, e l'elenco di cosa le manca sta
+# nelle note di sviluppo.
+VERSIONE = "0.9.2"
 NOME = "livedub"
 
 

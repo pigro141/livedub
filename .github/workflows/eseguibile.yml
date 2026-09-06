@@ -323,7 +323,17 @@ jobs:
           $detta = (Get-Content 'rapporto-1.json' -Raw | ConvertFrom-Json).versione
           "tag: $tag | il programma dice: $detta"
           if ($tag -ne "v$detta") {
-            throw "il tag e' $tag e l'eseguibile dichiara $detta: aggiorna VERSIONE in core/versione.py, oppure il tag"
+            # **Le graffe non sono uno stile: senza, questo `throw` non si
+            # analizza.** PowerShell legge `$detta:` come una variabile con
+            # qualificatore di scope (`$env:`, `$global:`), e i due punti non
+            # seguiti da un nome valido sono un errore di **analisi** — cioe' lo
+            # script non parte affatto, e il passo fallisce anche quando il tag e
+            # la versione sono d'accordo. E' successo alla v0.9.2: la guardia
+            # gira solo da un tag, quindi era stata scritta e mai eseguita, e si
+            # e' fatta sentire nell'unico momento in cui non si vuole scoprire
+            # niente. Il messaggio d'errore diceva «il tag e' X e l'eseguibile
+            # dichiara Y» e i due erano identici.
+            throw "il tag e' $tag e l'eseguibile dichiara ${detta}: aggiorna VERSIONE in core/versione.py, oppure il tag"
           }
 
       - name: Lo zip da scaricare
